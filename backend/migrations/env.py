@@ -13,11 +13,15 @@ from alembic import context
 
 config = context.config
 
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+
 if config.config_file_name is not None:
     pass
     # fileConfig(config.config_file_name)
 
-from main import Base
+from app.db.base import Base
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
