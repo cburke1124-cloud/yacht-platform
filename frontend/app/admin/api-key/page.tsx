@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { Key, Copy, Trash2, Eye, EyeOff, AlertCircle, CheckCircle, RefreshCw, Shield, Lock } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';

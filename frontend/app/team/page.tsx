@@ -203,7 +203,7 @@ export default function TeamManagementPage() {
           </div>
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90">
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90"
           >
             <Plus size={20} />
             Invite Team Member

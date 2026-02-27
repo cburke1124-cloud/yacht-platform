@@ -508,7 +508,7 @@ export default function SalesRepDashboard() {
                       <td className="px-6 py-4">
                         <button
                           onClick={() => setSelectedDealer(dealer)}
-                          className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1">
+                          className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1"
                         >
                           <BarChart3 size={16} />
                           View Details
