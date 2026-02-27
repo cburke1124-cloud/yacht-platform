@@ -308,6 +308,7 @@ def get_listings(
         )
     except Exception:
         logger.exception("Primary listings ORM query failed; trying raw SQL fallbacks")
+        db.rollback()
 
         params = {"limit": limit, "skip": skip, "status": status}
 
@@ -350,6 +351,7 @@ def get_listings(
             ]
         except Exception:
             logger.exception("Fallback A failed; trying minimal listings query")
+            db.rollback()
 
         # Fallback B: minimal query without status/featured assumptions.
         try:

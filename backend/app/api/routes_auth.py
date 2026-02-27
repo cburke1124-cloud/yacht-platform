@@ -85,8 +85,9 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
             {"email": user_data.email},
         ).first()
     except Exception:
-        # Fallback to ORM if direct SQL check is unavailable for any reason
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
+        db.rollback()
+        message = "Database is not initialized. Run migrations (alembic upgrade head) on the configured DATABASE_URL."
+        raise HTTPException(status_code=503, detail=message)
 
     if existing_user is not None:
         raise ValidationException("Email already registered")
@@ -144,7 +145,14 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         db.rollback()
         logger.exception("ORM user creation failed; trying reflected users-table insert")
 
-        user_columns = {col["name"] for col in inspect(db.bind).get_columns("users")}
+        inspector = inspect(db.bind)
+        if "users" not in inspector.get_table_names():
+            raise HTTPException(
+                status_code=503,
+                detail="Database is not initialized. Missing users table. Run alembic upgrade head.",
+            )
+
+        user_columns = {col["name"] for col in inspector.get_columns("users")}
         raw_payload = {
             "email": user_data.email,
             "password_hash": hashed_password,
@@ -346,16 +354,26 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(user_data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_data.email).first()
+    try:
+        row = db.execute(
+            text("SELECT id, email, password_hash, COALESCE(active, true) AS active FROM users WHERE email = :email LIMIT 1"),
+            {"email": user_data.email},
+        ).mappings().first()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Database is not initialized. Missing users table. Run alembic upgrade head.",
+        )
 
-    if not user or not verify_password(user_data.password, user.password_hash):
+    if not row or not verify_password(user_data.password, row.get("password_hash") or ""):
         raise AuthenticationException("Incorrect email or password")
 
-    if not user.active:
+    if not bool(row.get("active", True)):
         raise AuthorizationException("User account is inactive")
 
     access_token = create_access_token(
-        data={"sub": user.email},
+        data={"sub": row.get("email")},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
