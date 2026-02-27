@@ -16,7 +16,16 @@ interface FeatureListingModalProps {
   onSuccess: () => void;
 }
 
-const PLANS = {
+type FeaturePlan = {
+  name: string;
+  price: number;
+  days: number;
+  description: string;
+  color: string;
+  popular?: boolean;
+};
+
+const PLANS: Record<'7day' | '30day' | '90day', FeaturePlan> = {
   '7day': { 
     name: '7 Days', 
     price: 49, 
