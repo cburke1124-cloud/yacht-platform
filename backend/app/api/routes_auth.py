@@ -335,34 +335,34 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
             db.rollback()
             logger.exception("Post-registration provisioning failed for user %s; continuing", user.id)
 
-    token = None
-    try:
-        token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(hours=24)
-
-        verification = EmailVerification(
-            user_id=user.id,
-            token=token,
-            expires_at=expires_at
-        )
-        db.add(verification)
-        db.commit()
-    except Exception:
-        db.rollback()
         token = None
-        logger.exception("Email verification token creation failed for user %s", user.id)
-
-    if token:
         try:
-            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
-            email_service.send_verification_email(
-                to_email=user.email,
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.utcnow() + timedelta(hours=24)
+
+            verification = EmailVerification(
+                user_id=user.id,
                 token=token,
-                user_name=user_name
+                expires_at=expires_at
             )
+            db.add(verification)
+            db.commit()
         except Exception:
-            logger.exception("Verification email send failed for user %s", user.id)
-    
+            db.rollback()
+            token = None
+            logger.exception("Email verification token creation failed for user %s", user.id)
+
+        if token:
+            try:
+                user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+                email_service.send_verification_email(
+                    to_email=user.email,
+                    token=token,
+                    user_name=user_name
+                )
+            except Exception:
+                logger.exception("Verification email send failed for user %s", user.id)
+
         access_token = create_access_token(
             data={"sub": user.email},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
