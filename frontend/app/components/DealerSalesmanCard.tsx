@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-                className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
 import { apiUrl } from '@/app/lib/apiRoot';
+import { Award, Building2, Mail, MapPin, MessageSquare, Phone, User } from 'lucide-react';
 
 interface DealerSalesmanCardProps {
   listingId: number;
@@ -36,23 +36,23 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchContactInfo = async () => {
+      try {
+        const response = await fetch(apiUrl(`/listings/${listingId}/contact-info`));
+        if (response.ok) {
+          const data = await response.json();
+          setDealer(data.dealer);
+          setSalesman(data.salesman);
+        }
+      } catch (error) {
+        console.error('Failed to fetch contact info:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchContactInfo();
   }, [listingId]);
-
-  const fetchContactInfo = async () => {
-    try {
-      const response = await fetch(apiUrl(`/listings/${listingId}/contact-info`));
-      if (response.ok) {
-        const data = await response.json();
-        setDealer(data.dealer);
-        setSalesman(data.salesman);
-      }
-    } catch (error) {
-      console.error('Failed to fetch contact info:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -67,8 +67,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
   if (!dealer) return null;
 
   return (
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-primary/20">
-      {/* Dealer Header */}
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-primary/20">
       <div className="bg-secondary p-6 text-light">
         <div className="flex items-center gap-4">
           {dealer.logo_url ? (
@@ -96,7 +95,6 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Salesman Info (if different from dealer) */}
         {salesman && (
           <div className="pb-6 border-b border-primary/20">
             <div className="flex items-start gap-4">
@@ -111,7 +109,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
                   <User size={28} className="text-primary" />
                 </div>
               )}
-              
+
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
                   Your Sales Representative
@@ -119,21 +117,16 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
                 <h4 className="font-bold text-lg text-gray-900">
                   {salesman.first_name} {salesman.last_name}
                 </h4>
-                {salesman.title && (
-                  <p className="text-sm text-gray-600">{salesman.title}</p>
-                )}
-                {salesman.bio && (
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">{salesman.bio}</p>
-                )}
+                {salesman.title && <p className="text-sm text-gray-600">{salesman.title}</p>}
+                {salesman.bio && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{salesman.bio}</p>}
               </div>
             </div>
 
-            {/* Salesman Contact */}
             <div className="mt-4 space-y-2">
               <a
                 href={`mailto:${salesman.email}`}
                 className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
-                </div>
+              >
                 <div className="w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
                   <Mail size={16} className="text-primary" />
                 </div>
@@ -145,11 +138,8 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
 
               {salesman.phone && (
                 <a
-                className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
+                  href={`tel:${salesman.phone}`}
                   className="flex items-center gap-3 text-gray-700 hover:text-green-600 transition-colors group p-2 rounded-lg hover:bg-green-50"
-                <div className="w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
-                  <Phone size={16} className="text-primary" />
-                </div>
                 >
                   <div className="w-8 h-8 rounded-lg bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition-colors">
                     <Phone size={16} className="text-green-600" />
@@ -164,7 +154,6 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
           </div>
         )}
 
-        {/* Dealer Contact */}
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Dealership Contact
@@ -172,7 +161,10 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
           <div className="space-y-2">
             <a
               href={`mailto:${dealer.email}`}
-              className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5\">\n              <div className=\"w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors\">\n                <Mail size={16} className=\"text-primary\" />
+              className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
+            >
+              <div className="w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+                <Mail size={16} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500">Main Email</p>
@@ -182,7 +174,10 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
 
             <a
               href={`tel:${dealer.phone}`}
-              className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5\">\n              <div className=\"w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors\">\n                <Phone size={16} className=\"text-primary\" />
+              className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
+            >
+              <div className="w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+                <Phone size={16} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500">Main Phone</p>
@@ -192,7 +187,6 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="space-y-2 pt-4 border-t border-primary/20">
           <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-light rounded-lg hover-primary transition-colors font-semibold shadow-md hover:shadow-lg">
             <MessageSquare size={18} />
@@ -210,7 +204,6 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
           )}
         </div>
 
-        {/* Trust Badge */}
         <div className="pt-4 border-t border-primary/20">
           <div className="flex items-center justify-center gap-2 text-sm text-primary bg-primary/10 px-4 py-2 rounded-lg">
             <Award size={16} />
