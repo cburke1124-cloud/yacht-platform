@@ -7,6 +7,7 @@ type MediaItem = {
   filename: string;
   url: string;
   thumbnail_url?: string;
+  alt_text?: string;
   file_type: 'image' | 'video' | 'pdf';
   file_size_mb: number;
   owner_id: number;
