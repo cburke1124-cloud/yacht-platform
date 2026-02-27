@@ -1,6 +1,7 @@
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index, func, JSON
 )
+import sqlalchemy.dialects.postgresql
 from sqlalchemy.orm import relationship, deferred
 from datetime import datetime
 
