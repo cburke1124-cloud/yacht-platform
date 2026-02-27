@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import ProgrammingError
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
@@ -81,8 +81,8 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     try:
         existing_user = db.query(User).filter(User.email == user_data.email).first()
     except ProgrammingError:
-        db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR")
-        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_verification_token ON users (verification_token)")
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR"))
+        db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_verification_token ON users (verification_token)"))
         db.commit()
         existing_user = db.query(User).filter(User.email == user_data.email).first()
 
@@ -137,135 +137,147 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    prefs = UserPreferences(user_id=user.id)
-    prefs.email_marketing = bool(user_data.marketing_opt_in)
-    prefs.email_new_message = True
-    prefs.email_new_inquiry = True
-    prefs.push_new_message = True
-    prefs.push_new_inquiry = True
-    prefs.app_new_message = True
-    prefs.app_new_inquiry = True
+    effective_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
 
-    existing_permissions = user.permissions or {}
+    try:
+        prefs = UserPreferences(user_id=user.id)
+        prefs.email_marketing = bool(user_data.marketing_opt_in)
+        prefs.email_new_message = True
+        prefs.email_new_inquiry = True
+        prefs.push_new_message = True
+        prefs.push_new_inquiry = True
+        prefs.app_new_message = True
+        prefs.app_new_inquiry = True
 
-    base_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
-    effective_monthly_price = base_monthly_price
-    free_access_until = None
+        existing_permissions = user.permissions or {}
 
-    if partner_deal:
-        effective_monthly_price = _apply_deal_price(base_monthly_price, partner_deal)
-        if partner_deal.free_days and partner_deal.free_days > 0:
-            free_access_until = (datetime.utcnow() + timedelta(days=int(partner_deal.free_days))).isoformat()
+        base_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
+        effective_monthly_price = base_monthly_price
+        free_access_until = None
 
-        if partner_deal.affiliate_account_id and not affiliate_account:
-            affiliate_account = db.query(AffiliateAccount).filter(
-                AffiliateAccount.id == partner_deal.affiliate_account_id,
-                AffiliateAccount.active == True,
-            ).first()
+        if partner_deal:
+            effective_monthly_price = _apply_deal_price(base_monthly_price, partner_deal)
+            if partner_deal.free_days and partner_deal.free_days > 0:
+                free_access_until = (datetime.utcnow() + timedelta(days=int(partner_deal.free_days))).isoformat()
 
-    existing_permissions.update({
-        "agreed_terms": True,
-        "agreed_communications": True,
-        "marketing_opt_in": bool(user_data.marketing_opt_in),
-        "consent_recorded_at": datetime.utcnow().isoformat(),
-        "effective_monthly_price": effective_monthly_price,
-    })
+            if partner_deal.affiliate_account_id and not affiliate_account:
+                affiliate_account = db.query(AffiliateAccount).filter(
+                    AffiliateAccount.id == partner_deal.affiliate_account_id,
+                    AffiliateAccount.active == True,
+                ).first()
 
-    if free_access_until:
-        existing_permissions["free_access_until"] = free_access_until
+        existing_permissions.update({
+            "agreed_terms": True,
+            "agreed_communications": True,
+            "marketing_opt_in": bool(user_data.marketing_opt_in),
+            "consent_recorded_at": datetime.utcnow().isoformat(),
+            "effective_monthly_price": effective_monthly_price,
+        })
 
-    if partner_deal:
-        existing_permissions["partner_deal"] = {
-            "id": partner_deal.id,
-            "code": partner_deal.code,
-            "name": partner_deal.name,
-            "term_months": partner_deal.term_months,
-            "lifetime": bool(partner_deal.lifetime),
-        }
+        if free_access_until:
+            existing_permissions["free_access_until"] = free_access_until
 
-    if affiliate_account:
-        existing_permissions["referral_source"] = {
-            "affiliate_account_id": affiliate_account.id,
-            "code": affiliate_account.code,
-            "account_type": affiliate_account.account_type,
-        }
+        if partner_deal:
+            existing_permissions["partner_deal"] = {
+                "id": partner_deal.id,
+                "code": partner_deal.code,
+                "name": partner_deal.name,
+                "term_months": partner_deal.term_months,
+                "lifetime": bool(partner_deal.lifetime),
+            }
 
-    user.permissions = existing_permissions
+        if affiliate_account:
+            existing_permissions["referral_source"] = {
+                "affiliate_account_id": affiliate_account.id,
+                "code": affiliate_account.code,
+                "account_type": affiliate_account.account_type,
+            }
 
-    db.add(prefs)
+        user.permissions = existing_permissions
 
-    if user.user_type == "dealer":
-        slug = create_slug(user.company_name or user.email, db, DealerProfile)
-        
-        profile_data = {
-            "user_id": user.id,
-            "name": f"{user.first_name} {user.last_name}",
-            "company_name": user.company_name,
-            "email": user.email,
-            "slug": slug,
-        }
-        
-        if hasattr(DealerProfile, 'phone'):
-            profile_data["phone"] = user.phone
-            
-        profile = DealerProfile(**profile_data)
-        db.add(profile)
-        
-        # ✅ GENERATE API KEY FOR DEALERS
-        try:
-            api_key = generate_api_key_for_dealer(
-                db=db,
-                dealer_id=user.id,
-                tier=user.subscription_tier
+        db.add(prefs)
+
+        if user.user_type == "dealer":
+            slug = create_slug(user.company_name or user.email, db, DealerProfile)
+
+            profile_data = {
+                "user_id": user.id,
+                "name": f"{user.first_name} {user.last_name}",
+                "company_name": user.company_name,
+                "email": user.email,
+                "slug": slug,
+            }
+
+            if hasattr(DealerProfile, 'phone'):
+                profile_data["phone"] = user.phone
+
+            profile = DealerProfile(**profile_data)
+            db.add(profile)
+
+            try:
+                api_key = generate_api_key_for_dealer(
+                    db=db,
+                    dealer_id=user.id,
+                    tier=user.subscription_tier
+                )
+
+                dealer_name = user.company_name or f"{user.first_name} {user.last_name}"
+                email_service.send_api_key_email(
+                    to_email=user.email,
+                    dealer_name=dealer_name,
+                    api_key=api_key.raw_key,
+                    tier=user.subscription_tier
+                )
+                logger.info(f"Generated and emailed API key for dealer {user.id}")
+
+            except Exception as e:
+                logger.error(f"Failed to generate/send API key for dealer {user.id}: {e}")
+
+        if affiliate_account:
+            signup = ReferralSignup(
+                dealer_user_id=user.id,
+                source_type="sales_rep" if affiliate_account.account_type == "sales_rep" else "affiliate",
+                sales_rep_id=affiliate_account.user_id if affiliate_account.account_type == "sales_rep" else assigned_sales_rep_id,
+                affiliate_account_id=affiliate_account.id,
+                deal_id=partner_deal.id if partner_deal else None,
+                referral_code_used=affiliate_account.code,
+                effective_monthly_price=effective_monthly_price,
+                commission_rate=affiliate_account.commission_rate or 10.0,
             )
-            
-            # Send API key via email (only shown once!)
-            dealer_name = user.company_name or f"{user.first_name} {user.last_name}"
-            email_service.send_api_key_email(
-                to_email=user.email,
-                dealer_name=dealer_name,
-                api_key=api_key.raw_key,
-                tier=user.subscription_tier
-            )
-            logger.info(f"Generated and emailed API key for dealer {user.id}")
-            
-        except Exception as e:
-            logger.error(f"Failed to generate/send API key for dealer {user.id}: {e}")
-    
-    if affiliate_account:
-        signup = ReferralSignup(
-            dealer_user_id=user.id,
-            source_type="sales_rep" if affiliate_account.account_type == "sales_rep" else "affiliate",
-            sales_rep_id=affiliate_account.user_id if affiliate_account.account_type == "sales_rep" else assigned_sales_rep_id,
-            affiliate_account_id=affiliate_account.id,
-            deal_id=partner_deal.id if partner_deal else None,
-            referral_code_used=affiliate_account.code,
-            effective_monthly_price=effective_monthly_price,
-            commission_rate=affiliate_account.commission_rate or 10.0,
+            db.add(signup)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Post-registration provisioning failed for user %s; continuing", user.id)
+
+    token = None
+    try:
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+
+        verification = EmailVerification(
+            user_id=user.id,
+            token=token,
+            expires_at=expires_at
         )
-        db.add(signup)
+        db.add(verification)
+        db.commit()
+    except Exception:
+        db.rollback()
+        token = None
+        logger.exception("Email verification token creation failed for user %s", user.id)
 
-    db.commit()
-
-    # Generate verification token
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(hours=24)
-
-    verification = EmailVerification(
-        user_id=user.id,
-        token=token,
-        expires_at=expires_at
-    )
-    db.add(verification)
-    db.commit()
-
-    # Send verification email
-    user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
-    email_service.send_verification_email(
-        to_email=user.email,
-        token=token,
-        user_name=user_name
-    )
+    if token:
+        try:
+            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+            email_service.send_verification_email(
+                to_email=user.email,
+                token=token,
+                user_name=user_name
+            )
+        except Exception:
+            logger.exception("Verification email send failed for user %s", user.id)
     
     access_token = create_access_token(
         data={"sub": user.email},
