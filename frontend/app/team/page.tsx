@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { Users, Plus, Edit, Trash2, Shield } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
