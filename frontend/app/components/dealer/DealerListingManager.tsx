@@ -31,7 +31,7 @@ interface TeamMember {
 interface QuickEditDraft {
   title: string;
   price: string;
-  status: string;
+  status: Listing['status'];
 }
 
 export default function DealerListingsManager() {
@@ -164,7 +164,11 @@ export default function DealerListingsManager() {
     const draft = quickEdits[listingId];
     if (!draft) return;
 
-    const payload: Record<string, unknown> = {
+    const payload: {
+      title: string;
+      status: Listing['status'];
+      price?: number | null;
+    } = {
       title: draft.title.trim(),
       status: draft.status
     };
@@ -202,8 +206,8 @@ export default function DealerListingsManager() {
         listing.id === listingId
           ? {
               ...listing,
-              title: String(payload.title ?? listing.title),
-              status: String(payload.status ?? listing.status),
+              title: payload.title || listing.title,
+              status: payload.status,
               price: payload.price == null ? undefined : Number(payload.price)
             }
           : listing
