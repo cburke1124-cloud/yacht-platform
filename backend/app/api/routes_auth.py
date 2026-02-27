@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
 import secrets
 import logging
+from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import ProgrammingError
-from sqlalchemy import func, text
+from sqlalchemy import func, text, inspect
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
@@ -79,14 +80,15 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         raise ValidationException("You must agree to receive account communications")
 
     try:
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
-    except ProgrammingError:
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR"))
-        db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_verification_token ON users (verification_token)"))
-        db.commit()
+        existing_user = db.execute(
+            text("SELECT id FROM users WHERE email = :email LIMIT 1"),
+            {"email": user_data.email},
+        ).first()
+    except Exception:
+        # Fallback to ORM if direct SQL check is unavailable for any reason
         existing_user = db.query(User).filter(User.email == user_data.email).first()
 
-    if existing_user:
+    if existing_user is not None:
         raise ValidationException("Email already registered")
 
     affiliate_account = None
@@ -122,20 +124,75 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
     hashed_password = get_password_hash(user_data.password)
 
-    user = User(
-        email=user_data.email,
-        password_hash=hashed_password,
-        first_name=user_data.first_name,
-        last_name=user_data.last_name,
-        phone=user_data.phone,
-        user_type=user_data.user_type,
-        company_name=user_data.company_name,
-        subscription_tier=user_data.subscription_tier or "free",
-        assigned_sales_rep_id=assigned_sales_rep_id,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    user = None
+    try:
+        user = User(
+            email=user_data.email,
+            password_hash=hashed_password,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            phone=user_data.phone,
+            user_type=user_data.user_type,
+            company_name=user_data.company_name,
+            subscription_tier=user_data.subscription_tier or "free",
+            assigned_sales_rep_id=assigned_sales_rep_id,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        db.rollback()
+        logger.exception("ORM user creation failed; trying reflected users-table insert")
+
+        user_columns = {col["name"] for col in inspect(db.bind).get_columns("users")}
+        raw_payload = {
+            "email": user_data.email,
+            "password_hash": hashed_password,
+            "first_name": user_data.first_name,
+            "last_name": user_data.last_name,
+            "phone": user_data.phone,
+            "user_type": user_data.user_type,
+            "company_name": user_data.company_name,
+            "subscription_tier": user_data.subscription_tier or "free",
+            "assigned_sales_rep_id": assigned_sales_rep_id,
+            "active": True,
+            "created_at": datetime.utcnow(),
+        }
+        insertable = {k: v for k, v in raw_payload.items() if k in user_columns}
+
+        required = {"email", "password_hash"}
+        if not required.issubset(user_columns):
+            raise HTTPException(status_code=500, detail="Users table missing required columns for registration")
+
+        fields = ", ".join(insertable.keys())
+        placeholders = ", ".join([f":{k}" for k in insertable.keys()])
+        row = db.execute(
+            text(f"INSERT INTO users ({fields}) VALUES ({placeholders}) RETURNING id"),
+            insertable,
+        ).first()
+        db.commit()
+
+        user_id = row[0] if row else None
+        if user_id is None:
+            raise HTTPException(status_code=500, detail="Registration insert failed")
+
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+        except Exception:
+            user = None
+
+        if user is None:
+            user = SimpleNamespace(
+                id=user_id,
+                email=user_data.email,
+                first_name=user_data.first_name,
+                last_name=user_data.last_name,
+                phone=user_data.phone,
+                user_type=user_data.user_type,
+                company_name=user_data.company_name,
+                subscription_tier=user_data.subscription_tier or "free",
+                permissions={},
+            )
 
     effective_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
 
