@@ -1,10 +1,13 @@
 'use client';
 
+import type { CSSProperties } from 'react';
+
 // Base Skeleton Component
-export function Skeleton({ className = '', width, height }: { 
+export function Skeleton({ className = '', width, height, style }: { 
   className?: string; 
   width?: string; 
   height?: string;
+  style?: CSSProperties;
 }) {
   return (
     <div
@@ -12,7 +15,8 @@ export function Skeleton({ className = '', width, height }: {
       style={{ 
         width, 
         height,
-        animation: 'shimmer 2s infinite'
+        animation: 'shimmer 2s infinite',
+        ...style
       }}
     />
   );
