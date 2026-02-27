@@ -14,7 +14,7 @@ logger = logging.getLogger("yachtversal")
 
 async def yachtversal_exception_handler(request: Request, exc: YachtVersalException):
     logger.warning(f"YachtVersal exception: {exc.message}")
-    response = {"error": exc.message, "status_code": exc.status_code}
+    response = {"error": exc.message, "detail": exc.message, "status_code": exc.status_code}
     if hasattr(exc, "details") and exc.details:
         response["details"] = exc.details
     return JSONResponse(status_code=exc.status_code, content=response)
