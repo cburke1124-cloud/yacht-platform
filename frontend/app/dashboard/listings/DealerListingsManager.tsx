@@ -33,7 +33,7 @@ interface TeamMember {
 interface QuickEditDraft {
   title: string;
   price: string;
-  status: string;
+  status: Listing['status'];
 }
 
 interface DealerListingsManagerProps {
@@ -162,11 +162,12 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   };
 
   const updateQuickEditField = (listingId: number, field: keyof QuickEditDraft, value: string) => {
+    const normalizedValue = field === 'status' ? (value as Listing['status']) : value;
     setQuickEdits(prev => ({
       ...prev,
       [listingId]: {
         ...(prev[listingId] || { title: '', price: '', status: 'draft' }),
-        [field]: value
+        [field]: normalizedValue
       }
     }));
   };
@@ -175,7 +176,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     const draft = quickEdits[listingId];
     if (!draft) return;
 
-    const payload: Record<string, unknown> = {
+    const payload: {
+      title: string;
+      status: Listing['status'];
+      price?: number | null;
+    } = {
       title: draft.title.trim(),
       status: draft.status
     };
@@ -213,8 +218,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         listing.id === listingId
           ? {
               ...listing,
-              title: String(payload.title ?? listing.title),
-              status: String(payload.status ?? listing.status),
+              title: payload.title,
+              status: payload.status,
               price: payload.price == null ? undefined : Number(payload.price)
             }
           : listing

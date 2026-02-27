@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Check, Loader2 } from 'lucide-react';
@@ -63,7 +63,7 @@ const PAID_PRIVATE_TIERS = new Set(['private_basic', 'private_plus', 'private_pr
 type DealerTierKey = keyof typeof DEALER_TIERS;
 type PrivateTierKey = keyof typeof PRIVATE_TIERS;
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -591,5 +591,23 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function RegisterLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-section-light to-soft py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto text-center">
+        <Loader2 size={24} className="animate-spin mx-auto text-primary" />
+      </div>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<RegisterLoading />}>
+      <RegisterContent />
+    </Suspense>
   );
 }

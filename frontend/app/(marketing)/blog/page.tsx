@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Clock, Eye, Tag, Calendar, ChevronRight } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
-export default function BlogPage() {
+function BlogContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -265,5 +265,17 @@ export default function BlogPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function BlogLoading() {
+  return <div className="min-h-screen section-light" />;
+}
+
+export default function BlogPage() {
+  return (
+    <Suspense fallback={<BlogLoading />}>
+      <BlogContent />
+    </Suspense>
   );
 }

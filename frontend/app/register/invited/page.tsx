@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
@@ -13,7 +13,7 @@ interface InvitationData {
   expires_at: string;
 }
 
-export default function InvitedSignupPage() {
+function InvitedSignupContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
@@ -100,14 +100,7 @@ export default function InvitedSignupPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center section-light">
-        <div className="text-center">
-          <Loader2 className="animate-spin mx-auto mb-4 text-primary" size={48} />
-          <p className="text-dark/70">Validating invitation...</p>
-        </div>
-      </div>
-    );
+    return <InvitationLoading />;
   }
 
   if (error && !invitationData) {
@@ -203,5 +196,24 @@ export default function InvitedSignupPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function InvitationLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center section-light">
+      <div className="text-center">
+        <Loader2 className="animate-spin mx-auto mb-4 text-primary" size={48} />
+        <p className="text-dark/70">Validating invitation...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function InvitedSignupPage() {
+  return (
+    <Suspense fallback={<InvitationLoading />}>
+      <InvitedSignupContent />
+    </Suspense>
   );
 }

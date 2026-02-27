@@ -23,6 +23,8 @@ export interface User {
   };
 }
 
+type PermissionKey = keyof NonNullable<User['permissions']>;
+
 export function useAuth() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -144,7 +146,7 @@ export function useAuth() {
     }
   };
 
-  const hasPermission = (permission: keyof User['permissions']): boolean => {
+  const hasPermission = (permission: PermissionKey): boolean => {
     if (!user) return false;
     
     // Admins have all permissions

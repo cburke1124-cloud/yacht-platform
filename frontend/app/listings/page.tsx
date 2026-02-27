@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle } from 'lucide-react';
 import ListingCard from '../components/ListingCard';
@@ -172,7 +172,7 @@ function AISearchBox({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function UnifiedListingsPage() {
+function UnifiedListingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -717,6 +717,18 @@ export default function UnifiedListingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ListingsLoading() {
+  return <div className="min-h-screen section-light" />;
+}
+
+export default function UnifiedListingsPage() {
+  return (
+    <Suspense fallback={<ListingsLoading />}>
+      <UnifiedListingsContent />
+    </Suspense>
   );
 }
 
