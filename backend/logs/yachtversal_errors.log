@@ -1,0 +1,1134 @@
+2026-01-01 16:01:26 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1461
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:02:11 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1461
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:07:11 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1461
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:12:12 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1461
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:12:44 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1461
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:17:44 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1461
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:22:44 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1460
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:32:44 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1456
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:52:34 - [914a8e07-f016-4e0f-bc64-95e2045beae2] - error_handler - ERROR - RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+    raise e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\routing.py", line 272, in app
+    raise RequestValidationError(_normalize_errors(errors), body=body)
+fastapi.exceptions.RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+2026-01-01 16:52:36 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:53:08 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:53:40 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:54:12 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:54:44 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 16:55:16 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 17:05:16 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1462
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 17:49:49 - [0315d133-c4a0-482a-8359-279be4ff5c0a] - error_handler - ERROR - RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+    raise e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\routing.py", line 272, in app
+    raise RequestValidationError(_normalize_errors(errors), body=body)
+fastapi.exceptions.RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+2026-01-01 17:49:51 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1480
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 17:54:51 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1495
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 19:19:43 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1759
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 20:19:43 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1759
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 20:31:23 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1759
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 20:46:57 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1759
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 20:51:30 - [101fce6a-8399-4641-a6b6-bfaa813f0e5e] - error_handler - ERROR - RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+    raise e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\routing.py", line 272, in app
+    raise RequestValidationError(_normalize_errors(errors), body=body)
+fastapi.exceptions.RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+2026-01-01 20:51:32 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1759
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 20:55:08 - [6a74a80a-d7ed-4dbf-85fd-b4ee9dc2daa9] - error_handler - ERROR - RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+    raise e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\routing.py", line 272, in app
+    raise RequestValidationError(_normalize_errors(errors), body=body)
+fastapi.exceptions.RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+2026-01-01 21:01:33 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1779
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:02:39 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1779
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:02:46 - [03ae8783-4104-4008-9582-ca41cd7c3018] - error_handler - ERROR - RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 20, in __call__
+    raise e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 17, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 718, in __call__
+    await route.handle(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\routing.py", line 66, in app
+    response = await func(request)
+               ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\routing.py", line 272, in app
+    raise RequestValidationError(_normalize_errors(errors), body=body)
+fastapi.exceptions.RequestValidationError: [{'type': 'missing', 'loc': ('query', 'args'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}, {'type': 'missing', 'loc': ('query', 'kwargs'), 'msg': 'Field required', 'input': None, 'url': 'https://errors.pydantic.dev/2.9/v/missing'}]
+2026-01-01 21:07:40 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1845
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:08:00 - [767f4415-5cd3-4fe9-b6d3-13f3310b62d0] - error_handler - ERROR - ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-01-01 21:12:40 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1845
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:13:58 - [ce89b775-01a9-4b50-83e7-b91b790ea09b] - error_handler - ERROR - ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-01-01 21:14:27 - [2e74eac4-30db-402f-9c8b-c76ca1489068] - error_handler - ERROR - ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-01-01 21:17:40 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1845
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:19:43 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1845
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:20:53 - [98a38705-6719-482d-bb62-2096bfd06eca] - main - ERROR - Failed to auto-patch users table: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+C:\Users\cburk\yacht-platform\backend\main.py:2049
+Failed to auto-patch users table: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\main.py", line 2039, in register
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2748, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2847, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2190, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 293, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 516, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2343, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\main.py", line 2044, in register
+    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR"))
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2199, in _execute_internal
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 516, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2343, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+2026-01-01 21:20:53 - [98a38705-6719-482d-bb62-2096bfd06eca] - error_handler - ERROR - InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\main.py", line 2039, in register
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2748, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2847, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2190, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 293, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 516, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2343, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column users.verification_token does not exist
+LINE 1: ...users_parent_dealer_id, users.role AS users_role, users.veri...
+                                                             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'cburke@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+2026-01-01 21:20:54 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1845
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:42:24 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\migrations/..\main.py:1845
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:46:18 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\migrations/..\main.py:1846
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:47:57 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\migrations/..\main.py:1846
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 21:59:33 - [c5a8d21e-ac0c-4f28-8b58-102f28ee046e] - main - ERROR - Failed to auto-patch users table: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+C:\Users\cburk\yacht-platform\backend\main.py:2049
+Failed to auto-patch users table: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedTable: relation "users" does not exist
+LINE 2: FROM users 
+             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\main.py", line 2039, in register
+    try:
+        
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2748, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2847, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2190, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 293, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 516, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2343, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedTable) relation "users" does not exist
+LINE 2: FROM users 
+             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'admin@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\main.py", line 2044, in register
+    try:
+        
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2199, in _execute_internal
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 516, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2343, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+2026-01-01 21:59:33 - [c5a8d21e-ac0c-4f28-8b58-102f28ee046e] - error_handler - ERROR - InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedTable: relation "users" does not exist
+LINE 2: FROM users 
+             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\main.py", line 2039, in register
+    try:
+        
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2748, in first
+    return self.limit(1)._iter().first()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2847, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2190, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 293, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 516, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2343, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedTable) relation "users" does not exist
+LINE 2: FROM users 
+             ^
+
+[SQL: SELECT users.id AS users_id, users.email AS users_email, users.password_hash AS users_password_hash, users.first_name AS users_first_name, users.last_name AS users_last_name, users.phone AS users_phone, users.user_type AS users_user_type, users.company_name AS users_company_name, users.subscription_tier AS users_subscription_tier, users.verified AS users_verified, users.active AS users_active, users.created_at AS users_created_at, users.parent_dealer_id AS users_parent_dealer_id, users.role AS users_role, users.verification_token AS users_verification_token, users.email_verified AS users_email_verified, users.email_verified_at AS users_email_verified_at, users.two_factor_enabled AS users_two_factor_enabled, users.trial_active AS users_trial_active, users.trial_converted AS users_trial_converted, users.trial_end_date AS users_trial_end_date, users.assigned_sales_rep_id AS users_assigned_sales_rep_id, users.permissions AS users_permissions 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'admin@yachtversal.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+sqlalchemy.exc.InternalError: (psycopg2.errors.InFailedSqlTransaction) current transaction is aborted, commands ignored until end of transaction block
+
+[SQL: ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR]
+(Background on this error at: https://sqlalche.me/e/20/2j85)
+2026-01-01 22:03:33 - [a04fd626-24d4-499f-9d6f-09ec7c1a5e07] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 22:03:51 - [c553d483-5e7a-4d70-a656-9fa0d52082d1] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 22:04:47 - [91b80d35-b5dc-4737-8877-1136c4c41cbd] - error_handler - ERROR - HTTPException: 
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+HTTPException: 
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+fastapi.exceptions.HTTPException
+2026-01-01 22:07:20 - [a046d722-bebf-4a28-af4b-f53e83751be7] - error_handler - ERROR - HTTPException: 
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+HTTPException: 
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+fastapi.exceptions.HTTPException
+2026-01-01 22:08:15 - [f2fc5a47-afea-44ad-9554-6ccae4edb43d] - error_handler - ERROR - HTTPException: 
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+HTTPException: 
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+fastapi.exceptions.HTTPException
+2026-01-01 22:08:18 - [46f57080-1138-4ca4-8dd2-624e1ceed217] - error_handler - ERROR - HTTPException: 
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+HTTPException: 
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+fastapi.exceptions.HTTPException
+2026-01-01 22:59:52 - [22cc2e67-216c-4443-bd3b-68343554a30e] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 23:00:21 - [f1c0d3a0-5483-4f3d-bfdf-addb44e1b4b3] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 23:01:51 - [47dfbe10-4791-4149-99de-0dcd60e1d834] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 23:01:54 - [39c85a83-7cfe-4fb5-a15c-c4ba56daa53d] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 23:01:55 - [ed1adeea-4a74-4082-9a89-8ccc1da42b5e] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\rate_limiter.py", line 257, in __call__
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 23:02:44 - [68302bbc-60cf-4a73-baf3-d2ab8c004fd8] - error_handler - ERROR - HTTPException: 
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+HTTPException: 
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+fastapi.exceptions.HTTPException
+2026-01-01 23:02:57 - [1e9fb17c-a45a-47bd-8e04-97973858165b] - error_handler - ERROR - HTTPException: 
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+HTTPException: 
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+fastapi.exceptions.HTTPException
+2026-01-01 23:03:21 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1761
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 23:04:09 - [08eab4ed-734b-4ddc-98ee-26bf653a1060] - error_handler - ERROR - ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 162, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 91, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\cors.py", line 146, in simple_response
+    await self.app(scope, receive, send)
+  File "C:\Users\cburk\yacht-platform\backend\error_handler.py", line 401, in __call__
+    await self.app(scope, receive, send_with_request_id)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 79, in __call__
+    raise exc
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+ValueError: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+2026-01-01 23:07:17 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1761
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-01 23:07:34 - [9c90f4f5-178e-4cb9-b21d-89a69750477a] - error_handler - ERROR - ValidationException: Password does not meet requirements
+C:\Users\cburk\yacht-platform\backend\error_handler.py:205
+ValidationException: Password does not meet requirements
+Traceback (most recent call last):
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 68, in __call__
+    await self.app(scope, receive, sender)
+  File "C:\Users\cburk\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 222, in __aexit__
+    await self.gen.athrow(typ, value, traceback)
+  File "C:\Users\cburk\yacht-platform\backend\venv\Lib\site-packages\fastapi\concurrency.py", line 36, in contextmanager_in_threadpool
+    raise e
+error_handler.ValidationException: Password does not meet requirements
+2026-01-02 10:08:23 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1803
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+
+2026-01-02 17:48:06 - [-] - main - ERROR - Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+C:\Users\cburk\yacht-platform\backend\main.py:1803
+Scraper init failed: Client.__init__() got an unexpected keyword argument 'proxies'
+

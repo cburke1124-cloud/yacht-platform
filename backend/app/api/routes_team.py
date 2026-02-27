@@ -1,0 +1,327 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
+from datetime import datetime, timedelta
+import secrets
+
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.models.user import User
+from app.models.listing import Listing
+from app.models.misc import Message
+from app.exceptions import AuthorizationException, ValidationException, ResourceNotFoundException
+from app.services.permissions import Permission, has_permission, TEAM_ROLE_PERMISSIONS, TeamMemberRole
+from app.security.auth import get_password_hash
+from app.services.email_service import email_service
+
+router = APIRouter()
+
+
+@router.get("/performance")
+def get_team_performance(
+    days: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Dealer-facing sales team snapshot and lead responsiveness metrics."""
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+
+    days = max(7, min(days, 180))
+    now = datetime.utcnow()
+    period_start = now - timedelta(days=days)
+    previous_start = period_start - timedelta(days=days)
+
+    members = db.query(User).filter(
+        User.parent_dealer_id == current_user.id,
+        User.active == True,
+    ).all()
+
+    member_ids = [member.id for member in members]
+    dealer_and_team_ids = [current_user.id] + member_ids
+
+    def inquiry_count_between(start: datetime, end: datetime) -> int:
+        return db.query(func.count(Message.id)).filter(
+            Message.parent_message_id.is_(None),
+            Message.message_type == "inquiry",
+            Message.recipient_id.in_(dealer_and_team_ids),
+            Message.created_at >= start,
+            Message.created_at < end,
+        ).scalar() or 0
+
+    current_period_leads = inquiry_count_between(period_start, now)
+    previous_period_leads = inquiry_count_between(previous_start, period_start)
+
+    members_payload = []
+    total_pending_inquiries = 0
+    response_rate_values = []
+
+    for member in members:
+        listing_query = db.query(Listing).filter(
+            or_(
+                Listing.user_id == member.id,
+                Listing.created_by_user_id == member.id,
+                Listing.assigned_salesman_id == member.id,
+            )
+        )
+
+        listings_total = listing_query.count()
+        listings_active = listing_query.filter(Listing.status == "active").count()
+
+        listing_stats = listing_query.with_entities(
+            func.coalesce(func.sum(Listing.views), 0).label("views"),
+            func.coalesce(func.sum(Listing.inquiries), 0).label("inquiries"),
+        ).first()
+
+        inquiries_total = db.query(func.count(Message.id)).filter(
+            Message.parent_message_id.is_(None),
+            Message.message_type == "inquiry",
+            Message.recipient_id == member.id,
+        ).scalar() or 0
+
+        inquiries_current_period = db.query(func.count(Message.id)).filter(
+            Message.parent_message_id.is_(None),
+            Message.message_type == "inquiry",
+            Message.recipient_id == member.id,
+            Message.created_at >= period_start,
+            Message.created_at <= now,
+        ).scalar() or 0
+
+        pending_inquiries = db.query(func.count(Message.id)).filter(
+            Message.parent_message_id.is_(None),
+            Message.message_type == "inquiry",
+            Message.recipient_id == member.id,
+            Message.status.in_(["new", "read"]),
+        ).scalar() or 0
+
+        replied_inquiries = db.query(func.count(Message.id)).filter(
+            Message.parent_message_id.is_(None),
+            Message.message_type == "inquiry",
+            Message.recipient_id == member.id,
+            Message.replied_at.isnot(None),
+        ).scalar() or 0
+
+        avg_response_seconds = db.query(
+            func.avg(func.extract('epoch', Message.replied_at - Message.created_at))
+        ).filter(
+            Message.parent_message_id.is_(None),
+            Message.message_type == "inquiry",
+            Message.recipient_id == member.id,
+            Message.replied_at.isnot(None),
+        ).scalar()
+
+        response_rate = (replied_inquiries / inquiries_total * 100.0) if inquiries_total > 0 else 0.0
+        avg_response_hours = (float(avg_response_seconds) / 3600.0) if avg_response_seconds else None
+
+        last_message_at = db.query(func.max(Message.created_at)).filter(
+            Message.recipient_id == member.id
+        ).scalar()
+
+        total_pending_inquiries += pending_inquiries
+        if inquiries_total > 0:
+            response_rate_values.append(response_rate)
+
+        members_payload.append({
+            "id": member.id,
+            "name": f"{member.first_name or ''} {member.last_name or ''}".strip() or member.email,
+            "email": member.email,
+            "role": member.role,
+            "listings_total": listings_total,
+            "listings_active": listings_active,
+            "views_total": int(listing_stats.views or 0),
+            "listing_inquiries_total": int(listing_stats.inquiries or 0),
+            "inquiries_total": inquiries_total,
+            "inquiries_current_period": inquiries_current_period,
+            "pending_inquiries": pending_inquiries,
+            "replied_inquiries": replied_inquiries,
+            "response_rate": round(response_rate, 1),
+            "avg_response_hours": round(avg_response_hours, 2) if avg_response_hours is not None else None,
+            "last_message_at": last_message_at.isoformat() if last_message_at else None,
+            "joined_at": member.created_at.isoformat() if member.created_at else None,
+            "active": member.active,
+        })
+
+    average_response_rate = (
+        round(sum(response_rate_values) / len(response_rate_values), 1)
+        if response_rate_values
+        else 0.0
+    )
+
+    lead_delta = current_period_leads - previous_period_leads
+    lead_delta_percent = (
+        round((lead_delta / previous_period_leads) * 100.0, 1)
+        if previous_period_leads > 0
+        else (100.0 if current_period_leads > 0 else 0.0)
+    )
+
+    return {
+        "range_days": days,
+        "summary": {
+            "team_members": len(members),
+            "period_leads": current_period_leads,
+            "previous_period_leads": previous_period_leads,
+            "lead_delta": lead_delta,
+            "lead_delta_percent": lead_delta_percent,
+            "pending_inquiries": total_pending_inquiries,
+            "average_response_rate": average_response_rate,
+        },
+        "members": sorted(
+            members_payload,
+            key=lambda m: (m["pending_inquiries"], -m["inquiries_current_period"]),
+            reverse=True,
+        ),
+    }
+
+
+@router.post("/invite")
+def invite_team_member(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invite a new team member."""
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission to manage team")
+
+    email = data.get("email")
+    if db.query(User).filter(User.email == email).first():
+        raise ValidationException("User already exists")
+
+    role = data.get("role", "salesperson")
+    if role not in TeamMemberRole.__members__.values():
+        role = "salesperson"
+
+    permissions = TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].copy()
+
+    if "permissions" in data:
+        permissions.update(data["permissions"])
+
+    temp_password = secrets.token_urlsafe(12)
+
+    member = User(
+        email=email,
+        password_hash=get_password_hash(temp_password),
+        first_name=data.get("first_name"),
+        last_name=data.get("last_name"),
+        phone=data.get("phone"),
+        user_type="team_member",
+        parent_dealer_id=current_user.id,
+        role=role,
+        permissions=permissions,
+        subscription_tier=current_user.subscription_tier,
+        active=True,
+    )
+
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    email_service.send_email(
+        to_email=email,
+        subject="Team Invitation - YachtVersal",
+        html_content=f"""
+        <h2>You've been invited to join {current_user.company_name or 'a team'} on YachtVersal!</h2>
+        <p>Your temporary password is: <code>{temp_password}</code></p>
+        <p>Please log in at <a href="https://yachtversal.com/login">https://yachtversal.com/login</a> and change your password.</p>
+        """,
+    )
+
+    return {"success": True, "member_id": member.id}
+
+
+@router.get("/members")
+def get_team_members(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get all team members for the current dealer."""
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+
+    members = db.query(User).filter(
+        User.parent_dealer_id == current_user.id,
+        User.active == True
+    ).all()
+
+    return [
+        {
+            "id": m.id,
+            "email": m.email,
+            "first_name": m.first_name,
+            "last_name": m.last_name,
+            "phone": m.phone,
+            "role": m.role,
+            "permissions": m.permissions or {},
+            "active": m.active,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in members
+    ]
+
+
+@router.put("/members/{member_id}/permissions")
+def update_member_permissions(
+    member_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update team member permissions."""
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+
+    member = (
+        db.query(User)
+        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .first()
+    )
+
+    if not member:
+        raise ResourceNotFoundException("Team member", member_id)
+
+    if "role" in data:
+        role = data["role"]
+        if role in TeamMemberRole.__members__.values():
+            member.role = role
+            member.permissions = TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].copy()
+
+    if "permissions" in data:
+        if member.permissions is None:
+            member.permissions = {}
+        member.permissions.update(data["permissions"])
+
+    db.commit()
+
+    return {"success": True, "permissions": member.permissions}
+
+
+@router.delete("/members/{member_id}")
+def remove_team_member(
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove a team member and transfer their listings to the dealer."""
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+
+    member = (
+        db.query(User)
+        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .first()
+    )
+
+    if not member:
+        raise ResourceNotFoundException("Team member", member_id)
+
+    # Transfer listings to dealer
+    from app.models.listing import Listing
+    db.query(Listing).filter(Listing.user_id == member_id).update(
+        {"user_id": current_user.id}
+    )
+
+    # Delete the team member
+    db.delete(member)
+    db.commit()
+
+    return {"success": True, "message": "Team member removed and listings transferred"}

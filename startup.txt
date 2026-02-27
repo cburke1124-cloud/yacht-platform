@@ -1,0 +1,6 @@
+frontend: cd C:\Users\cburk\yacht-platform\frontend
+		npm run dev
+
+backend: cd C:\Users\cburk\yacht-platform\backend
+		venv\Scripts\activate
+		python -m uvicorn main:app --reload --log-level debug

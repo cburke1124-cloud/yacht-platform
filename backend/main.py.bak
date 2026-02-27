@@ -1,0 +1,4452 @@
+"""
+Yacht_db Backend API
+FastAPI + PostgreSQL + JWT Authentication
+
+Installation:
+pip install fastapi uvicorn psycopg2-binary python-jose[cryptography] passlib[bcrypt] python-multipart sqlalchemy pydantic-settings python-dotenv beautifulsoup4 Pillow
+Run:
+uvicorn main:app --reload
+
+Database connection string format:
+postgresql://username:admin123@localhost:5432/yacht_db
+"""
+
+import os
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict
+from pathlib import Path
+from dotenv import load_dotenv
+from math import radians, cos, sin, asin, sqrt
+import json
+import uuid
+import shutil
+import requests
+from urllib.parse import urljoin
+import re
+
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, BackgroundTasks, Request, Form
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
+
+from sqlalchemy import create_engine, Column, Integer, String, Float, Text, Boolean, DateTime, ForeignKey, JSON, func
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, relationship
+
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from pydantic import BaseModel, EmailStr, HttpUrl
+
+# Additional security, rate limiting, and error handling imports
+from password_validator import (
+    PasswordValidator,
+    hash_password,
+    verify_password as verify_pwd,
+    PasswordChangeRequest
+)
+from rate_limiter import (
+    rate_limiter,
+    RateLimitConfig,
+    rate_limit,
+    RateLimitMiddleware
+)
+from error_handler import (
+    setup_logging,
+    error_logger,
+    RequestLoggingMiddleware,
+    yachtversal_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+    generic_exception_handler,
+    YachtVersalException,
+    ValidationException,
+    AuthenticationException,
+    AuthorizationException,
+    ResourceNotFoundException,
+    BusinessLogicException,
+    ExternalServiceException
+)
+
+from fastapi.staticfiles import StaticFiles
+from PIL import Image, ExifTags
+import stripe
+
+import csv
+import io
+import openpyxl
+from fastapi.responses import StreamingResponse
+from datetime import datetime
+
+# Import email service
+from email_service import email_service
+
+# Optional scraper import
+try:
+    from optimized_scraper import OptimizedYachtScraper
+except Exception:
+    OptimizedYachtScraper = None
+
+load_dotenv()
+
+# ======================
+# CONFIGURATION
+# ======================
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:admin123@localhost:5432/yacht_db")
+SECRET_KEY = os.getenv("SECRET_KEY", "admin123")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+# Stripe Configuration
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+# Claude API for scraper
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+
+print("App startup complete. DATABASE_URL =", DATABASE_URL)
+
+# ======================
+# LOGGING SETUP
+# ======================
+
+# Ensure logs directory exists
+Path("logs").mkdir(exist_ok=True)
+
+# REPLACE EXISTING LOGGING SETUP
+setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    log_file="logs/yachtversal.log",
+    json_logs=os.getenv("ENVIRONMENT") == "production"
+)
+
+logger = logging.getLogger(__name__) 
+
+# ======================
+# DATABASE SETUP
+# ======================
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# ======================
+# DATABASE MODELS
+# ======================
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    first_name = Column(String)
+    last_name = Column(String)
+    phone = Column(String)
+    user_type = Column(String, default="admin")  # admin, dealer, private, buyer, salesman
+    company_name = Column(String)
+    subscription_tier = Column(String, default="free")  # free, basic, premium, trial
+    verified = Column(Boolean, default=False)
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    parent_dealer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    role = Column(String, default="owner")  # owner, team_member, buyer
+
+    verification_token = Column(String, unique=True, nullable=True)
+    email_verified = Column(Boolean, default=False)
+    email_verified_at = Column(DateTime, nullable=True)
+    two_factor_enabled = Column(Boolean, default=False)
+
+    
+    # Trial system
+    trial_active = Column(Boolean, default=False)
+    trial_converted = Column(Boolean, default=False)
+    trial_end_date = Column(DateTime, nullable=True)
+    
+    # Sales rep tracking
+    assigned_sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Team permissions
+    permissions = Column(JSON, default={})
+
+    listings = relationship("Listing", back_populates="owner", foreign_keys="Listing.user_id")
+    created_listings = relationship("Listing", foreign_keys="Listing.created_by_user_id")
+    blog_posts = relationship("BlogPost", back_populates="author", cascade="all, delete-orphan")
+    dealer_profile = relationship("DealerProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    team_members = relationship("User", back_populates="parent_dealer", remote_side=[id], foreign_keys=[parent_dealer_id])
+    parent_dealer = relationship("User", remote_side=[id], foreign_keys=[parent_dealer_id], overlaps="team_members")
+    preferences = relationship("UserPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    saved_listings = relationship("SavedListing", back_populates="user", cascade="all, delete-orphan")
+    price_alerts = relationship("PriceAlert", back_populates="user", cascade="all, delete-orphan")
+    search_alerts = relationship("SearchAlert", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserPreferences(Base):
+    __tablename__ = "user_preferences"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    language = Column(String, default="en")  # en, es, fr, de, it, pt, zh
+    currency = Column(String, default="USD")  # USD, EUR, GBP, CAD, AUD, JPY, CNY, MXN
+    units = Column(String, default="imperial")  # imperial, metric
+    timezone = Column(String, default="America/New_York")
+    
+    user = relationship("User", back_populates="preferences")
+
+
+class DealerProfile(Base):
+    __tablename__ = "dealer_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    slug = Column(String, unique=True, index=True)
+    
+    # Business Information
+    name = Column(String, nullable=False)
+    company_name = Column(String)
+    email = Column(String)
+    phone = Column(String)
+    
+    # Location
+    address = Column(String)
+    city = Column(String)
+    state = Column(String)
+    country = Column(String, default="USA")
+    zip_code = Column(String)
+    
+    # Online Presence
+    website = Column(String)
+    description = Column(Text)
+    logo_url = Column(String)
+    
+    # Customization
+    banner_image = Column(String)
+    primary_color = Column(String, default="#1e40af")
+    about_section = Column(Text)
+    specialties = Column(JSON, default=[])
+    custom_css = Column(Text)
+    
+    # SEO
+    meta_title = Column(String)
+    meta_description = Column(String)
+    
+    # Status
+    verified = Column(Boolean, default=False)
+    active = Column(Boolean, default=True)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User", back_populates="dealer_profile")
+    team_members = relationship("TeamMember", back_populates="dealer", cascade="all, delete-orphan")
+    announcements = relationship("DealerAnnouncement", back_populates="dealer", cascade="all, delete-orphan")
+    reviews = relationship("DealerReview", back_populates="dealer", cascade="all, delete-orphan")
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    dealer_id = Column(Integer, ForeignKey("dealer_profiles.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    name = Column(String, nullable=False)
+    title = Column(String)
+    email = Column(String)
+    phone = Column(String)
+    photo_url = Column(String)
+    bio = Column(Text)
+    specialties = Column(JSON, default=[])
+    display_order = Column(Integer, default=0)
+    active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    dealer = relationship("DealerProfile", back_populates="team_members")
+
+
+class DealerAnnouncement(Base):
+    __tablename__ = "dealer_announcements"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    dealer_id = Column(Integer, ForeignKey("dealer_profiles.id"))
+    
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    announcement_type = Column(String, default="news")  # news, event, promotion
+    pinned = Column(Boolean, default=False)
+    expires_at = Column(DateTime, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    dealer = relationship("DealerProfile", back_populates="announcements")
+
+
+class DealerReview(Base):
+    __tablename__ = "dealer_reviews"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    dealer_id = Column(Integer, ForeignKey("dealer_profiles.id"))
+    
+    reviewer_name = Column(String, nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5
+    review_text = Column(Text)
+    verified_purchase = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    dealer = relationship("DealerProfile", back_populates="reviews")
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    token = Column(String, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EmailVerification(Base):
+    __tablename__ = "email_verifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    token = Column(String, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TwoFactorAuth(Base):
+    __tablename__ = "two_factor_auth"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    secret = Column(String)
+    backup_codes = Column(JSON)
+    enabled = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TwoFactorCode(Base):
+    __tablename__ = "two_factor_codes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    code = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    action = Column(String, nullable=False)
+    details = Column(JSON)
+    ip_address = Column(String)
+    user_agent = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class Listing(Base):
+    __tablename__ = "listings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_by_user_id = Column(Integer, ForeignKey("users.id"))
+
+    # Basic Info
+    title = Column(String, nullable=False)
+    make = Column(String)
+    model = Column(String)
+    year = Column(Integer)
+    price = Column(Float)
+    currency = Column(String, default="USD")
+
+    # Specifications
+    length_feet = Column(Float)
+    beam_feet = Column(Float)
+    draft_feet = Column(Float)
+    boat_type = Column(String)
+    hull_material = Column(String)
+    hull_type = Column(String)
+
+    # Engine & Performance
+    engine_make = Column(String)
+    engine_model = Column(String)
+    engine_type = Column(String)
+    engine_count = Column(Integer)
+    engine_hours = Column(Float)
+    fuel_type = Column(String)
+    max_speed_knots = Column(Float)
+    cruising_speed_knots = Column(Float)
+
+    # Capacity
+    cabins = Column(Integer)
+    berths = Column(Integer)
+    heads = Column(Integer)
+    fuel_capacity_gallons = Column(Float)
+    water_capacity_gallons = Column(Float)
+
+    # Location
+    city = Column(String)
+    state = Column(String)
+    country = Column(String, default="USA")
+    zip_code = Column(String)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    continent = Column(String)  # North America, Europe, Caribbean, etc.
+
+    # Description
+    description = Column(Text)
+    features = Column(Text)
+
+    # Condition & Status
+    condition = Column(String, default="used")
+    previous_owners = Column(Integer)
+    status = Column(String, default="active")
+    
+    # Featured/Sponsored
+    featured = Column(Boolean, default=False)
+    featured_until = Column(DateTime)
+    featured_priority = Column(Integer, default=0)
+    featured_plan = Column(String)  # "7day", "30day", "90day"
+
+    # Metadata
+    source = Column(String, default="manual")  # manual, broker_scrape
+    source_url = Column(Text)
+    views = Column(Integer, default=0)
+    inquiries = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    published_at = Column(DateTime)
+
+    owner = relationship("User", back_populates="listings", foreign_keys=[user_id])
+    creator = relationship("User", foreign_keys=[created_by_user_id])
+    images = relationship("ListingImage", back_populates="listing", cascade="all, delete-orphan")
+    saved_by = relationship("SavedListing", back_populates="listing", cascade="all, delete-orphan")
+
+
+class ListingImage(Base):
+    __tablename__ = "listing_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    listing_id = Column(Integer, ForeignKey("listings.id"))
+    url = Column(Text, nullable=False)
+    thumbnail_url = Column(Text)
+    filename = Column(String)
+    display_order = Column(Integer, default=0)
+    is_primary = Column(Boolean, default=False)
+    caption = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    listing = relationship("Listing", back_populates="images")
+
+
+class FeaturedListing(Base):
+    __tablename__ = "featured_listings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    listing_id = Column(Integer, ForeignKey("listings.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    plan = Column(String, nullable=False)  # "7day", "30day", "90day"
+    price_paid = Column(Float, nullable=False)
+    
+    started_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    
+    impressions = Column(Integer, default=0)
+    clicks = Column(Integer, default=0)
+    
+    stripe_payment_id = Column(String)
+    active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SavedListing(Base):
+    __tablename__ = "saved_listings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    listing_id = Column(Integer, ForeignKey("listings.id"))
+    
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="saved_listings")
+    listing = relationship("Listing", back_populates="saved_by")
+
+
+class PriceAlert(Base):
+    __tablename__ = "price_alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    listing_id = Column(Integer, ForeignKey("listings.id"))
+    
+    target_price = Column(Float, nullable=False)
+    original_price = Column(Float)
+    triggered = Column(Boolean, default=False)
+    triggered_at = Column(DateTime)
+    
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="price_alerts")
+
+
+class SearchAlert(Base):
+    __tablename__ = "search_alerts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    name = Column(String, nullable=False)
+    search_criteria = Column(JSON, nullable=False)
+    frequency = Column(String, default="daily")  # daily, weekly, instant
+    last_sent = Column(DateTime)
+    
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="search_alerts")
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_number = Column(String, unique=True, index=True)
+    
+    sender_id = Column(Integer, ForeignKey("users.id"))
+    recipient_id = Column(Integer, ForeignKey("users.id"))
+    listing_id = Column(Integer, ForeignKey("listings.id"), nullable=True)
+    
+    message_type = Column(String, default="direct")  # direct, support_ticket, inquiry, broadcast
+    subject = Column(String)
+    body = Column(Text, nullable=False)
+    
+    parent_message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+    
+    priority = Column(String, default="normal")  # low, normal, high, urgent
+    category = Column(String)  # technical, billing, general
+    
+    status = Column(String, default="new")  # new, read, replied, closed
+    
+    read_at = Column(DateTime)
+    replied_at = Column(DateTime)
+    closed_at = Column(DateTime)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    replies = relationship("Message", remote_side=[parent_message_id])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    notification_type = Column(String, nullable=False)  # message, inquiry, price_alert, new_listing
+    title = Column(String, nullable=False)
+    body = Column(Text)
+    link = Column(String)
+    
+    read = Column(Boolean, default=False)
+    read_at = Column(DateTime)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CRMIntegration(Base):
+    __tablename__ = "crm_integrations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    crm_type = Column(String, nullable=False)  # hubspot, gohighlevel
+    api_key = Column(String, nullable=False)
+    
+    # Settings
+    sync_leads = Column(Boolean, default=True)
+    sync_contacts = Column(Boolean, default=True)
+    sync_messages = Column(Boolean, default=True)
+    
+    active = Column(Boolean, default=True)
+    last_sync = Column(DateTime)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CRMSyncLog(Base):
+    __tablename__ = "crm_sync_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    integration_id = Column(Integer, ForeignKey("crm_integrations.id"))
+    
+    sync_type = Column(String, nullable=False)  # lead, contact, message
+    record_id = Column(Integer)
+    external_id = Column(String)
+    
+    success = Column(Boolean, default=True)
+    error_message = Column(Text)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ScraperJob(Base):
+    __tablename__ = "scraper_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    dealer_id = Column(Integer, ForeignKey("users.id"))
+    
+    broker_url = Column(String, nullable=False)
+    status = Column(String, default="pending")  # pending, running, completed, failed
+    
+    listings_found = Column(Integer, default=0)
+    listings_created = Column(Integer, default=0)
+    listings_updated = Column(Integer, default=0)
+    listings_removed = Column(Integer, default=0)
+    
+    media_downloaded = Column(Integer, default=0)
+    team_members_imported = Column(Integer, default=0)
+    
+    error_message = Column(Text)
+    
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+    next_run_at = Column(DateTime)
+    
+    frequency = Column(String, default="weekly")  # daily, weekly
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ScrapedListing(Base):
+    __tablename__ = "scraped_listings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("scraper_jobs.id"))
+    listing_id = Column(Integer, ForeignKey("listings.id"))
+    
+    source_url = Column(String, nullable=False)
+    last_seen = Column(DateTime, default=datetime.utcnow)
+    still_active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CurrencyRate(Base):
+    __tablename__ = "currency_rates"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    base_currency = Column(String, default="USD")
+    target_currency = Column(String, nullable=False)
+    rate = Column(Float, nullable=False)
+    
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SiteSettings(Base):
+    __tablename__ = "site_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Banner settings
+    banner_active = Column(Boolean, default=False)
+    banner_text = Column(String)
+    banner_type = Column(String, default="info")  # info, warning, success, promotion
+    banner_target = Column(String, default="all")  # all, dealers, buyers
+    
+    # Subscription configuration
+    subscription_config = Column(JSON, default={})
+    
+    # Email settings
+    email_enabled = Column(Boolean, default=True)
+    
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Inquiry(Base):
+    __tablename__ = "inquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    listing_id = Column(Integer, ForeignKey("listings.id"))
+    sender_name = Column(String, nullable=False)
+    sender_email = Column(String, nullable=False)
+    sender_phone = Column(String)
+    message = Column(Text, nullable=False)
+    status = Column(String, default="new")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class BlogPost(Base):
+    __tablename__ = "blog_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    author_id = Column(Integer, ForeignKey("users.id"))
+
+    title = Column(String, nullable=False)
+    slug = Column(String, unique=True, index=True)
+    excerpt = Column(Text)
+    content = Column(Text, nullable=False)
+    featured_image = Column(String)
+
+    meta_title = Column(String)
+    meta_description = Column(String)
+    meta_keywords = Column(String)
+
+    category = Column(String)
+    tags = Column(String)
+
+    status = Column(String, default='draft')
+    published_at = Column(DateTime)
+
+    views = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    author = relationship("User", back_populates="blog_posts")
+
+
+class MediaFile(Base):
+    __tablename__ = "media_files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    listing_id = Column(Integer, ForeignKey("listings.id"), nullable=True)
+    blog_post_id = Column(Integer, ForeignKey("blog_posts.id"), nullable=True)
+    
+    filename = Column(String, nullable=False)
+    original_filename = Column(String)
+    url = Column(Text, nullable=False)
+    thumbnail_url = Column(Text)
+    
+    file_type = Column(String)
+    mime_type = Column(String)
+    file_size = Column(Integer)
+    
+    alt_text = Column(Text)
+    caption = Column(Text)
+    width = Column(Integer)
+    height = Column(Integer)
+    
+    optimized = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    token = Column(String, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EmailVerification(Base):
+    __tablename__ = "email_verifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    token = Column(String, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TwoFactorAuth(Base):
+    __tablename__ = "two_factor_auth"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    secret = Column(String)  # For TOTP (future use)
+    backup_codes = Column(JSON)  # Array of backup codes
+    enabled = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TwoFactorCode(Base):
+    __tablename__ = "two_factor_codes"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    code = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    action = Column(String, nullable=False)  # login, logout, create_listing, etc.
+    details = Column(JSON)  # Additional details about the action
+    ip_address = Column(String)
+    user_agent = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+# Create all tables
+Base.metadata.create_all(bind=engine)
+
+# ======================
+# SUBSCRIPTION TIER LIMITS
+# ======================
+
+TIER_LIMITS = {
+    "free": {
+        "listings": 5,
+        "images_per_listing": 5,
+        "videos_per_listing": 0
+    },
+    "basic": {
+        "listings": 25,
+        "images_per_listing": 15,
+        "videos_per_listing": 1
+    },
+    "premium": {
+        "listings": 999999,
+        "images_per_listing": 50,
+        "videos_per_listing": 5
+    },
+    "trial": {
+        "listings": 999999,
+        "images_per_listing": 50,
+        "videos_per_listing": 5
+    }
+}
+
+# Featured listing pricing
+FEATURED_PLANS = {
+    "7day": {"price": 49.00, "days": 7},
+    "30day": {"price": 149.00, "days": 30},
+    "90day": {"price": 399.00, "days": 90}
+}
+
+# Currency exchange rates (fallback values)
+DEFAULT_RATES = {
+    "USD": 1.0,
+    "EUR": 0.92,
+    "GBP": 0.79,
+    "CAD": 1.36,
+    "AUD": 1.53,
+    "JPY": 149.50,
+    "CNY": 7.24,
+    "MXN": 17.05
+}
+
+# Supported languages
+SUPPORTED_LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "zh"]
+
+# Geographic regions
+CONTINENTS = {
+    "North America": ["USA", "Canada", "Mexico"],
+    "Caribbean": ["Bahamas", "Cayman Islands", "British Virgin Islands", "US Virgin Islands"],
+    "Europe": ["France", "Italy", "Spain", "Greece", "Croatia", "Monaco"],
+    "Mediterranean": ["France", "Italy", "Spain", "Greece", "Turkey", "Croatia"],
+    "Asia": ["Thailand", "Singapore", "Hong Kong", "Indonesia"],
+    "Pacific": ["Australia", "New Zealand", "Fiji"],
+    "Middle East": ["UAE", "Qatar"]
+}
+
+# ======================
+# PYDANTIC SCHEMAS
+# ======================
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    user_type: str = "admin"
+    company_name: Optional[str] = None
+    subscription_tier: Optional[str] = "free"
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class ListingCreate(BaseModel):
+    title: str
+    make: Optional[str] = None
+    model: Optional[str] = None
+    year: Optional[int] = None
+    price: Optional[float] = None
+    length_feet: Optional[float] = None
+    beam_feet: Optional[float] = None
+    draft_feet: Optional[float] = None
+    boat_type: Optional[str] = None
+    hull_material: Optional[str] = None
+    engine_make: Optional[str] = None
+    engine_model: Optional[str] = None
+    engine_type: Optional[str] = None
+    engine_hours: Optional[float] = None
+    fuel_type: Optional[str] = None
+    cabins: Optional[int] = None
+    berths: Optional[int] = None
+    heads: Optional[int] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: str = "USA"
+    description: Optional[str] = None
+    condition: str = "used"
+    status: str = "active"
+    featured: bool = False
+
+class InquiryCreate(BaseModel):
+    listing_id: int
+    sender_name: str
+    sender_email: EmailStr
+    sender_phone: Optional[str] = None
+    message: str
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+
+class EmailVerificationRequest(BaseModel):
+    token: str
+
+
+class Enable2FARequest(BaseModel):
+    enabled: bool
+
+
+class Verify2FACode(BaseModel):
+    code: str
+
+# ======================
+# SECURITY & UTILITIES
+# ======================
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
+def verify_password(plain_password, hashed_password):
+    # Use the imported password validator implementation when available
+    try:
+        return verify_pwd(plain_password, hashed_password)
+    except Exception:
+        return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    # Delegate hashing to the imported password validator
+    try:
+        return hash_password(password)
+    except Exception:
+        return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+def check_listing_limit(user: User, db: Session):
+    """Check if user can create more listings based on their tier"""
+    active_count = db.query(Listing).filter(
+        Listing.user_id == user.id,
+        Listing.status == 'active'
+    ).count()
+    
+    limit = TIER_LIMITS.get(user.subscription_tier, TIER_LIMITS["free"])["listings"]
+    
+    if active_count >= limit:
+        raise AuthorizationException(f"You've reached your listing limit ({limit}). Upgrade your subscription to create more listings.")
+
+# ======================
+# IMAGE OPTIMIZATION
+# ======================
+
+def optimize_image(
+    input_path: Path, 
+    output_path: Path, 
+    max_width: int = 1920,
+    quality: int = 85
+) -> tuple[bool, dict]:
+    """Optimize image for web with proper orientation handling"""
+    try:
+        with Image.open(input_path) as img:
+            original_width, original_height = img.size
+            
+            # Handle EXIF orientation
+            try:
+                for orientation in ExifTags.TAGS.keys():
+                    if ExifTags.TAGS[orientation] == 'Orientation':
+                        break
+                exif = img._getexif()
+                if exif is not None:
+                    orientation_value = exif.get(orientation)
+                    if orientation_value == 3:
+                        img = img.rotate(180, expand=True)
+                    elif orientation_value == 6:
+                        img = img.rotate(270, expand=True)
+                    elif orientation_value == 8:
+                        img = img.rotate(90, expand=True)
+            except (AttributeError, KeyError, IndexError):
+                pass
+            
+            # Convert RGBA/LA/P to RGB
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                if img.mode in ('RGBA', 'LA'):
+                    background.paste(img, mask=img.split()[-1])
+                else:
+                    background.paste(img)
+                img = background
+            
+            # Resize if needed
+            new_width = original_width
+            new_height = original_height
+            if img.width > max_width:
+                ratio = max_width / img.width
+                new_width = max_width
+                new_height = int(img.height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Save optimized version
+            img.save(output_path, 'JPEG', quality=quality, optimize=True, progressive=True)
+            
+            return True, {
+                'width': new_width,
+                'height': new_height,
+                'original_width': original_width,
+                'original_height': original_height,
+                'file_size': os.path.getsize(output_path)
+            }
+            
+    except Exception as e:
+        print(f"Image optimization error: {e}")
+        return False, {}
+
+def create_thumbnail(input_path: Path, output_path: Path, size: int = 400) -> bool:
+    """Create a thumbnail version of an image"""
+    try:
+        with Image.open(input_path) as img:
+            # Convert to RGB if needed
+            if img.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                if img.mode in ('RGBA', 'LA'):
+                    background.paste(img, mask=img.split()[-1])
+                else:
+                    background.paste(img)
+                img = background
+            
+            # Create thumbnail (maintains aspect ratio)
+            img.thumbnail((size, size), Image.Resampling.LANCZOS)
+            img.save(output_path, 'JPEG', quality=80, optimize=True)
+            return True
+    except Exception as e:
+        print(f"Thumbnail creation error: {e}")
+        return False
+
+# ======================
+# CURRENCY & UNIT CONVERSION
+# ======================
+
+def get_exchange_rate(from_currency: str, to_currency: str, db: Session) -> float:
+    """Get exchange rate between two currencies"""
+    if from_currency == to_currency:
+        return 1.0
+    
+    # Try to get from database
+    rate_record = db.query(CurrencyRate).filter(
+        CurrencyRate.base_currency == from_currency,
+        CurrencyRate.target_currency == to_currency
+    ).first()
+    
+    if rate_record:
+        # Check if rate is less than 24 hours old
+        if (datetime.utcnow() - rate_record.updated_at).days < 1:
+            return rate_record.rate
+    
+    # Use fallback rates
+    if from_currency == "USD":
+        return DEFAULT_RATES.get(to_currency, 1.0)
+    elif to_currency == "USD":
+        return 1.0 / DEFAULT_RATES.get(from_currency, 1.0)
+    else:
+        # Convert through USD
+        to_usd = 1.0 / DEFAULT_RATES.get(from_currency, 1.0)
+        usd_to_target = DEFAULT_RATES.get(to_currency, 1.0)
+        return to_usd * usd_to_target
+
+def convert_price(price: float, from_currency: str, to_currency: str, db: Session) -> float:
+    """Convert price between currencies"""
+    rate = get_exchange_rate(from_currency, to_currency, db)
+    return round(price * rate, 2)
+
+def convert_length(feet: float, to_metric: bool) -> float:
+    """Convert length between feet and meters"""
+    if to_metric:
+        return round(feet * 0.3048, 2)
+    return feet
+
+def convert_volume(gallons: float, to_metric: bool) -> float:
+    """Convert volume between gallons and liters"""
+    if to_metric:
+        return round(gallons * 3.78541, 2)
+    return gallons
+
+def convert_speed(knots: float, to_kmh: bool) -> float:
+    """Convert speed between knots and km/h"""
+    if to_kmh:
+        return round(knots * 1.852, 2)
+    return knots
+
+# ======================
+# GEOGRAPHIC CALCULATIONS
+# ======================
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two coordinates in miles using Haversine formula"""
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    
+    miles = 3959 * c  # Earth radius in miles
+    return round(miles, 1)
+
+def geocode_location(address: str) -> tuple[Optional[float], Optional[float]]:
+    """Convert address to coordinates (requires Google Maps API or similar)"""
+    # This is a placeholder - implement with actual geocoding service
+    # For now, return None
+    return None, None
+
+def get_continent_for_country(country: str) -> Optional[str]:
+    """Get continent for a given country"""
+    for continent, countries in CONTINENTS.items():
+        if country in countries:
+            return continent
+    return None
+
+# ======================
+# CRM HELPER FUNCTIONS
+# ======================
+
+def sync_to_hubspot(api_key: str, contact_data: dict, deal_data: dict = None):
+    """Sync contact and deal to HubSpot"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Create/update contact
+        contact_response = requests.post(
+            "https://api.hubapi.com/crm/v3/objects/contacts",
+            headers=headers,
+            json={"properties": contact_data}
+        )
+        
+        if contact_response.status_code in [200, 201]:
+            contact_id = contact_response.json().get("id")
+            
+            # Create deal if provided
+            if deal_data and contact_id:
+                deal_data["associations"] = [{"to": {"id": contact_id}, "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 3}]}]
+                requests.post(
+                    "https://api.hubapi.com/crm/v3/objects/deals",
+                    headers=headers,
+                    json={"properties": deal_data, "associations": deal_data["associations"]}
+                )
+            
+            return True, contact_id
+        
+        return False, None
+        
+    except Exception as e:
+        logger.error(f"HubSpot sync error: {e}")
+        return False, None
+
+def sync_to_gohighlevel(api_key: str, contact_data: dict, opportunity_data: dict = None):
+    """Sync contact and opportunity to GoHighLevel"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Create/update contact
+        contact_response = requests.post(
+            "https://rest.gohighlevel.com/v1/contacts/",
+            headers=headers,
+            json=contact_data
+        )
+        
+        if contact_response.status_code in [200, 201]:
+            contact_id = contact_response.json().get("contact", {}).get("id")
+            
+            # Create opportunity if provided
+            if opportunity_data and contact_id:
+                opportunity_data["contact_id"] = contact_id
+                requests.post(
+                    "https://rest.gohighlevel.com/v1/opportunities/",
+                    headers=headers,
+                    json=opportunity_data
+                )
+            
+            return True, contact_id
+        
+        return False, None
+        
+    except Exception as e:
+        logger.error(f"GoHighLevel sync error: {e}")
+        return False, None
+
+# ======================
+# BACKGROUND TASK HELPERS
+# ======================
+
+def process_inquiry_crm_sync(inquiry_id: int, db: Session):
+    """Background task to sync inquiry to dealer's CRM"""
+    inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inquiry:
+        return
+    
+    # Get listing and dealer
+    listing = db.query(Listing).filter(Listing.id == inquiry.listing_id).first()
+    if not listing:
+        return
+    
+    dealer = listing.owner
+    
+    # Check if dealer has CRM integration
+    crm = db.query(CRMIntegration).filter(
+        CRMIntegration.user_id == dealer.id,
+        CRMIntegration.active == True
+    ).first()
+    
+    if not crm or not crm.sync_leads:
+        return
+    
+    # Prepare contact data
+    contact_data = {
+        "email": inquiry.sender_email,
+        "firstname": inquiry.sender_name.split()[0] if inquiry.sender_name else "",
+        "lastname": " ".join(inquiry.sender_name.split()[1:]) if len(inquiry.sender_name.split()) > 1 else "",
+        "phone": inquiry.sender_phone or ""
+    }
+    
+    # Prepare deal/opportunity data
+    deal_data = {
+        "dealname": f"Inquiry: {listing.title}",
+        "amount": listing.price or 0,
+        "dealstage": "appointmentscheduled",
+        "pipeline": "default"
+    }
+    
+    success = False
+    external_id = None
+    
+    if crm.crm_type == "hubspot":
+        success, external_id = sync_to_hubspot(crm.api_key, contact_data, deal_data)
+    elif crm.crm_type == "gohighlevel":
+        opportunity_data = {
+            "name": f"Inquiry: {listing.title}",
+            "pipeline_stage_id": "default",
+            "status": "open",
+            "monetary_value": listing.price or 0
+        }
+        success, external_id = sync_to_gohighlevel(crm.api_key, contact_data, opportunity_data)
+    
+    # Log the sync attempt
+    sync_log = CRMSyncLog(
+        integration_id=crm.id,
+        sync_type="lead",
+        record_id=inquiry.id,
+        external_id=str(external_id) if external_id else None,
+        success=success
+    )
+    db.add(sync_log)
+    db.commit()
+
+def generate_ticket_number() -> str:
+    """Generate unique ticket number"""
+    timestamp = datetime.utcnow().strftime("%Y%m%d")
+    random_suffix = uuid.uuid4().hex[:4].upper()
+    return f"TICKET-{timestamp}-{random_suffix}"
+
+def create_slug(text: str, db: Session, model) -> str:
+    """Generate unique slug from text"""
+    base_slug = text.lower().replace(' ', '-')
+    base_slug = ''.join(c for c in base_slug if c.isalnum() or c == '-')
+    
+    slug = base_slug
+    counter = 1
+    
+    while db.query(model).filter(model.slug == slug).first():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    
+    return slug
+
+# ======================
+# FASTAPI APP SETUP
+# ======================
+
+app = FastAPI(title="YachtVersal API", version="2.0.0")
+
+# Global error handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "detail": "Something went wrong. Check backend logs."
+        },
+    )
+
+# Add request logging middleware (FIRST - so it wraps everything)
+app.add_middleware(RequestLoggingMiddleware)
+
+# Add global rate limiting (200 requests per minute per IP)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=200)
+
+# KEEP your existing CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: Change to your domain in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add exception handlers
+app.add_exception_handler(YachtVersalException, yachtversal_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+# Mount static files
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# Initialize scraper if available
+scraper = None
+if OptimizedYachtScraper and CLAUDE_API_KEY:
+    try:
+        scraper = OptimizedYachtScraper(CLAUDE_API_KEY)
+    except Exception as e:
+        logger.error(f"Scraper init failed: {e}")
+
+import secrets
+import random
+from datetime import timedelta
+
+def generate_reset_token() -> str:
+    """Generate secure reset token"""
+    return secrets.token_urlsafe(32)
+
+
+def generate_verification_token() -> str:
+    """Generate secure verification token"""
+    return secrets.token_urlsafe(32)
+
+
+def generate_2fa_code() -> str:
+    """Generate 6-digit 2FA code"""
+    return str(random.randint(100000, 999999))
+
+
+def log_activity(
+    db: Session,
+    user_id: int,
+    action: str,
+    details: dict = None,
+    request: Request = None
+):
+    """Log user activity"""
+    ip_address = request.client.host if request else None
+    user_agent = request.headers.get("user-agent") if request else None
+    
+    log = ActivityLog(
+        user_id=user_id,
+        action=action,
+        details=details or {},
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    db.add(log)
+    db.commit()
+
+# ======================
+# AUTH ENDPOINTS
+# ======================
+
+@app.post("/api/auth/register", response_model=Token)
+@rate_limit(**RateLimitConfig.AUTH_REGISTER)
+async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
+    # Check if email exists
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    if existing_user:
+        raise ValidationException("Email already registered")
+
+    # VALIDATE PASSWORD
+    is_valid, errors = PasswordValidator.validate(user_data.password)
+    if not is_valid:
+        raise ValidationException(
+            "Password does not meet requirements",
+            {"errors": errors}
+        )
+
+    # Hash password
+    hashed_password = hash_password(user_data.password)
+    user = User(
+        email=user_data.email,
+        password_hash=hashed_password,
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+        phone=user_data.phone,
+        user_type=user_data.user_type,
+        company_name=user_data.company_name,
+        subscription_tier=user_data.subscription_tier or "free"
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Create preferences
+    prefs = UserPreferences(user_id=user.id)
+    db.add(prefs)
+    
+    # Create dealer profile if dealer
+    if user.user_type == "dealer":
+        slug = create_slug(user.company_name or user.email, db, DealerProfile)
+        profile = DealerProfile(
+            user_id=user.id,
+            name=f"{user.first_name} {user.last_name}",
+            company_name=user.company_name,
+            email=user.email,
+            phone=user.phone,
+            slug=slug
+        )
+        db.add(profile)
+    
+    db.commit()
+
+    # Log activity
+    logger.info(f"New user registered: {user.email}", extra={'user_id': user.id})
+
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"} 
+
+@app.post("/api/auth/login", response_model=Token)
+@rate_limit(**RateLimitConfig.AUTH_LOGIN, block_duration=3600)
+async def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == user_data.email).first()
+    if not user or not verify_pwd(user_data.password, user.password_hash):
+        logger.warning(f"Failed login attempt for: {user_data.email}")
+        raise AuthenticationException("Incorrect email or password")
+
+    if not user.active:
+        raise AuthorizationException("User account is inactive")
+
+    # Log successful login
+    logger.info(f"User logged in: {user.email}", extra={'user_id': user.id})
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"} 
+
+@app.get("/api/auth/me")
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "user_type": current_user.user_type,
+        "company_name": current_user.company_name,
+        "subscription_tier": current_user.subscription_tier,
+        "trial_active": current_user.trial_active,
+        "trial_end_date": current_user.trial_end_date.isoformat() if current_user.trial_end_date else None
+    }
+
+@app.post("/api/auth/start-trial")
+@rate_limit()
+def start_trial(data: dict, db: Session = Depends(get_db)):
+    """Sign up for trial without payment"""
+    existing = db.query(User).filter(User.email == data.get("email")).first()
+    if existing:
+        raise ValidationException("Email already registered")
+    
+    trial_days = data.get("trial_days", 5)
+    trial_end = datetime.utcnow() + timedelta(days=trial_days)
+    
+    user = User(
+        email=data.get("email"),
+        password_hash=hash_password(data.get("password")),
+        first_name=data.get("first_name"),
+        last_name=data.get("last_name"),
+        phone=data.get("phone"),
+        company_name=data.get("company_name"),
+        user_type="dealer",
+        subscription_tier="trial",
+        trial_active=True,
+        trial_end_date=trial_end,
+        assigned_sales_rep_id=data.get("sales_rep_id")
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    token = create_access_token(data={"sub": user.email})
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "trial_end_date": trial_end.isoformat(),
+        "days_remaining": trial_days
+    }
+
+@app.post("/api/auth/convert-trial-to-paid")
+def convert_trial(
+    payment_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Convert trial to paid subscription"""
+    if not current_user.trial_active:
+        raise BusinessLogicException("No active trial")
+    
+    tier = payment_data.get("tier", "basic")
+    
+    # Update trial listings to active
+    db.query(Listing).filter(
+        Listing.user_id == current_user.id,
+        Listing.status == "draft"
+    ).update({"status": "active", "published_at": datetime.utcnow()})
+    
+    current_user.trial_active = False
+    current_user.trial_converted = True
+    current_user.subscription_tier = tier
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Upgraded to {tier} plan!",
+        "subscription_tier": tier
+    }
+
+# ======================
+# USER PREFERENCES
+# ======================
+
+@app.get("/api/preferences")
+def get_preferences(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user preferences"""
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == current_user.id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+        db.commit()
+        db.refresh(prefs)
+    
+    return {
+        "language": prefs.language,
+        "currency": prefs.currency,
+        "units": prefs.units,
+        "timezone": prefs.timezone
+    }
+
+@app.put("/api/preferences")
+def update_preferences(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user preferences"""
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == current_user.id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+    
+    if "language" in data:
+        prefs.language = data["language"]
+    if "currency" in data:
+        prefs.currency = data["currency"]
+    if "units" in data:
+        prefs.units = data["units"]
+    if "timezone" in data:
+        prefs.timezone = data["timezone"]
+    
+    db.commit()
+    return {"success": True}
+
+@app.get("/api/user/settings")
+def get_user_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user settings including notification preferences"""
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == current_user.id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+        db.commit()
+    
+    return {
+        "email_new_message": current_user.permissions.get("email_new_message", True),
+        "email_new_inquiry": current_user.permissions.get("email_new_inquiry", True),
+        "email_price_alert": current_user.permissions.get("email_price_alert", True),
+        "email_new_listing_match": current_user.permissions.get("email_new_listing_match", True),
+        "email_marketing": current_user.permissions.get("email_marketing", False),
+        "language": prefs.language,
+        "currency": prefs.currency,
+        "units": prefs.units,
+        "timezone": prefs.timezone
+    }
+
+@app.put("/api/user/settings")
+def update_user_settings(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update user settings"""
+    # Update preferences
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == current_user.id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+    
+    if "language" in data:
+        prefs.language = data["language"]
+    if "currency" in data:
+        prefs.currency = data["currency"]
+    if "units" in data:
+        prefs.units = data["units"]
+    if "timezone" in data:
+        prefs.timezone = data["timezone"]
+    
+    # Update email notification preferences in user permissions JSON
+    email_prefs = {
+        "email_new_message": data.get("email_new_message", True),
+        "email_new_inquiry": data.get("email_new_inquiry", True),
+        "email_price_alert": data.get("email_price_alert", True),
+        "email_new_listing_match": data.get("email_new_listing_match", True),
+        "email_marketing": data.get("email_marketing", False)
+    }
+    
+    current_user.permissions = {**current_user.permissions, **email_prefs}
+    
+    db.commit()
+    return {"success": True}
+
+# ======================
+# CURRENCY RATES
+# ======================
+
+@app.get("/api/currencies/rates")
+def get_currency_rates(db: Session = Depends(get_db)):
+    """Get current exchange rates"""
+    rates = {}
+    for currency in ["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CNY", "MXN"]:
+        rates[currency] = get_exchange_rate("USD", currency, db)
+    return {"base": "USD", "rates": rates}
+
+# ======================
+# LISTING ENDPOINTS
+# ======================
+
+@app.get("/api/listings")
+@rate_limit(**RateLimitConfig.API_SEARCH)
+async def get_listings(
+    request: Request,
+    skip: int = 0,
+    limit: int = 100,
+    boat_type: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    min_year: Optional[int] = None,
+    condition: Optional[str] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    country: Optional[str] = None,
+    continent: Optional[str] = None,
+    status: str = "active",
+    featured_only: bool = False,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Listing).filter(Listing.status == status)
+
+    if featured_only:
+        query = query.filter(
+            Listing.featured == True,
+            Listing.featured_until > datetime.utcnow()
+        ).order_by(Listing.featured_priority.desc())
+    
+    if boat_type:
+        query = query.filter(Listing.boat_type == boat_type)
+    if min_price:
+        query = query.filter(Listing.price >= min_price)
+    if max_price:
+        query = query.filter(Listing.price <= max_price)
+    if min_year:
+        query = query.filter(Listing.year >= min_year)
+    if condition:
+        query = query.filter(Listing.condition == condition)
+    if city:
+        query = query.filter(Listing.city.ilike(f"%{city}%"))
+    if state:
+        query = query.filter(Listing.state.ilike(f"%{state}%"))
+    if country:
+        query = query.filter(Listing.country == country)
+    if continent:
+        query = query.filter(Listing.continent == continent)
+
+    listings = query.order_by(Listing.created_at.desc()).offset(skip).limit(limit).all()
+
+    result = []
+    for listing in listings:
+        listing_dict = {
+            "id": listing.id,
+            "title": listing.title,
+            "make": listing.make,
+            "model": listing.model,
+            "year": listing.year,
+            "price": listing.price,
+            "currency": listing.currency,
+            "length_feet": listing.length_feet,
+            "boat_type": listing.boat_type,
+            "city": listing.city,
+            "state": listing.state,
+            "country": listing.country,
+            "continent": listing.continent,
+            "cabins": listing.cabins,
+            "berths": listing.berths,
+            "condition": listing.condition,
+            "description": listing.description,
+            "status": listing.status,
+            "featured": listing.featured,
+            "featured_until": listing.featured_until.isoformat() if listing.featured_until else None,
+            "views": listing.views,
+            "inquiries": listing.inquiries,
+            "engine_hours": listing.engine_hours,
+            "created_at": listing.created_at.isoformat(),
+            "images": [{"id": img.id, "url": img.url, "is_primary": img.is_primary} for img in listing.images]
+        }
+        result.append(listing_dict)
+
+    return result
+
+@app.get("/api/listings/{listing_id}")
+def get_listing(listing_id: int, db: Session = Depends(get_db)):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+
+    listing.views += 1
+    db.commit()
+
+    return {
+        "id": listing.id,
+        "title": listing.title,
+        "make": listing.make,
+        "model": listing.model,
+        "year": listing.year,
+        "price": listing.price,
+        "currency": listing.currency,
+        "length_feet": listing.length_feet,
+        "beam_feet": listing.beam_feet,
+        "draft_feet": listing.draft_feet,
+        "boat_type": listing.boat_type,
+        "hull_material": listing.hull_material,
+        "engine_make": listing.engine_make,
+        "engine_model": listing.engine_model,
+        "engine_type": listing.engine_type,
+        "engine_hours": listing.engine_hours,
+        "fuel_type": listing.fuel_type,
+        "cabins": listing.cabins,
+        "berths": listing.berths,
+        "heads": listing.heads,
+        "city": listing.city,
+        "state": listing.state,
+        "country": listing.country,
+        "continent": listing.continent,
+        "latitude": listing.latitude,
+        "longitude": listing.longitude,
+        "description": listing.description,
+        "condition": listing.condition,
+        "status": listing.status,
+        "featured": listing.featured,
+        "views": listing.views,
+        "inquiries": listing.inquiries,
+        "user_id": listing.user_id,
+        "created_by_user_id": listing.created_by_user_id,
+        "created_at": listing.created_at.isoformat(),
+        "images": [{"id": img.id, "url": img.url, "is_primary": img.is_primary} for img in listing.images]
+    }
+
+@app.post("/api/listings", status_code=status.HTTP_201_CREATED)
+@rate_limit(**RateLimitConfig.API_LISTING_CREATE)
+async def create_listing(request: Request, listing_data: ListingCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        check_listing_limit(current_user, db)
+        
+        listing = Listing(
+            user_id=current_user.id,
+            created_by_user_id=current_user.id,
+            **listing_data.dict()
+        )
+
+        # Auto-detect continent from country
+        if listing.country and not listing.continent:
+            listing.continent = get_continent_for_country(listing.country)
+
+        # For trial users, set status to draft
+        if current_user.trial_active and not current_user.trial_converted:
+            listing.status = "draft"
+        elif listing.status == "active":
+            listing.published_at = datetime.utcnow()
+
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+
+        return {"id": listing.id, "message": "Listing created successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating listing: {e}", exc_info=True)
+        raise BusinessLogicException("Error creating listing")
+
+@app.put("/api/listings/{listing_id}")
+def update_listing(
+    listing_id: int,
+    listing_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        raise AuthorizationException("You don't have permission to edit this listing")
+
+    for field, value in listing_data.items():
+        if hasattr(listing, field) and value is not None:
+            setattr(listing, field, value)
+
+    listing.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {"message": "Listing updated successfully"}
+
+@app.delete("/api/listings/{listing_id}")
+def delete_listing(
+    listing_id: int,
+    permanent: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        raise AuthorizationException("You don't have permission to access this listing")
+
+    if permanent:
+        db.delete(listing)
+        db.commit()
+        return {"message": "Listing permanently deleted"}
+    else:
+        listing.status = "archived"
+        listing.updated_at = datetime.utcnow()
+        db.commit()
+        return {"message": "Listing archived"}
+
+@app.get("/api/users/{user_id}")
+def get_user_info(user_id: int, db: Session = Depends(get_db)):
+    """Get basic user information (public-safe)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    # Get dealer profile if exists
+    dealer_profile = db.query(DealerProfile).filter(DealerProfile.user_id == user_id).first()
+    
+    return {
+        "id": user.id,
+        "name": f"{user.first_name} {user.last_name}" if user.first_name else user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "company_name": user.company_name,
+        "email": user.email,
+        "phone": user.phone,
+        "user_type": user.user_type,
+        "logo_url": dealer_profile.logo_url if dealer_profile else None,
+        "slug": dealer_profile.slug if dealer_profile else None,
+        "photo_url": None
+    }
+
+@app.get("/api/my-listings")
+def get_my_listings(
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get listings for the current user"""
+    query = db.query(Listing).filter(Listing.user_id == current_user.id)
+    
+    if status:
+        query = query.filter(Listing.status == status)
+    
+    listings = query.order_by(Listing.created_at.desc()).all()
+    
+    result = []
+    for listing in listings:
+        listing_dict = {
+            "id": listing.id,
+            "title": listing.title,
+            "make": listing.make,
+            "model": listing.model,
+            "year": listing.year,
+            "price": listing.price,
+            "currency": listing.currency,
+            "length_feet": listing.length_feet,
+            "boat_type": listing.boat_type,
+            "city": listing.city,
+            "state": listing.state,
+            "status": listing.status,
+            "featured": listing.featured,
+            "featured_until": listing.featured_until.isoformat() if listing.featured_until else None,
+            "views": listing.views,
+            "inquiries": listing.inquiries,
+            "created_at": listing.created_at.isoformat(),
+            "images": [{"id": img.id, "url": img.url, "is_primary": img.is_primary} for img in listing.images]
+        }
+        result.append(listing_dict)
+    
+    return result
+
+# ======================
+# FEATURED LISTINGS
+# ======================
+
+@app.get("/api/featured-listings")
+def get_featured_listings(db: Session = Depends(get_db)):
+    """Get active featured listings"""
+    listings = db.query(Listing).filter(
+        Listing.featured == True,
+        Listing.featured_until > datetime.utcnow(),
+        Listing.status == "active"
+    ).order_by(Listing.featured_priority.desc()).limit(10).all()
+    
+    return [
+        {
+            "id": l.id,
+            "title": l.title,
+            "price": l.price,
+            "currency": l.currency,
+            "images": [{"url": img.url} for img in l.images[:1]],
+            "city": l.city,
+            "state": l.state
+        }
+        for l in listings
+    ]
+
+@app.post("/api/featured-listings/purchase")
+async def purchase_featured_listing(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Purchase featured placement with Stripe"""
+    listing_id = data.get("listing_id")
+    plan = data.get("plan")  # "7day", "30day", "90day"
+    payment_method_id = data.get("payment_method_id")
+    
+    if plan not in FEATURED_PLANS:
+        raise ValidationException("Invalid plan")
+    
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+    if listing.user_id != current_user.id:
+        raise AuthorizationException("You don't have permission to purchase featured placement for this listing")
+    
+    plan_details = FEATURED_PLANS[plan]
+    amount = int(plan_details["price"] * 100)  # Stripe uses cents
+    
+    try:
+        # Create Stripe payment intent
+        intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency="usd",
+            payment_method=payment_method_id,
+            confirm=True,
+            description=f"Featured listing: {listing.title}",
+            metadata={
+                "listing_id": listing_id,
+                "user_id": current_user.id,
+                "plan": plan
+            }
+        )
+        
+        if intent.status == "succeeded":
+            # Update listing
+            expires_at = datetime.utcnow() + timedelta(days=plan_details["days"])
+            listing.featured = True
+            listing.featured_until = expires_at
+            listing.featured_plan = plan
+            listing.featured_priority = 10 if plan == "90day" else 5 if plan == "30day" else 1
+            
+            # Create featured listing record
+            featured = FeaturedListing(
+                listing_id=listing_id,
+                user_id=current_user.id,
+                plan=plan,
+                price_paid=plan_details["price"],
+                expires_at=expires_at,
+                stripe_payment_id=intent.id
+            )
+            db.add(featured)
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Listing featured for {plan_details['days']} days",
+                "expires_at": expires_at.isoformat()
+            }
+        
+        raise ExternalServiceException("Payment failed")
+        
+    except stripe.error.StripeError as e:
+        raise ExternalServiceException(str(e))
+
+@app.get("/api/featured-listings/stats/{listing_id}")
+def get_featured_stats(
+    listing_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get performance stats for featured listing"""
+    featured = db.query(FeaturedListing).filter(
+        FeaturedListing.listing_id == listing_id,
+        FeaturedListing.user_id == current_user.id
+    ).first()
+    
+    if not featured:
+        raise ResourceNotFoundException("No featured data found")
+    
+    ctr = (featured.clicks / featured.impressions * 100) if featured.impressions > 0 else 0
+    
+    return {
+        "impressions": featured.impressions,
+        "clicks": featured.clicks,
+        "ctr": round(ctr, 2),
+        "expires_at": featured.expires_at.isoformat(),
+        "active": featured.active
+    }
+
+@app.post("/api/featured-listings/track-impression")
+def track_impression(data: dict, db: Session = Depends(get_db)):
+    """Track impression for featured listing"""
+    listing_id = data.get("listing_id")
+    featured = db.query(FeaturedListing).filter(
+        FeaturedListing.listing_id == listing_id,
+        FeaturedListing.active == True
+    ).first()
+    
+    if featured:
+        featured.impressions += 1
+        db.commit()
+    
+    return {"success": True}
+
+@app.post("/api/featured-listings/track-click")
+def track_click(data: dict, db: Session = Depends(get_db)):
+    """Track click for featured listing"""
+    listing_id = data.get("listing_id")
+    featured = db.query(FeaturedListing).filter(
+        FeaturedListing.listing_id == listing_id,
+        FeaturedListing.active == True
+    ).first()
+    
+    if featured:
+        featured.clicks += 1
+        db.commit()
+    
+    return {"success": True}
+
+# ======================
+# ADVANCED SEARCH
+# ======================
+
+@app.post("/api/search/advanced")
+def advanced_search(search_data: dict, db: Session = Depends(get_db)):
+    """Advanced search with geographic options"""
+    query = db.query(Listing).filter(Listing.status == "active")
+    
+    # Geographic filters
+    if "continent" in search_data:
+        query = query.filter(Listing.continent == search_data["continent"])
+    
+    if "country" in search_data:
+        query = query.filter(Listing.country == search_data["country"])
+    
+    if "states" in search_data and search_data["states"]:
+        query = query.filter(Listing.state.in_(search_data["states"]))
+    
+    # Radius search
+    if "center_location" in search_data and "radius_miles" in search_data:
+        center = search_data["center_location"]
+        radius = search_data["radius_miles"]
+        
+        # This requires lat/lng - implement with geocoding
+        # For now, just filter by city/state
+        pass
+    
+    # Standard filters
+    if "boat_type" in search_data:
+        query = query.filter(Listing.boat_type == search_data["boat_type"])
+    
+    if "min_price" in search_data:
+        query = query.filter(Listing.price >= search_data["min_price"])
+    
+    if "max_price" in search_data:
+        query = query.filter(Listing.price <= search_data["max_price"])
+    
+    if "min_length" in search_data:
+        query = query.filter(Listing.length_feet >= search_data["min_length"])
+    
+    if "max_length" in search_data:
+        query = query.filter(Listing.length_feet <= search_data["max_length"])
+    
+    listings = query.limit(100).all()
+    
+    return [
+        {
+            "id": l.id,
+            "title": l.title,
+            "price": l.price,
+            "length_feet": l.length_feet,
+            "city": l.city,
+            "state": l.state,
+            "images": [{"url": img.url} for img in l.images[:1]]
+        }
+        for l in listings
+    ]
+
+@app.get("/api/search/suggestions")
+def get_search_suggestions(q: str, type: str, db: Session = Depends(get_db)):
+    """Get autocomplete suggestions"""
+    suggestions = []
+    
+    if type == "location":
+        cities = db.query(Listing.city).filter(
+            Listing.city.ilike(f"%{q}%")
+        ).distinct().limit(10).all()
+        suggestions = [c[0] for c in cities if c[0]]
+    
+    elif type == "make":
+        makes = db.query(Listing.make).filter(
+            Listing.make.ilike(f"%{q}%")
+        ).distinct().limit(10).all()
+        suggestions = [m[0] for m in makes if m[0]]
+    
+    elif type == "boat_type":
+        types = db.query(Listing.boat_type).filter(
+            Listing.boat_type.ilike(f"%{q}%")
+        ).distinct().limit(10).all()
+        suggestions = [t[0] for t in types if t[0]]
+    
+    return {"suggestions": suggestions}
+
+@app.get("/api/search/popular-locations")
+def get_popular_locations(db: Session = Depends(get_db)):
+    """Get most popular locations"""
+    locations = db.query(
+        Listing.city,
+        Listing.state,
+        func.count(Listing.id).label("count")
+    ).filter(
+        Listing.status == "active",
+        Listing.city.isnot(None)
+    ).group_by(Listing.city, Listing.state).order_by(func.count(Listing.id).desc()).limit(12).all()
+    
+    return [
+        {"city": loc[0], "state": loc[1], "count": loc[2]}
+        for loc in locations
+    ]
+
+# ======================
+# ADMIN - FEATURED LISTING MANAGEMENT
+# ======================
+
+@app.get("/api/admin/featured-stats")
+def get_featured_stats(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Get featured listing statistics"""
+    if current_user.user_type not in ["admin", "salesman"]:
+        raise AuthorizationException("Admin or sales rep access required")
+    
+    # Get all featured listings
+    featured = db.query(FeaturedListing).all()
+    active = [f for f in featured if f.active and f.expires_at > datetime.utcnow()]
+    
+    total_revenue = sum(f.price_paid for f in featured)
+    avg_price = total_revenue / len(featured) if featured else 0
+    
+    return {
+        "totalRevenue": total_revenue,
+        "activeFeatured": len(active),
+        "totalFeatured": len(featured),
+        "averagePrice": avg_price
+    }
+
+@app.get("/api/admin/featured-purchases")
+def get_featured_purchases(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Get recent featured listing purchases"""
+    if current_user.user_type not in ["admin", "salesman"]:
+        raise AuthorizationException("Admin or sales rep access required")
+    
+    purchases = db.query(FeaturedListing).order_by(FeaturedListing.created_at.desc()).limit(50).all()
+    
+    result = []
+    for p in purchases:
+        listing = db.query(Listing).filter(Listing.id == p.listing_id).first()
+        user = db.query(User).filter(User.id == p.user_id).first()
+        
+        result.append({
+            "id": p.id,
+            "listing_title": listing.title if listing else "Unknown",
+            "dealer_name": user.company_name or f"{user.first_name} {user.last_name}" if user else "Unknown",
+            "plan": p.plan,
+            "price_paid": p.price_paid,
+            "created_at": p.created_at.isoformat(),
+            "expires_at": p.expires_at.isoformat(),
+            "active": p.active
+        })
+    
+    return result
+
+@app.put("/api/admin/featured-pricing")
+def update_featured_pricing(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Update featured listing pricing"""
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin only")
+    
+    # In production, store this in database. For now, update the global constant
+    global FEATURED_PLANS
+    plans = data.get("plans", [])
+    
+    for plan in plans:
+        plan_id = plan.get("plan_id")
+        if plan_id in FEATURED_PLANS:
+            FEATURED_PLANS[plan_id]["price"] = plan.get("price")
+            FEATURED_PLANS[plan_id]["days"] = plan.get("days")
+    
+    return {"success": True, "message": "Pricing updated successfully"}
+
+@app.patch("/api/inquiries/{inquiry_id}/status")
+def update_inquiry_status(
+    inquiry_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update inquiry status (existing endpoint - just documenting location)"""
+    # This endpoint already exists in your code around line 1404
+    pass
+
+@app.put("/api/messages/{message_id}/status")
+def update_message_status(
+    message_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update message status"""
+    message = db.query(Message).filter(Message.id == message_id).first()
+    if not message:
+        raise ResourceNotFoundException("Message", message_id)
+    
+    # Check authorization
+    if current_user.id not in [message.sender_id, message.recipient_id] and current_user.user_type != "admin":
+        raise AuthorizationException("Not authorized to modify this message")
+    
+    new_status = data.get("status")
+    if new_status:
+        message.status = new_status
+        if new_status == "closed":
+            message.closed_at = datetime.utcnow()
+        db.commit()
+    
+    return {"success": True}
+
+# ======================
+# BUYER FEATURES
+# ======================
+
+@app.get("/api/saved-listings")
+def get_saved_listings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user's saved listings"""
+    saved = db.query(SavedListing).filter(SavedListing.user_id == current_user.id).all()
+    
+    return [
+        {
+            "id": s.id,
+            "listing_id": s.listing_id,
+            "title": s.listing.title if s.listing else "",
+            "price": s.listing.price if s.listing else 0,
+            "notes": s.notes,
+            "created_at": s.created_at.isoformat()
+        }
+        for s in saved
+    ]
+
+@app.post("/api/saved-listings")
+def save_listing(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Save a listing"""
+    listing_id = data.get("listing_id")
+    
+    existing = db.query(SavedListing).filter(
+        SavedListing.user_id == current_user.id,
+        SavedListing.listing_id == listing_id
+    ).first()
+    
+    if existing:
+        return {"message": "Already saved"}
+    
+    saved = SavedListing(
+        user_id=current_user.id,
+        listing_id=listing_id,
+        notes=data.get("notes")
+    )
+    db.add(saved)
+    db.commit()
+    
+    return {"success": True}
+
+@app.delete("/api/saved-listings/{saved_id}")
+def remove_saved_listing(saved_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Remove saved listing"""
+    saved = db.query(SavedListing).filter(
+        SavedListing.id == saved_id,
+        SavedListing.user_id == current_user.id
+    ).first()
+    
+    if saved:
+        db.delete(saved)
+        db.commit()
+    
+    return {"success": True}
+
+@app.post("/api/price-alerts")
+def create_price_alert(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create price alert"""
+    alert = PriceAlert(
+        user_id=current_user.id,
+        listing_id=data.get("listing_id"),
+        target_price=data.get("target_price"),
+        original_price=data.get("original_price")
+    )
+    db.add(alert)
+    db.commit()
+    
+    return {"success": True, "alert_id": alert.id}
+
+@app.get("/api/price-alerts")
+def get_price_alerts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user's price alerts"""
+    alerts = db.query(PriceAlert).filter(
+        PriceAlert.user_id == current_user.id,
+        PriceAlert.active == True
+    ).all()
+    
+    return [
+        {
+            "id": a.id,
+            "listing_id": a.listing_id,
+            "target_price": a.target_price,
+            "triggered": a.triggered,
+            "created_at": a.created_at.isoformat()
+        }
+        for a in alerts
+    ]
+
+@app.post("/api/search-alerts")
+def create_search_alert(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create search alert"""
+    alert = SearchAlert(
+        user_id=current_user.id,
+        name=data.get("name"),
+        search_criteria=data.get("search_criteria"),
+        frequency=data.get("frequency", "daily")
+    )
+    db.add(alert)
+    db.commit()
+    
+    return {"success": True, "alert_id": alert.id}
+
+@app.get("/api/search-alerts")
+def get_search_alerts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user's search alerts"""
+    alerts = db.query(SearchAlert).filter(
+        SearchAlert.user_id == current_user.id,
+        SearchAlert.active == True
+    ).all()
+    
+    return [
+        {
+            "id": a.id,
+            "name": a.name,
+            "search_criteria": a.search_criteria,
+            "frequency": a.frequency,
+            "created_at": a.created_at.isoformat()
+        }
+        for a in alerts
+    ]
+
+# ======================
+# MESSAGING SYSTEM
+# ======================
+
+@app.get("/api/messages")
+def get_messages(
+    message_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's messages"""
+    query = db.query(Message).filter(
+        (Message.sender_id == current_user.id) | (Message.recipient_id == current_user.id)
+    )
+    
+    if message_type:
+        query = query.filter(Message.message_type == message_type)
+    
+    messages = query.order_by(Message.created_at.desc()).all()
+    
+    return [
+        {
+            "id": m.id,
+            "ticket_number": m.ticket_number,
+            "subject": m.subject,
+            "body": m.body,
+            "message_type": m.message_type,
+            "status": m.status,
+            "priority": m.priority,
+            "created_at": m.created_at.isoformat()
+        }
+        for m in messages
+    ]
+
+@app.post("/api/messages")
+def create_message(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Create message or support ticket"""
+    message = Message(
+        sender_id=current_user.id,
+        recipient_id=data.get("recipient_id"),
+        listing_id=data.get("listing_id"),
+        message_type=data.get("message_type", "direct"),
+        subject=data.get("subject"),
+        body=data.get("body"),
+        priority=data.get("priority", "normal"),
+        category=data.get("category"),
+        ticket_number=generate_ticket_number() if data.get("message_type") == "support_ticket" else None
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    
+    # Send email notification
+    if message.message_type == "support_ticket":
+        # Notify admin
+        email_service.send_email(
+            to_email="admin@yachtversal.com",
+            subject=f"New Support Ticket: {message.ticket_number}",
+            html_content=f"<p>New ticket from {current_user.email}</p><p>{message.body}</p>"
+        )
+    
+    return {"success": True, "message_id": message.id, "ticket_number": message.ticket_number}
+
+@app.post("/api/messages/{message_id}/reply")
+def reply_to_message(message_id: int, data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Reply to a message"""
+    parent = db.query(Message).filter(Message.id == message_id).first()
+    if not parent:
+        raise ResourceNotFoundException("Message not found")
+    
+    reply = Message(
+        sender_id=current_user.id,
+        recipient_id=parent.sender_id if current_user.id != parent.sender_id else parent.recipient_id,
+        parent_message_id=message_id,
+        message_type=parent.message_type,
+        subject=f"Re: {parent.subject}",
+        body=data.get("body"),
+        ticket_number=parent.ticket_number
+    )
+    db.add(reply)
+    
+    parent.status = "replied"
+    parent.replied_at = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"success": True}
+
+# ======================
+# ENHANCED MESSAGING WITH EMAIL NOTIFICATIONS
+# ======================
+
+@app.post("/api/messages/{message_id}/read")
+def mark_message_read(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Mark message as read"""
+    message = db.query(Message).filter(Message.id == message_id).first()
+    if not message:
+        raise ResourceNotFoundException("Message not found")
+    
+    if message.recipient_id == current_user.id and not message.read_at:
+        message.status = "read"
+        message.read_at = datetime.utcnow()
+        db.commit()
+    
+    return {"success": True}
+
+# Update the existing reply endpoint to send email notifications
+@app.post("/api/messages/{message_id}/reply")
+def reply_to_message(
+    message_id: int, 
+    data: dict, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Reply to a message with email notification"""
+    parent = db.query(Message).filter(Message.id == message_id).first()
+    if not parent:
+        raise ResourceNotFoundException("Message not found")
+    
+    reply = Message(
+        sender_id=current_user.id,
+        recipient_id=parent.sender_id if current_user.id != parent.sender_id else parent.recipient_id,
+        parent_message_id=message_id,
+        message_type=parent.message_type,
+        subject=f"Re: {parent.subject}",
+        body=data.get("body"),
+        ticket_number=parent.ticket_number
+    )
+    db.add(reply)
+    
+    parent.status = "replied"
+    parent.replied_at = datetime.utcnow()
+    db.commit()
+    db.refresh(reply)
+    
+    # Send email notification to recipient
+    recipient = db.query(User).filter(User.id == reply.recipient_id).first()
+    if recipient and recipient.email:
+        sender_name = f"{current_user.first_name} {current_user.last_name}" if current_user.first_name else current_user.email
+        
+        email_service.send_email(
+            to_email=recipient.email,
+            subject=f"New Reply: {parent.subject}",
+            html_content=f"""
+            <h2>You have a new message reply</h2>
+            <p><strong>From:</strong> {sender_name}</p>
+            <p><strong>Subject:</strong> {parent.subject}</p>
+            {f'<p><strong>Ticket:</strong> {parent.ticket_number}</p>' if parent.ticket_number else ''}
+            <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p>{data.get("body")}</p>
+            </div>
+            <p><a href="https://yachtversal.com/messages" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View Message</a></p>
+            """
+        )
+    
+    return {"success": True}
+
+# Update the create message endpoint to send notifications
+@app.post("/api/messages", status_code=status.HTTP_201_CREATED)
+def create_message(
+    data: dict, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Create message or support ticket with email notification"""
+    message = Message(
+        sender_id=current_user.id,
+        recipient_id=data.get("recipient_id"),
+        listing_id=data.get("listing_id"),
+        message_type=data.get("message_type", "direct"),
+        subject=data.get("subject"),
+        body=data.get("body"),
+        priority=data.get("priority", "normal"),
+        category=data.get("category"),
+        ticket_number=generate_ticket_number() if data.get("message_type") == "support_ticket" else None
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    
+    # Send email notification
+    if message.message_type == "support_ticket":
+        # Notify admin/support team
+        email_service.send_email(
+            to_email="support@yachtversal.com",
+            subject=f"New Support Ticket: {message.ticket_number}",
+            html_content=f"""
+            <h2>New Support Ticket</h2>
+            <p><strong>Ticket:</strong> {message.ticket_number}</p>
+            <p><strong>From:</strong> {current_user.email}</p>
+            <p><strong>Priority:</strong> {message.priority}</p>
+            <p><strong>Category:</strong> {message.category}</p>
+            <p><strong>Subject:</strong> {message.subject}</p>
+            <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p>{message.body}</p>
+            </div>
+            <p><a href="https://yachtversal.com/admin/messages" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View Ticket</a></p>
+            """
+        )
+    elif message.recipient_id:
+        # Notify recipient for direct messages
+        recipient = db.query(User).filter(User.id == message.recipient_id).first()
+        if recipient and recipient.email:
+            sender_name = f"{current_user.first_name} {current_user.last_name}" if current_user.first_name else current_user.email
+            
+            email_service.send_email(
+                to_email=recipient.email,
+                subject=f"New Message: {message.subject}",
+                html_content=f"""
+                <h2>You have a new message</h2>
+                <p><strong>From:</strong> {sender_name}</p>
+                <p><strong>Subject:</strong> {message.subject}</p>
+                <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                    <p>{message.body}</p>
+                </div>
+                <p><a href="https://yachtversal.com/messages" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View Message</a></p>
+                """
+            )
+    
+    # Sync to CRM if it's an inquiry
+    if message.message_type == "inquiry" and message.listing_id:
+        # CRM sync logic here (already exists in your inquiry endpoint)
+        pass
+    
+    return {
+        "id": message.id,
+        "ticket_number": message.ticket_number,
+        "message": "Message sent successfully"
+    }
+
+# ======================
+# NOTIFICATIONS
+# ======================
+
+@app.get("/api/notifications")
+def get_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user notifications"""
+    notifications = db.query(Notification).filter(
+        Notification.user_id == current_user.id
+    ).order_by(Notification.created_at.desc()).limit(50).all()
+    
+    return [
+        {
+            "id": n.id,
+            "notification_type": n.notification_type,
+            "title": n.title,
+            "body": n.body,
+            "link": n.link,
+            "read": n.read,
+            "read_at": n.read_at.isoformat() if n.read_at else None,
+            "created_at": n.created_at.isoformat()
+        }
+        for n in notifications
+    ]
+
+@app.post("/api/notifications/{notification_id}/read")
+def mark_notification_read(
+    notification_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Mark notification as read"""
+    notification = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
+    
+    if notification:
+        notification.read = True
+        notification.read_at = datetime.utcnow()
+        db.commit()
+    
+    return {"success": True}
+
+@app.post("/api/notifications/read-all")
+def mark_all_notifications_read(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Mark all notifications as read"""
+    db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        Notification.read == False
+    ).update({"read": True, "read_at": datetime.utcnow()})
+    
+    db.commit()
+    return {"success": True}
+
+@app.delete("/api/notifications/{notification_id}")
+def delete_notification(
+    notification_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete notification"""
+    notification = db.query(Notification).filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user.id
+    ).first()
+    
+    if notification:
+        db.delete(notification)
+        db.commit()
+    
+    return {"success": True}
+
+# Helper function to create notifications
+def create_notification(
+    db: Session,
+    user_id: int,
+    notification_type: str,
+    title: str,
+    body: str,
+    link: str
+):
+    """Helper to create notifications"""
+    notification = Notification(
+        user_id=user_id,
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        link=link
+    )
+    db.add(notification)
+    db.commit()
+    return notification
+
+# ======================
+# DEALER PAGES
+# ======================
+
+@app.get("/api/dealers/{slug}/public")
+def get_dealer_page(slug: str, db: Session = Depends(get_db)):
+    """Get public dealer profile"""
+    dealer = db.query(DealerProfile).filter(
+        DealerProfile.slug == slug,
+        DealerProfile.active == True
+    ).first()
+    
+    if not dealer:
+        raise ResourceNotFoundException("Dealer not found")
+    
+    # Get listings
+    listings = db.query(Listing).filter(
+        Listing.user_id == dealer.user_id,
+        Listing.status == "active"
+    ).all()
+    
+    # Get reviews
+    reviews = db.query(DealerReview).filter(DealerReview.dealer_id == dealer.id).all()
+    avg_rating = sum(r.rating for r in reviews) / len(reviews) if reviews else 0
+    
+    return {
+        "id": dealer.id,
+        "name": dealer.name,
+        "company_name": dealer.company_name,
+        "logo_url": dealer.logo_url,
+        "banner_image": dealer.banner_image,
+        "about_section": dealer.about_section,
+        "specialties": dealer.specialties,
+        "primary_color": dealer.primary_color,
+        "verified": dealer.verified,
+        "listings_count": len(listings),
+        "avg_rating": round(avg_rating, 1),
+        "reviews_count": len(reviews),
+        "team_members": [
+            {
+                "name": tm.name,
+                "title": tm.title,
+                "photo_url": tm.photo_url,
+                "bio": tm.bio
+            }
+            for tm in dealer.team_members if tm.active
+        ],
+        "announcements": [
+            {
+                "title": a.title,
+                "content": a.content,
+                "type": a.announcement_type,
+                "created_at": a.created_at.isoformat()
+            }
+            for a in dealer.announcements
+        ][:5]
+    }
+
+@app.put("/api/dealers/customize")
+def customize_dealer_page(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Customize dealer page"""
+    dealer = db.query(DealerProfile).filter(DealerProfile.user_id == current_user.id).first()
+    if not dealer:
+        raise ResourceNotFoundException("Dealer profile not found")
+    
+    for field, value in data.items():
+        if hasattr(dealer, field):
+            setattr(dealer, field, value)
+    
+    dealer.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {"success": True}
+
+# ======================
+# CRM INTEGRATION
+# ======================
+
+@app.get("/api/crm/integrations")
+def get_crm_integrations(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user's CRM integrations"""
+    integrations = db.query(CRMIntegration).filter(CRMIntegration.user_id == current_user.id).all()
+    
+    return [
+        {
+            "id": i.id,
+            "crm_type": i.crm_type,
+            "sync_leads": i.sync_leads,
+            "sync_contacts": i.sync_contacts,
+            "sync_messages": i.sync_messages,
+            "active": i.active,
+            "last_sync": i.last_sync.isoformat() if i.last_sync else None
+        }
+        for i in integrations
+    ]
+
+@app.post("/api/crm/integrations")
+def create_crm_integration(data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Connect CRM"""
+    integration = CRMIntegration(
+        user_id=current_user.id,
+        crm_type=data.get("crm_type"),
+        api_key=data.get("api_key"),
+        sync_leads=data.get("sync_leads", True),
+        sync_contacts=data.get("sync_contacts", True),
+        sync_messages=data.get("sync_messages", True)
+    )
+    db.add(integration)
+    db.commit()
+    
+    return {"success": True, "integration_id": integration.id}
+
+# ======================
+# SCRAPER (ADMIN)
+# ======================
+
+@app.post("/api/admin/scraper/start")
+async def start_scraper_job(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Start scraper job"""
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin only")
+    
+    if not scraper:
+        raise ExternalServiceException("Scraper not available")
+    
+    job = ScraperJob(
+        dealer_id=data.get("dealer_id"),
+        broker_url=data.get("broker_url"),
+        frequency=data.get("frequency", "weekly")
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    
+    background_tasks.add_task(run_scraper_job, job.id, db)
+    
+    return {"success": True, "job_id": job.id}
+
+def run_scraper_job(job_id: int, db: Session):
+    """Background task to run scraper"""
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        return
+    
+    job.status = "running"
+    job.started_at = datetime.utcnow()
+    db.commit()
+    
+    try:
+        # Implementation would go here
+        # This is a placeholder
+        pass
+        
+    except Exception as e:
+        job.status = "failed"
+        job.error_message = str(e)
+    
+    job.completed_at = datetime.utcnow()
+    db.commit()
+
+# ======================
+# INQUIRIES (with CRM sync)
+# ======================
+
+@app.post("/api/inquiries", status_code=status.HTTP_201_CREATED)
+@rate_limit(**RateLimitConfig.INQUIRY_CREATE)
+async def create_inquiry(request: Request, inquiry_data: InquiryCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    listing = db.query(Listing).filter(Listing.id == inquiry_data.listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", inquiry_data.listing_id)
+
+    inquiry = Inquiry(**inquiry_data.dict())
+    db.add(inquiry)
+    
+    listing.inquiries += 1
+    db.commit()
+    db.refresh(inquiry)
+    
+    # Send email to dealer
+    dealer = listing.owner
+    if dealer.email:
+        email_service.send_inquiry_to_dealer(
+            dealer_email=dealer.email,
+            dealer_name=f"{dealer.first_name} {dealer.last_name}",
+            inquirer_name=inquiry.sender_name,
+            inquirer_email=inquiry.sender_email,
+            inquirer_phone=inquiry.sender_phone or "Not provided",
+            listing_title=listing.title,
+            listing_url=f"https://yachtversal.com/listings/{listing.id}",
+            message=inquiry.message
+        )
+    
+    # Sync to CRM in background
+    background_tasks.add_task(process_inquiry_crm_sync, inquiry.id, db)
+    
+    return {"id": inquiry.id, "message": "Inquiry sent successfully"}
+
+# ======================
+# ADMIN SETTINGS
+# ======================
+
+@app.get("/api/admin/settings")
+def get_admin_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get admin settings"""
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin only")
+    
+    settings = db.query(SiteSettings).first()
+    if not settings:
+        settings = SiteSettings()
+        db.add(settings)
+        db.commit()
+    
+    return {
+        "banner": {
+            "active": settings.banner_active,
+            "text": settings.banner_text,
+            "type": settings.banner_type,
+            "target": settings.banner_target
+        }
+    }
+
+@app.put("/api/admin/settings/banner")
+def update_banner(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update site banner"""
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin only")
+    
+    settings = db.query(SiteSettings).first()
+    if not settings:
+        settings = SiteSettings()
+        db.add(settings)
+    
+    settings.banner_active = data.get("active", False)
+    settings.banner_text = data.get("text")
+    settings.banner_type = data.get("type", "info")
+    settings.banner_target = data.get("target", "all")
+    
+    db.commit()
+    
+    return {"success": True}
+
+@app.get("/api/public/banner")
+def get_public_banner(db: Session = Depends(get_db)):
+    """Get active banner (public)"""
+    settings = db.query(SiteSettings).first()
+    
+    if not settings or not settings.banner_active:
+        return {"active": False}
+    
+    return {
+        "active": True,
+        "text": settings.banner_text,
+        "type": settings.banner_type,
+        "target": settings.banner_target
+    }
+
+# ======================
+# FILE UPLOADS
+# ======================
+
+@app.post("/api/upload")
+@rate_limit(**RateLimitConfig.API_UPLOAD)
+async def upload_file(request: Request, file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """Upload image/video"""
+    allowed_types = {'image/jpeg', 'image/png', 'image/webp', 'video/mp4'}
+    
+    if file.content_type not in allowed_types:
+        raise ValidationException("Invalid file type")
+    
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    
+    if size > 50 * 1024 * 1024:
+        raise ValidationException("File too large")
+    
+    ext = Path(file.filename).suffix.lower()
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    file_path = UPLOAD_DIR / unique_filename
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        if file.content_type.startswith('image/'):
+            optimized_path = UPLOAD_DIR / f"opt_{unique_filename}"
+            success, metadata = optimize_image(file_path, optimized_path)
+            if success:
+                os.remove(file_path)
+                file_path = optimized_path
+        
+        return {
+            "success": True,
+            "url": f"/uploads/{file_path.name}",
+            "filename": file.filename
+        }
+        
+    except Exception as e:
+        if file_path.exists():
+            os.remove(file_path)
+        raise BusinessLogicException(str(e))
+
+# ======================
+# EXPORT LISTINGS TO CSV
+# ======================
+
+@app.get("/api/listings/export")
+def export_listings_csv(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Export user's listings to CSV"""
+    try:
+        # Get user's listings
+        query = db.query(Listing)
+        
+        # Filter based on user type
+        if current_user.user_type == "admin":
+            # Admin can export all
+            listings = query.all()
+        elif current_user.parent_dealer_id:
+            # Sales rep - only their created listings
+            listings = query.filter(Listing.created_by_user_id == current_user.id).all()
+        else:
+            # Dealer - all their company's listings
+            listings = query.filter(Listing.user_id == current_user.id).all()
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers
+        headers = [
+            'id', 'title', 'make', 'model', 'year', 'price', 'currency',
+            'length_feet', 'beam_feet', 'draft_feet', 'boat_type', 'hull_material',
+            'engine_make', 'engine_model', 'engine_type', 'engine_hours', 'fuel_type',
+            'cabins', 'berths', 'heads', 'city', 'state', 'country',
+            'description', 'condition', 'status', 'views', 'inquiries', 'created_at'
+        ]
+        writer.writerow(headers)
+        
+        # Write data
+        for listing in listings:
+            writer.writerow([
+                listing.id,
+                listing.title,
+                listing.make,
+                listing.model,
+                listing.year,
+                listing.price,
+                listing.currency,
+                listing.length_feet,
+                listing.beam_feet,
+                listing.draft_feet,
+                listing.boat_type,
+                listing.hull_material,
+                listing.engine_make,
+                listing.engine_model,
+                listing.engine_type,
+                listing.engine_hours,
+                listing.fuel_type,
+                listing.cabins,
+                listing.berths,
+                listing.heads,
+                listing.city,
+                listing.state,
+                listing.country,
+                listing.description,
+                listing.condition,
+                listing.status,
+                listing.views,
+                listing.inquiries,
+                listing.created_at.isoformat() if listing.created_at else ''
+            ])
+        
+        # Prepare response
+        output.seek(0)
+        filename = f"listings-export-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.csv"
+        
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Export error: {e}", exc_info=True)
+        raise BusinessLogicException("Failed to export listings")
+
+
+# ======================
+# IMPORT LISTINGS FROM CSV
+# ======================
+
+@app.post("/api/listings/import")
+async def import_listings_csv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Import listings from CSV file"""
+    try:
+        # Check if user can create listings
+        if current_user.parent_dealer_id and not current_user.permissions.get("can_create_listings", False):
+            raise AuthorizationException("No permission to import listings")
+        
+        # Read file content
+        contents = await file.read()
+        
+        # Determine owner
+        owner_id = current_user.parent_dealer_id if current_user.parent_dealer_id else current_user.id
+        
+        # Parse CSV
+        csv_file = io.StringIO(contents.decode('utf-8'))
+        reader = csv.DictReader(csv_file)
+        
+        created_count = 0
+        updated_count = 0
+        errors = []
+        
+        for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
+            try:
+                # Check if updating existing listing (if ID provided)
+                listing_id = row.get('id', '').strip()
+                
+                if listing_id and listing_id.isdigit():
+                    # Update existing listing
+                    listing = db.query(Listing).filter(
+                        Listing.id == int(listing_id),
+                        Listing.user_id == owner_id
+                    ).first()
+                    
+                    if listing:
+                        # Update fields
+                        listing.title = row.get('title', listing.title)
+                        listing.make = row.get('make', listing.make)
+                        listing.model = row.get('model', listing.model)
+                        listing.year = int(row['year']) if row.get('year') else listing.year
+                        listing.price = float(row['price']) if row.get('price') else listing.price
+                        listing.currency = row.get('currency', listing.currency)
+                        listing.length_feet = float(row['length_feet']) if row.get('length_feet') else listing.length_feet
+                        listing.beam_feet = float(row['beam_feet']) if row.get('beam_feet') else listing.beam_feet
+                        listing.draft_feet = float(row['draft_feet']) if row.get('draft_feet') else listing.draft_feet
+                        listing.boat_type = row.get('boat_type', listing.boat_type)
+                        listing.hull_material = row.get('hull_material', listing.hull_material)
+                        listing.engine_make = row.get('engine_make', listing.engine_make)
+                        listing.engine_model = row.get('engine_model', listing.engine_model)
+                        listing.engine_type = row.get('engine_type', listing.engine_type)
+                        listing.engine_hours = float(row['engine_hours']) if row.get('engine_hours') else listing.engine_hours
+                        listing.fuel_type = row.get('fuel_type', listing.fuel_type)
+                        listing.cabins = int(row['cabins']) if row.get('cabins') else listing.cabins
+                        listing.berths = int(row['berths']) if row.get('berths') else listing.berths
+                        listing.heads = int(row['heads']) if row.get('heads') else listing.heads
+                        listing.city = row.get('city', listing.city)
+                        listing.state = row.get('state', listing.state)
+                        listing.country = row.get('country', listing.country)
+                        listing.description = row.get('description', listing.description)
+                        listing.condition = row.get('condition', listing.condition)
+                        listing.status = row.get('status', listing.status)
+                        listing.updated_at = datetime.utcnow()
+                        
+                        updated_count += 1
+                    else:
+                        errors.append(f"Row {row_num}: Listing ID {listing_id} not found or not owned by you")
+                else:
+                    # Create new listing
+                    # Validate required fields
+                    if not row.get('title') or not row.get('make') or not row.get('model'):
+                        errors.append(f"Row {row_num}: Missing required fields (title, make, model)")
+                        continue
+                    
+                    listing = Listing(
+                        user_id=owner_id,
+                        created_by_user_id=current_user.id,
+                        title=row['title'],
+                        make=row.get('make'),
+                        model=row.get('model'),
+                        year=int(row['year']) if row.get('year') else None,
+                        price=float(row['price']) if row.get('price') else None,
+                        currency=row.get('currency', 'USD'),
+                        length_feet=float(row['length_feet']) if row.get('length_feet') else None,
+                        beam_feet=float(row['beam_feet']) if row.get('beam_feet') else None,
+                        draft_feet=float(row['draft_feet']) if row.get('draft_feet') else None,
+                        boat_type=row.get('boat_type'),
+                        hull_material=row.get('hull_material'),
+                        engine_make=row.get('engine_make'),
+                        engine_model=row.get('engine_model'),
+                        engine_type=row.get('engine_type'),
+                        engine_hours=float(row['engine_hours']) if row.get('engine_hours') else None,
+                        fuel_type=row.get('fuel_type'),
+                        cabins=int(row['cabins']) if row.get('cabins') else None,
+                        berths=int(row['berths']) if row.get('berths') else None,
+                        heads=int(row['heads']) if row.get('heads') else None,
+                        city=row.get('city'),
+                        state=row.get('state'),
+                        country=row.get('country', 'USA'),
+                        description=row.get('description'),
+                        condition=row.get('condition', 'used'),
+                        status=row.get('status', 'draft')
+                    )
+                    
+                    # Auto-detect continent
+                    if listing.country:
+                        listing.continent = get_continent_for_country(listing.country)
+                    
+                    db.add(listing)
+                    created_count += 1
+                    
+            except Exception as row_error:
+                errors.append(f"Row {row_num}: {str(row_error)}")
+                continue
+        
+        # Commit all changes
+        db.commit()
+        
+        return {
+            "success": True,
+            "created": created_count,
+            "updated": updated_count,
+            "errors": errors,
+            "total_processed": created_count + updated_count
+        }
+        
+    except Exception as e:
+        logger.error(f"Import error: {e}", exc_info=True)
+        raise BusinessLogicException(f"Failed to import listings: {str(e)}")
+
+
+# ======================
+# GET CSV TEMPLATE
+# ======================
+
+@app.get("/api/listings/template")
+def download_csv_template():
+    """Download blank CSV template for importing listings"""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Headers with example data
+    writer.writerow([
+        'id', 'title', 'make', 'model', 'year', 'price', 'currency',
+        'length_feet', 'beam_feet', 'draft_feet', 'boat_type', 'hull_material',
+        'engine_make', 'engine_model', 'engine_type', 'engine_hours', 'fuel_type',
+        'cabins', 'berths', 'heads', 'city', 'state', 'country',
+        'description', 'condition', 'status'
+    ])
+    
+    # Example row
+    writer.writerow([
+        '', '2020 Sea Ray Sundancer 320', 'Sea Ray', 'Sundancer 320', '2020', '250000', 'USD',
+        '32', '10.5', '3.2', 'Motor Yacht', 'Fiberglass',
+        'MerCruiser', '8.2L', 'Inboard', '250', 'Diesel',
+        '2', '4', '1', 'Miami', 'Florida', 'USA',
+        'Beautiful yacht in excellent condition', 'used', 'active'
+    ])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=listings-import-template.csv"
+        }
+    )
+
+
+# ======================
+# BULK DELETE LISTINGS
+# ======================
+
+@app.post("/api/listings/bulk-delete")
+def bulk_delete_listings(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Bulk delete listings"""
+    try:
+        listing_ids = data.get("listing_ids", [])
+        permanent = data.get("permanent", False)
+        
+        if not listing_ids:
+            raise ValidationException("No listing IDs provided")
+        
+        # Get listings
+        query = db.query(Listing).filter(Listing.id.in_(listing_ids))
+        
+        # Filter by ownership
+        if current_user.user_type == "admin":
+            listings = query.all()
+        elif current_user.parent_dealer_id:
+            # Sales rep - only their created listings
+            can_delete_all = current_user.permissions.get("can_delete_listings", False)
+            if can_delete_all:
+                listings = query.filter(Listing.user_id == current_user.parent_dealer_id).all()
+            else:
+                listings = query.filter(Listing.created_by_user_id == current_user.id).all()
+        else:
+            # Dealer - their company's listings
+            listings = query.filter(Listing.user_id == current_user.id).all()
+        
+        if not listings:
+            raise ResourceNotFoundException("Listings", None)
+        
+        deleted_count = len(listings)
+        
+        if permanent:
+            # Permanently delete
+            for listing in listings:
+                db.delete(listing)
+        else:
+            # Archive
+            for listing in listings:
+                listing.status = "archived"
+                listing.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "permanent": permanent
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk delete error: {e}", exc_info=True)
+        raise BusinessLogicException("Failed to delete listings")
+
+
+# ======================
+# BULK UPDATE LISTING STATUS
+# ======================
+
+@app.post("/api/listings/bulk-update-status")
+def bulk_update_status(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Bulk update listing status"""
+    try:
+        listing_ids = data.get("listing_ids", [])
+        new_status = data.get("status")
+        
+        if not listing_ids or not new_status:
+            raise ValidationException("Missing listing_ids or status")
+        
+        if new_status not in ["active", "draft", "archived"]:
+            raise ValidationException("Invalid status")
+        
+        # Get listings (with permission checks)
+        query = db.query(Listing).filter(Listing.id.in_(listing_ids))
+        
+        if current_user.user_type == "admin":
+            listings = query.all()
+        elif current_user.parent_dealer_id:
+            listings = query.filter(Listing.user_id == current_user.parent_dealer_id).all()
+        else:
+            listings = query.filter(Listing.user_id == current_user.id).all()
+        
+        updated_count = 0
+        for listing in listings:
+            listing.status = new_status
+            listing.updated_at = datetime.utcnow()
+            if new_status == "active" and not listing.published_at:
+                listing.published_at = datetime.utcnow()
+            updated_count += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "updated_count": updated_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bulk update error: {e}", exc_info=True)
+        raise BusinessLogicException("Failed to update listings")
+        
+# ======================
+# STARTUP TASKS
+# ======================
+
+@app.on_event("startup")
+async def startup_event():
+    # Initialize rate limiter and other runtime components if available
+    try:
+        if "RateLimitConfig" in globals() and hasattr(rate_limiter, "configure"):
+            # Use a default config if none is provided (libraries may vary)
+            try:
+                default_config = RateLimitConfig()
+                rate_limiter.configure(default_config)
+                logger.info("Rate limiter configured with default RateLimitConfig")
+            except Exception:
+                rate_limiter.configure() if hasattr(rate_limiter, "configure") else None
+                logger.info("Rate limiter configured")
+        elif callable(rate_limiter):
+            rate_limiter()
+            logger.info("Rate limiter initialized via callable")
+    except Exception as e:
+        logger.warning(f"Rate limiter init skipped or failed: {e}")
+
+    # Log that startup completes for observability
+    logger.info("Application startup completed and background services initialized")
+# Run on app startup
+logger.info("YachtVersal API started")
+    
+    # Could add: currency rate updates, check trial expirations, etc.
+
+# ======================
+# SALES REP ENDPOINTS
+# ======================
+
+@app.get("/api/sales-rep/clients")
+def get_sales_rep_clients(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all clients assigned to this sales rep"""
+    if current_user.user_type != "salesman":
+        raise AuthorizationException("Sales rep access required")
+    
+    clients = db.query(User).filter(
+        User.assigned_sales_rep_id == current_user.id,
+        User.user_type == "dealer"
+    ).all()
+    
+    return [
+        {
+            "id": client.id,
+            "name": f"{client.first_name} {client.last_name}",
+            "company_name": client.company_name,
+            "email": client.email,
+            "subscription_tier": client.subscription_tier,
+            "active": client.active,
+            "created_at": client.created_at.isoformat()
+        }
+        for client in clients
+    ]
+
+# ======================
+# TEAM MEMBER ENDPOINTS (for dealers)
+# ======================
+
+@app.get("/api/team/members")
+def get_team_members(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all team members for the current dealer"""
+    if current_user.user_type not in ["dealer", "admin"]:
+        raise AuthorizationException("Dealer access required")
+    
+    # If user is a team member, get their parent dealer
+    dealer_id = current_user.id if current_user.parent_dealer_id is None else current_user.parent_dealer_id
+    
+    members = db.query(User).filter(
+        User.parent_dealer_id == dealer_id
+    ).all()
+    
+    return [
+        {
+            "id": member.id,
+            "email": member.email,
+            "first_name": member.first_name,
+            "last_name": member.last_name,
+            "role": member.role,
+            "permissions": member.permissions,
+            "active": member.active,
+            "created_at": member.created_at.isoformat()
+        }
+        for member in members
+    ]
+
+@app.post("/api/team/invite")
+def invite_team_member(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Invite a team member (sales rep) to join the dealer's team"""
+    if current_user.user_type not in ["dealer", "admin"]:
+        raise AuthorizationException("Dealer access required")
+    
+    # Check if email already exists
+    existing = db.query(User).filter(User.email == data.get("email")).first()
+    if existing:
+        raise ValidationException("User with this email already exists")
+    
+    # Default permissions for sales reps
+    default_permissions = {
+        "can_create_listings": True,
+        "can_edit_own_listings": True,
+        "can_edit_all_listings": False,
+        "can_delete_listings": False,
+        "can_view_inquiries": True,
+        "can_manage_team": False,
+        "can_view_analytics": True
+    }
+    
+    # Create team member account
+    team_member = User(
+        email=data.get("email"),
+        password_hash=hash_password(data.get("password", "changeme123")),
+        first_name=data.get("first_name"),
+        last_name=data.get("last_name"),
+        phone=data.get("phone"),
+        user_type="salesman",
+        parent_dealer_id=current_user.id,
+        role=data.get("role", "team_member"),
+        permissions=data.get("permissions", default_permissions),
+        subscription_tier=current_user.subscription_tier  # Inherit from parent
+    )
+    
+    db.add(team_member)
+    db.commit()
+    db.refresh(team_member)
+    
+    # Send invitation email
+    email_service.send_email(
+        to_email=team_member.email,
+        subject="You've been invited to join a yacht dealership",
+        html_content=f"""
+        <h2>Welcome to YachtVersal!</h2>
+        <p>You've been invited by {current_user.company_name or current_user.email} to join their team.</p>
+        <p>Your temporary password is: <strong>changeme123</strong></p>
+        <p>Please log in and change your password immediately.</p>
+        <a href="https://yachtversal.com/login">Log In Now</a>
+        """
+    )
+    
+    return {
+        "success": True,
+        "member_id": team_member.id,
+        "message": "Team member invited successfully"
+    }
+
+@app.put("/api/team/members/{member_id}/permissions")
+def update_member_permissions(
+    member_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update team member permissions"""
+    if current_user.user_type not in ["dealer", "admin"]:
+        raise AuthorizationException("Dealer access required")
+    
+    member = db.query(User).filter(
+        User.id == member_id,
+        User.parent_dealer_id == current_user.id
+    ).first()
+    
+    if not member:
+        raise ResourceNotFoundException("Team member not found")
+    
+    member.permissions = data.get("permissions", member.permissions)
+    member.role = data.get("role", member.role)
+    
+    db.commit()
+    
+    return {"success": True}
+
+@app.delete("/api/team/members/{member_id}")
+def remove_team_member(
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a team member"""
+    if current_user.user_type not in ["dealer", "admin"]:
+        raise AuthorizationException("Dealer access required")
+    
+    member = db.query(User).filter(
+        User.id == member_id,
+        User.parent_dealer_id == current_user.id
+    ).first()
+    
+    if not member:
+        raise ResourceNotFoundException("Team member not found")
+    
+    # Reassign their listings to parent dealer
+    db.query(Listing).filter(Listing.user_id == member_id).update({
+        "user_id": current_user.id
+    })
+    
+    # Deactivate instead of delete to preserve history
+    member.active = False
+    
+    db.commit()
+    
+    return {"success": True}
+
+# PASSWORD RESET ENDPOINTS
+
+@app.post("/api/auth/forgot-password")
+def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_db)):
+    """Request password reset"""
+    user = db.query(User).filter(User.email == data.email).first()
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"success": True, "message": "If that email exists, a reset link has been sent"}
+    
+    # Generate reset token
+    token = generate_reset_token()
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    
+    # Delete old unused tokens
+    db.query(PasswordReset).filter(
+        PasswordReset.user_id == user.id,
+        PasswordReset.used == False
+    ).delete()
+    
+    # Create new reset token
+    reset = PasswordReset(
+        user_id=user.id,
+        token=token,
+        expires_at=expires_at
+    )
+    db.add(reset)
+    db.commit()
+    
+    # Send email
+    user_name = f"{user.first_name} {user.last_name}" if user.first_name else ""
+    email_service.send_password_reset_email(user.email, token, user_name)
+    
+    return {"success": True, "message": "If that email exists, a reset link has been sent"}
+
+
+@app.post("/api/auth/reset-password")
+def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
+    """Reset password with token"""
+    reset = db.query(PasswordReset).filter(
+        PasswordReset.token == data.token,
+        PasswordReset.used == False,
+        PasswordReset.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not reset:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Update user password
+    user = db.query(User).filter(User.id == reset.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.password_hash = get_password_hash(data.new_password)
+    reset.used = True
+    
+    db.commit()
+    
+    # Log activity
+    log_activity(db, user.id, "password_reset", {"method": "email_link"})
+    
+    return {"success": True, "message": "Password reset successfully"}
+
+
+# EMAIL VERIFICATION ENDPOINTS
+
+@app.post("/api/auth/resend-verification")
+def resend_verification(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Resend email verification"""
+    if current_user.email_verified:
+        return {"success": False, "message": "Email already verified"}
+    
+    # Generate new token
+    token = generate_verification_token()
+    expires_at = datetime.utcnow() + timedelta(hours=24)
+    
+    # Delete old tokens
+    db.query(EmailVerification).filter(
+        EmailVerification.user_id == current_user.id,
+        EmailVerification.verified == False
+    ).delete()
+    
+    # Create new verification
+    verification = EmailVerification(
+        user_id=current_user.id,
+        token=token,
+        expires_at=expires_at
+    )
+    db.add(verification)
+    db.commit()
+    
+    # Send email
+    user_name = f"{current_user.first_name} {current_user.last_name}" if current_user.first_name else ""
+    email_service.send_email_verification(current_user.email, token, user_name)
+    
+    return {"success": True, "message": "Verification email sent"}
+
+
+@app.post("/api/auth/verify-email")
+def verify_email(data: EmailVerificationRequest, db: Session = Depends(get_db)):
+    """Verify email with token"""
+    verification = db.query(EmailVerification).filter(
+        EmailVerification.token == data.token,
+        EmailVerification.verified == False,
+        EmailVerification.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+    
+    # Update user
+    user = db.query(User).filter(User.id == verification.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    verification.verified = True
+    
+    db.commit()
+    
+    # Log activity
+    log_activity(db, user.id, "email_verified")
+    
+    return {"success": True, "message": "Email verified successfully"}
+
+
+# TWO-FACTOR AUTHENTICATION ENDPOINTS
+
+@app.post("/api/auth/2fa/enable")
+def enable_2fa(
+    data: Enable2FARequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enable/disable 2FA"""
+    # Get or create 2FA record
+    tfa = db.query(TwoFactorAuth).filter(TwoFactorAuth.user_id == current_user.id).first()
+    
+    if not tfa:
+        # Generate backup codes
+        backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
+        
+        tfa = TwoFactorAuth(
+            user_id=current_user.id,
+            backup_codes=backup_codes,
+            enabled=data.enabled
+        )
+        db.add(tfa)
+    else:
+        tfa.enabled = data.enabled
+    
+    current_user.two_factor_enabled = data.enabled
+    db.commit()
+    
+    # Log activity
+    log_activity(db, current_user.id, "2fa_enabled" if data.enabled else "2fa_disabled")
+    
+    result = {"success": True, "enabled": data.enabled}
+    if data.enabled and tfa.backup_codes:
+        result["backup_codes"] = tfa.backup_codes
+    
+    return result
+
+
+@app.post("/api/auth/2fa/send-code")
+def send_2fa_code(
+    data: UserLogin,
+    db: Session = Depends(get_db)
+):
+    """Send 2FA code via email"""
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if not user.two_factor_enabled:
+        raise HTTPException(status_code=400, detail="2FA not enabled")
+    
+    # Generate code
+    code = generate_2fa_code()
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    
+    # Delete old codes
+    db.query(TwoFactorCode).filter(
+        TwoFactorCode.user_id == user.id,
+        TwoFactorCode.used == False
+    ).delete()
+    
+    # Save code
+    tfa_code = TwoFactorCode(
+        user_id=user.id,
+        code=code,
+        expires_at=expires_at
+    )
+    db.add(tfa_code)
+    db.commit()
+    
+    # Send email
+    user_name = f"{user.first_name} {user.last_name}" if user.first_name else ""
+    email_service.send_2fa_code(user.email, code, user_name)
+    
+    return {"success": True, "message": "Verification code sent", "requires_2fa": True}
+
+
+@app.post("/api/auth/2fa/verify")
+def verify_2fa_code(
+    email: str,
+    data: Verify2FACode,
+    db: Session = Depends(get_db)
+):
+    """Verify 2FA code and complete login"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Check if it's a backup code
+    tfa = db.query(TwoFactorAuth).filter(TwoFactorAuth.user_id == user.id).first()
+    if tfa and data.code.upper() in tfa.backup_codes:
+        # Remove used backup code
+        tfa.backup_codes.remove(data.code.upper())
+        db.commit()
+        
+        # Log activity
+        log_activity(db, user.id, "login_2fa", {"method": "backup_code"})
+        
+        # Generate token
+        access_token = create_access_token(
+            data={"sub": user.email},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Check regular code
+    tfa_code = db.query(TwoFactorCode).filter(
+        TwoFactorCode.user_id == user.id,
+        TwoFactorCode.code == data.code,
+        TwoFactorCode.used == False,
+        TwoFactorCode.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not tfa_code:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    
+    # Mark code as used
+    tfa_code.used = True
+    db.commit()
+    
+    # Log activity
+    log_activity(db, user.id, "login_2fa", {"method": "email_code"})
+    
+    # Generate token
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ACTIVITY LOG ENDPOINTS
+
+@app.get("/api/activity-log")
+def get_activity_log(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's activity log"""
+    logs = db.query(ActivityLog).filter(
+        ActivityLog.user_id == current_user.id
+    ).order_by(ActivityLog.created_at.desc()).limit(limit).all()
+    
+    return [
+        {
+            "id": log.id,
+            "action": log.action,
+            "details": log.details,
+            "ip_address": log.ip_address,
+            "created_at": log.created_at.isoformat()
+        }
+        for log in logs
+    ]
+    
+# ======================
+# MODIFY EXISTING LISTING ENDPOINTS FOR PERMISSIONS
+# ======================
+
+@app.post("/api/listings", status_code=status.HTTP_201_CREATED)
+@rate_limit(**RateLimitConfig.API_LISTING_CREATE)
+async def create_listing(request: Request, listing_data: ListingCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        # Check permissions if user is a team member
+        if current_user.parent_dealer_id is not None:
+            if not current_user.permissions.get("can_create_listings", False):
+                raise AuthorizationException("You don't have permission to create listings")
+        
+        check_listing_limit(current_user, db)
+        
+        # Determine owner: if team member, use parent dealer; otherwise use current user
+        owner_id = current_user.parent_dealer_id if current_user.parent_dealer_id else current_user.id
+        
+        listing = Listing(
+            user_id=owner_id,  # Owner (dealer)
+            created_by_user_id=current_user.id,  # Creator (could be sales rep)
+            **listing_data.dict()
+        )
+
+        # Auto-detect continent from country
+        if listing.country and not listing.continent:
+            listing.continent = get_continent_for_country(listing.country)
+
+        # For trial users, set status to draft
+        if current_user.trial_active and not current_user.trial_converted:
+            listing.status = "draft"
+        elif listing.status == "active":
+            listing.published_at = datetime.utcnow()
+
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+
+        return {"id": listing.id, "message": "Listing created successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating listing: {e}", exc_info=True)
+        raise BusinessLogicException("Error creating listing")
+
+@app.put("/api/listings/{listing_id}")
+def update_listing(
+    listing_id: int,
+    listing_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing not found")
+
+    # Permission checks
+    is_owner = listing.user_id == current_user.id
+    is_creator = listing.created_by_user_id == current_user.id
+    is_admin = current_user.user_type == "admin"
+    is_parent_dealer = current_user.id == listing.owner.parent_dealer_id if listing.owner.parent_dealer_id else False
+    
+    can_edit_own = current_user.permissions.get("can_edit_own_listings", True)
+    can_edit_all = current_user.permissions.get("can_edit_all_listings", False)
+    
+    # Check if user has permission
+    if not (is_admin or is_owner or is_parent_dealer or (is_creator and can_edit_own) or can_edit_all):
+        raise AuthorizationException("You don't have permission to edit this listing")
+
+    for field, value in listing_data.items():
+        if hasattr(listing, field) and value is not None:
+            setattr(listing, field, value)
+
+    listing.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {"message": "Listing updated successfully"}
+
+# ======================
+# INQUIRIES - Filter by sales rep
+# ======================
+
+@app.get("/api/inquiries")
+def get_inquiries(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get inquiries - filtered by permissions"""
+    if current_user.user_type == "admin":
+        inquiries = db.query(Inquiry).all()
+    elif current_user.parent_dealer_id is not None:
+        # Team member - only see inquiries for their own listings
+        if not current_user.permissions.get("can_view_inquiries", True):
+            raise AuthorizationException("No permission to view inquiries")
+        
+        inquiries = db.query(Inquiry).join(Listing).filter(
+            Listing.created_by_user_id == current_user.id
+        ).all()
+    else:
+        # Dealer - see all inquiries for their company
+        inquiries = db.query(Inquiry).join(Listing).filter(
+            Listing.user_id == current_user.id
+        ).all()
+    
+    return [
+        {
+            "id": inq.id,
+            "listing_id": inq.listing_id,
+            "listing_title": inq.listing.title if inq.listing else "Unknown",
+            "sender_name": inq.sender_name,
+            "sender_email": inq.sender_email,
+            "sender_phone": inq.sender_phone,
+            "message": inq.message,
+            "status": inq.status,
+            "created_at": inq.created_at.isoformat()
+        }
+        for inq in inquiries
+    ]
+
+@app.patch("/api/inquiries/{inquiry_id}/status")
+def update_inquiry_status(
+    inquiry_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update inquiry status"""
+    inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inquiry:
+        raise ResourceNotFoundException("Inquiry", inquiry_id)
+    
+    # Check permission
+    listing = inquiry.listing
+    if not (current_user.user_type == "admin" or 
+            listing.user_id == current_user.id or 
+            listing.created_by_user_id == current_user.id):
+        raise AuthorizationException("Not authorized")
+    
+    inquiry.status = data.get("status", inquiry.status)
+    db.commit()
+    
+    return {"success": True}
+
+# ======================
+# RUN THE APP
+# ======================
+
+
+# Duplicate appended models/schemas/helpers removed to avoid re-definition conflicts. See earlier definitions above.
+# PASSWORD RESET ENDPOINTS
+
+@app.post("/api/auth/forgot-password")
+def forgot_password(data: PasswordResetRequest, db: Session = Depends(get_db)):
+    """Request password reset"""
+    user = db.query(User).filter(User.email == data.email).first()
+    
+    # Always return success to prevent email enumeration
+    if not user:
+        return {"success": True, "message": "If that email exists, a reset link has been sent"}
+    
+    # Generate reset token
+    token = generate_reset_token()
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    
+    # Delete old unused tokens
+    db.query(PasswordReset).filter(
+        PasswordReset.user_id == user.id,
+        PasswordReset.used == False
+    ).delete()
+    
+    # Create new reset token
+    reset = PasswordReset(
+        user_id=user.id,
+        token=token,
+        expires_at=expires_at
+    )
+    db.add(reset)
+    db.commit()
+    
+    # Send email
+    user_name = f"{user.first_name} {user.last_name}" if user.first_name else ""
+    email_service.send_password_reset_email(user.email, token, user_name)
+    
+    return {"success": True, "message": "If that email exists, a reset link has been sent"}
+
+
+@app.post("/api/auth/reset-password")
+def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
+    """Reset password with token"""
+    reset = db.query(PasswordReset).filter(
+        PasswordReset.token == data.token,
+        PasswordReset.used == False,
+        PasswordReset.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not reset:
+        raise ValidationException("Invalid or expired reset token")
+    
+    # Update user password
+    user = db.query(User).filter(User.id == reset.user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User not found")
+    
+    user.password_hash = get_password_hash(data.new_password)
+    reset.used = True
+    
+    db.commit()
+    
+    # Log activity
+    log_activity(db, user.id, "password_reset", {"method": "email_link"})
+    
+    return {"success": True, "message": "Password reset successfully"}
+
+
+# EMAIL VERIFICATION ENDPOINTS
+
+@app.post("/api/auth/resend-verification")
+def resend_verification(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Resend email verification"""
+    if current_user.email_verified:
+        return {"success": False, "message": "Email already verified"}
+    
+    # Generate new token
+    token = generate_verification_token()
+    expires_at = datetime.utcnow() + timedelta(hours=24)
+    
+    # Delete old tokens
+    db.query(EmailVerification).filter(
+        EmailVerification.user_id == current_user.id,
+        EmailVerification.verified == False
+    ).delete()
+    
+    # Create new verification
+    verification = EmailVerification(
+        user_id=current_user.id,
+        token=token,
+        expires_at=expires_at
+    )
+    db.add(verification)
+    db.commit()
+    
+    # Send email
+    user_name = f"{current_user.first_name} {current_user.last_name}" if current_user.first_name else ""
+    email_service.send_email_verification(current_user.email, token, user_name)
+    
+    return {"success": True, "message": "Verification email sent"}
+
+
+@app.post("/api/auth/verify-email")
+def verify_email(data: EmailVerificationRequest, db: Session = Depends(get_db)):
+    """Verify email with token"""
+    verification = db.query(EmailVerification).filter(
+        EmailVerification.token == data.token,
+        EmailVerification.verified == False,
+        EmailVerification.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+    
+    # Update user
+    user = db.query(User).filter(User.id == verification.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    verification.verified = True
+    
+    db.commit()
+    
+    # Log activity
+    log_activity(db, user.id, "email_verified")
+    
+    return {"success": True, "message": "Email verified successfully"}
+
+
+# TWO-FACTOR AUTHENTICATION ENDPOINTS
+
+@app.post("/api/auth/2fa/enable")
+def enable_2fa(
+    data: Enable2FARequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enable/disable 2FA"""
+    # Get or create 2FA record
+    tfa = db.query(TwoFactorAuth).filter(TwoFactorAuth.user_id == current_user.id).first()
+    
+    if not tfa:
+        # Generate backup codes
+        backup_codes = [secrets.token_hex(4).upper() for _ in range(10)]
+        
+        tfa = TwoFactorAuth(
+            user_id=current_user.id,
+            backup_codes=backup_codes,
+            enabled=data.enabled
+        )
+        db.add(tfa)
+    else:
+        tfa.enabled = data.enabled
+    
+    current_user.two_factor_enabled = data.enabled
+    db.commit()
+    
+    # Log activity
+    log_activity(db, current_user.id, "2fa_enabled" if data.enabled else "2fa_disabled")
+    
+    result = {"success": True, "enabled": data.enabled}
+    if data.enabled and tfa.backup_codes:
+        result["backup_codes"] = tfa.backup_codes
+    
+    return result
+
+
+@app.post("/api/auth/2fa/send-code")
+def send_2fa_code(
+    data: UserLogin,
+    db: Session = Depends(get_db)
+):
+    """Send 2FA code via email"""
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    if not user.two_factor_enabled:
+        raise HTTPException(status_code=400, detail="2FA not enabled")
+    
+    # Generate code
+    code = generate_2fa_code()
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    
+    # Delete old codes
+    db.query(TwoFactorCode).filter(
+        TwoFactorCode.user_id == user.id,
+        TwoFactorCode.used == False
+    ).delete()
+    
+    # Save code
+    tfa_code = TwoFactorCode(
+        user_id=user.id,
+        code=code,
+        expires_at=expires_at
+    )
+    db.add(tfa_code)
+    db.commit()
+    
+    # Send email
+    user_name = f"{user.first_name} {user.last_name}" if user.first_name else ""
+    email_service.send_2fa_code(user.email, code, user_name)
+    
+    return {"success": True, "message": "Verification code sent", "requires_2fa": True}
+
+
+@app.post("/api/auth/2fa/verify")
+def verify_2fa_code(
+    email: str,
+    data: Verify2FACode,
+    db: Session = Depends(get_db)
+):
+    """Verify 2FA code and complete login"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Check if it's a backup code
+    tfa = db.query(TwoFactorAuth).filter(TwoFactorAuth.user_id == user.id).first()
+    if tfa and data.code.upper() in (tfa.backup_codes or []):
+        # Remove used backup code
+        tfa.backup_codes.remove(data.code.upper())
+        db.commit()
+        
+        # Log activity
+        log_activity(db, user.id, "login_2fa", {"method": "backup_code"})
+        
+        # Generate token
+        access_token = create_access_token(
+            data={"sub": user.email},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Check regular code
+    tfa_code = db.query(TwoFactorCode).filter(
+        TwoFactorCode.user_id == user.id,
+        TwoFactorCode.code == data.code,
+        TwoFactorCode.used == False,
+        TwoFactorCode.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not tfa_code:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    
+    # Mark code as used
+    tfa_code.used = True
+    db.commit()
+    
+    # Log activity
+    log_activity(db, user.id, "login_2fa", {"method": "email_code"})
+    
+    # Generate token
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ACTIVITY LOG ENDPOINTS
+
+@app.get("/api/activity-log")
+def get_activity_log(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's activity log"""
+    logs = db.query(ActivityLog).filter(
+        ActivityLog.user_id == current_user.id
+    ).order_by(ActivityLog.created_at.desc()).limit(limit).all()
+    
+    return [
+        {
+            "id": log.id,
+            "action": log.action,
+            "details": log.details,
+            "ip_address": log.ip_address,
+            "created_at": log.created_at.isoformat()
+        }
+        for log in logs
+    ]
+
+
+# ------------------
+# NOTE: The following updates integrate these features into existing endpoints
+# (register, login, listing publish) — ensure you merge these sections into the
+# earlier endpoint definitions if you prefer centralized placement instead of
+# appending duplicates. For now they are implemented here for clarity and
+# immediate availability.
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

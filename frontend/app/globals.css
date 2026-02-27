@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+/* =========================
+   Brand Color System
+   ========================= */
+@theme {
+  --color-primary: #01BCDD;   /* Cyan Blue */
+  --color-secondary: #10214F; /* Dark Navy Blue */
+  --color-accent: #CCAF8B;    /* Warm accent */
+  --color-dark: #2E2E2E;      /* Charcoal */
+  --color-white: #FFFFFF;
+  --color-soft: #F5F7FA;
+}
+
+/* =========================
+   Base Theme
+   ========================= */
+:root {
+  --background: #FFFFFF;
+  --foreground: #2E2E2E;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #2E2E2E;
+    --foreground: #FFFFFF;
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    min-height: 100vh;
+  }
+}
+
+/* =========================
+   Brand Color Utilities
+   ========================= */
+@layer utilities {
+  .text-primary { @apply text-[#01BCDD]; }
+  .text-secondary { @apply text-[#10214F]; }
+  .text-accent { @apply text-[#CCAF8B]; }
+  .text-dark { @apply text-[#2E2E2E]; }
+  
+  .bg-primary { @apply bg-[#01BCDD]; }
+  .bg-secondary { @apply bg-[#10214F]; }
+  .bg-accent { @apply bg-[#CCAF8B]; }
+  .bg-dark { @apply bg-[#2E2E2E]; }
+  .bg-soft { @apply bg-[#F5F7FA]; }
+  
+  .border-primary { @apply border-[#01BCDD]; }
+  .border-secondary { @apply border-[#10214F]; }
+  
+  .hover-primary:hover { @apply bg-[#0099B8]; }
+  .hover-secondary:hover { @apply bg-[#0D1940]; }
+  
+  .text-light { @apply text-[#FFFFFF]; }
+}
+
+/* =========================
+   Glassmorphic Navbar
+   ========================= */
+nav {
+  position: sticky !important;
+  top: 0;
+  z-index: 100 !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: rgba(255, 255, 255, 0.75);
+  border-bottom: 1px solid rgba(68, 157, 209, 0.25);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* =========================
+   Hero Section
+   ========================= */
+.hero-section {
+  position: relative;
+  z-index: 1;
+}
+
+/* =========================
+   Light Glassmorphism
+   ========================= */
+@layer components {
+  .glass-card {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 
+      0 8px 32px 0 rgba(31, 38, 135, 0.1),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glass-stat {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 
+      0 8px 32px 0 rgba(31, 38, 135, 0.1),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .glass-feature,
+  .glass-empty {
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 
+      0 8px 32px 0 rgba(31, 38, 135, 0.1),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  }
+
+  /* Hover lift – lighter, softer */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-8px);
+    box-shadow:
+      0 18px 40px rgba(0, 0, 0, 0.16);
+  }
+}
+
+/* =========================
+   Section Backgrounds
+   ========================= */
+.section-light {
+  background: linear-gradient(
+    180deg,
+    #FFFFFF 0%,
+    #F4F9FC 60%,
+    #FFFFFF 100%
+  );
+}
+
+.section-white {
+  background: #FFFFFF;
+}
+
+.section-soft {
+  background: linear-gradient(
+    180deg,
+    #F5F7FA 0%,
+    #FFFFFF 100%
+  );
+}
+
+/* =========================
+   Ocean CTA (lighter + cleaner)
+   ========================= */
+.ocean-bg {
+  background:
+    linear-gradient(
+      120deg,
+      #449DD1 0%,
+      #6BB6E6 50%,
+      #FFFFFF 100%
+    );
+  background-size: 200% 200%;
+  animation: ocean-shift 18s ease infinite;
+}
+
+@keyframes ocean-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* =========================
+   Selection Styling
+   ========================= */
+@layer base {
+  ::selection,
+  ::-moz-selection {
+    background: rgba(204, 175, 139, 0.4);
+    color: #2E2E2E;
+  }
+}

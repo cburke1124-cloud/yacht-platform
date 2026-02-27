@@ -1,0 +1,554 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import Optional
+
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.models.user import User
+from app.models.misc import Payment, Invoice
+from app.services.stripe_service import stripe_service, STRIPE_PRICES
+from app.services.email_service import email_service
+from app.services.notification_service import notification_service
+from app.exceptions import ValidationException, ResourceNotFoundException
+from app.core.config import settings
+
+import logging
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+# ==================== SUBSCRIPTION MANAGEMENT ====================
+
+@router.post("/payments/create-subscription")
+async def create_subscription(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new subscription for user"""
+    tier = data.get("tier")  # basic, premium
+    
+    if tier not in ["basic", "premium"]:
+        raise ValidationException("Invalid subscription tier")
+    
+    # Get or create Stripe customer
+    if not current_user.stripe_customer_id:
+        customer_id = stripe_service.create_customer(
+            email=current_user.email,
+            name=f"{current_user.first_name} {current_user.last_name}",
+            user_id=current_user.id
+        )
+        current_user.stripe_customer_id = customer_id
+        db.commit()
+    else:
+        customer_id = current_user.stripe_customer_id
+    
+    # Get price ID for tier
+    price_id = STRIPE_PRICES.get(tier)
+    if not price_id:
+        raise ValidationException(f"Price not configured for tier: {tier}")
+    
+    # Check for promotional offer
+    trial_days = 0
+    coupon_id = None
+    
+    from app.models.api_keys import PromotionalOffer
+    offer = db.query(PromotionalOffer).filter(
+        PromotionalOffer.dealer_id == current_user.id,
+        PromotionalOffer.active == True,
+        PromotionalOffer.applied == False,
+        PromotionalOffer.start_date <= datetime.utcnow(),
+        PromotionalOffer.end_date >= datetime.utcnow()
+    ).first()
+    
+    if offer:
+        if offer.trial_days:
+            trial_days = offer.trial_days
+        
+        # Create Stripe coupon if discount
+        if offer.discount_value:
+            coupon_id = stripe_service.create_coupon(
+                percent_off=int(offer.discount_value) if offer.discount_type == "percentage" else None,
+                amount_off=int(offer.discount_value * 100) if offer.discount_type == "fixed" else None,
+                duration="once",
+                name=f"Promo for {current_user.email}"
+            )
+            offer.stripe_coupon_id = coupon_id
+        
+        # Mark offer as applied
+        offer.applied = True
+        offer.applied_at = datetime.utcnow()
+        db.commit()
+    
+    # Create subscription
+    result = stripe_service.create_subscription(
+        customer_id=customer_id,
+        price_id=price_id,
+        trial_days=trial_days,
+        coupon_id=coupon_id
+    )
+    
+    # Update user
+    current_user.subscription_tier = tier
+    current_user.stripe_subscription_id = result["subscription_id"]
+    
+    if trial_days > 0:
+        current_user.trial_active = True
+        from datetime import timedelta
+        current_user.trial_end_date = datetime.utcnow() + timedelta(days=trial_days)
+    
+    db.commit()
+    
+    # Send confirmation email
+    background_tasks.add_task(
+        send_subscription_confirmation,
+        current_user.email,
+        tier,
+        trial_days
+    )
+    
+    return {
+        "success": True,
+        "client_secret": result["client_secret"],
+        "subscription_id": result["subscription_id"],
+        "trial_days": trial_days
+    }
+
+
+@router.post("/payments/update-subscription")
+async def update_subscription(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upgrade or downgrade subscription"""
+    new_tier = data.get("tier")
+    
+    if not current_user.stripe_subscription_id:
+        raise ValidationException("No active subscription found")
+    
+    if new_tier not in ["basic", "premium"]:
+        raise ValidationException("Invalid subscription tier")
+    
+    # Get new price ID
+    new_price_id = STRIPE_PRICES.get(new_tier)
+    
+    # Update subscription
+    result = stripe_service.update_subscription(
+        subscription_id=current_user.stripe_subscription_id,
+        new_price_id=new_price_id,
+        proration_behavior="always_invoice"
+    )
+    
+    # Update user
+    current_user.subscription_tier = new_tier
+    db.commit()
+    
+    # Send notification
+    background_tasks.add_task(
+        send_subscription_updated_email,
+        current_user.email,
+        new_tier
+    )
+    
+    return {
+        "success": True,
+        "message": f"Subscription updated to {new_tier}",
+        "status": result["status"]
+    }
+
+
+@router.post("/payments/cancel-subscription")
+async def cancel_subscription(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel subscription"""
+    if not current_user.stripe_subscription_id:
+        raise ValidationException("No active subscription found")
+    
+    cancel_immediately = data.get("cancel_immediately", False)
+    
+    result = stripe_service.cancel_subscription(
+        subscription_id=current_user.stripe_subscription_id,
+        cancel_at_period_end=not cancel_immediately
+    )
+    
+    if cancel_immediately:
+        current_user.subscription_tier = "free"
+        current_user.stripe_subscription_id = None
+    
+    db.commit()
+    
+    # Send notification
+    background_tasks.add_task(
+        send_subscription_cancelled_email,
+        current_user.email,
+        cancel_immediately
+    )
+    
+    return {
+        "success": True,
+        "message": "Subscription cancelled",
+        "cancel_at": result.get("cancel_at")
+    }
+
+
+@router.get("/payments/billing-portal")
+async def get_billing_portal(
+    current_user: User = Depends(get_current_user)
+):
+    """Get Stripe billing portal URL"""
+    if not current_user.stripe_customer_id:
+        raise ValidationException("No Stripe customer found")
+    
+    portal_url = stripe_service.create_billing_portal_session(
+        customer_id=current_user.stripe_customer_id,
+        return_url=f"{settings.BASE_URL}/dashboard/billing"
+    )
+    
+    return {"url": portal_url}
+
+
+@router.get("/payments/subscription")
+async def get_subscription_details(
+    current_user: User = Depends(get_current_user)
+):
+    """Get current subscription details"""
+    if not current_user.stripe_subscription_id:
+        return {
+            "active": False,
+            "tier": current_user.subscription_tier,
+            "trial_active": current_user.trial_active
+        }
+    
+    details = stripe_service.retrieve_subscription(
+        current_user.stripe_subscription_id
+    )
+    
+    return {
+        "active": True,
+        "tier": current_user.subscription_tier,
+        "status": details["status"],
+        "current_period_end": details["current_period_end"],
+        "cancel_at_period_end": details["cancel_at_period_end"],
+        "trial_end": details.get("trial_end"),
+        "trial_active": current_user.trial_active
+    }
+
+
+# ==================== INVOICES ====================
+
+@router.get("/payments/invoices")
+async def get_invoices(
+    limit: int = 10,
+    current_user: User = Depends(get_current_user)
+):
+    """Get user's invoices"""
+    if not current_user.stripe_customer_id:
+        return []
+    
+    invoices = stripe_service.list_invoices(
+        customer_id=current_user.stripe_customer_id,
+        limit=limit
+    )
+    
+    return invoices
+
+
+# ==================== ONE-TIME PAYMENTS ====================
+
+@router.post("/payments/featured-listing")
+async def pay_for_featured_listing(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Process payment for featured listing"""
+    listing_id = data.get("listing_id")
+    plan = data.get("plan")  # 7day, 30day, 90day
+    
+    # Pricing for featured listings
+    prices = {
+        "7day": 49.99,
+        "30day": 149.99,
+        "90day": 349.99
+    }
+    
+    if plan not in prices:
+        raise ValidationException("Invalid featured listing plan")
+    
+    amount = int(prices[plan] * 100)  # Convert to cents
+    
+    # Create payment intent
+    result = stripe_service.create_payment_intent(
+        amount=amount,
+        currency="usd",
+        customer_id=current_user.stripe_customer_id,
+        description=f"Featured listing - {plan}"
+    )
+    
+    # Create payment record
+    payment = Payment(
+        user_id=current_user.id,
+        stripe_payment_intent_id=result["payment_intent_id"],
+        amount=prices[plan],
+        currency="usd",
+        status="pending",
+        payment_type="featured_listing",
+        related_id=listing_id,
+        description=f"Featured listing - {plan}",
+        payment_metadata={"plan": plan, "listing_id": listing_id}
+    )
+    
+    db.add(payment)
+    db.commit()
+    
+    return {
+        "success": True,
+        "client_secret": result["client_secret"],
+        "amount": prices[plan]
+    }
+
+
+# ==================== WEBHOOK HANDLER ====================
+
+@router.post("/payments/webhooks/stripe")
+async def stripe_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """Handle Stripe webhooks"""
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    webhook_secret = settings.STRIPE_WEBHOOK_SECRET
+    
+    # Verify webhook signature
+    if not stripe_service.verify_webhook_signature(payload, signature, webhook_secret):
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    
+    import json
+    event = json.loads(payload)
+    event_type = event["type"]
+    
+    logger.info(f"Received Stripe webhook: {event_type}")
+    
+    # Handle different event types
+    if event_type == "payment_intent.succeeded":
+        await handle_payment_succeeded(event["data"]["object"], db, background_tasks)
+    
+    elif event_type == "payment_intent.payment_failed":
+        await handle_payment_failed(event["data"]["object"], db, background_tasks)
+    
+    elif event_type == "customer.subscription.created":
+        await handle_subscription_created(event["data"]["object"], db, background_tasks)
+    
+    elif event_type == "customer.subscription.updated":
+        await handle_subscription_updated(event["data"]["object"], db, background_tasks)
+    
+    elif event_type == "customer.subscription.deleted":
+        await handle_subscription_deleted(event["data"]["object"], db, background_tasks)
+    
+    elif event_type == "invoice.paid":
+        await handle_invoice_paid(event["data"]["object"], db, background_tasks)
+    
+    elif event_type == "invoice.payment_failed":
+        await handle_invoice_failed(event["data"]["object"], db, background_tasks)
+    
+    return {"success": True}
+
+
+# ==================== WEBHOOK HANDLERS ====================
+
+async def handle_payment_succeeded(payment_intent, db: Session, background_tasks: BackgroundTasks):
+    """Handle successful payment"""
+    payment_intent_id = payment_intent["id"]
+    
+    # Update payment record
+    payment = db.query(Payment).filter(
+        Payment.stripe_payment_intent_id == payment_intent_id
+    ).first()
+    
+    if payment:
+        payment.status = "succeeded"
+        payment.stripe_charge_id = payment_intent.get("latest_charge")
+        
+        # If featured listing payment, activate the feature
+        if payment.payment_type == "featured_listing":
+            from app.models.listing import Listing, FeaturedListing
+            from datetime import timedelta
+            
+            listing_id = payment.payment_metadata.get("listing_id")
+            plan = payment.payment_metadata.get("plan")
+            
+            # Duration mapping
+            duration_map = {"7day": 7, "30day": 30, "90day": 90}
+            days = duration_map.get(plan, 7)
+            
+            # Update listing
+            listing = db.query(Listing).filter(Listing.id == listing_id).first()
+            if listing:
+                listing.featured = True
+                listing.featured_until = datetime.utcnow() + timedelta(days=days)
+                listing.featured_plan = plan
+                
+                # Create featured listing record
+                featured = FeaturedListing(
+                    listing_id=listing_id,
+                    user_id=payment.user_id,
+                    plan=plan,
+                    price_paid=payment.amount,
+                    started_at=datetime.utcnow(),
+                    expires_at=listing.featured_until,
+                    stripe_payment_id=payment_intent_id,
+                    active=True
+                )
+                db.add(featured)
+        
+        db.commit()
+        
+        # Send confirmation email
+        user = db.query(User).filter(User.id == payment.user_id).first()
+        if user:
+            background_tasks.add_task(
+                send_payment_success_email,
+                user.email,
+                payment.amount,
+                payment.description
+            )
+
+
+async def handle_payment_failed(payment_intent, db: Session, background_tasks: BackgroundTasks):
+    """Handle failed payment"""
+    payment_intent_id = payment_intent["id"]
+    
+    payment = db.query(Payment).filter(
+        Payment.stripe_payment_intent_id == payment_intent_id
+    ).first()
+    
+    if payment:
+        payment.status = "failed"
+        payment.failure_code = payment_intent.get("last_payment_error", {}).get("code")
+        payment.failure_message = payment_intent.get("last_payment_error", {}).get("message")
+        db.commit()
+        
+        # Send failure notification
+        user = db.query(User).filter(User.id == payment.user_id).first()
+        if user:
+            background_tasks.add_task(
+                send_payment_failed_email,
+                user.email,
+                payment.failure_message
+            )
+
+
+async def handle_subscription_created(subscription, db: Session, background_tasks: BackgroundTasks):
+    """Handle new subscription"""
+    customer_id = subscription["customer"]
+    subscription_id = subscription["id"]
+    
+    user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if user:
+        user.stripe_subscription_id = subscription_id
+        db.commit()
+
+
+async def handle_subscription_updated(subscription, db: Session, background_tasks: BackgroundTasks):
+    """Handle subscription update"""
+    subscription_id = subscription["id"]
+    status = subscription["status"]
+    
+    user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
+    if user:
+        # Handle trial ending
+        if status == "active" and subscription.get("trial_end"):
+            user.trial_active = False
+            user.trial_converted = True
+        
+        db.commit()
+
+
+async def handle_subscription_deleted(subscription, db: Session, background_tasks: BackgroundTasks):
+    """Handle subscription cancellation"""
+    subscription_id = subscription["id"]
+    
+    user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
+    if user:
+        user.subscription_tier = "free"
+        user.stripe_subscription_id = None
+        db.commit()
+        
+        # Send cancellation confirmation
+        background_tasks.add_task(
+            send_subscription_cancelled_email,
+            user.email,
+            immediately=True
+        )
+
+
+async def handle_invoice_paid(invoice, db: Session, background_tasks: BackgroundTasks):
+    """Handle paid invoice"""
+    customer_id = invoice["customer"]
+    
+    user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if user:
+        # Send receipt
+        background_tasks.add_task(
+            send_invoice_receipt_email,
+            user.email,
+            invoice["hosted_invoice_url"]
+        )
+
+
+async def handle_invoice_failed(invoice, db: Session, background_tasks: BackgroundTasks):
+    """Handle failed invoice payment"""
+    customer_id = invoice["customer"]
+    
+    user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if user:
+        # Send payment failure notice
+        background_tasks.add_task(
+            send_invoice_failed_email,
+            user.email,
+            invoice["amount_due"] / 100
+        )
+
+
+# ==================== EMAIL NOTIFICATIONS ====================
+
+async def send_subscription_confirmation(email: str, tier: str, trial_days: int):
+    """Send subscription confirmation email"""
+    # Implementation in next artifact
+    pass
+
+async def send_subscription_updated_email(email: str, tier: str):
+    """Send subscription update email"""
+    pass
+
+async def send_subscription_cancelled_email(email: str, immediately: bool):
+    """Send cancellation confirmation"""
+    pass
+
+async def send_payment_success_email(email: str, amount: float, description: str):
+    """Send payment success email"""
+    pass
+
+async def send_payment_failed_email(email: str, reason: str):
+    """Send payment failure email"""
+    pass
+
+async def send_invoice_receipt_email(email: str, invoice_url: str):
+    """Send invoice receipt"""
+    pass
+
+async def send_invoice_failed_email(email: str, amount: float):
+    """Send failed invoice notification"""
+    pass

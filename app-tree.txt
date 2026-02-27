@@ -1,0 +1,158 @@
+Folder PATH listing
+Volume serial number is 6A97-9758
+C:\USERS\CBURK\YACHT-PLATFORM\FRONTEND\APP
+¦   favicon.ico
+¦   globals.css
+¦   layout.tsx
+¦   not-found.tsx
+¦   page.tsx
+¦   
++---about
+¦       page.tsx
+¦       
++---account
+¦   ¦   page.tsx
+¦   ¦   
+¦   +---alerts
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---dashboard
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---saved
+¦           page.tsx
+¦           
++---admin
+¦   ¦   layout.tsx
+¦   ¦   page.tsx
+¦   ¦   
+¦   +---featured-pricing
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---scraper
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---settings
+¦           page.tsx
+¦           
++---analytics
+¦       page.tsx
+¦       
++---blog
+¦   ¦   page.tsx
+¦   ¦   
+¦   +---[slug]
+¦           page.tsx
+¦           
++---components
+¦   ¦   BulkActionBar.tsx
+¦   ¦   ContactSellerButton.tsx
+¦   ¦   DealerInfoCard.tsx
+¦   ¦   FeaturedListingsCarousel.tsx
+¦   ¦   FeatureListingModal.tsx
+¦   ¦   Footer.tsx
+¦   ¦   ImageGalleryModal.tsx
+¦   ¦   ImportExportListings.tsx
+¦   ¦   LazyImage.tsx
+¦   ¦   ListingCard.tsx
+¦   ¦   LoadingSkeletons.tsx
+¦   ¦   LoadingSpinner.tsx
+¦   ¦   MediaUpload.tsx
+¦   ¦   Navbar.tsx
+¦   ¦   PriceAlertButton.tsx
+¦   ¦   SaveListingButton.tsx
+¦   ¦   SaveSearchModal.tsx
+¦   ¦   ScraperModal.tsx
+¦   ¦   SearchBar.tsx
+¦   ¦   
+¦   +---admin
+¦   ¦       AdminBlogTab.tsx
+¦   ¦       AdminDealersTab.tsx
+¦   ¦       AdminLayout.tsx
+¦   ¦       AdminListingsTab.tsx
+¦   ¦       AdminScraperTab.tsx
+¦   ¦       AdminSubscriptionTab.tsx
+¦   ¦       AdminUsersTab.tsx
+¦   ¦       ListingEditor.tsx
+¦   ¦       
+¦   +---dealer
+¦           InquiriesTab.tsx
+¦           
++---dashboard
+¦   ¦   page.tsx
+¦   ¦   
+¦   +---crm
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---featured
+¦   +---inquiries
+¦   +---media
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---messages
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---preferences
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---team
+¦           page.tsx
+¦           
++---dealers
+¦   ¦   page.tsx
+¦   ¦   
+¦   +---dashboard
+¦   ¦   ¦   page.tsx
+¦   ¦   ¦   
+¦   ¦   +---customize
+¦   ¦           page.tsx
+¦   ¦           
+¦   +---[slug]
+¦           page.tsx
+¦           
++---listings
+¦   ¦   page.tsx
+¦   ¦   
+¦   +---create
+¦   ¦       page.tsx
+¦   ¦       
+¦   +---[id]
+¦           page.tsx
+¦           
++---login
+¦       page.tsx
+¦       
++---messages
+¦       page.tsx
+¦       
++---notifications
+¦       page.tsx
+¦       
++---price-alerts
+¦       page.tsx
+¦       
++---profile
+¦   +---edit
+¦           page.tsx
+¦           
++---register
+¦       page.tsx
+¦       
++---sales-rep
+¦       page.tsx
+¦       
++---saved-listings
+¦       page.tsx
+¦       
++---search
+¦       page.tsx
+¦       
++---search-alerts
+¦       page.tsx
+¦       
++---settings
+¦       page.tsx
+¦       
++---team
+        page.tsx
+        

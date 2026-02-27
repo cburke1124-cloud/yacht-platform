@@ -1,0 +1,527 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { X, Send, Mail, MailOpen, AlertCircle, CheckCircle, Clock, Search } from 'lucide-react';
+import { apiUrl } from '@/app/lib/apiRoot';
+
+interface Message {
+  id: number;
+  ticket_number: string;
+  subject: string;
+  body: string;
+  message_type: string;
+  status: string;
+  priority: string;
+  category: string;
+  created_at: string;
+  sender_id: number;
+  recipient_id: number;
+  replies?: Message[];
+}
+
+export default function MessagingCenter() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'support_ticket' | 'direct'>('all');
+  const [showNewMessage, setShowNewMessage] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // New message form
+  const [newMessageForm, setNewMessageForm] = useState({
+    subject: '',
+    body: '',
+    message_type: 'support_ticket',
+    priority: 'normal',
+    category: 'general'
+  });
+
+  useEffect(() => {
+    fetchMessages();
+  }, [filter]);
+
+  const fetchMessages = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const url = filter === 'all' 
+        ? apiUrl('/messages')
+        : apiUrl(`/messages?message_type=${filter}`);
+
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createNewMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/messages'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newMessageForm)
+      });
+
+      if (response.ok) {
+        alert('Message sent successfully!');
+        setShowNewMessage(false);
+        setNewMessageForm({
+          subject: '',
+          body: '',
+          message_type: 'support_ticket',
+          priority: 'normal',
+          category: 'general'
+        });
+        fetchMessages();
+      } else {
+        alert('Failed to send message');
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      alert('Failed to send message');
+    }
+  };
+
+  const replyToMessage = async () => {
+    if (!selectedMessage || !replyText.trim()) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/messages/${selectedMessage.id}/reply`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ body: replyText })
+      });
+
+      if (response.ok) {
+        alert('Reply sent!');
+        setReplyText('');
+        fetchMessages();
+        setSelectedMessage(null);
+      }
+    } catch (error) {
+      console.error('Failed to send reply:', error);
+      alert('Failed to send reply');
+    }
+  };
+
+  const updateStatus = async (messageId: number, newStatus: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/messages/${messageId}/status`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        fetchMessages();
+        if (selectedMessage?.id === messageId) {
+          setSelectedMessage({ ...selectedMessage, status: newStatus });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours}h ago`;
+    if (hours < 48) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const filteredMessages = messages.filter(msg =>
+    searchQuery === '' || 
+    msg.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    msg.body.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'text-red-600 bg-red-100';
+      case 'high': return 'text-orange-600 bg-orange-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  return (
+    <div className="min-h-screen section-light py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-secondary">Messages</h1>
+              <p className="text-dark/70 mt-1">Manage your conversations and support tickets</p>
+            </div>
+            <button
+              onClick={() => setShowNewMessage(true)}
+              className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium flex items-center gap-2"
+            >
+              <Mail size={20} />
+              New Message
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex gap-2">
+            {[
+              { id: 'all', label: 'All Messages', count: messages.length },
+              { id: 'support_ticket', label: 'Support Tickets', count: messages.filter(m => m.message_type === 'support_ticket').length },
+              { id: 'direct', label: 'Direct Messages', count: messages.filter(m => m.message_type === 'direct').length }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setFilter(tab.id as any)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === tab.id
+                    ? 'bg-primary text-white'
+                    : 'bg-white text-dark hover:bg-gray-100'
+                }`}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Message List */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow">
+              {/* Search */}
+              <div className="p-4 border-b">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search messages..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Message Items */}
+              <div className="divide-y max-h-[600px] overflow-y-auto">
+                {loading ? (
+                  <div className="p-8 text-center text-gray-500">Loading...</div>
+                ) : filteredMessages.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <Mail size={48} className="mx-auto mb-4 text-gray-300" />
+                    <p>No messages found</p>
+                  </div>
+                ) : (
+                  filteredMessages.map((message) => (
+                    <button
+                      key={message.id}
+                      onClick={() => setSelectedMessage(message)}
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                        selectedMessage?.id === message.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {message.status === 'new' ? (
+                            <Mail size={16} className="text-blue-600" />
+                          ) : message.status === 'replied' ? (
+                            <CheckCircle size={16} className="text-green-600" />
+                          ) : (
+                            <MailOpen size={16} className="text-gray-400" />
+                          )}
+                          <span className={`text-sm font-semibold ${
+                            message.status === 'new' ? 'text-gray-900' : 'text-gray-600'
+                          }`}>
+                            {message.ticket_number || `Message #${message.id}`}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {formatDate(message.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="mb-2">
+                        <p className="font-medium text-gray-900 line-clamp-1">
+                          {message.subject}
+                        </p>
+                        <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+                          {message.body}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${getPriorityColor(message.priority)}`}>
+                          {message.priority}
+                        </span>
+                        {message.category && (
+                          <span className="px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">
+                            {message.category}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Message Detail */}
+          <div className="lg:col-span-2">
+            {selectedMessage ? (
+              <div className="bg-white rounded-lg shadow">
+                {/* Header */}
+                <div className="p-6 border-b">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <h2 className="text-2xl font-bold text-gray-900">
+                          {selectedMessage.subject}
+                        </h2>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          selectedMessage.status === 'new' ? 'bg-blue-100 text-blue-800' :
+                          selectedMessage.status === 'replied' ? 'bg-green-100 text-green-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {selectedMessage.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Clock size={14} />
+                        <span>{new Date(selectedMessage.created_at).toLocaleString()}</span>
+                        {selectedMessage.ticket_number && (
+                          <>
+                            <span>•</span>
+                            <span>{selectedMessage.ticket_number}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {selectedMessage.status !== 'closed' && (
+                        <button
+                          onClick={() => updateStatus(selectedMessage.id, 'closed')}
+                          className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                        >
+                          Close
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSelectedMessage(null)}
+                        className="p-2 text-dark/50 hover:text-dark/70"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <span className={`px-3 py-1 rounded text-xs font-semibold ${getPriorityColor(selectedMessage.priority)}`}>
+                      {selectedMessage.priority} priority
+                    </span>
+                    <span className="px-3 py-1 rounded text-xs bg-primary/10 text-secondary font-semibold">
+                      {selectedMessage.message_type.replace('_', ' ')}
+                    </span>
+                    {selectedMessage.category && (
+                      <span className="px-3 py-1 rounded text-xs bg-gray-100 text-dark font-semibold">
+                        {selectedMessage.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Message Body */}
+                <div className="p-6 border-b">
+                  <div className="prose max-w-none">
+                    <p className="text-dark whitespace-pre-wrap leading-relaxed">
+                      {selectedMessage.body}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Reply Section */}
+                {selectedMessage.status !== 'closed' && (
+                  <div className="p-6">
+                    <label className="block text-sm font-medium text-dark mb-2">
+                      Reply
+                    </label>
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary min-h-[120px]"
+                      placeholder="Type your reply..."
+                    />
+                    <div className="flex justify-end gap-3 mt-4">
+                      <button
+                        onClick={() => setReplyText('')}
+                        className="px-6 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={replyToMessage}
+                        disabled={!replyText.trim()}
+                        className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium flex items-center gap-2 disabled:bg-gray-300"
+                      >
+                        <Send size={18} />
+                        Send Reply
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow h-full flex items-center justify-center p-12">
+                <div className="text-center text-dark/70">
+                  <Mail size={64} className="mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium mb-2">No message selected</p>
+                  <p className="text-sm">Choose a message from the list to view details</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* New Message Modal */}
+        {showNewMessage && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-secondary">New Message</h2>
+                <button onClick={() => setShowNewMessage(false)} className="text-dark/50 hover:text-dark/70">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={createNewMessage} className="p-6 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-dark mb-2">
+                      Type
+                    </label>
+                    <select
+                      value={newMessageForm.message_type}
+                      onChange={(e) => setNewMessageForm({...newMessageForm, message_type: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="support_ticket">Support Ticket</option>
+                      <option value="direct">Direct Message</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-dark mb-2">
+                      Priority
+                    </label>
+                    <select
+                      value={newMessageForm.priority}
+                      onChange={(e) => setNewMessageForm({...newMessageForm, priority: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-dark mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={newMessageForm.category}
+                    onChange={(e) => setNewMessageForm({...newMessageForm, category: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="general">General</option>
+                    <option value="technical">Technical Support</option>
+                    <option value="billing">Billing</option>
+                    <option value="listing">Listing Help</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-dark mb-2">
+                    Subject *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newMessageForm.subject}
+                    onChange={(e) => setNewMessageForm({...newMessageForm, subject: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    placeholder="Brief description of your issue"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-dark mb-2">
+                    Message *
+                  </label>
+                  <textarea
+                    required
+                    value={newMessageForm.body}
+                    onChange={(e) => setNewMessageForm({...newMessageForm, body: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary min-h-[200px]"
+                    placeholder="Describe your issue or question in detail..."
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewMessage(false)}
+                    className="flex-1 px-6 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium flex items-center justify-center gap-2"
+                  >
+                    <Send size={18} />
+                    Send Message
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

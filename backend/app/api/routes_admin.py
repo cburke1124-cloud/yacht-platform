@@ -1,0 +1,1280 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime
+from typing import Optional
+import secrets
+
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.models.user import User
+from app.models.dealer import DealerProfile
+from app.models.listing import Listing
+from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
+from app.models.partner_growth import AffiliateAccount, ReferralSignup
+from app.models.partner_growth import PartnerDeal
+from app.exceptions import (
+    AuthorizationException,
+    ValidationException,
+    ResourceNotFoundException
+)
+from app.services.media_storage import get_storage_health, run_storage_test
+
+router = APIRouter()
+
+
+def _generate_ref_code() -> str:
+    return f"YV{secrets.token_hex(4).upper()}"
+
+
+def _ensure_sales_rep_affiliate_account(sales_rep: User, db: Session, created_by: Optional[int] = None) -> AffiliateAccount:
+    account = db.query(AffiliateAccount).filter(
+        AffiliateAccount.user_id == sales_rep.id,
+        AffiliateAccount.account_type == "sales_rep",
+    ).first()
+    if account:
+        return account
+
+    code = _generate_ref_code()
+    while db.query(AffiliateAccount).filter(AffiliateAccount.code == code).first():
+        code = _generate_ref_code()
+
+    account = AffiliateAccount(
+        name=f"{sales_rep.first_name or ''} {sales_rep.last_name or ''}".strip() or sales_rep.email,
+        email=sales_rep.email,
+        code=code,
+        account_type="sales_rep",
+        user_id=sales_rep.id,
+        commission_rate=sales_rep.commission_rate or 10.0,
+        active=True,
+        created_by=created_by,
+    )
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
+
+
+def require_admin(current_user: User = Depends(get_current_user)):
+    """Dependency to require admin access."""
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin access required")
+    return current_user
+
+
+@router.get("/storage/health")
+def storage_health(
+    current_user: User = Depends(require_admin),
+):
+    return get_storage_health()
+
+
+@router.post("/storage/health/test")
+def storage_health_test(
+    current_user: User = Depends(require_admin),
+):
+    try:
+        return run_storage_test()
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Storage test failed: {str(e)}",
+        }
+
+# ============= Commission Management =============
+
+@router.put("/sales-reps/{rep_id}/commission")
+def update_sales_rep_commission(
+    rep_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update a sales rep's commission rate (admin only)."""
+    sales_rep = db.query(User).filter(
+        User.id == rep_id,
+        User.user_type == "salesman"
+    ).first()
+    
+    if not sales_rep:
+        raise ResourceNotFoundException("Sales rep", rep_id)
+    
+    new_rate = data.get("commission_rate")
+    if new_rate is None or new_rate < 0 or new_rate > 100:
+        raise ValidationException("Commission rate must be between 0 and 100")
+    
+    # Log the change in history
+    from app.models.misc import CommissionRateHistory
+    
+    old_rate = sales_rep.commission_rate or 10.0
+    
+    history = CommissionRateHistory(
+        sales_rep_id=rep_id,
+        old_rate=old_rate,
+        new_rate=new_rate,
+        reason=data.get("reason", "Rate adjustment"),
+        changed_by_user_id=current_user.id
+    )
+    db.add(history)
+    
+    # Update the rate
+    sales_rep.commission_rate = new_rate
+
+    affiliate_account = db.query(AffiliateAccount).filter(
+        AffiliateAccount.user_id == sales_rep.id,
+        AffiliateAccount.account_type == "sales_rep",
+    ).first()
+    if affiliate_account:
+        affiliate_account.commission_rate = float(new_rate)
+    
+    db.commit()
+    db.refresh(sales_rep)
+    
+    return {
+        "success": True,
+        "sales_rep_id": rep_id,
+        "old_rate": float(old_rate),
+        "new_rate": float(new_rate)
+    }
+
+
+@router.get("/sales-reps/{rep_id}/commission-history")
+def get_commission_history(
+    rep_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get commission rate change history for a sales rep."""
+    from app.models.misc import CommissionRateHistory
+    
+    history = db.query(CommissionRateHistory).filter(
+        CommissionRateHistory.sales_rep_id == rep_id
+    ).order_by(CommissionRateHistory.changed_at.desc()).all()
+    
+    return [
+        {
+            "old_rate": float(h.old_rate),
+            "new_rate": float(h.new_rate),
+            "reason": h.reason,
+            "changed_at": h.changed_at.isoformat(),
+            "changed_by": h.changed_by_user_id
+        }
+        for h in history
+    ]
+
+# ============= USERS MANAGEMENT =============
+
+@router.get("/users")
+def get_all_users(
+    skip: int = 0,
+    limit: int = 100,
+    user_type: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all users with filtering."""
+    query = db.query(User)
+    
+    if user_type:
+        query = query.filter(User.user_type == user_type)
+    
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (User.email.ilike(search_pattern)) |
+            (User.first_name.ilike(search_pattern)) |
+            (User.last_name.ilike(search_pattern)) |
+            (User.company_name.ilike(search_pattern))
+        )
+    
+    total = query.count()
+    users = query.offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "users": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "company_name": u.company_name,
+                "user_type": u.user_type,
+                "subscription_tier": u.subscription_tier,
+                "active": u.active,
+                "trial_active": u.trial_active,
+                "created_at": u.created_at.isoformat() if u.created_at else None
+            }
+            for u in users
+        ]
+    }
+
+
+@router.get("/users/{user_id}")
+def get_user_details(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get detailed user information."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    # Get dealer profile if exists
+    dealer_profile = db.query(DealerProfile).filter(
+        DealerProfile.user_id == user_id
+    ).first()
+    
+    # Get listing stats
+    listing_stats = db.query(
+        func.count(Listing.id).label('total'),
+        func.count(Listing.id).filter(Listing.status == 'active').label('active'),
+        func.sum(Listing.views).label('total_views'),
+        func.sum(Listing.inquiries).label('total_inquiries')
+    ).filter(Listing.user_id == user_id).first()
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone": user.phone,
+        "company_name": user.company_name,
+        "user_type": user.user_type,
+        "subscription_tier": user.subscription_tier,
+        "active": user.active,
+        "trial_active": user.trial_active,
+        "trial_end_date": user.trial_end_date.isoformat() if user.trial_end_date else None,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "dealer_profile": {
+            "slug": dealer_profile.slug,
+            "logo_url": dealer_profile.logo_url,
+            "website": dealer_profile.website,
+            "description": dealer_profile.description
+        } if dealer_profile else None,
+        "listing_stats": {
+            "total_listings": listing_stats.total or 0,
+            "active_listings": listing_stats.active or 0,
+            "total_views": listing_stats.total_views or 0,
+            "total_inquiries": listing_stats.total_inquiries or 0
+        }
+    }
+
+
+@router.put("/users/{user_id}")
+def update_user(
+    user_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update user details."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    updatable_fields = [
+        'first_name', 'last_name', 'phone', 'company_name',
+        'user_type', 'subscription_tier', 'active', 'trial_active'
+    ]
+    
+    for field in updatable_fields:
+        if field in data:
+            setattr(user, field, data[field])
+    
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    
+    return {"success": True, "user": {
+        "id": user.id,
+        "email": user.email,
+        "user_type": user.user_type,
+        "subscription_tier": user.subscription_tier
+    }}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    permanent: bool = False,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete or deactivate a user."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    if permanent:
+        # Delete user and all their listings
+        db.query(Listing).filter(Listing.user_id == user_id).delete()
+        db.delete(user)
+        message = "User permanently deleted"
+    else:
+        # Just deactivate
+        user.active = False
+        message = "User deactivated"
+    
+    db.commit()
+    return {"success": True, "message": message}
+
+
+# ============= DEALERS MANAGEMENT =============
+
+@router.get("/dealers")
+def get_all_dealers(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all dealers with their stats."""
+    dealers = db.query(User).filter(
+        User.user_type == "dealer"
+    ).offset(skip).limit(limit).all()
+    
+    dealer_list = []
+    for dealer in dealers:
+        # Get listing count
+        listing_count = db.query(Listing).filter(
+            Listing.user_id == dealer.id
+        ).count()
+        
+        active_listings = db.query(Listing).filter(
+            Listing.user_id == dealer.id,
+            Listing.status == "active"
+        ).count()
+        
+        dealer_list.append({
+            "id": dealer.id,
+            "email": dealer.email,
+            "first_name": dealer.first_name,
+            "last_name": dealer.last_name,
+            "company_name": dealer.company_name,
+            "subscription_tier": dealer.subscription_tier,
+            "active": dealer.active,
+            "total_listings": listing_count,
+            "active_listings": active_listings,
+            "created_at": dealer.created_at.isoformat() if dealer.created_at else None
+        })
+    
+    return dealer_list
+
+# ============= MEDIA MANAGEMENT =============
+
+@router.get("/media/stats")
+def get_media_stats(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get media storage statistics."""
+    from app.models.media import MediaFile, MediaFolder
+
+    # Total files and storage
+    total_stats = db.query(
+        func.count(MediaFile.id).label('total_files'),
+        func.sum(MediaFile.file_size_mb).label('total_size_mb')
+    ).filter(MediaFile.deleted_at == None).first()
+
+    # Stats by file type
+    image_stats = db.query(
+        func.count(MediaFile.id).label('count'),
+        func.sum(MediaFile.file_size_mb).label('size_mb')
+    ).filter(
+        MediaFile.file_type == 'image',
+        MediaFile.deleted_at == None
+    ).first()
+
+    video_stats = db.query(
+        func.count(MediaFile.id).label('count'),
+        func.sum(MediaFile.file_size_mb).label('size_mb')
+    ).filter(
+        MediaFile.file_type == 'video',
+        MediaFile.deleted_at == None
+    ).first()
+    
+    pdf_stats = db.query(
+        func.count(MediaFile.id).label('count'),
+        func.sum(MediaFile.file_size_mb).label('size_mb')
+    ).filter(
+        MediaFile.file_type == 'pdf',
+        MediaFile.deleted_at == None
+    ).first()
+    
+    # Storage by dealer
+    dealer_storage = db.query(
+        User.id.label('dealer_id'),
+        User.company_name.label('dealer_name'),
+        User.subscription_tier.label('tier'),
+        func.count(MediaFile.id).label('file_count'),
+        func.sum(MediaFile.file_size_mb).label('size_mb')
+    ).join(MediaFile, MediaFile.user_id == User.id).filter(
+        User.user_type == 'dealer',
+        MediaFile.deleted_at == None
+    ).group_by(User.id).order_by(func.sum(MediaFile.file_size_mb).desc()).limit(20).all()
+    
+    # Orphaned files (not associated with any listing)
+    orphaned_count = db.query(func.count(MediaFile.id)).filter(
+        MediaFile.deleted_at == None
+    ).outerjoin(
+        ListingMediaAttachment,
+        MediaFile.id == ListingMediaAttachment.media_id
+    ).filter(
+        ListingMediaAttachment.id == None
+    ).scalar()
+    
+    # Large files (over 10MB)
+    large_files_count = db.query(func.count(MediaFile.id)).filter(
+        MediaFile.file_size_mb > 10,
+        MediaFile.deleted_at == None
+    ).scalar()
+    
+    return {
+        "total_files": total_stats.total_files or 0,
+        "total_size_gb": (total_stats.total_size_mb or 0) / 1024,
+        "by_type": {
+            "images": {
+                "count": image_stats.count or 0,
+                "size_gb": (image_stats.size_mb or 0) / 1024
+            },
+            "videos": {
+                "count": video_stats.count or 0,
+                "size_gb": (video_stats.size_mb or 0) / 1024
+            },
+            "pdfs": {
+                "count": pdf_stats.count or 0,
+                "size_gb": (pdf_stats.size_mb or 0) / 1024
+            }
+        },
+        "by_dealer": [
+            {
+                "dealer_id": d.dealer_id,
+                "dealer_name": d.dealer_name or "Unknown",
+                "file_count": d.file_count,
+                "size_gb": (d.size_mb or 0) / 1024,
+                "tier": d.tier or "free"
+            }
+            for d in dealer_storage
+        ],
+        "orphaned_files": orphaned_count or 0,
+        "large_files": large_files_count or 0
+    }
+
+
+@router.get("/media")
+def get_all_media(
+    skip: int = 0,
+    limit: int = 50,
+    file_type: Optional[str] = None,
+    owner_id: Optional[int] = None,  # ← Keep parameter name for API
+    search: Optional[str] = None,
+    sort: str = "date",
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all media files with filtering."""
+    from app.models.media import MediaFile
+    
+    query = db.query(MediaFile).join(
+        User, MediaFile.user_id == User.id  # ✅ CHANGED: uploaded_by_user_id → user_id
+    ).filter(
+        MediaFile.deleted_at == None
+    )
+    
+    if file_type and file_type != 'all':
+        query = query.filter(MediaFile.file_type == file_type)
+    
+    if owner_id:
+        query = query.filter(MediaFile.user_id == owner_id)  # ✅ CHANGED
+    
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (MediaFile.filename.ilike(search_pattern)) |
+            (User.company_name.ilike(search_pattern))
+        )
+    
+    # Sorting
+    if sort == "size":
+        query = query.order_by(MediaFile.file_size_mb.desc())
+    elif sort == "usage":
+        query = query.order_by(MediaFile.usage_count.desc())
+    else:  # date
+        query = query.order_by(MediaFile.created_at.desc())
+    
+    total = query.count()
+    media_files = query.offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "media": [
+            {
+                "id": m.id,
+                "filename": m.filename,
+                "url": m.url,
+                "thumbnail_url": m.thumbnail_url,
+                "file_type": m.file_type,
+                "file_size_mb": round(m.file_size_mb, 2) if m.file_size_mb else 0,
+                "owner_id": m.user_id,  # ✅ CHANGED: Keep key name for API compatibility
+                "owner_name": f"{m.user.first_name} {m.user.last_name}" if m.user else "Unknown",  # ✅ CHANGED: owner → user
+                "owner_company": m.user.company_name if m.user else "N/A",  # ✅ CHANGED: owner → user
+                "owner_type": m.user.user_type if m.user else "unknown",  # ✅ CHANGED: owner → user
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "used_in_listings": m.usage_count or 0,
+                "views": m.view_count or 0
+            }
+            for m in media_files
+        ]
+    }
+    
+    # Sorting
+    if sort == "size":
+        query = query.order_by(MediaFile.file_size_mb.desc())
+    elif sort == "usage":
+        query = query.order_by(MediaFile.usage_count.desc())
+    else:  # date
+        query = query.order_by(MediaFile.created_at.desc())
+    
+    total = query.count()
+    media_files = query.offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "media": [
+            {
+                "id": m.id,
+                "filename": m.filename,
+                "url": m.url,
+                "thumbnail_url": m.thumbnail_url,
+                "file_type": m.file_type,
+                "file_size_mb": round(m.file_size_mb, 2) if m.file_size_mb else 0,
+                "owner_id": m.user_id,
+                "owner_name": f"{m.owner.first_name} {m.owner.last_name}" if m.owner else "Unknown",
+                "owner_company": m.owner.company_name if m.owner else "N/A",
+                "owner_type": m.owner.user_type if m.owner else "unknown",
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "used_in_listings": m.usage_count or 0,
+                "views": m.view_count or 0
+            }
+            for m in media_files
+        ]
+    }
+
+
+@router.delete("/media/bulk-delete")
+def bulk_delete_media(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete multiple media files."""
+    from app.models.media import MediaFile
+    
+    media_ids = data.get("media_ids", [])
+    if not media_ids:
+        raise ValidationException("No media IDs provided")
+    
+    # Soft delete
+    deleted = db.query(MediaFile).filter(
+        MediaFile.id.in_(media_ids)
+    ).update(
+        {"deleted_at": datetime.utcnow()},
+        synchronize_session=False
+    )
+    db.commit()
+    
+    return {"success": True, "deleted": deleted}
+
+
+@router.delete("/media/cleanup-orphaned")
+def cleanup_orphaned_media(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Delete all orphaned media files."""
+    from app.models.media import MediaFile, ListingMediaAttachment
+    
+    # Find orphaned media (not attached to any listing)
+    orphaned_query = db.query(MediaFile).outerjoin(
+        ListingMediaAttachment,
+        MediaFile.id == ListingMediaAttachment.media_id
+    ).filter(
+        ListingMediaAttachment.id == None,
+        MediaFile.deleted_at == None
+    )
+    
+    count = orphaned_query.count()
+    
+    # Soft delete them
+    orphaned_query.update(
+        {"deleted_at": datetime.utcnow()},
+        synchronize_session=False
+    )
+    db.commit()
+    
+    return {"success": True, "count": count}
+    
+    # ============= MEDIA MANAGEMENT (ADMIN) =============
+
+@router.get("/media/stats")
+def get_all_media_stats(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get platform-wide media statistics"""
+    from app.models.media import MediaFile
+    
+    # Total stats
+    total_stats = db.query(
+        func.count(MediaFile.id).label('total_files'),
+        func.sum(MediaFile.file_size_mb).label('total_size_mb')
+    ).filter(MediaFile.deleted_at == None).first()
+    
+    # By type
+    type_stats = {}
+    for file_type in ['image', 'video', 'pdf']:
+        stats = db.query(
+            func.count(MediaFile.id).label('count'),
+            func.sum(MediaFile.file_size_mb).label('size_mb')
+        ).filter(
+            MediaFile.file_type == file_type,
+            MediaFile.deleted_at == None
+        ).first()
+        
+        type_stats[f"{file_type}s"] = {
+            "count": stats.count or 0,
+            "size_gb": (stats.size_mb or 0) / 1024
+        }
+    
+    # By dealer
+    dealer_stats = db.query(
+        User.id.label('dealer_id'),
+        User.company_name.label('dealer_name'),
+        User.subscription_tier.label('tier'),
+        func.count(MediaFile.id).label('file_count'),
+        func.sum(MediaFile.file_size_mb).label('size_mb')
+    ).join(MediaFile, MediaFile.user_id == User.id).filter(
+        User.user_type == 'dealer',
+        MediaFile.deleted_at == None
+    ).group_by(User.id).order_by(func.sum(MediaFile.file_size_mb).desc()).limit(20).all()
+    
+    # Orphaned files
+    orphaned = db.query(func.count(MediaFile.id)).filter(
+        MediaFile.listing_id == None,
+        MediaFile.blog_post_id == None,
+        MediaFile.deleted_at == None
+    ).scalar()
+    
+    # Large files
+    large_files = db.query(func.count(MediaFile.id)).filter(
+        MediaFile.file_size_mb > 10,
+        MediaFile.deleted_at == None
+    ).scalar()
+    
+    return {
+        "total_files": total_stats.total_files or 0,
+        "total_size_gb": (total_stats.total_size_mb or 0) / 1024,
+        "by_type": type_stats,
+        "by_dealer": [
+            {
+                "dealer_id": d.dealer_id,
+                "dealer_name": d.dealer_name or "Unknown",
+                "file_count": d.file_count,
+                "size_gb": (d.size_mb or 0) / 1024,
+                "tier": d.tier or "free"
+            }
+            for d in dealer_stats
+        ],
+        "orphaned_files": orphaned or 0,
+        "large_files": large_files or 0
+    }
+
+
+@router.get("/media")  # This appears twice - fix both!
+def get_all_media(
+    skip: int = 0,
+    limit: int = 50,
+    file_type: Optional[str] = None,
+    owner_id: Optional[int] = None,
+    search: Optional[str] = None,
+    sort: str = "date",
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all media files (admin only)"""
+    from app.models.media import MediaFile
+    
+    query = db.query(MediaFile).join(User, MediaFile.user_id == User.id).filter(  # ✅ CHANGED
+        MediaFile.deleted_at == None
+    )
+    
+    if file_type and file_type != 'all':
+        query = query.filter(MediaFile.file_type == file_type)
+    
+    if owner_id:
+        query = query.filter(MediaFile.user_id == owner_id)  # ✅ CHANGED
+    
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (MediaFile.filename.ilike(search_pattern)) |
+            (User.company_name.ilike(search_pattern))
+        )
+    
+    # Sorting
+    if sort == "size":
+        query = query.order_by(MediaFile.file_size_mb.desc())
+    elif sort == "usage":
+        query = query.order_by(MediaFile.listing_id.desc().nullslast())
+    else:
+        query = query.order_by(MediaFile.created_at.desc())
+    
+    total = query.count()
+    media_files = query.offset(skip).limit(limit).all()
+    
+    return {
+        "total": total,
+        "media": [
+            {
+                "id": m.id,
+                "filename": m.filename,
+                "url": m.url,
+                "thumbnail_url": m.thumbnail_url,
+                "file_type": m.file_type,
+                "file_size_mb": round(m.file_size_mb, 2) if m.file_size_mb else 0,
+                "owner_id": m.user_id,  # ✅ Keep API key name
+                "owner_name": f"{m.user.first_name} {m.user.last_name}" if m.user else "Unknown",  # ✅ CHANGED
+                "owner_company": m.user.company_name if m.user else "N/A",  # ✅ CHANGED
+                "owner_type": m.user.user_type if m.user else "unknown",  # ✅ CHANGED
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "used_in_listings": 1 if m.listing_id else 0,
+                "views": m.views or 0
+            }
+            for m in media_files
+        ]
+    }
+
+
+# ============= SALES REPS MANAGEMENT =============
+
+@router.get("/sales-reps")
+def get_all_sales_reps(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all sales reps with their assigned dealers and revenue."""
+    sales_reps = db.query(User).filter(
+        User.user_type == "salesman"
+    ).all()
+    
+    tier_prices = {
+        "free": 0.0,
+        "trial": 0.0,
+        "basic": 29.0,
+        "plus": 59.0,
+        "premium": 99.0,
+        "pro": 99.0,
+        "private_basic": 9.0,
+        "private_plus": 19.0,
+        "private_pro": 39.0,
+    }
+    
+    result = []
+    for rep in sales_reps:
+        affiliate_account = _ensure_sales_rep_affiliate_account(rep, db, current_user.id)
+
+        # Get assigned dealers
+        assigned_dealers = db.query(User).filter(
+            User.assigned_sales_rep_id == rep.id
+        ).all()
+
+        referral_signups = db.query(ReferralSignup).filter(
+            ReferralSignup.sales_rep_id == rep.id
+        ).all()
+
+        referral_dealer_ids = {r.dealer_user_id for r in referral_signups}
+        referred_dealers = []
+        if referral_dealer_ids:
+            referred_dealers = db.query(User).filter(User.id.in_(list(referral_dealer_ids))).all()
+
+        dealers_by_id = {d.id: d for d in assigned_dealers}
+        for dealer in referred_dealers:
+            dealers_by_id[dealer.id] = dealer
+
+        all_dealers = list(dealers_by_id.values())
+        
+        assigned_count = len(all_dealers)
+        
+        # Calculate revenue from active dealers (prefer tracked effective price)
+        referral_map = {r.dealer_user_id: r for r in referral_signups}
+        active_dealers = [d for d in all_dealers if d.active]
+        total_revenue = 0.0
+        monthly_commission = 0.0
+        for dealer in active_dealers:
+            signup = referral_map.get(dealer.id)
+            effective_price = float(signup.effective_monthly_price) if signup and signup.effective_monthly_price is not None else float(tier_prices.get(dealer.subscription_tier, 0.0))
+            commission_rate = float(signup.commission_rate) if signup and signup.commission_rate is not None else float(rep.commission_rate or affiliate_account.commission_rate or 10.0)
+            total_revenue += effective_price
+            monthly_commission += effective_price * (commission_rate / 100.0)
+        
+        commission_rate = float(rep.commission_rate or affiliate_account.commission_rate or 10.0)
+        
+        result.append({
+            "id": rep.id,
+            "name": f"{rep.first_name} {rep.last_name}",  # Changed from separate fields
+            "email": rep.email,
+            "dealer_count": assigned_count,
+            "active_dealers": len(active_dealers),
+            "total_revenue": total_revenue,
+            "monthly_commission": monthly_commission,
+            "commission_rate": float(commission_rate),
+            "referral_code": affiliate_account.code,
+            "referral_link": f"/register?user_type=dealer&ref={affiliate_account.code}",
+            "referred_signups": len(referral_signups),
+        })
+    
+    return result
+
+
+@router.post("/sales-reps")
+def create_sales_rep(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Create a new sales rep."""
+    from app.security.auth import get_password_hash
+    
+    required = ["email", "password", "first_name", "last_name"]
+    for field in required:
+        if field not in data:
+            raise ValidationException(f"Missing required field: {field}")
+    
+    # Check if email exists
+    existing = db.query(User).filter(User.email == data["email"]).first()
+    if existing:
+        raise ValidationException("Email already registered")
+    
+    sales_rep = User(
+        email=data["email"],
+        password_hash=get_password_hash(data["password"]),
+        first_name=data["first_name"],
+        last_name=data["last_name"],
+        phone=data.get("phone"),
+        user_type="salesman",
+        commission_rate=float(data.get("commission_rate", 10.0)),
+        active=True
+    )
+    
+    db.add(sales_rep)
+    db.commit()
+    db.refresh(sales_rep)
+
+    affiliate_account = _ensure_sales_rep_affiliate_account(sales_rep, db, current_user.id)
+    
+    return {
+        "success": True,
+        "sales_rep_id": sales_rep.id,
+        "email": sales_rep.email,
+        "referral_code": affiliate_account.code,
+        "referral_link": f"/register?user_type=dealer&ref={affiliate_account.code}",
+    }
+
+
+@router.post("/assign-sales-rep")
+def assign_sales_rep(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    dealer_id = data.get("dealer_id")
+    sales_rep_id = data.get("sales_rep_id")
+
+    if not dealer_id or not sales_rep_id:
+        raise ValidationException("dealer_id and sales_rep_id are required")
+
+    dealer = db.query(User).filter(
+        User.id == dealer_id,
+        User.user_type == "dealer"
+    ).first()
+    if not dealer:
+        raise ResourceNotFoundException("Dealer", dealer_id)
+
+    sales_rep = db.query(User).filter(
+        User.id == sales_rep_id,
+        User.user_type == "salesman"
+    ).first()
+    if not sales_rep:
+        raise ResourceNotFoundException("Sales rep", sales_rep_id)
+
+    dealer.assigned_sales_rep_id = sales_rep.id
+    db.commit()
+
+    return {
+        "success": True,
+        "dealer_id": dealer.id,
+        "sales_rep_id": sales_rep.id,
+    }
+
+
+@router.get("/affiliates")
+def get_affiliates(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    accounts = db.query(AffiliateAccount).order_by(AffiliateAccount.created_at.desc()).all()
+    return [
+        {
+            "id": account.id,
+            "name": account.name,
+            "email": account.email,
+            "code": account.code,
+            "account_type": account.account_type,
+            "user_id": account.user_id,
+            "commission_rate": float(account.commission_rate or 10.0),
+            "active": bool(account.active),
+            "created_at": account.created_at.isoformat() if account.created_at else None,
+            "referral_link": f"/register?user_type=dealer&ref={account.code}",
+        }
+        for account in accounts
+    ]
+
+
+@router.post("/affiliates")
+def create_affiliate(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise ValidationException("Affiliate name is required")
+
+    requested_code = (data.get("code") or "").strip().upper()
+    code = requested_code or _generate_ref_code()
+    while db.query(AffiliateAccount).filter(AffiliateAccount.code == code).first():
+        code = _generate_ref_code()
+
+    account = AffiliateAccount(
+        name=name,
+        email=data.get("email"),
+        code=code,
+        account_type=data.get("account_type", "affiliate"),
+        commission_rate=float(data.get("commission_rate", 10.0)),
+        active=bool(data.get("active", True)),
+        created_by=current_user.id,
+    )
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+
+    return {
+        "id": account.id,
+        "code": account.code,
+        "referral_link": f"/register?user_type=dealer&ref={account.code}",
+        "message": "Affiliate account created",
+    }
+
+
+@router.put("/affiliates/{affiliate_id}")
+def update_affiliate(
+    affiliate_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    account = db.query(AffiliateAccount).filter(AffiliateAccount.id == affiliate_id).first()
+    if not account:
+        raise ResourceNotFoundException("Affiliate account", affiliate_id)
+
+    if "name" in data:
+        account.name = data["name"]
+    if "email" in data:
+        account.email = data["email"]
+    if "commission_rate" in data:
+        account.commission_rate = float(data["commission_rate"])
+    if "active" in data:
+        account.active = bool(data["active"])
+
+    db.commit()
+    db.refresh(account)
+
+    return {
+        "success": True,
+        "id": account.id,
+        "code": account.code,
+        "referral_link": f"/register?user_type=dealer&ref={account.code}",
+    }
+
+
+@router.get("/deal-performance")
+def get_deal_performance(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    deals = db.query(PartnerDeal).order_by(PartnerDeal.created_at.desc()).all()
+
+    referrals = db.query(ReferralSignup).all()
+    referrals_by_deal = {}
+    for referral in referrals:
+        if referral.deal_id is None:
+            continue
+        referrals_by_deal.setdefault(referral.deal_id, []).append(referral)
+
+    rep_summary = {}
+    affiliate_summary = {}
+    deal_rows = []
+
+    for deal in deals:
+        linked_referrals = referrals_by_deal.get(deal.id, [])
+        signup_count = len(linked_referrals)
+
+        dealer_ids = [r.dealer_user_id for r in linked_referrals]
+        dealers = []
+        if dealer_ids:
+            dealers = db.query(User).filter(User.id.in_(dealer_ids)).all()
+        dealer_map = {dealer.id: dealer for dealer in dealers}
+
+        active_paid_count = 0
+        monthly_revenue = 0.0
+        monthly_commission = 0.0
+
+        for referral in linked_referrals:
+            dealer = dealer_map.get(referral.dealer_user_id)
+            if not dealer or not dealer.active:
+                continue
+
+            effective_price = float(referral.effective_monthly_price or 0.0)
+            commission_rate = float(referral.commission_rate or 10.0)
+
+            # Treat non-trial/non-free dealers with positive effective price as paid.
+            if effective_price > 0 and dealer.subscription_tier not in ["free", "trial"]:
+                active_paid_count += 1
+
+            monthly_revenue += effective_price
+            monthly_commission += effective_price * (commission_rate / 100.0)
+
+            if referral.sales_rep_id:
+                rep_row = rep_summary.setdefault(referral.sales_rep_id, {
+                    "sales_rep_id": referral.sales_rep_id,
+                    "sales_rep_name": None,
+                    "signup_count": 0,
+                    "active_paid_accounts": 0,
+                    "monthly_revenue": 0.0,
+                    "monthly_commission": 0.0,
+                })
+                rep_row["signup_count"] += 1
+                if effective_price > 0 and dealer.subscription_tier not in ["free", "trial"]:
+                    rep_row["active_paid_accounts"] += 1
+                rep_row["monthly_revenue"] += effective_price
+                rep_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
+
+            if referral.affiliate_account_id:
+                affiliate_row = affiliate_summary.setdefault(referral.affiliate_account_id, {
+                    "affiliate_account_id": referral.affiliate_account_id,
+                    "affiliate_name": None,
+                    "code": None,
+                    "signup_count": 0,
+                    "active_paid_accounts": 0,
+                    "monthly_revenue": 0.0,
+                    "monthly_commission": 0.0,
+                })
+                affiliate_row["signup_count"] += 1
+                if effective_price > 0 and dealer.subscription_tier not in ["free", "trial"]:
+                    affiliate_row["active_paid_accounts"] += 1
+                affiliate_row["monthly_revenue"] += effective_price
+                affiliate_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
+
+        owner_sales_rep_name = None
+        if deal.owner_sales_rep_id:
+            sales_rep = db.query(User).filter(User.id == deal.owner_sales_rep_id).first()
+            if sales_rep:
+                owner_sales_rep_name = f"{sales_rep.first_name or ''} {sales_rep.last_name or ''}".strip() or sales_rep.email
+
+        affiliate_name = None
+        affiliate_code = None
+        if deal.affiliate_account_id:
+            account = db.query(AffiliateAccount).filter(AffiliateAccount.id == deal.affiliate_account_id).first()
+            if account:
+                affiliate_name = account.name
+                affiliate_code = account.code
+
+        deal_rows.append({
+            "deal_id": deal.id,
+            "crm_sync_key": f"deal:{deal.id}",
+            "name": deal.name,
+            "code": deal.code,
+            "target_email": deal.target_email,
+            "owner_sales_rep_id": deal.owner_sales_rep_id,
+            "owner_sales_rep_name": owner_sales_rep_name,
+            "affiliate_account_id": deal.affiliate_account_id,
+            "affiliate_name": affiliate_name,
+            "affiliate_code": affiliate_code,
+            "signup_count": signup_count,
+            "active_paid_accounts": active_paid_count,
+            "monthly_revenue": monthly_revenue,
+            "monthly_commission": monthly_commission,
+            "free_days": deal.free_days,
+            "discount_type": deal.discount_type,
+            "discount_value": deal.discount_value,
+            "fixed_monthly_price": deal.fixed_monthly_price,
+            "term_months": deal.term_months,
+            "lifetime": bool(deal.lifetime),
+            "active": bool(deal.active),
+            "created_at": deal.created_at.isoformat() if deal.created_at else None,
+        })
+
+    # Resolve display names for summaries
+    if rep_summary:
+        rep_ids = list(rep_summary.keys())
+        reps = db.query(User).filter(User.id.in_(rep_ids)).all()
+        rep_map = {rep.id: rep for rep in reps}
+        for rep_id, row in rep_summary.items():
+            rep = rep_map.get(rep_id)
+            if rep:
+                row["sales_rep_name"] = f"{rep.first_name or ''} {rep.last_name or ''}".strip() or rep.email
+
+    if affiliate_summary:
+        affiliate_ids = list(affiliate_summary.keys())
+        accounts = db.query(AffiliateAccount).filter(AffiliateAccount.id.in_(affiliate_ids)).all()
+        account_map = {account.id: account for account in accounts}
+        for account_id, row in affiliate_summary.items():
+            account = account_map.get(account_id)
+            if account:
+                row["affiliate_name"] = account.name
+                row["code"] = account.code
+
+    return {
+        "deals": deal_rows,
+        "summary_by_sales_rep": list(rep_summary.values()),
+        "summary_by_affiliate": list(affiliate_summary.values()),
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+# ============= SETTINGS MANAGEMENT =============
+
+@router.get("/settings")
+def get_settings(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get platform settings."""
+    # For now, return default settings
+    # You can create a Settings model later if needed
+    return {
+        "site_name": "YachtVersal",
+        "support_email": "support@yachtversal.com",
+        "featured_listing_enabled": True,
+        "require_approval": False,
+        "max_images_per_listing": 20,
+        "default_currency": "USD",
+        "allowed_currencies": ["USD", "EUR", "GBP", "CAD", "AUD"],
+        "maintenance_mode": False
+    }
+
+
+@router.put("/settings")
+def update_settings(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update platform settings."""
+    # Store settings in database or config file
+    # For now, just return success
+    return {"success": True, "message": "Settings updated"}
+
+
+@router.get("/subscription-config")
+def get_subscription_config(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get subscription tier configuration."""
+    return {
+        "tiers": {
+            "free": {
+                "name": "Free",
+                "price": 0,
+                "max_listings": 3,
+                "features": ["Basic listing", "Photo uploads", "Contact form"]
+            },
+            "basic": {
+                "name": "Basic",
+                "price": 29,
+                "max_listings": 25,
+                "features": ["25 listings", "Featured listings", "Analytics", "Priority support"]
+            },
+            "premium": {
+                "name": "Premium",
+                "price": 99,
+                "max_listings": -1,  # Unlimited
+                "features": ["Unlimited listings", "Team members", "Advanced analytics", "API access", "White label"]
+            }
+        }
+    }
+
+
+@router.put("/subscription-config")
+def update_subscription_config(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update subscription configuration."""
+    # Store config in database
+    # For now, just return success
+    return {"success": True, "message": "Subscription config updated"}
+
+
+# ============= DASHBOARD STATS =============
+
+@router.get("/stats")
+def get_admin_stats(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get admin dashboard statistics."""
+    
+    # User stats
+    total_users = db.query(User).count()
+    active_users = db.query(User).filter(User.active == True).count()
+    total_dealers = db.query(User).filter(User.user_type == "dealer").count()
+    active_dealers = db.query(User).filter(
+        User.user_type == "dealer",
+        User.active == True
+    ).count()
+    
+    # Listing stats
+    total_listings = db.query(Listing).count()
+    active_listings = db.query(Listing).filter(Listing.status == "active").count()
+    pending_listings = db.query(Listing).filter(Listing.status == "pending").count()
+    
+    # Revenue calculation (simple)
+    tier_prices = {"free": 0, "basic": 29, "premium": 99, "trial": 0}
+    monthly_revenue = sum(
+        tier_prices.get(u.subscription_tier, 0)
+        for u in db.query(User).filter(User.active == True).all()
+    )
+    
+    return {
+        "users": {
+            "total": total_users,
+            "active": active_users,
+            "dealers": total_dealers,
+            "active_dealers": active_dealers
+        },
+        "listings": {
+            "total": total_listings,
+            "active": active_listings,
+            "pending": pending_listings
+        },
+        "revenue": {
+            "monthly": monthly_revenue,
+            "annual": monthly_revenue * 12
+        }
+    }

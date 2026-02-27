@@ -1,0 +1,450 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Mail, Send, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { apiUrl } from '@/app/lib/apiRoot';
+
+// Type definitions
+type Message = {
+  id: number;
+  subject: string;
+  body: string;
+  message_type: string;
+  ticket_number: string;
+  priority: string;
+  category: string;
+  status: string;
+  sender_name: string;
+  sender_email: string;
+  created_at: string;
+};
+
+type Reply = {
+  id: number;
+  body: string;
+  sender_name: string;
+  created_at: string;
+};
+
+type MessageDetail = {
+  message: Message;
+  replies: Reply[];
+};
+
+export default function MessagesPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<MessageDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'new' | 'replied'>('all');
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(apiUrl('/auth/me'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Not authenticated');
+      }
+
+      const userData = await response.json();
+      setUser(userData);
+      await fetchMessages(token);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('token');
+      router.push('/login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMessages = async (token: string) => {
+    try {
+      const response = await fetch(apiUrl('/messages'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data: Message[] = await response.json();
+        setMessages(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
+  };
+
+  const loadMessageDetail = async (messageId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/messages/${messageId}`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const detail: MessageDetail = {
+          message: data.message,
+          replies: data.replies || []
+        };
+        setSelectedMessage(detail);
+      }
+    } catch (error) {
+      console.error('Failed to load message:', error);
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !selectedMessage) return;
+
+    setSending(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/messages/${selectedMessage.message.id}/reply`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ body: replyText })
+      });
+
+      if (response.ok) {
+        setReplyText('');
+        // Reload message to show new reply
+        await loadMessageDetail(selectedMessage.message.id);
+        // Refresh messages list
+        await fetchMessages(token || '');
+        alert('Reply sent successfully!');
+      } else {
+        alert('Failed to send reply');
+      }
+    } catch (error) {
+      console.error('Failed to send reply:', error);
+      alert('Failed to send reply');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCreateTicket = async () => {
+    const subject = prompt('Enter ticket subject:');
+    if (!subject) return;
+
+    const message = prompt('Enter your message:');
+    if (!message) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/messages'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          message_type: 'support_ticket',
+          subject,
+          body: message,
+          priority: 'normal',
+          category: 'general'
+        })
+      });
+
+      if (response.ok) {
+        alert('Support ticket created successfully!');
+        await fetchMessages(token || '');
+      } else {
+        alert('Failed to create ticket');
+      }
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+      alert('Failed to create ticket');
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'text-red-600 bg-red-100';
+      case 'high': return 'text-orange-600 bg-orange-100';
+      case 'normal': return 'text-blue-600 bg-blue-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'new': return 'text-blue-600 bg-blue-100';
+      case 'replied': return 'text-green-600 bg-green-100';
+      case 'closed': return 'text-gray-600 bg-gray-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const filteredMessages = messages.filter(msg => {
+    if (filter === 'all') return true;
+    if (filter === 'new') return msg.status === 'new' || msg.status === 'read';
+    if (filter === 'replied') return msg.status === 'replied';
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-xl text-gray-900">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold text-blue-600">Messages & Support</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleCreateTicket}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + New Support Ticket
+              </button>
+              <button
+                onClick={() => router.back()}
+                className="px-4 py-2 text-gray-700 hover:text-gray-900"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Messages List */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="flex flex-col md:flex-row">
+                <div className="md:w-44 border-b md:border-b-0 md:border-r border-gray-200 bg-gray-50 p-3 space-y-2">
+                  {[
+                    { id: 'all' as const, label: 'All', count: messages.length },
+                    { id: 'new' as const, label: 'New', count: messages.filter(m => m.status === 'new' || m.status === 'read').length },
+                    { id: 'replied' as const, label: 'Replied', count: messages.filter(m => m.status === 'replied').length }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setFilter(tab.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
+                        filter === tab.id
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span>({tab.count})</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1 divide-y max-h-[600px] overflow-y-auto">
+                {filteredMessages.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <Mail size={48} className="mx-auto mb-4 text-gray-400" />
+                    <p>No messages</p>
+                  </div>
+                ) : (
+                  filteredMessages.map((message) => (
+                    <button
+                      key={message.id}
+                      onClick={() => loadMessageDetail(message.id)}
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                        selectedMessage?.message.id === message.id ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getPriorityColor(message.priority)}`}>
+                            {message.priority}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {formatDate(message.created_at)}
+                        </span>
+                      </div>
+
+                      {message.ticket_number && (
+                        <p className="text-xs text-gray-500 mb-1">Ticket: {message.ticket_number}</p>
+                      )}
+
+                      <p className="text-sm font-semibold text-gray-900 mb-1">
+                        {message.subject}
+                      </p>
+
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {message.body}
+                      </p>
+
+                      <div className="mt-2">
+                        <span className="text-xs text-gray-500">From: {message.sender_name}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Message Detail */}
+          <div className="lg:col-span-2">
+            {selectedMessage ? (
+              <div className="bg-white rounded-lg shadow">
+                {/* Message Header */}
+                <div className="p-6 border-b">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        {selectedMessage.message.subject}
+                      </h3>
+                      {selectedMessage.message.ticket_number && (
+                        <p className="text-sm text-gray-600 mb-2">
+                          Ticket: {selectedMessage.message.ticket_number}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(selectedMessage.message.priority)}`}>
+                        {selectedMessage.message.priority.toUpperCase()}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(selectedMessage.message.status)}`}>
+                        {selectedMessage.message.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Clock size={14} />
+                    <span>{formatDate(selectedMessage.message.created_at)}</span>
+                  </div>
+                </div>
+
+                {/* Original Message */}
+                <div className="p-6 bg-gray-50 border-b">
+                  <div className="mb-3">
+                    <span className="text-sm font-semibold text-gray-700">From:</span>
+                    <span className="text-sm text-gray-900 ml-2">{selectedMessage.message.sender_name}</span>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border">
+                    <p className="text-gray-800 whitespace-pre-wrap">{selectedMessage.message.body}</p>
+                  </div>
+                </div>
+
+                {/* Replies */}
+                {selectedMessage.replies.length > 0 && (
+                  <div className="p-6 border-b">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-4">Replies ({selectedMessage.replies.length})</h4>
+                    <div className="space-y-4">
+                      {selectedMessage.replies.map((reply: Reply) => (
+                        <div key={reply.id} className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-gray-900">{reply.sender_name}</span>
+                            <span className="text-xs text-gray-500">{formatDate(reply.created_at)}</span>
+                          </div>
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap">{reply.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Reply Form */}
+                <div className="p-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Send Reply</h4>
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4"
+                    rows={4}
+                    placeholder="Type your reply..."
+                  />
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setSelectedMessage(null)}
+                      className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={handleSendReply}
+                      disabled={sending || !replyText.trim()}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+                    >
+                      {sending ? (
+                        'Sending...'
+                      ) : (
+                        <>
+                          <Send size={16} />
+                          Send Reply
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow h-full flex items-center justify-center p-12">
+                <div className="text-center text-gray-500">
+                  <Mail size={64} className="mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg">Select a message to view details</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Help Section */}
+        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h4 className="font-semibold text-blue-900 mb-3">💡 Using the Messaging System</h4>
+          <ul className="text-sm text-blue-800 space-y-2">
+            <li>• Click "New Support Ticket" to contact support</li>
+            <li>• All inquiries from buyers about your listings appear here</li>
+            <li>• Reply directly to messages to maintain conversation history</li>
+            <li>• Tickets are automatically assigned unique tracking numbers</li>
+            <li>• You'll receive email notifications for new messages</li>
+          </ul>
+        </div>
+      </main>
+    </div>
+  );
+}
