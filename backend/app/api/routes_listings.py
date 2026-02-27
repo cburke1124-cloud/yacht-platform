@@ -306,71 +306,88 @@ def get_listings(
             .limit(limit)
             .all()
         )
-    except Exception as exc:
-        logger.exception("Primary listings ORM query failed; using reflected fallback query")
+    except Exception:
+        logger.exception("Primary listings ORM query failed; trying raw SQL fallbacks")
 
-        cols = _listing_columns()
-        base_fields = [
-            "id",
-            "title",
-            "price",
-            "currency",
-            "year",
-            "make",
-            "model",
-            "length_feet",
-            "city",
-            "state",
-            "status",
-            "views",
-            "featured",
-            "created_at",
-            "featured_priority",
-            "featured_until",
-        ]
-        selected = [field for field in base_fields if field in cols]
-        if "id" not in selected:
-            raise HTTPException(status_code=500, detail="Listings table missing required id column") from exc
-
-        select_sql = ", ".join(selected)
-        where_sql = "WHERE status = :status" if "status" in cols else ""
-
-        order_parts: list[str] = []
-        if "featured" in cols:
-            order_parts.append("featured DESC")
-        if "featured_priority" in cols:
-            order_parts.append("featured_priority DESC")
-        if "featured_until" in cols:
-            order_parts.append("featured_until DESC")
-        if "created_at" in cols:
-            order_parts.append("created_at DESC")
-        if not order_parts:
-            order_parts.append("id DESC")
-
-        sql = f"SELECT {select_sql} FROM listings {where_sql} ORDER BY {', '.join(order_parts)} LIMIT :limit OFFSET :skip"
         params = {"limit": limit, "skip": skip, "status": status}
-        rows = db.execute(text(sql), params).mappings().all()
 
-        return [
-            {
-                "id": row.get("id"),
-                "title": row.get("title"),
-                "price": row.get("price"),
-                "currency": row.get("currency") or "USD",
-                "year": row.get("year"),
-                "make": row.get("make"),
-                "model": row.get("model"),
-                "length_feet": row.get("length_feet"),
-                "city": row.get("city"),
-                "state": row.get("state"),
-                "status": row.get("status") or status,
-                "views": row.get("views") or 0,
-                "featured": bool(row.get("featured")) if "featured" in cols else False,
-                "images": [],
-                "dealer": None,
-            }
-            for row in rows
-        ]
+        # Fallback A: rich query with status filter and featured ordering.
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT id, title, price, currency, year, make, model, length_feet, city, state, status,
+                           COALESCE(views, 0) AS views,
+                           COALESCE(featured, false) AS featured
+                    FROM listings
+                    WHERE status = :status
+                    ORDER BY featured DESC, created_at DESC
+                    LIMIT :limit OFFSET :skip
+                    """
+                ),
+                params,
+            ).mappings().all()
+
+            return [
+                {
+                    "id": row.get("id"),
+                    "title": row.get("title"),
+                    "price": row.get("price"),
+                    "currency": row.get("currency") or "USD",
+                    "year": row.get("year"),
+                    "make": row.get("make"),
+                    "model": row.get("model"),
+                    "length_feet": row.get("length_feet"),
+                    "city": row.get("city"),
+                    "state": row.get("state"),
+                    "status": row.get("status") or status,
+                    "views": row.get("views") or 0,
+                    "featured": bool(row.get("featured")),
+                    "images": [],
+                    "dealer": None,
+                }
+                for row in rows
+            ]
+        except Exception:
+            logger.exception("Fallback A failed; trying minimal listings query")
+
+        # Fallback B: minimal query without status/featured assumptions.
+        try:
+            rows = db.execute(
+                text(
+                    """
+                    SELECT id, title, price, currency, year, make, model, length_feet, city, state
+                    FROM listings
+                    ORDER BY id DESC
+                    LIMIT :limit OFFSET :skip
+                    """
+                ),
+                {"limit": limit, "skip": skip},
+            ).mappings().all()
+
+            return [
+                {
+                    "id": row.get("id"),
+                    "title": row.get("title"),
+                    "price": row.get("price"),
+                    "currency": row.get("currency") or "USD",
+                    "year": row.get("year"),
+                    "make": row.get("make"),
+                    "model": row.get("model"),
+                    "length_feet": row.get("length_feet"),
+                    "city": row.get("city"),
+                    "state": row.get("state"),
+                    "status": status,
+                    "views": 0,
+                    "featured": False,
+                    "images": [],
+                    "dealer": None,
+                }
+                for row in rows
+            ]
+        except Exception:
+            logger.exception("Fallback B failed; returning empty listings array")
+            return []
 
     def dealer_payload(listing: Listing) -> dict[str, Any] | None:
         try:
