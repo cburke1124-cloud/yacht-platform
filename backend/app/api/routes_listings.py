@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from typing import Optional, Any
 from functools import lru_cache
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
+import logging
 
 from app.db.session import get_db
 from app.db.session import engine
@@ -18,6 +19,7 @@ from app.services.email_service import email_service
 from pydantic import BaseModel
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -286,44 +288,113 @@ def get_listings(
     limit: int = 100,
     status: str = "active",
 ):
-    listings = (
-        db.query(Listing)
-        .options(
-            joinedload(Listing.owner).joinedload(User.dealer_profile),
-            joinedload(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
+    try:
+        listings = (
+            db.query(Listing)
+            .options(
+                joinedload(Listing.owner).joinedload(User.dealer_profile),
+                joinedload(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
+            )
+            .filter(Listing.status == status)
+            .order_by(
+                Listing.featured.desc(),
+                Listing.featured_priority.desc(),
+                Listing.featured_until.desc(),
+                Listing.created_at.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
         )
-        .filter(Listing.status == status)
-        .order_by(
-            Listing.featured.desc(),
-            Listing.featured_priority.desc(),
-            Listing.featured_until.desc(),
-            Listing.created_at.desc(),
-        )
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    except Exception as exc:
+        logger.exception("Primary listings ORM query failed; using reflected fallback query")
+
+        cols = _listing_columns()
+        base_fields = [
+            "id",
+            "title",
+            "price",
+            "currency",
+            "year",
+            "make",
+            "model",
+            "length_feet",
+            "city",
+            "state",
+            "status",
+            "views",
+            "featured",
+            "created_at",
+            "featured_priority",
+            "featured_until",
+        ]
+        selected = [field for field in base_fields if field in cols]
+        if "id" not in selected:
+            raise HTTPException(status_code=500, detail="Listings table missing required id column") from exc
+
+        select_sql = ", ".join(selected)
+        where_sql = "WHERE status = :status" if "status" in cols else ""
+
+        order_parts: list[str] = []
+        if "featured" in cols:
+            order_parts.append("featured DESC")
+        if "featured_priority" in cols:
+            order_parts.append("featured_priority DESC")
+        if "featured_until" in cols:
+            order_parts.append("featured_until DESC")
+        if "created_at" in cols:
+            order_parts.append("created_at DESC")
+        if not order_parts:
+            order_parts.append("id DESC")
+
+        sql = f"SELECT {select_sql} FROM listings {where_sql} ORDER BY {', '.join(order_parts)} LIMIT :limit OFFSET :skip"
+        params = {"limit": limit, "skip": skip, "status": status}
+        rows = db.execute(text(sql), params).mappings().all()
+
+        return [
+            {
+                "id": row.get("id"),
+                "title": row.get("title"),
+                "price": row.get("price"),
+                "currency": row.get("currency") or "USD",
+                "year": row.get("year"),
+                "make": row.get("make"),
+                "model": row.get("model"),
+                "length_feet": row.get("length_feet"),
+                "city": row.get("city"),
+                "state": row.get("state"),
+                "status": row.get("status") or status,
+                "views": row.get("views") or 0,
+                "featured": bool(row.get("featured")) if "featured" in cols else False,
+                "images": [],
+                "dealer": None,
+            }
+            for row in rows
+        ]
 
     def dealer_payload(listing: Listing) -> dict[str, Any] | None:
-        owner = listing.owner
-        if not owner:
+        try:
+            owner = listing.owner
+            if not owner:
+                return None
+
+            dealer_user = owner.parent_dealer if owner.parent_dealer_id and owner.parent_dealer else owner
+            profile = dealer_user.dealer_profile if dealer_user else None
+
+            if not dealer_user:
+                return None
+
+            name = " ".join(filter(None, [dealer_user.first_name, dealer_user.last_name])).strip() or dealer_user.email
+            company_name = (profile.company_name if profile and profile.company_name else dealer_user.company_name) or name
+
+            return {
+                "name": name,
+                "company_name": company_name,
+                "slug": profile.slug if profile else None,
+                "logo_url": profile.logo_url if profile else None,
+            }
+        except Exception:
             return None
-
-        dealer_user = owner.parent_dealer if owner.parent_dealer_id and owner.parent_dealer else owner
-        profile = dealer_user.dealer_profile if dealer_user else None
-
-        if not dealer_user:
-            return None
-
-        name = " ".join(filter(None, [dealer_user.first_name, dealer_user.last_name])).strip() or dealer_user.email
-        company_name = (profile.company_name if profile and profile.company_name else dealer_user.company_name) or name
-
-        return {
-            "name": name,
-            "company_name": company_name,
-            "slug": profile.slug if profile else None,
-            "logo_url": profile.logo_url if profile else None,
-        }
 
     return [
         {
