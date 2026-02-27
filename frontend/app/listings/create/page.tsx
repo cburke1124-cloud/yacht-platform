@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import MediaUpload from '@/app/components/MediaUpload';
 import ScraperModal from '@/app/components/ScraperModal';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote } from 'lucide-react';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-const API_ROOT = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
+import { API_ROOT } from '@/app/lib/apiRoot';
 
 const TABS = ['basic', 'specs', 'engine', 'media'] as const;
 type Tab = typeof TABS[number];

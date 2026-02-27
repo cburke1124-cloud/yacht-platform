@@ -52,6 +52,26 @@ setup_logging()
 
 app = FastAPI(title="YachtVersal API")
 
+
+def _resolve_cors_origins() -> list[str]:
+    defaults = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://yacht-platform.vercel.app",
+    ]
+
+    configured = []
+    for key in ("CORS_ORIGINS", "FRONTEND_URL", "FRONTEND_BASE_URL"):
+        raw = os.getenv(key, "").strip()
+        if raw:
+            configured.extend([item.strip() for item in raw.split(",") if item.strip()])
+
+    merged: list[str] = []
+    for origin in defaults + configured:
+        if origin not in merged:
+            merged.append(origin)
+    return merged
+
 from app.api.error_handlers import register_exception_handlers
 from app.middleware.request_logging import RequestLoggingMiddleware
 
@@ -91,7 +111,8 @@ app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_resolve_cors_origins(),
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,

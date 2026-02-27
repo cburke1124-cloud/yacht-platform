@@ -7,9 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Check, MapPin, Ruler } from 'lucide-react';
 import LoadingSpinner from './components/LoadingSpinner';
 import SearchBar from './components/SearchBar';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-const API_ROOT = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
+import { API_ROOT } from './lib/apiRoot';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

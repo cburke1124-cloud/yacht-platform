@@ -5,9 +5,7 @@ import { useParams } from 'next/navigation';
 import { MapPin, Phone, Mail, Globe, Facebook, Instagram, CheckCircle, Star, Building2 } from 'lucide-react';
 import ListingCard from '@/app/components/ListingCard';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-const API_ROOT = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
+import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function DealerProfilePage() {
   const params = useParams();
@@ -21,7 +19,7 @@ export default function DealerProfilePage() {
 
   const fetchDealerProfile = async () => {
     try {
-      const response = await fetch(`${API_ROOT}/dealers/${params.slug}`);
+      const response = await fetch(apiUrl(`/dealers/${params.slug}`));
       const data = await response.json();
       setDealer(data.dealer);
       setListings(data.listings);

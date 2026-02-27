@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/app/lib/apiRoot';
 
 export type UserType = 'admin' | 'salesman' | 'dealer' | 'user';
 
@@ -46,7 +47,7 @@ export function useAuth() {
         return;
       }
 
-      const response = await fetch('http://localhost:8000/api/auth/me', {
+      const response = await fetch(apiUrl('/auth/me'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -88,7 +89,7 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const response = await fetch(apiUrl('/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

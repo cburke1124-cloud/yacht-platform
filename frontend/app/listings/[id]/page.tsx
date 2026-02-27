@@ -12,8 +12,7 @@ import {
   Bed, Gauge, Fuel, Waves, Ruler, Navigation, Droplet,
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
-
-const API = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_ROOT } from '@/app/lib/apiRoot';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,24 +170,24 @@ export default function ListingDetailPage() {
   }, [id]);
 
   async function fetchListing() {
-    try { const r = await fetch(`${API}/listings/${id}`); if (r.ok) setListing(await r.json()); } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}`); if (r.ok) setListing(await r.json()); } catch {}
   }
   async function fetchMedia() {
-    try { const r = await fetch(`${API}/listings/${id}/media`); if (r.ok) { const d = await r.json(); setMedia(d.media || []); } } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/media`); if (r.ok) { const d = await r.json(); setMedia(d.media || []); } } catch {}
   }
   async function fetchContact() {
-    try { const r = await fetch(`${API}/listings/${id}/contact-info`); if (r.ok) setContact(await r.json()); } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/contact-info`); if (r.ok) setContact(await r.json()); } catch {}
   }
   async function checkSaved() {
     const token = localStorage.getItem('token'); if (!token) return;
-    try { const r = await fetch(`${API}/saved-listings`, { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setSaved(d.some((i: any) => i.listing_id === Number(id))); } } catch {}
+    try { const r = await fetch(`${API_ROOT}/saved-listings`, { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setSaved(d.some((i: any) => i.listing_id === Number(id))); } } catch {}
   }
   async function loadComps() {
     const token = localStorage.getItem('token'); if (!token) return;
-    try { const r = await fetch(`${API}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setComparisons(d); setInComp(d.some((c: any) => c.listings?.some((l: any) => l.id === Number(id)))); } } catch {}
+    try { const r = await fetch(`${API_ROOT}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setComparisons(d); setInComp(d.some((c: any) => c.listings?.some((l: any) => l.id === Number(id)))); } } catch {}
   }
   async function fetchCurrencies() {
-    try { const r = await fetch(`${API}/currencies/rates`); if (r.ok) { const d = await r.json(); setCurrencies(d); } } catch {}
+    try { const r = await fetch(`${API_ROOT}/currencies/rates`); if (r.ok) { const d = await r.json(); setCurrencies(d); } } catch {}
   }
 
   // ── currency conversion ────────────────────────────────────────────────────
@@ -210,11 +209,11 @@ export default function ListingDetailPage() {
   async function toggleSave() {
     const token = localStorage.getItem('token'); if (!token) return alert('Please log in to save listings');
     if (saved) {
-      const r = await fetch(`${API}/saved-listings`, { headers: { Authorization: `Bearer ${token}` } });
+      const r = await fetch(`${API_ROOT}/saved-listings`, { headers: { Authorization: `Bearer ${token}` } });
       const d = await r.json(); const item = d.find((i: any) => i.listing_id === Number(id));
-      if (item) { await fetch(`${API}/saved-listings/${item.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); setSaved(false); }
+      if (item) { await fetch(`${API_ROOT}/saved-listings/${item.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); setSaved(false); }
     } else {
-      await fetch(`${API}/saved-listings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ listing_id: Number(id) }) });
+      await fetch(`${API_ROOT}/saved-listings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ listing_id: Number(id) }) });
       setSaved(true);
     }
   }
@@ -222,11 +221,11 @@ export default function ListingDetailPage() {
   async function addToComp(compId?: number) {
     const token = localStorage.getItem('token'); if (!token) return alert('Please log in');
     if (compId) {
-      await fetch(`${API}/comparisons/${compId}/listings`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ listing_id: Number(id) }) });
+      await fetch(`${API_ROOT}/comparisons/${compId}/listings`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ listing_id: Number(id) }) });
       setInComp(true); setShowComp(false); loadComps();
     } else {
       const name = prompt('Name your comparison:') || 'My Comparison';
-      const r = await fetch(`${API}/comparisons`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, listing_ids: [Number(id)] }) });
+      const r = await fetch(`${API_ROOT}/comparisons`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, listing_ids: [Number(id)] }) });
       if (r.ok) { const d = await r.json(); router.push(`/comparisons/${d.id}`); }
     }
   }
@@ -234,7 +233,7 @@ export default function ListingDetailPage() {
   async function doShare(platform: string) {
     const url = `${window.location.origin}/listings/${id}`;
     const text = listing ? `${listing.title}${listing.price ? ` — $${fmt(listing.price)}` : ''}` : '';
-    try { await fetch(`${API}/listings/${id}/track-share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform }) }); } catch {}
+    try { await fetch(`${API_ROOT}/listings/${id}/track-share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform }) }); } catch {}
     const map: Record<string, string> = {
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
       twitter:  `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
@@ -254,7 +253,7 @@ export default function ListingDetailPage() {
 
   async function calcFinance() {
     if (!listing?.price) return; setFinBusy(true);
-    try { const r = await fetch(`${API}/listings/${id}/calculate-financing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finIn) }); if (r.ok) setFinOut(await r.json()); } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/calculate-financing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finIn) }); if (r.ok) setFinOut(await r.json()); } catch {}
     setFinBusy(false);
   }
 
@@ -270,9 +269,9 @@ export default function ListingDetailPage() {
       const dealer  = contact?.dealer;
       const recipId = sc?.id ?? dealer?.id ?? listing?.created_by_user_id ?? listing?.user_id;
       if (token && recipId) {
-        await fetch(`${API}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
+        await fetch(`${API_ROOT}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
       } else {
-        await fetch(`${API}/listings/${id}/inquiry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message }) });
+        await fetch(`${API_ROOT}/listings/${id}/inquiry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message }) });
       }
       setMsgDone(true); setMsgForm({ name: '', email: '', phone: '', message: '' });
     } catch {}
@@ -852,7 +851,7 @@ export default function ListingDetailPage() {
                           </button>
                         ))}
                         <div className="border-t border-gray-100 my-1" />
-                        <button onClick={() => { window.open(`${API}/pdf/listings/${id}/pdf`, '_blank'); setShowShare(false); }}
+                        <button onClick={() => { window.open(`${API_ROOT}/pdf/listings/${id}/pdf`, '_blank'); setShowShare(false); }}
                           className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
                           <Download size={16} className="text-gray-500" /> PDF Brochure
                         </button>

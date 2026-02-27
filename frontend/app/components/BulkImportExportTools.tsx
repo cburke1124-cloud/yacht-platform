@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Upload, Download, FileText, CheckCircle, AlertCircle, X, Info, Trash2, Eye } from 'lucide-react';
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
-const API_ROOT = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
+import { API_ROOT } from '@/app/lib/apiRoot';
 
 interface BulkToolsProps {
   mode?: 'standalone' | 'modal';
