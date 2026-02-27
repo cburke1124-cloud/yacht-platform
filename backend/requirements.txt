@@ -19,6 +19,7 @@ sendgrid==6.11.0
 psycopg2-binary==2.9.6
 python-multipart==0.0.6
 typing-extensions==4.8.0
+email-validator==2.2.0
 
 requests  # For password breach checking
 redis  # Optional, for distributed rate limiting
