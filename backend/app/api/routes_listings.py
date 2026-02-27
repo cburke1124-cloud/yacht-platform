@@ -387,6 +387,21 @@ def create_listing(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    user_type = (current_user.user_type or "").lower()
+    subscription_tier = (current_user.subscription_tier or "").lower()
+    permissions = current_user.permissions or {}
+
+    paid_dealer_tiers = {"basic", "plus", "pro", "premium"}
+    paid_private_tiers = {"private_basic", "private_plus", "private_pro"}
+
+    is_admin = user_type == "admin"
+    has_create_permission = bool(permissions.get("can_create_listings"))
+    is_paid_dealer = user_type == "dealer" and subscription_tier in paid_dealer_tiers
+    is_paid_private = user_type == "private" and subscription_tier in paid_private_tiers
+
+    if not (is_admin or has_create_permission or is_paid_dealer or is_paid_private):
+        raise AuthorizationException("Listing creation requires a paid dealer or private seller account")
+
     existing = db.query(Listing).filter(Listing.bin == listing_data.bin).first()
     if existing:
         raise HTTPException(status_code=400, detail="A listing with this BIN already exists")

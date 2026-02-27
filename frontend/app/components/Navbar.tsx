@@ -10,7 +10,7 @@ import {
   Heart, Search, Settings, ChevronDown, DollarSign, BarChart3
 } from 'lucide-react';
 
-type UserType = 'admin' | 'salesman' | 'dealer' | 'user';
+type UserType = 'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user';
 
 interface NavUser {
   id: number;
@@ -19,6 +19,7 @@ interface NavUser {
   last_name: string;
   user_type: UserType;
   company_name?: string;
+  subscription_tier?: string;
   permissions?: {
     can_create_listings: boolean;
     can_manage_team: boolean;
@@ -157,7 +158,7 @@ export default function Navbar() {
 
   const normalizeUserType = (type: string): UserType => {
     const normalized = type.toLowerCase();
-    if (['admin', 'salesman', 'dealer', 'user'].includes(normalized)) {
+    if (['admin', 'salesman', 'dealer', 'team_member', 'private', 'buyer', 'user'].includes(normalized)) {
       return normalized as UserType;
     }
     return 'user';
@@ -198,9 +199,17 @@ export default function Navbar() {
 
   const canCreateListings = () => {
     if (!user) return false;
-    return user.user_type === 'dealer' || 
-           user.user_type === 'admin' || 
-           user.permissions?.can_create_listings === true;
+
+    if (user.user_type === 'admin') return true;
+
+    const tier = (user as any).subscription_tier;
+    const paidDealerTiers = new Set(['basic', 'plus', 'pro', 'premium']);
+    const paidPrivateTiers = new Set(['private_basic', 'private_plus', 'private_pro']);
+
+    if (user.user_type === 'dealer' && paidDealerTiers.has(tier)) return true;
+    if (user.user_type === 'private' && paidPrivateTiers.has(tier)) return true;
+
+    return user.permissions?.can_create_listings === true;
   };
 
   const showSavedFeatures = () => {
@@ -430,7 +439,7 @@ export default function Navbar() {
                   Sign In
                 </Link>
                 <Link
-                  href="/listings/create"
+                  href="/register?user_type=dealer&subscription_tier=basic"
                   className="px-6 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
                   style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
                 >
@@ -618,7 +627,7 @@ export default function Navbar() {
                     Sign In
                   </Link>
                   <Link
-                    href="/listings/create"
+                    href="/register?user_type=dealer&subscription_tier=basic"
                     className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
                     style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                     onClick={() => setMobileMenuOpen(false)}

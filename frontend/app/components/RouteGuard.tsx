@@ -6,8 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface RouteGuardProps {
   children: React.ReactNode;
-  requiredUserType?: 'admin' | 'salesman' | 'dealer' | 'user';
-  allowedUserTypes?: Array<'admin' | 'salesman' | 'dealer' | 'user'>;
+  requiredUserType?: 'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user';
+  allowedUserTypes?: Array<'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user'>;
   requiresAuth?: boolean;
 }
 
@@ -104,8 +104,8 @@ export default function RouteGuard({
 export function withRouteGuard<P extends object>(
   Component: React.ComponentType<P>,
   options?: {
-    requiredUserType?: 'admin' | 'salesman' | 'dealer' | 'user';
-    allowedUserTypes?: Array<'admin' | 'salesman' | 'dealer' | 'user'>;
+    requiredUserType?: 'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user';
+    allowedUserTypes?: Array<'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user'>;
     requiresAuth?: boolean;
   }
 ) {

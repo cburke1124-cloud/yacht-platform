@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/app/lib/apiRoot';
 
-export type UserType = 'admin' | 'salesman' | 'dealer' | 'user';
+export type UserType = 'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user';
 
 export interface User {
   id: number;
@@ -80,7 +80,7 @@ export function useAuth() {
 
   const normalizeUserType = (type: string): UserType => {
     const normalized = type.toLowerCase();
-    if (['admin', 'salesman', 'dealer', 'user'].includes(normalized)) {
+    if (['admin', 'salesman', 'dealer', 'team_member', 'private', 'buyer', 'user'].includes(normalized)) {
       return normalized as UserType;
     }
     // Default to user if type is unknown
@@ -189,9 +189,15 @@ export function useAuth() {
 
     // Listing creation - dealers and team members with permission
     if (route.startsWith('/listings/create')) {
-      return userType === 'dealer' || 
-             userType === 'admin' || 
-             hasPermission('can_create_listings');
+          if (userType === 'admin') return true;
+
+          const tier = (user.subscription_tier || '').toLowerCase();
+          const paidDealerTiers = new Set(['basic', 'plus', 'pro', 'premium']);
+          const paidPrivateTiers = new Set(['private_basic', 'private_plus', 'private_pro']);
+
+          return (userType === 'dealer' && paidDealerTiers.has(tier)) ||
+            (userType === 'private' && paidPrivateTiers.has(tier)) ||
+            hasPermission('can_create_listings');
     }
 
     // Messages - all authenticated users

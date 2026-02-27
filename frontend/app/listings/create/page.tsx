@@ -77,6 +77,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const router = useRouter();
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const isEditMode = mode === 'edit' && !!listingId;
+  const [accessChecking, setAccessChecking] = useState(true);
+  const [hasListingAccess, setHasListingAccess] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [initializing, setInitializing] = useState(isEditMode);
   const [uploadedMedia, setUploadedMedia] = useState<any[]>([]);
@@ -148,6 +150,52 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   });
 
   const draftStorageKey = `listing-editor-draft:${isEditMode ? `edit:${listingId}` : 'create'}`;
+
+  useEffect(() => {
+    const checkListingAccess = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          router.replace('/register?user_type=dealer&subscription_tier=basic');
+          return;
+        }
+
+        const response = await fetch(`${API_ROOT}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          router.replace('/login?redirect=/listings/create');
+          return;
+        }
+
+        const me = await response.json();
+        const userType = String(me.user_type || '').toLowerCase();
+        const tier = String(me.subscription_tier || '').toLowerCase();
+
+        const paidDealerTiers = new Set(['basic', 'plus', 'pro', 'premium']);
+        const paidPrivateTiers = new Set(['private_basic', 'private_plus', 'private_pro']);
+
+        const isAdmin = userType === 'admin';
+        const isPaidDealer = userType === 'dealer' && paidDealerTiers.has(tier);
+        const isPaidPrivate = userType === 'private' && paidPrivateTiers.has(tier);
+        const hasPermission = me.permissions?.can_create_listings === true;
+
+        if (isAdmin || isPaidDealer || isPaidPrivate || hasPermission) {
+          setHasListingAccess(true);
+          return;
+        }
+
+        router.replace('/sell');
+      } catch {
+        router.replace('/login?redirect=/listings/create');
+      } finally {
+        setAccessChecking(false);
+      }
+    };
+
+    checkListingAccess();
+  }, [router]);
 
   const formatTime = (iso?: string | null) => {
     if (!iso) return null;
@@ -795,7 +843,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const inp = 'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent transition';
   const lbl = 'block text-sm font-medium mb-1.5' as const;
 
-  if (initializing) {
+  if (accessChecking || initializing) {
     return (
       <div className="min-h-screen py-8" style={{ background: '#F0FDFF' }}>
         <div className="max-w-5xl mx-auto px-4">
@@ -805,6 +853,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         </div>
       </div>
     );
+  }
+
+  if (!hasListingAccess) {
+    return null;
   }
 
   return (
