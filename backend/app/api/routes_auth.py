@@ -74,189 +74,208 @@ def _apply_deal_price(base_price: float, deal: PartnerDeal) -> float:
 
 @router.post("/register", response_model=Token)
 async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    if not user_data.agree_terms:
-        raise ValidationException("You must agree to the Terms and Privacy Policy")
-    if not user_data.agree_communications:
-        raise ValidationException("You must agree to receive account communications")
-
     try:
-        existing_user = db.execute(
-            text("SELECT id FROM users WHERE email = :email LIMIT 1"),
-            {"email": user_data.email},
-        ).first()
-    except Exception:
-        db.rollback()
-        message = "Database is not initialized. Run migrations (alembic upgrade head) on the configured DATABASE_URL."
-        raise HTTPException(status_code=503, detail=message)
-
-    if existing_user is not None:
-        raise ValidationException("Email already registered")
-
-    affiliate_account = None
-    if user_data.referral_code:
-        affiliate_account = db.query(AffiliateAccount).filter(
-            func.lower(AffiliateAccount.code) == user_data.referral_code.strip().lower(),
-            AffiliateAccount.active == True,
-        ).first()
-        if not affiliate_account:
-            raise ValidationException("Invalid referral code")
-
-    partner_deal = None
-    if user_data.deal_code:
-        partner_deal = db.query(PartnerDeal).filter(
-            func.lower(PartnerDeal.code) == user_data.deal_code.strip().lower(),
-        ).first()
-        if not partner_deal or not _is_deal_active(partner_deal):
-            raise ValidationException("Invalid or inactive deal code")
-
-    if not partner_deal:
-        targeted_email_deal = db.query(PartnerDeal).filter(
-            func.lower(PartnerDeal.target_email) == user_data.email.strip().lower(),
-            PartnerDeal.active == True,
-        ).order_by(PartnerDeal.created_at.desc()).first()
-        if targeted_email_deal and _is_deal_active(targeted_email_deal):
-            partner_deal = targeted_email_deal
-
-    assigned_sales_rep_id = None
-    if affiliate_account and affiliate_account.account_type == "sales_rep":
-        assigned_sales_rep_id = affiliate_account.user_id
-    elif partner_deal and partner_deal.owner_sales_rep_id:
-        assigned_sales_rep_id = partner_deal.owner_sales_rep_id
-
-    hashed_password = get_password_hash(user_data.password)
-
-    user = None
-    try:
-        user = User(
-            email=user_data.email,
-            password_hash=hashed_password,
-            first_name=user_data.first_name,
-            last_name=user_data.last_name,
-            phone=user_data.phone,
-            user_type=user_data.user_type,
-            company_name=user_data.company_name,
-            subscription_tier=user_data.subscription_tier or "free",
-            assigned_sales_rep_id=assigned_sales_rep_id,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    except Exception:
-        db.rollback()
-        logger.exception("ORM user creation failed; trying reflected users-table insert")
-
-        inspector = inspect(db.bind)
-        if "users" not in inspector.get_table_names():
-            raise HTTPException(
-                status_code=503,
-                detail="Database is not initialized. Missing users table. Run alembic upgrade head.",
-            )
-
-        user_columns = {col["name"] for col in inspector.get_columns("users")}
-        raw_payload = {
-            "email": user_data.email,
-            "password_hash": hashed_password,
-            "first_name": user_data.first_name,
-            "last_name": user_data.last_name,
-            "phone": user_data.phone,
-            "user_type": user_data.user_type,
-            "company_name": user_data.company_name,
-            "subscription_tier": user_data.subscription_tier or "free",
-            "assigned_sales_rep_id": assigned_sales_rep_id,
-            "active": True,
-            "created_at": datetime.utcnow(),
-        }
-        insertable = {k: v for k, v in raw_payload.items() if k in user_columns}
-
-        required = {"email", "password_hash"}
-        if not required.issubset(user_columns):
-            raise HTTPException(status_code=500, detail="Users table missing required columns for registration")
-
-        fields = ", ".join(insertable.keys())
-        placeholders = ", ".join([f":{k}" for k in insertable.keys()])
-        row = db.execute(
-            text(f"INSERT INTO users ({fields}) VALUES ({placeholders}) RETURNING id"),
-            insertable,
-        ).first()
-        db.commit()
-
-        user_id = row[0] if row else None
-        if user_id is None:
-            raise HTTPException(status_code=500, detail="Registration insert failed")
+        if not user_data.agree_terms:
+            raise ValidationException("You must agree to the Terms and Privacy Policy")
+        if not user_data.agree_communications:
+            raise ValidationException("You must agree to receive account communications")
 
         try:
-            user = db.query(User).filter(User.id == user_id).first()
+            existing_user = db.execute(
+                text("SELECT id FROM users WHERE email = :email LIMIT 1"),
+                {"email": user_data.email},
+            ).first()
         except Exception:
-            user = None
+            db.rollback()
+            message = "Database is not initialized. Run migrations (alembic upgrade head) on the configured DATABASE_URL."
+            raise HTTPException(status_code=503, detail=message)
 
-        if user is None:
-            user = SimpleNamespace(
-                id=user_id,
+        if existing_user is not None:
+            raise ValidationException("Email already registered")
+
+        affiliate_account = None
+        if user_data.referral_code:
+            try:
+                affiliate_account = db.query(AffiliateAccount).filter(
+                    func.lower(AffiliateAccount.code) == user_data.referral_code.strip().lower(),
+                    AffiliateAccount.active == True,
+                ).first()
+            except Exception:
+                db.rollback()
+                logger.exception("Referral lookup failed during registration")
+                raise HTTPException(status_code=500, detail="Referral validation unavailable. Try again without referral code.")
+
+            if not affiliate_account:
+                raise ValidationException("Invalid referral code")
+
+        partner_deal = None
+        if user_data.deal_code:
+            try:
+                partner_deal = db.query(PartnerDeal).filter(
+                    func.lower(PartnerDeal.code) == user_data.deal_code.strip().lower(),
+                ).first()
+            except Exception:
+                db.rollback()
+                logger.exception("Deal-code lookup failed during registration")
+                raise HTTPException(status_code=500, detail="Deal code validation unavailable. Try again without deal code.")
+
+            if not partner_deal or not _is_deal_active(partner_deal):
+                raise ValidationException("Invalid or inactive deal code")
+
+        if not partner_deal:
+            try:
+                targeted_email_deal = db.query(PartnerDeal).filter(
+                    func.lower(PartnerDeal.target_email) == user_data.email.strip().lower(),
+                    PartnerDeal.active == True,
+                ).order_by(PartnerDeal.created_at.desc()).first()
+            except Exception:
+                db.rollback()
+                logger.exception("Targeted deal lookup failed during registration; continuing without deal")
+                targeted_email_deal = None
+
+            if targeted_email_deal and _is_deal_active(targeted_email_deal):
+                partner_deal = targeted_email_deal
+
+        assigned_sales_rep_id = None
+        if affiliate_account and affiliate_account.account_type == "sales_rep":
+            assigned_sales_rep_id = affiliate_account.user_id
+        elif partner_deal and partner_deal.owner_sales_rep_id:
+            assigned_sales_rep_id = partner_deal.owner_sales_rep_id
+
+        hashed_password = get_password_hash(user_data.password)
+
+        user = None
+        try:
+            user = User(
                 email=user_data.email,
+                password_hash=hashed_password,
                 first_name=user_data.first_name,
                 last_name=user_data.last_name,
                 phone=user_data.phone,
                 user_type=user_data.user_type,
                 company_name=user_data.company_name,
                 subscription_tier=user_data.subscription_tier or "free",
-                permissions={},
+                assigned_sales_rep_id=assigned_sales_rep_id,
             )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        except Exception:
+            db.rollback()
+            logger.exception("ORM user creation failed; trying reflected users-table insert")
 
-    effective_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
+            inspector = inspect(db.bind)
+            if "users" not in inspector.get_table_names():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Database is not initialized. Missing users table. Run alembic upgrade head.",
+                )
 
-    try:
-        prefs = UserPreferences(user_id=user.id)
-        prefs.email_marketing = bool(user_data.marketing_opt_in)
-        prefs.email_new_message = True
-        prefs.email_new_inquiry = True
-        prefs.push_new_message = True
-        prefs.push_new_inquiry = True
-        prefs.app_new_message = True
-        prefs.app_new_inquiry = True
-
-        existing_permissions = user.permissions or {}
-
-        base_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
-        effective_monthly_price = base_monthly_price
-        free_access_until = None
-
-        if partner_deal:
-            effective_monthly_price = _apply_deal_price(base_monthly_price, partner_deal)
-            if partner_deal.free_days and partner_deal.free_days > 0:
-                free_access_until = (datetime.utcnow() + timedelta(days=int(partner_deal.free_days))).isoformat()
-
-            if partner_deal.affiliate_account_id and not affiliate_account:
-                affiliate_account = db.query(AffiliateAccount).filter(
-                    AffiliateAccount.id == partner_deal.affiliate_account_id,
-                    AffiliateAccount.active == True,
-                ).first()
-
-        existing_permissions.update({
-            "agreed_terms": True,
-            "agreed_communications": True,
-            "marketing_opt_in": bool(user_data.marketing_opt_in),
-            "consent_recorded_at": datetime.utcnow().isoformat(),
-            "effective_monthly_price": effective_monthly_price,
-        })
-
-        if free_access_until:
-            existing_permissions["free_access_until"] = free_access_until
-
-        if partner_deal:
-            existing_permissions["partner_deal"] = {
-                "id": partner_deal.id,
-                "code": partner_deal.code,
-                "name": partner_deal.name,
-                "term_months": partner_deal.term_months,
-                "lifetime": bool(partner_deal.lifetime),
+            user_columns = {col["name"] for col in inspector.get_columns("users")}
+            raw_payload = {
+                "email": user_data.email,
+                "password_hash": hashed_password,
+                "first_name": user_data.first_name,
+                "last_name": user_data.last_name,
+                "phone": user_data.phone,
+                "user_type": user_data.user_type,
+                "company_name": user_data.company_name,
+                "subscription_tier": user_data.subscription_tier or "free",
+                "assigned_sales_rep_id": assigned_sales_rep_id,
+                "active": True,
+                "created_at": datetime.utcnow(),
             }
+            insertable = {k: v for k, v in raw_payload.items() if k in user_columns}
 
-        if affiliate_account:
-            existing_permissions["referral_source"] = {
-                "affiliate_account_id": affiliate_account.id,
-                "code": affiliate_account.code,
-                "account_type": affiliate_account.account_type,
-            }
+            required = {"email", "password_hash"}
+            if not required.issubset(user_columns):
+                raise HTTPException(status_code=500, detail="Users table missing required columns for registration")
+
+            fields = ", ".join(insertable.keys())
+            placeholders = ", ".join([f":{k}" for k in insertable.keys()])
+            row = db.execute(
+                text(f"INSERT INTO users ({fields}) VALUES ({placeholders}) RETURNING id"),
+                insertable,
+            ).first()
+            db.commit()
+
+            user_id = row[0] if row else None
+            if user_id is None:
+                raise HTTPException(status_code=500, detail="Registration insert failed")
+
+            try:
+                user = db.query(User).filter(User.id == user_id).first()
+            except Exception:
+                user = None
+
+            if user is None:
+                user = SimpleNamespace(
+                    id=user_id,
+                    email=user_data.email,
+                    first_name=user_data.first_name,
+                    last_name=user_data.last_name,
+                    phone=user_data.phone,
+                    user_type=user_data.user_type,
+                    company_name=user_data.company_name,
+                    subscription_tier=user_data.subscription_tier or "free",
+                    permissions={},
+                )
+
+        effective_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
+
+        try:
+            prefs = UserPreferences(user_id=user.id)
+            prefs.email_marketing = bool(user_data.marketing_opt_in)
+            prefs.email_new_message = True
+            prefs.email_new_inquiry = True
+            prefs.push_new_message = True
+            prefs.push_new_inquiry = True
+            prefs.app_new_message = True
+            prefs.app_new_inquiry = True
+
+            existing_permissions = user.permissions or {}
+
+            base_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
+            effective_monthly_price = base_monthly_price
+            free_access_until = None
+
+            if partner_deal:
+                effective_monthly_price = _apply_deal_price(base_monthly_price, partner_deal)
+                if partner_deal.free_days and partner_deal.free_days > 0:
+                    free_access_until = (datetime.utcnow() + timedelta(days=int(partner_deal.free_days))).isoformat()
+
+                if partner_deal.affiliate_account_id and not affiliate_account:
+                    affiliate_account = db.query(AffiliateAccount).filter(
+                        AffiliateAccount.id == partner_deal.affiliate_account_id,
+                        AffiliateAccount.active == True,
+                    ).first()
+
+            existing_permissions.update({
+                "agreed_terms": True,
+                "agreed_communications": True,
+                "marketing_opt_in": bool(user_data.marketing_opt_in),
+                "consent_recorded_at": datetime.utcnow().isoformat(),
+                "effective_monthly_price": effective_monthly_price,
+            })
+
+            if free_access_until:
+                existing_permissions["free_access_until"] = free_access_until
+
+            if partner_deal:
+                existing_permissions["partner_deal"] = {
+                    "id": partner_deal.id,
+                    "code": partner_deal.code,
+                    "name": partner_deal.name,
+                    "term_months": partner_deal.term_months,
+                    "lifetime": bool(partner_deal.lifetime),
+                }
+
+            if affiliate_account:
+                existing_permissions["referral_source"] = {
+                    "affiliate_account_id": affiliate_account.id,
+                    "code": affiliate_account.code,
+                    "account_type": affiliate_account.account_type,
+                }
 
         user.permissions = existing_permissions
 
@@ -344,12 +363,18 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         except Exception:
             logger.exception("Verification email send failed for user %s", user.id)
     
-    access_token = create_access_token(
-        data={"sub": user.email},
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
-    )
+        access_token = create_access_token(
+            data={"sub": user.email},
+            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Unhandled registration failure")
+        raise HTTPException(status_code=500, detail="Registration failed due to a server configuration issue")
 
 
 @router.post("/login", response_model=Token)
