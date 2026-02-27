@@ -277,63 +277,63 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
                     "account_type": affiliate_account.account_type,
                 }
 
-        user.permissions = existing_permissions
+            user.permissions = existing_permissions
 
-        db.add(prefs)
+            db.add(prefs)
 
-        if user.user_type == "dealer":
-            slug = create_slug(user.company_name or user.email, db, DealerProfile)
+            if user.user_type == "dealer":
+                slug = create_slug(user.company_name or user.email, db, DealerProfile)
 
-            profile_data = {
-                "user_id": user.id,
-                "name": f"{user.first_name} {user.last_name}",
-                "company_name": user.company_name,
-                "email": user.email,
-                "slug": slug,
-            }
+                profile_data = {
+                    "user_id": user.id,
+                    "name": f"{user.first_name} {user.last_name}",
+                    "company_name": user.company_name,
+                    "email": user.email,
+                    "slug": slug,
+                }
 
-            if hasattr(DealerProfile, 'phone'):
-                profile_data["phone"] = user.phone
+                if hasattr(DealerProfile, 'phone'):
+                    profile_data["phone"] = user.phone
 
-            profile = DealerProfile(**profile_data)
-            db.add(profile)
+                profile = DealerProfile(**profile_data)
+                db.add(profile)
 
-            try:
-                api_key = generate_api_key_for_dealer(
-                    db=db,
-                    dealer_id=user.id,
-                    tier=user.subscription_tier
+                try:
+                    api_key = generate_api_key_for_dealer(
+                        db=db,
+                        dealer_id=user.id,
+                        tier=user.subscription_tier
+                    )
+
+                    dealer_name = user.company_name or f"{user.first_name} {user.last_name}"
+                    email_service.send_api_key_email(
+                        to_email=user.email,
+                        dealer_name=dealer_name,
+                        api_key=api_key.raw_key,
+                        tier=user.subscription_tier
+                    )
+                    logger.info(f"Generated and emailed API key for dealer {user.id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to generate/send API key for dealer {user.id}: {e}")
+
+            if affiliate_account:
+                signup = ReferralSignup(
+                    dealer_user_id=user.id,
+                    source_type="sales_rep" if affiliate_account.account_type == "sales_rep" else "affiliate",
+                    sales_rep_id=affiliate_account.user_id if affiliate_account.account_type == "sales_rep" else assigned_sales_rep_id,
+                    affiliate_account_id=affiliate_account.id,
+                    deal_id=partner_deal.id if partner_deal else None,
+                    referral_code_used=affiliate_account.code,
+                    effective_monthly_price=effective_monthly_price,
+                    commission_rate=affiliate_account.commission_rate or 10.0,
                 )
+                db.add(signup)
 
-                dealer_name = user.company_name or f"{user.first_name} {user.last_name}"
-                email_service.send_api_key_email(
-                    to_email=user.email,
-                    dealer_name=dealer_name,
-                    api_key=api_key.raw_key,
-                    tier=user.subscription_tier
-                )
-                logger.info(f"Generated and emailed API key for dealer {user.id}")
-
-            except Exception as e:
-                logger.error(f"Failed to generate/send API key for dealer {user.id}: {e}")
-
-        if affiliate_account:
-            signup = ReferralSignup(
-                dealer_user_id=user.id,
-                source_type="sales_rep" if affiliate_account.account_type == "sales_rep" else "affiliate",
-                sales_rep_id=affiliate_account.user_id if affiliate_account.account_type == "sales_rep" else assigned_sales_rep_id,
-                affiliate_account_id=affiliate_account.id,
-                deal_id=partner_deal.id if partner_deal else None,
-                referral_code_used=affiliate_account.code,
-                effective_monthly_price=effective_monthly_price,
-                commission_rate=affiliate_account.commission_rate or 10.0,
-            )
-            db.add(signup)
-
-        db.commit()
-    except Exception:
-        db.rollback()
-        logger.exception("Post-registration provisioning failed for user %s; continuing", user.id)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Post-registration provisioning failed for user %s; continuing", user.id)
 
     token = None
     try:
