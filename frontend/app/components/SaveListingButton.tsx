@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function SaveListingButton({ 
   listingId,
@@ -112,14 +113,3 @@ export default function SaveListingButton({
     </button>
   );
 }
-
-
-// ADD TO ListingCard.tsx:
-// Import the component at the top:
-import SaveListingButton from './SaveListingButton';
-import { apiUrl } from '@/app/lib/apiRoot';
-
-// Then in the card, add this button (typically in the top-right corner of the image):
-<div className="absolute top-3 right-3 z-10">
-  <SaveListingButton listingId={id} />
-</div>
