@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index, func, JSON
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Index, func, JSON, text
 )
 import sqlalchemy.dialects.postgresql
 from sqlalchemy.orm import relationship, deferred
@@ -105,7 +105,7 @@ class Listing(Base):
         # Full-text search index for PostgreSQL
         Index(
             'idx_listing_fulltext',
-            func.to_tsvector('english', func.concat_ws(' ', title, description, make, model, boat_type)),
+            func.to_tsvector(text("'english'"), func.concat_ws(' ', title, description, make, model, boat_type)),
             postgresql_using='gin',
             info={'alembic_autogenerate': False}
         ),
