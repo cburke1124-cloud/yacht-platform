@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail, Phone, MapPin, Building2, User, MessageSquare, Award } from 'lucide-react';
+                className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface DealerSalesmanCardProps {
@@ -132,7 +132,10 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
             <div className="mt-4 space-y-2">
               <a
                 href={`mailto:${salesman.email}`}
-                className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5\">\n                <div className=\"w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors\">\n                  <Mail size={16} className=\"text-primary\" />
+                className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+                  <Mail size={16} className="text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-500">Direct Email</p>
@@ -142,8 +145,11 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
 
               {salesman.phone && (
                 <a
-                  href={`tel:${salesman.phone}`}
+                className="flex items-center gap-3 text-dark hover:text-primary transition-colors group p-2 rounded-lg hover:bg-primary/5"
                   className="flex items-center gap-3 text-gray-700 hover:text-green-600 transition-colors group p-2 rounded-lg hover:bg-green-50"
+                <div className="w-8 h-8 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+                  <Phone size={16} className="text-primary" />
+                </div>
                 >
                   <div className="w-8 h-8 rounded-lg bg-green-50 group-hover:bg-green-100 flex items-center justify-center transition-colors">
                     <Phone size={16} className="text-green-600" />
