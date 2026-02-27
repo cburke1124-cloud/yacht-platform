@@ -238,7 +238,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                     value={listing.title}
                     onChange={(e) => setListing({...listing, title: e.target.value})}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
@@ -253,7 +252,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.make || ''}
                       onChange={(e) => setListing({...listing, make: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -267,7 +265,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.model || ''}
                       onChange={(e) => setListing({...listing, model: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -281,7 +278,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.year || ''}
                       onChange={(e) => setListing({...listing, year: parseInt(e.target.value)})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -297,7 +293,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.price || ''}
                       onChange={(e) => setListing({...listing, price: parseFloat(e.target.value)})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -309,7 +304,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.condition || 'used'}
                       onChange={(e) => setListing({...listing, condition: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     >
                       <option value="new">New</option>
                       <option value="used">Used</option>
@@ -326,7 +320,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                     onChange={(e) => setListing({...listing, description: e.target.value})}
                     rows={6}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
@@ -341,7 +334,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.city || ''}
                       onChange={(e) => setListing({...listing, city: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -355,7 +347,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.state || ''}
                       onChange={(e) => setListing({...listing, state: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -368,7 +359,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.country || 'USA'}
                       onChange={(e) => setListing({...listing, country: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -382,7 +372,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.status}
                       onChange={(e) => setListing({...listing, status: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     >
                       <option value="draft">Draft</option>
                       <option value="active">Active</option>
@@ -419,7 +408,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.length_feet || ''}
                       onChange={(e) => setListing({...listing, length_feet: parseFloat(e.target.value)})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -433,7 +421,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.beam_feet || ''}
                       onChange={(e) => setListing({...listing, beam_feet: parseFloat(e.target.value)})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
@@ -447,7 +434,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.draft_feet || ''}
                       onChange={(e) => setListing({...listing, draft_feet: parseFloat(e.target.value)})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -462,7 +448,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.boat_type || ''}
                       onChange={(e) => setListing({...listing, boat_type: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                       placeholder="e.g., Motor Yacht"
                     />
                   </div>
@@ -476,7 +461,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.hull_material || ''}
                       onChange={(e) => setListing({...listing, hull_material: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                       placeholder="e.g., Fiberglass"
                     />
                   </div>
@@ -492,7 +476,6 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                       value={listing.engine_make || ''}
                       onChange={(e) => setListing({...listing, engine_make: e.target.value})}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                     />
                   </div>
 
