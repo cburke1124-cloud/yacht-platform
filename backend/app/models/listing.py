@@ -105,7 +105,15 @@ class Listing(Base):
         # Full-text search index for PostgreSQL
         Index(
             'idx_listing_fulltext',
-            func.to_tsvector(text("'english'"), func.concat_ws(' ', title, description, make, model, boat_type)),
+            text(
+                "to_tsvector('english', "
+                "coalesce(title, '') || ' ' || "
+                "coalesce(description, '') || ' ' || "
+                "coalesce(make, '') || ' ' || "
+                "coalesce(model, '') || ' ' || "
+                "coalesce(boat_type, '')"
+                ")"
+            ),
             postgresql_using='gin',
             info={'alembic_autogenerate': False}
         ),
