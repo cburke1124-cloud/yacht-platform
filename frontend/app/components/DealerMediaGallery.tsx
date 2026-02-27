@@ -231,7 +231,7 @@ export default function DealerMediaGallery({
   };
 
   const getBreadcrumbs = () => {
-    const crumbs = [{ id: null, name: 'All Media' }];
+    const crumbs: Array<{ id: number | null; name: string }> = [{ id: null, name: 'All Media' }];
     if (currentFolder) {
       const folder = folders.find(f => f.id === currentFolder);
       if (folder) crumbs.push({ id: folder.id, name: folder.name });
