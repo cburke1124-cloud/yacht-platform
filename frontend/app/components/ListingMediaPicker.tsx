@@ -26,6 +26,7 @@ type MediaFolder = {
 type AttachedMedia = MediaItem & {
   is_primary?: boolean;
   order?: number;
+  caption?: string;
 };
 
 interface ListingMediaPickerProps {
