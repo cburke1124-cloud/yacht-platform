@@ -1,6 +1,7 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 import logging
 
 from app.exceptions import (
@@ -24,8 +25,8 @@ async def http_exception_handler(request: Request, exc):
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
 
-async def validation_exception_handler(request: Request, exc):
-    logger.warning(f"Validation error: {exc.errors()}")
+async def pydantic_validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Pydantic validation error: {exc.errors()}")
     return JSONResponse(
         status_code=422,
         content={"error": "Validation error", "details": exc.errors()},
@@ -42,5 +43,5 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 def register_exception_handlers(app: FastAPI):
     app.add_exception_handler(YachtVersalException, yachtversal_exception_handler)
-    app.add_exception_handler(ValidationException, validation_exception_handler)
+    app.add_exception_handler(RequestValidationError, pydantic_validation_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
