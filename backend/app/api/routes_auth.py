@@ -23,6 +23,7 @@ from app.exceptions import (
     AuthenticationException,
     AuthorizationException,
     BusinessLogicException,
+    YachtVersalException,
 )
 from app.services.email_service import email_service
 from app.utils.slug import create_slug
@@ -371,10 +372,12 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         return {"access_token": access_token, "token_type": "bearer"}
     except HTTPException:
         raise
-    except Exception:
+    except YachtVersalException:
+        raise
+    except Exception as exc:
         db.rollback()
         logger.exception("Unhandled registration failure")
-        raise HTTPException(status_code=500, detail="Registration failed due to a server configuration issue")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {exc}")
 
 
 @router.post("/login", response_model=Token)
