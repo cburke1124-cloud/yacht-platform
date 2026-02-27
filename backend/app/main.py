@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+import os
+import logging
 
 from app.core.logging import setup_logging
 from app.db.base import Base
@@ -95,7 +97,9 @@ app.add_middleware(
     allow_credentials=True,
 )
 
-Base.metadata.create_all(bind=engine)
+if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
+    logging.getLogger(__name__).warning("AUTO_CREATE_TABLES enabled; running Base.metadata.create_all()")
+    Base.metadata.create_all(bind=engine)
 
 # Register all routers
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
