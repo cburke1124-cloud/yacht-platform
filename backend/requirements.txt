@@ -23,6 +23,7 @@ typing-extensions==4.8.0
 email-validator==2.2.0
 reportlab==4.2.5
 qrcode==7.4.2
+pyotp==2.9.0
 
 requests  # For password breach checking
 redis  # Optional, for distributed rate limiting
