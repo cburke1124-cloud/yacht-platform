@@ -281,6 +281,7 @@ def _serialize_listing(listing: Listing) -> dict:
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
+@router.get("")
 @router.get("/")
 def get_listings(
     db: Session = Depends(get_db),
