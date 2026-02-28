@@ -319,17 +319,6 @@ export default function Navbar() {
                   )}
                 </Link>
 
-                {/* List a Yacht CTA */}
-                {canCreateListings() && (
-                  <Link
-                    href="/listings/create"
-                    className="px-5 py-2 text-white font-medium text-sm rounded-xl transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    List a Yacht
-                  </Link>
-                )}
-
                 {/* User menu */}
                 <div ref={userMenuRef} className="relative">
                   <button
@@ -429,6 +418,17 @@ export default function Navbar() {
                     </div>
                   )}
                 </div>
+
+                {/* List a Yacht CTA */}
+                {canCreateListings() && (
+                  <Link
+                    href="/listings/create"
+                    className="px-5 py-2 text-white font-medium text-sm rounded-xl transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    List a Yacht
+                  </Link>
+                )}
               </>
             ) : (
               <>
