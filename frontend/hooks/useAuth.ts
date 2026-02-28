@@ -15,6 +15,7 @@ export interface User {
   subscription_tier?: string;
   parent_dealer_id?: number;
   assigned_sales_rep_id?: number;
+  agreed_terms?: boolean;
   permissions?: {
     can_create_listings: boolean;
     can_manage_team: boolean;

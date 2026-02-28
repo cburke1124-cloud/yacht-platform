@@ -20,6 +20,7 @@ interface NavUser {
   user_type: UserType;
   company_name?: string;
   subscription_tier?: string;
+  agreed_terms?: boolean;
   permissions?: {
     can_create_listings: boolean;
     can_manage_team: boolean;
@@ -220,9 +221,9 @@ export default function Navbar() {
   const getUserDisplayName = () => {
     if (!user) return 'Account';
     if (user.first_name) {
-      return `${user.first_name}${user.last_name ? ' ' + user.last_name.charAt(0) + '.' : ''}`;
+      return `Hi, ${user.first_name}`;
     }
-    return user.email.split('@')[0];
+    return `Hi, ${user.email.split('@')[0]}`;
   };
 
   if (pathname === '/login' || pathname === '/register') return null;

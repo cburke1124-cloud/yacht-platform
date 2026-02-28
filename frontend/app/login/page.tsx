@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
+import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,6 +14,9 @@ export default function LoginPage() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState<string>('/dashboard');
+  const [userName, setUserName] = useState<string | undefined>();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +41,7 @@ export default function LoginPage() {
       // Store token
       localStorage.setItem('token', data.access_token);
 
-      // Fetch user info to determine redirect
+      // Fetch user info to determine redirect and terms status
       const userResponse = await fetch(apiUrl('/auth/me'), {
         headers: {
           'Authorization': `Bearer ${data.access_token}`
@@ -46,12 +50,25 @@ export default function LoginPage() {
 
       const userData = await userResponse.json();
 
-      // Redirect based on user type
+      // Determine redirect target
+      let redirectTo = '/dashboard';
       if (userData.user_type === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
+        redirectTo = '/admin';
+      } else if (userData.user_type === 'salesman') {
+        redirectTo = '/sales-rep/dashboard';
+      } else if (userData.user_type === 'user') {
+        redirectTo = '/account';
       }
+
+      // Check if terms acceptance is needed (skip for admins)
+      if (userData.user_type !== 'admin' && !userData.agreed_terms) {
+        setUserName(userData.first_name || undefined);
+        setPendingRedirect(redirectTo);
+        setShowTermsModal(true);
+        return;
+      }
+
+      router.push(redirectTo);
     } catch (err: any) {
       setError(err.message || 'Failed to login. Please try again.');
     } finally {
@@ -59,7 +76,26 @@ export default function LoginPage() {
     }
   };
 
+  const handleTermsAccepted = () => {
+    setShowTermsModal(false);
+    router.push(pendingRedirect);
+  };
+
+  const handleTermsDecline = () => {
+    setShowTermsModal(false);
+    localStorage.removeItem('token');
+    setError('You must accept the terms to continue.');
+  };
+
   return (
+    <>
+      {showTermsModal && (
+        <TermsAcceptanceModal
+          onAccepted={handleTermsAccepted}
+          onDecline={handleTermsDecline}
+          userName={userName}
+        />
+      )}
     <div className="min-h-screen section-light flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
         {/* Logo/Header */}
@@ -170,5 +206,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

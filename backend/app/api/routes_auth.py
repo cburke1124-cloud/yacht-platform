@@ -271,10 +271,10 @@ async def register(user_data: UserRegister, request: Request, db: Session = Depe
                     ).first()
 
             existing_permissions.update({
-                "agreed_terms": True,
-                "agreed_communications": True,
+                "agreed_terms": not caller_is_privileged,
+                "agreed_communications": not caller_is_privileged or bool(user_data.agree_communications),
                 "marketing_opt_in": bool(user_data.marketing_opt_in),
-                "consent_recorded_at": datetime.utcnow().isoformat(),
+                "consent_recorded_at": datetime.utcnow().isoformat() if not caller_is_privileged else None,
                 "effective_monthly_price": effective_monthly_price,
             })
 
@@ -496,8 +496,30 @@ def get_me(current_user: User = Depends(get_current_user)):
         "assigned_sales_rep_id": current_user.assigned_sales_rep_id,
         "permissions": permissions,
         "active": current_user.active,
-        "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+        "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
+        "agreed_terms": bool((permissions or {}).get("agreed_terms", False))
     }
+
+
+@router.post("/accept-terms")
+def accept_terms(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Accept terms and privacy policy (first-login flow for admin-created users)."""
+    permissions = current_user.permissions or {}
+    if isinstance(permissions, str):
+        import json
+        try:
+            permissions = json.loads(permissions)
+        except Exception:
+            permissions = {}
+
+    permissions["agreed_terms"] = True
+    permissions["agreed_communications"] = True
+    permissions["consent_recorded_at"] = datetime.utcnow().isoformat()
+
+    current_user.permissions = permissions
+    db.commit()
+
+    return {"success": True, "message": "Terms accepted successfully"}
 
 
 @router.post("/start-trial")
