@@ -2,14 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Upload, X, Video, FileText, Folder, Trash2, Search, Image } from 'lucide-react';
+import { apiUrl } from '@/app/lib/apiRoot';
 
 // Type definitions
 type MediaFile = {
   id: number;
   filename: string;
   url: string;
+  thumbnail_url?: string;
   file_type: 'image' | 'video' | 'pdf';
   file_size_mb: number;
+  width?: number;
+  height?: number;
   created_at: string;
 };
 
@@ -19,51 +23,52 @@ export default function MediaGallery() {
   const [media, setMedia] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [storageUsed, setStorageUsed] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchMedia();
   }, [filter]);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+
   const fetchMedia = async () => {
     try {
-      const token = localStorage.getItem('token');
+      setLoading(true);
       const params = new URLSearchParams();
       if (filter !== 'all') params.append('file_type', filter);
-      
-      // Demo data
-      const data = {
-        media: [
-          {
-            id: 1,
-            filename: 'yacht1.jpg',
-            url: '/uploads/yacht1.jpg',
-            file_type: 'image' as const,
-            file_size_mb: 2.4,
-            created_at: new Date().toISOString()
-          },
-          {
-            id: 2,
-            filename: 'brochure.pdf',
-            url: '/uploads/brochure.pdf',
-            file_type: 'pdf' as const,
-            file_size_mb: 1.2,
-            created_at: new Date().toISOString()
-          }
-        ],
-        total_storage_mb: 3.6
-      };
-      
-      setMedia(data.media);
-      setStorageUsed(data.total_storage_mb);
-      setLoading(false);
+      const qs = params.toString();
+
+      const [mediaRes, statsRes] = await Promise.all([
+        fetch(apiUrl(`/media/my-media${qs ? '?' + qs : ''}`), { headers: getAuthHeaders() }),
+        fetch(apiUrl('/media/stats'), { headers: getAuthHeaders() }),
+      ]);
+
+      if (mediaRes.ok) {
+        const data = await mediaRes.json();
+        setMedia(data.media || []);
+        setTotalFiles(data.total || 0);
+      } else {
+        setMedia([]);
+      }
+
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        setStorageUsed(stats.total_storage_mb || 0);
+      }
     } catch (error) {
       console.error('Failed to fetch media:', error);
+      setMedia([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -80,25 +85,95 @@ export default function MediaGallery() {
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
     await uploadFiles(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const uploadFiles = async (files: File[]) => {
+    if (files.length === 0) return;
     setUploading(true);
-    
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      fetchMedia();
-    } catch (error) {
+      if (files.length === 1) {
+        setUploadProgress(`Uploading ${files[0].name}...`);
+        const formData = new FormData();
+        formData.append('file', files[0]);
+
+        const res = await fetch(apiUrl('/media/upload'), {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Upload failed');
+        }
+      } else {
+        setUploadProgress(`Uploading ${files.length} files...`);
+        const formData = new FormData();
+        files.forEach(f => formData.append('files', f));
+
+        const res = await fetch(apiUrl('/media/bulk-upload'), {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Bulk upload failed');
+        }
+      }
+
+      await fetchMedia();
+    } catch (error: any) {
       console.error('Upload failed:', error);
-      alert('Upload failed. Please try again.');
+      alert(error.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
+      setUploadProgress('');
     }
   };
 
   const deleteMedia = async (mediaId: number) => {
     if (!confirm('Delete this file?')) return;
-    setMedia(media.filter(m => m.id !== mediaId));
+
+    try {
+      const res = await fetch(apiUrl(`/media/${mediaId}`), {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+
+      if (res.ok) {
+        setMedia(prev => prev.filter(m => m.id !== mediaId));
+        setSelectedFiles(prev => {
+          const next = new Set(prev);
+          next.delete(mediaId);
+          return next;
+        });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Failed to delete file');
+      }
+    } catch (error) {
+      console.error('Delete failed:', error);
+      alert('Failed to delete file');
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!confirm(`Delete ${selectedFiles.size} file(s)?`)) return;
+    const ids = Array.from(selectedFiles);
+    for (const id of ids) {
+      try {
+        await fetch(apiUrl(`/media/${id}`), {
+          method: 'DELETE',
+          headers: getAuthHeaders(),
+        });
+      } catch {}
+    }
+    setSelectedFiles(new Set());
+    await fetchMedia();
   };
 
   const toggleSelect = (id: number) => {
@@ -156,7 +231,7 @@ export default function MediaGallery() {
         {uploading ? (
           <div className="py-8">
             <Upload size={48} className="mx-auto mb-4 text-blue-600 animate-pulse" />
-            <p className="text-lg font-medium text-gray-900">Uploading files...</p>
+            <p className="text-lg font-medium text-gray-900">{uploadProgress || 'Uploading files...'}</p>
           </div>
         ) : (
           <div className="py-4">
@@ -205,12 +280,7 @@ export default function MediaGallery() {
               Clear Selection
             </button>
             <button
-              onClick={() => {
-                if (confirm(`Delete ${selectedFiles.size} files?`)) {
-                  selectedFiles.forEach(id => deleteMedia(id));
-                  setSelectedFiles(new Set());
-                }
-              }}
+              onClick={bulkDelete}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
             >
               <Trash2 size={16} />
@@ -242,7 +312,9 @@ export default function MediaGallery() {
             >
               <div className="aspect-square bg-gray-100 flex items-center justify-center">
                 {file.file_type === 'image' ? (
-                  <img src={file.url} alt={file.filename} className="w-full h-full object-cover" />
+                  <img src={file.thumbnail_url || file.url} alt={file.filename} className="w-full h-full object-cover" />
+                ) : file.file_type === 'video' && file.thumbnail_url ? (
+                  <img src={file.thumbnail_url} alt={file.filename} className="w-full h-full object-cover" />
                 ) : (
                   getFileIcon(file.file_type)
                 )}
