@@ -56,7 +56,7 @@ export default function AdminUsersTab() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, agree_terms: true, agree_communications: true })
       });
 
       if (response.ok) {

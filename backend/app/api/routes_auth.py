@@ -74,12 +74,31 @@ def _apply_deal_price(base_price: float, deal: PartnerDeal) -> float:
 
 
 @router.post("/register", response_model=Token)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
+async def register(user_data: UserRegister, request: Request, db: Session = Depends(get_db)):
     try:
-        if not user_data.agree_terms:
-            raise ValidationException("You must agree to the Terms and Privacy Policy")
-        if not user_data.agree_communications:
-            raise ValidationException("You must agree to receive account communications")
+        # If an authenticated admin or dealer is creating this account, skip terms check
+        caller_is_privileged = False
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            try:
+                from jose import jwt as _jwt
+                payload = _jwt.decode(auth_header[7:], settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                caller_email = payload.get("sub")
+                if caller_email:
+                    caller = db.execute(
+                        text("SELECT user_type FROM users WHERE email = :e LIMIT 1"),
+                        {"e": caller_email},
+                    ).first()
+                    if caller and caller[0] in ("admin", "dealer"):
+                        caller_is_privileged = True
+            except Exception:
+                pass  # Invalid token — treat as self-registration
+
+        if not caller_is_privileged:
+            if not user_data.agree_terms:
+                raise ValidationException("You must agree to the Terms and Privacy Policy")
+            if not user_data.agree_communications:
+                raise ValidationException("You must agree to receive account communications")
 
         try:
             existing_user = db.execute(
