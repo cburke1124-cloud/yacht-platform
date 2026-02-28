@@ -33,7 +33,8 @@ export default function AdminUsersTab() {
 
       if (response.ok) {
         const data = await response.json();
-        setUsers(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : (data.users ?? []);
+        setUsers(list);
       } else {
         setUsers([]);
       }
