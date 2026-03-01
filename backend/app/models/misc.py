@@ -39,6 +39,23 @@ class Message(Base):
     visible_to_sales_rep = Column(Boolean, default=False)
 
 
+class SmsConversation(Base):
+    """
+    Maps a dealer phone number to the most recent platform message so that
+    when they reply to a YachtVersal SMS notification we can route it back
+    into the correct conversation thread.
+    """
+    __tablename__ = "sms_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dealer_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    dealer_phone = Column(String, nullable=False, index=True)  # E.164 format
+    twilio_number = Column(String)                              # which Twilio number was used
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class Notification(Base):
     __tablename__ = "notifications"

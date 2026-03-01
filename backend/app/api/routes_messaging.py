@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -14,6 +15,10 @@ from app.exceptions import (
     ValidationException,
 )
 from app.services.email_service import email_service
+from app.services.sms_service import sms_service
+from app.core.reply_token import generate_reply_token
+
+REPLY_TO_DOMAIN = os.getenv("REPLY_TO_DOMAIN", "mail.yachtversal.com")
 
 router = APIRouter()
 
@@ -180,30 +185,47 @@ def create_message(
     if recipient_id:
         recipient = db.query(User).filter(User.id == recipient_id).first()
         if recipient:
+            sender_name = f"{current_user.first_name} {current_user.last_name}"
+
+            # --- Email with Reply-To token -----------------------------------
             try:
+                token = generate_reply_token(message.id, recipient_id)
+                reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
                 email_service.send_email(
                     to_email=recipient.email,
                     subject=f"New Message: {data['subject']}",
                     html_content=f"""
                     <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
                       <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:30px;text-align:center;">
-                        <h1 style="color:white;margin:0;">New Message</h1>
+                        <h1 style="color:white;margin:0;">New Message from {sender_name}</h1>
                       </div>
                       <div style="padding:30px;background:#f9fafb;">
                         <h2 style="color:#10214F;">{data['subject']}</h2>
-                        <p><strong>From:</strong> {current_user.first_name} {current_user.last_name} ({current_user.email})</p>
                         <div style="background:white;border-left:4px solid #01BBDC;padding:20px;margin:20px 0;">
-                          <p style="white-space:pre-wrap;">{data['body']}</p>
+                          <p style="white-space:pre-wrap;color:#334155;">{data['body']}</p>
+                        </div>
+                        <p style="color:#64748b;font-size:13px;">
+                          💬 <strong>Reply directly to this email</strong> to respond — no login required.
+                        </p>
+                        <div style="text-align:center;margin-top:20px;">
+                          <a href="{email_service.base_url}/dashboard/messages/{message.id}"
+                             style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;
+                                    border-radius:6px;display:inline-block;font-weight:bold;">
+                            View Conversation
+                          </a>
                         </div>
                       </div>
-                      <div style="background:#10214F;padding:20px;text-align:center;color:#9ca3af;font-size:12px;">
-                        <p style="margin:0;">© 2026 YachtVersal.</p>
+                      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                        © 2026 YachtVersal. Reply to this email to respond directly.
                       </div>
                     </body></html>
                     """,
+                    reply_to=reply_to_addr,
                 )
             except Exception:
                 pass
+
+            # --- In-app notification -----------------------------------------
             try:
                 db.add(
                     Notification(
@@ -218,6 +240,26 @@ def create_message(
                 db.commit()
             except Exception:
                 pass
+
+            # --- SMS notification (if recipient has a phone number) ----------
+            if recipient.phone and sms_service.is_configured():
+                try:
+                    preview = data["body"][:120]
+                    sms_body = (
+                        f"YachtVersal: New message from {sender_name}\n"
+                        f"{preview}{'...' if len(data['body']) > 120 else ''}\n"
+                        f"Reply to this SMS to respond directly."
+                    )
+                    sent = sms_service.send_sms(recipient.phone, sms_body)
+                    if sent:
+                        sms_service.track_conversation(
+                            dealer_user_id=recipient_id,
+                            dealer_phone=recipient.phone,
+                            message_id=message.id,
+                            db=db,
+                        )
+                except Exception:
+                    pass
 
     return {"success": True, "message_id": message.id, "ticket_number": ticket_number}
 
@@ -269,19 +311,64 @@ def reply_to_message(
     if recipient_id:
         recipient = db.query(User).filter(User.id == recipient_id).first()
         if recipient:
+            sender_name = f"{current_user.first_name} {current_user.last_name}"
+
+            # --- Email with chained Reply-To ---------------------------------
             try:
+                token = generate_reply_token(reply.id, recipient_id)
+                reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
                 email_service.send_email(
                     to_email=recipient.email,
                     subject=f"Re: {parent.subject}",
                     html_content=f"""
-                    <html><body style="font-family:Arial,sans-serif;">
-                      <h2 style="color:#10214F;">Reply from {current_user.first_name} {current_user.last_name}</h2>
-                      <p style="white-space:pre-wrap;">{data['body']}</p>
+                    <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+                        <h1 style="color:white;margin:0;font-size:22px;">Reply from {sender_name}</h1>
+                      </div>
+                      <div style="padding:30px;background:#f9fafb;">
+                        <div style="background:white;border-left:4px solid #01BBDC;padding:20px;border-radius:4px;margin-bottom:20px;">
+                          <p style="white-space:pre-wrap;color:#334155;margin:0;">{data['body']}</p>
+                        </div>
+                        <p style="color:#64748b;font-size:13px;">
+                          💬 <strong>Reply directly to this email</strong> to respond — no login required.
+                        </p>
+                        <div style="text-align:center;margin-top:20px;">
+                          <a href="{email_service.base_url}/dashboard/messages/{parent.id}"
+                             style="background:#10214F;color:white;padding:12px 28px;
+                                    text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
+                            View Conversation
+                          </a>
+                        </div>
+                      </div>
+                      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                        © 2026 YachtVersal. Reply to this email to respond directly.
+                      </div>
                     </body></html>
                     """,
+                    reply_to=reply_to_addr,
                 )
             except Exception:
                 pass
+
+            # --- SMS reply notification --------------------------------------
+            if recipient.phone and sms_service.is_configured():
+                try:
+                    preview = data["body"][:120]
+                    sms_body = (
+                        f"YachtVersal: Reply from {sender_name}\n"
+                        f"{preview}{'...' if len(data['body']) > 120 else ''}\n"
+                        f"Reply to this SMS to respond directly."
+                    )
+                    sent = sms_service.send_sms(recipient.phone, sms_body)
+                    if sent:
+                        sms_service.track_conversation(
+                            dealer_user_id=recipient_id,
+                            dealer_phone=recipient.phone,
+                            message_id=reply.id,
+                            db=db,
+                        )
+                except Exception:
+                    pass
 
     return {"success": True, "reply_id": reply.id}
 

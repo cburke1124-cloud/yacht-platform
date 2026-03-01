@@ -16,27 +16,43 @@ class EmailService:
         self.from_email = os.getenv("FROM_EMAIL", "noreply@yachtversal.com")
         self.base_url = os.getenv("BASE_URL", "https://yachtversal.com")
         
-    def send_email(self, to_email: str, subject: str, html_content: str):
-        """Send email via SendGrid"""
+    def send_email(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        reply_to: str | None = None,
+    ):
+        """
+        Send email via SendGrid.
+
+        Args:
+            reply_to: Optional Reply-To address — used by the email-reply
+                      routing feature so recipients can reply without logging in.
+        """
         if not self.api_key:
             message = f"SendGrid not configured. Failed to send email to {to_email}: {subject}"
             logging.error(message)
             raise RuntimeError(message)
-            
+
         try:
+            from sendgrid.helpers.mail import ReplyTo
+
             message = Mail(
                 from_email=self.from_email,
                 to_emails=to_email,
                 subject=subject,
-                html_content=html_content
+                html_content=html_content,
             )
-            
+            if reply_to:
+                message.reply_to = ReplyTo(reply_to)
+
             sg = SendGridAPIClient(self.api_key)
             response = sg.send(message)
-            
+
             logging.info(f"Email sent to {to_email}: {subject} (Status: {response.status_code})")
             return True
-            
+
         except Exception as e:
             logging.error(f"Failed to send email to {to_email}: {str(e)}")
             return False
