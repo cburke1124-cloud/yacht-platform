@@ -95,6 +95,10 @@ class UserPreferences(Base):
     push_new_message = Column(Boolean, default=True)
     push_new_inquiry = Column(Boolean, default=True)
     push_price_alert = Column(Boolean, default=True)
+
+    # SMS Notification Settings
+    sms_new_message = Column(Boolean, default=True)
+    sms_new_inquiry = Column(Boolean, default=True)
     
     # In-App Notification Settings
     app_new_message = Column(Boolean, default=True)

@@ -17,8 +17,34 @@ from app.exceptions import (
 from app.services.email_service import email_service
 from app.services.sms_service import sms_service
 from app.core.reply_token import generate_reply_token
+from app.models.user import UserPreferences
 
 REPLY_TO_DOMAIN = os.getenv("REPLY_TO_DOMAIN", "mail.yachtversal.com")
+
+
+def _prefs_allow(
+    db: Session,
+    user_id: int,
+    message_type: str,
+) -> dict:
+    """
+    Return a dict of channel flags for the given user and message_type.
+    Defaults to all-True if the user has no saved preferences.
+
+    message_type "inquiry"  checks the _inquiry columns.
+    Everything else checks the _message columns.
+    """
+    prefs = (
+        db.query(UserPreferences)
+        .filter(UserPreferences.user_id == user_id)
+        .first()
+    )
+    is_inquiry = message_type == "inquiry"
+    return {
+        "email": getattr(prefs, "email_new_inquiry" if is_inquiry else "email_new_message", True),
+        "app":   getattr(prefs, "app_new_inquiry"   if is_inquiry else "app_new_message",   True),
+        "sms":   getattr(prefs, "sms_new_inquiry"   if is_inquiry else "sms_new_message",   True),
+    }
 
 router = APIRouter()
 
@@ -186,15 +212,17 @@ def create_message(
         recipient = db.query(User).filter(User.id == recipient_id).first()
         if recipient:
             sender_name = f"{current_user.first_name} {current_user.last_name}"
+            allow = _prefs_allow(db, recipient_id, data["message_type"])
 
             # --- Email with Reply-To token -----------------------------------
-            try:
-                token = generate_reply_token(message.id, recipient_id)
-                reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
-                email_service.send_email(
-                    to_email=recipient.email,
-                    subject=f"New Message: {data['subject']}",
-                    html_content=f"""
+            if allow["email"]:
+                try:
+                    token = generate_reply_token(message.id, recipient_id)
+                    reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
+                    email_service.send_email(
+                        to_email=recipient.email,
+                        subject=f"New Message: {data['subject']}",
+                        html_content=f"""
                     <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
                       <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:30px;text-align:center;">
                         <h1 style="color:white;margin:0;">New Message from {sender_name}</h1>
@@ -205,7 +233,7 @@ def create_message(
                           <p style="white-space:pre-wrap;color:#334155;">{data['body']}</p>
                         </div>
                         <p style="color:#64748b;font-size:13px;">
-                          💬 <strong>Reply directly to this email</strong> to respond — no login required.
+                          Reply directly to this email to respond - no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
                           <a href="{email_service.base_url}/dashboard/messages/{message.id}"
@@ -216,33 +244,34 @@ def create_message(
                         </div>
                       </div>
                       <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
-                        © 2026 YachtVersal. Reply to this email to respond directly.
+                        2026 YachtVersal. Reply to this email to respond directly.
                       </div>
                     </body></html>
                     """,
-                    reply_to=reply_to_addr,
-                )
-            except Exception:
-                pass
+                        reply_to=reply_to_addr,
+                    )
+                except Exception:
+                    pass
 
             # --- In-app notification -----------------------------------------
-            try:
-                db.add(
-                    Notification(
-                        user_id=recipient_id,
-                        notification_type="message",
-                        title=f"New message: {data['subject']}",
-                        body=data["body"][:160],
-                        link=f"/dashboard/messages/{message.id}",
-                        read=False,
+            if allow["app"]:
+                try:
+                    db.add(
+                        Notification(
+                            user_id=recipient_id,
+                            notification_type="message",
+                            title=f"New message: {data['subject']}",
+                            body=data["body"][:160],
+                            link=f"/dashboard/messages/{message.id}",
+                            read=False,
+                        )
                     )
-                )
-                db.commit()
-            except Exception:
-                pass
+                    db.commit()
+                except Exception:
+                    pass
 
             # --- SMS notification (if recipient has a phone number) ----------
-            if recipient.phone and sms_service.is_configured():
+            if allow["sms"] and recipient.phone and sms_service.is_configured():
                 try:
                     preview = data["body"][:120]
                     sms_body = (
@@ -312,15 +341,17 @@ def reply_to_message(
         recipient = db.query(User).filter(User.id == recipient_id).first()
         if recipient:
             sender_name = f"{current_user.first_name} {current_user.last_name}"
+            allow = _prefs_allow(db, recipient_id, parent.message_type)
 
             # --- Email with chained Reply-To ---------------------------------
-            try:
-                token = generate_reply_token(reply.id, recipient_id)
-                reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
-                email_service.send_email(
-                    to_email=recipient.email,
-                    subject=f"Re: {parent.subject}",
-                    html_content=f"""
+            if allow["email"]:
+                try:
+                    token = generate_reply_token(reply.id, recipient_id)
+                    reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
+                    email_service.send_email(
+                        to_email=recipient.email,
+                        subject=f"Re: {parent.subject}",
+                        html_content=f"""
                     <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
                       <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
                         <h1 style="color:white;margin:0;font-size:22px;">Reply from {sender_name}</h1>
@@ -330,7 +361,7 @@ def reply_to_message(
                           <p style="white-space:pre-wrap;color:#334155;margin:0;">{data['body']}</p>
                         </div>
                         <p style="color:#64748b;font-size:13px;">
-                          💬 <strong>Reply directly to this email</strong> to respond — no login required.
+                          Reply directly to this email to respond - no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
                           <a href="{email_service.base_url}/dashboard/messages/{parent.id}"
@@ -341,17 +372,17 @@ def reply_to_message(
                         </div>
                       </div>
                       <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
-                        © 2026 YachtVersal. Reply to this email to respond directly.
+                        2026 YachtVersal. Reply to this email to respond directly.
                       </div>
                     </body></html>
                     """,
-                    reply_to=reply_to_addr,
-                )
-            except Exception:
-                pass
+                        reply_to=reply_to_addr,
+                    )
+                except Exception:
+                    pass
 
             # --- SMS reply notification --------------------------------------
-            if recipient.phone and sms_service.is_configured():
+            if allow["sms"] and recipient.phone and sms_service.is_configured():
                 try:
                     preview = data["body"][:120]
                     sms_body = (
