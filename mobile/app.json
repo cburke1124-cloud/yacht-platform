@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "YachtVersal",
+    "slug": "yachtversal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10214F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yachtversal.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow YachtVersal to access your photos to upload listing images.",
+        "NSCameraUsageDescription": "Allow YachtVersal to use your camera to take listing photos.",
+        "NSLocationWhenInUseUsageDescription": "Allow YachtVersal to use your location to find nearby listings.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#10214F"
+      },
+      "package": "com.yachtversal.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#10214F",
+          "sounds": []
+        }
+      ],
+      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#10214F",
+          "image": "./assets/splash.png",
+          "imageWidth": 200
+        }
+      ],
+      "react-native-keyboard-controller"
+    ],
+    "scheme": "yachtversal",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    }
+  }
+}
