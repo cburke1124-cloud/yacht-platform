@@ -63,7 +63,8 @@ export default function AdminDealersTab() {
       });
 
       if (response.ok) {
-        alert('Dealer created successfully');
+        const result = await response.json();
+        alert(result.message || 'Dealer created successfully. A password-setup email has been sent.');
         setShowCreateForm(false);
         setFormData({
           name: '',
@@ -179,13 +180,15 @@ export default function AdminDealersTab() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                Email *
               </label>
               <input
                 type="email"
+                required
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="dealer@example.com"
               />
             </div>
 

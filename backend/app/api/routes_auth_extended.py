@@ -416,3 +416,35 @@ async def register_with_invitation(
         "token_type": "bearer",
         "message": "Account created successfully!"
     }
+
+
+# ==================== PASSWORD SETUP (admin-created accounts) ====================
+
+@router.post("/set-password")
+def set_password(
+    data: dict,
+    db: Session = Depends(get_db),
+):
+    """
+    Lets a newly-created dealer (or any user with a setup token) choose their
+    password the first time.  No auth required — the token IS the credential.
+    """
+    token = (data.get("token") or "").strip()
+    password = (data.get("password") or "").strip()
+
+    if not token:
+        raise ValidationException("Setup token is required")
+    if len(password) < 8:
+        raise ValidationException("Password must be at least 8 characters")
+
+    user = db.query(User).filter(User.verification_token == token).first()
+    if not user:
+        raise ValidationException("Invalid or expired setup link. Please contact support.")
+
+    user.password_hash = get_password_hash(password)
+    user.verification_token = None
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    db.commit()
+
+    return {"success": True, "message": "Password set successfully. You can now log in."}

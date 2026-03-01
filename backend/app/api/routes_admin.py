@@ -19,6 +19,8 @@ from app.exceptions import (
     ResourceNotFoundException
 )
 from app.services.media_storage import get_storage_health, run_storage_test
+from app.security.auth import get_password_hash
+from app.services.email_service import email_service
 
 router = APIRouter()
 
@@ -350,11 +352,14 @@ def get_all_dealers(
         
         dealer_list.append({
             "id": dealer.id,
+            "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip() or dealer.email,
             "email": dealer.email,
             "first_name": dealer.first_name,
             "last_name": dealer.last_name,
+            "phone": dealer.phone,
             "company_name": dealer.company_name,
             "subscription_tier": dealer.subscription_tier,
+            "verified": dealer.verified,
             "active": dealer.active,
             "total_listings": listing_count,
             "active_listings": active_listings,
@@ -362,6 +367,132 @@ def get_all_dealers(
         })
     
     return dealer_list
+
+
+@router.post("/dealers")
+def create_dealer(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Create a new dealer account and send a password-setup email."""
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise ValidationException("Email is required")
+
+    # Check for duplicate
+    if db.query(User).filter(User.email == email).first():
+        raise ValidationException("A user with that email already exists")
+
+    # Split name into first/last
+    raw_name = (data.get("name") or "").strip()
+    parts = raw_name.split(" ", 1)
+    first_name = parts[0] if parts else ""
+    last_name = parts[1] if len(parts) > 1 else ""
+
+    # Generate a one-time setup token stored in verification_token
+    setup_token = secrets.token_urlsafe(32)
+    # Unusable random password — dealer cannot log in until they set their own
+    dummy_hash = get_password_hash(secrets.token_urlsafe(32))
+
+    dealer = User(
+        email=email,
+        password_hash=dummy_hash,
+        first_name=first_name,
+        last_name=last_name,
+        phone=data.get("phone"),
+        company_name=data.get("company_name"),
+        user_type="dealer",
+        subscription_tier="free",
+        verified=bool(data.get("verified", False)),
+        active=bool(data.get("active", True)),
+        verification_token=setup_token,
+        email_verified=False,
+    )
+    db.add(dealer)
+    db.commit()
+    db.refresh(dealer)
+
+    # Send password-setup email
+    base_url = __import__("os").getenv("BASE_URL", "https://yachtversal.com")
+    setup_link = f"{base_url}/set-password?token={setup_token}"
+    display_name = raw_name or email
+    html = f"""
+    <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+      <div style="background:linear-gradient(to right,#0f4c81,#1a6fad);padding:30px;text-align:center">
+        <h1 style="color:white;margin:0">Welcome to YachtVersal</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb">
+        <h2 style="color:#1f2937">Hi {display_name},</h2>
+        <p style="color:#4b5563">Your dealer account has been created. Click the button below to set up your password and access your dashboard.</p>
+        <div style="text-align:center;margin:30px 0">
+          <a href="{setup_link}" style="background:#0f4c81;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:16px">
+            Set Up My Password
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:13px">This link expires in 72&nbsp;hours. If you did not expect this email, you can ignore it.</p>
+      </div>
+    </body></html>
+    """
+    try:
+        email_service.send_email(
+            to_email=email,
+            subject="Set up your YachtVersal dealer account",
+            html_content=html,
+        )
+        email_sent = True
+    except Exception:
+        email_sent = False
+
+    return {
+        "success": True,
+        "id": dealer.id,
+        "email": dealer.email,
+        "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip(),
+        "email_sent": email_sent,
+        "message": "Dealer created. A password-setup email has been sent." if email_sent else "Dealer created. Email could not be sent — check SendGrid configuration.",
+    }
+
+
+@router.put("/dealers/{dealer_id}")
+def update_dealer(
+    dealer_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update dealer fields (verified, active, name, company, etc.)."""
+    dealer = db.query(User).filter(User.id == dealer_id, User.user_type == "dealer").first()
+    if not dealer:
+        raise ResourceNotFoundException("Dealer", dealer_id)
+
+    updatable = ["first_name", "last_name", "phone", "company_name",
+                 "verified", "active", "subscription_tier"]
+    for field in updatable:
+        if field in data:
+            setattr(dealer, field, data[field])
+
+    db.commit()
+    db.refresh(dealer)
+    return {"success": True, "id": dealer.id, "verified": dealer.verified, "active": dealer.active}
+
+
+@router.delete("/dealers/{dealer_id}")
+def delete_dealer(
+    dealer_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete a dealer and their listings."""
+    dealer = db.query(User).filter(User.id == dealer_id, User.user_type == "dealer").first()
+    if not dealer:
+        raise ResourceNotFoundException("Dealer", dealer_id)
+
+    db.query(Listing).filter(Listing.user_id == dealer_id).delete()
+    db.delete(dealer)
+    db.commit()
+    return {"success": True, "message": "Dealer deleted"}
+
 
 # ============= MEDIA MANAGEMENT =============
 
