@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin } from 'lucide-react';
+import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ListingPreviewModal from '@/app/components/ListingPreviewModal';
 
 interface Listing {
   id: number;
@@ -49,6 +50,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
+  const [previewListing, setPreviewListing] = useState<Listing | null>(null);
 
   useEffect(() => {
     fetchListings();
@@ -502,11 +504,18 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setPreviewListing(listing)}
+                          className="text-purple-600 hover:text-purple-900"
+                          title="Preview listing as buyer"
+                        >
+                          <ScanEye size={18} />
+                        </button>
                         <Link
                           href={`/listings/${listing.id}`}
                           target="_blank"
                           className="text-gray-600 hover:text-gray-900"
-                          title="View listing"
+                          title="View live listing"
                         >
                           <Eye size={18} />
                         </Link>
@@ -541,6 +550,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           </table>
         </div>
       )}
+
+      <ListingPreviewModal
+        listing={previewListing}
+        onClose={() => setPreviewListing(null)}
+      />
     </div>
   );
 }
