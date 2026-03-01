@@ -883,6 +883,9 @@ def submit_inquiry(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
 
+    # Route to the assigned salesman if one exists, otherwise the listing owner
+    notify_user_id = listing.assigned_salesman_id or listing.user_id
+
     inquiry = Inquiry(
         listing_id=listing_id,
         sender_name=data.sender_name,
@@ -890,14 +893,15 @@ def submit_inquiry(
         sender_phone=data.sender_phone,
         message=data.message,
         status="new",
+        assigned_to_id=notify_user_id,
     )
     db.add(inquiry)
     listing.inquiries = (listing.inquiries or 0) + 1
     db.commit()
     db.refresh(inquiry)
 
-    # Notify listing owner
-    owner = db.query(User).filter(User.id == listing.user_id).first()
+    # Notify the assigned person (salesman or dealer)
+    owner = db.query(User).filter(User.id == notify_user_id).first()
     if owner:
         try:
             email_service.send_email(

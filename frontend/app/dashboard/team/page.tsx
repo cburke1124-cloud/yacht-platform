@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { UserPlus, Edit, Trash2, Mail, Phone, Shield, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { UserPlus, Edit, Trash2, Mail, Phone, Shield, X, LayoutDashboard, MessageSquare, ClipboardList, ChevronLeft } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface TeamMember {
@@ -24,11 +24,65 @@ interface TeamMember {
   created_at: string;
 }
 
+// ─── Member overview types ──────────────────────────────────────────────────
+interface MemberMessage {
+  id: number;
+  subject: string;
+  body: string;
+  sender_id: number;
+  recipient_id: number;
+  sender_name: string;
+  listing_id: number | null;
+  created_at: string;
+}
+
+interface MemberInquiry {
+  id: number;
+  sender_name: string;
+  sender_email: string;
+  lead_stage: string;
+  lead_score: number;
+  listing_title: string | null;
+  created_at: string;
+}
+
+interface MemberOverview {
+  member: {
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+    role: string;
+    active: boolean;
+    joined_at: string;
+  };
+  listings: { total: number; active: number };
+  inquiries: { total: number; by_stage: Record<string, number> };
+  messages: { total: number; pending: number };
+}
+
+const STAGE_COLORS: Record<string, string> = {
+  new:       'bg-gray-100 text-gray-700',
+  contacted: 'bg-blue-100 text-blue-700',
+  qualified: 'bg-yellow-100 text-yellow-700',
+  proposal:  'bg-orange-100 text-orange-700',
+  won:       'bg-green-100 text-green-700',
+  lost:      'bg-red-100 text-red-700',
+};
+
 export default function TeamManagementPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+
+  // Member overview state
+  const [viewingMemberId, setViewingMemberId] = useState<number | null>(null);
+  const [overview, setOverview] = useState<MemberOverview | null>(null);
+  const [memberMessages, setMemberMessages] = useState<MemberMessage[]>([]);
+  const [memberInquiries, setMemberInquiries] = useState<MemberInquiry[]>([]);
+  const [overviewTab, setOverviewTab] = useState<'overview' | 'messages' | 'leads'>('overview');
+  const [overviewLoading, setOverviewLoading] = useState(false);
 
   const [inviteForm, setInviteForm] = useState({
     email: '',
@@ -68,6 +122,35 @@ export default function TeamManagementPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openMemberDashboard = async (memberId: number) => {
+    setViewingMemberId(memberId);
+    setOverviewTab('overview');
+    setOverviewLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [ovRes, msgRes, inqRes] = await Promise.all([
+        fetch(apiUrl(`/team/members/${memberId}/overview`), { headers }),
+        fetch(apiUrl(`/team/members/${memberId}/messages?limit=30`), { headers }),
+        fetch(apiUrl(`/team/members/${memberId}/inquiries?limit=30`), { headers }),
+      ]);
+      if (ovRes.ok)  setOverview(await ovRes.json());
+      if (msgRes.ok) { const d = await msgRes.json(); setMemberMessages(d.items ?? d); }
+      if (inqRes.ok) { const d = await inqRes.json(); setMemberInquiries(d.items ?? d); }
+    } catch (e) {
+      console.error('Failed to load member dashboard:', e);
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  const closeMemberDashboard = () => {
+    setViewingMemberId(null);
+    setOverview(null);
+    setMemberMessages([]);
+    setMemberInquiries([]);
   };
 
   const handleInvite = async () => {
@@ -295,6 +378,13 @@ export default function TeamManagementPage() {
 
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => openMemberDashboard(member.id)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="View Dashboard"
+                      >
+                        <LayoutDashboard size={18} />
+                      </button>
+                      <button
                         onClick={() => setEditingMember(member)}
                         className="p-2 text-gray-600 hover:bg-soft rounded transition-colors"
                         title="Edit Permissions"
@@ -463,6 +553,167 @@ export default function TeamManagementPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Member Dashboard Drawer */}
+      {viewingMemberId !== null && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={closeMemberDashboard}>
+          <div
+            className="relative w-full max-w-2xl h-full bg-white shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer header */}
+            <div className="flex items-center gap-3 p-4 border-b bg-gray-50">
+              <button onClick={closeMemberDashboard} className="text-gray-400 hover:text-gray-600">
+                <ChevronLeft size={22} />
+              </button>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-800">{overview?.member.name ?? 'Team Member'}</p>
+                <p className="text-xs text-gray-400">{overview?.member.email}</p>
+              </div>
+              <button onClick={closeMemberDashboard} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b">
+              {([
+                { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+                { key: 'messages', label: 'Messages', icon: MessageSquare },
+                { key: 'leads',    label: 'Leads',    icon: ClipboardList },
+              ] as const).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setOverviewTab(key)}
+                  className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    overviewTab === key
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Icon size={15} />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Content */}
+            {overviewLoading ? (
+              <div className="flex-1 flex items-center justify-center text-gray-400">Loading…</div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+                {/* ── Overview tab ───────────────────────────────────── */}
+                {overviewTab === 'overview' && overview && (
+                  <>
+                    {/* Stat cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { label: 'Listings',    value: overview.listings.total },
+                        { label: 'Active',      value: overview.listings.active },
+                        { label: 'Total Leads', value: overview.inquiries.total },
+                        { label: 'Messages',    value: overview.messages.total },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="bg-gray-50 rounded-lg p-3 text-center">
+                          <p className="text-2xl font-bold text-gray-800">{value}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Pending messages */}
+                    {overview.messages.pending > 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-sm text-yellow-800">
+                        {overview.messages.pending} message(s) awaiting response
+                      </div>
+                    )}
+
+                    {/* Leads by stage */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        Lead Pipeline
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(overview.inquiries.by_stage).map(([stage, cnt]) => (
+                          <span
+                            key={stage}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${STAGE_COLORS[stage] ?? 'bg-gray-100 text-gray-600'}`}
+                          >
+                            {stage}: {cnt}
+                          </span>
+                        ))}
+                        {Object.keys(overview.inquiries.by_stage).length === 0 && (
+                          <p className="text-sm text-gray-400 italic">No leads yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── Messages tab ───────────────────────────────────── */}
+                {overviewTab === 'messages' && (
+                  <>
+                    {memberMessages.length === 0 ? (
+                      <p className="text-sm text-gray-400 italic text-center py-10">No messages found.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {memberMessages.map((msg) => (
+                          <div key={msg.id} className="bg-gray-50 rounded-lg p-3">
+                            <div className="flex justify-between items-start gap-2">
+                              <p className="font-medium text-sm text-gray-800 truncate flex-1">
+                                {msg.subject || '(No subject)'}
+                              </p>
+                              <p className="text-xs text-gray-400 whitespace-nowrap">
+                                {new Date(msg.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">From: {msg.sender_name}</p>
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-2">{msg.body}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* ── Leads tab ──────────────────────────────────────── */}
+                {overviewTab === 'leads' && (
+                  <>
+                    {memberInquiries.length === 0 ? (
+                      <p className="text-sm text-gray-400 italic text-center py-10">No leads assigned.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {memberInquiries.map((inq) => (
+                          <div key={inq.id} className="bg-gray-50 rounded-lg p-3">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-gray-800">{inq.sender_name}</p>
+                                <p className="text-xs text-gray-500 truncate">{inq.sender_email}</p>
+                                {inq.listing_title && (
+                                  <p className="text-xs text-gray-400 mt-0.5 truncate">
+                                    Listing: {inq.listing_title}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0">
+                                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STAGE_COLORS[inq.lead_stage] ?? 'bg-gray-100 text-gray-600'}`}>
+                                  {inq.lead_stage}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  Score: {inq.lead_score}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -52,6 +52,7 @@ from app.api.routes_api_keys import router as api_keys_router
 from app.api.routes_comparison import router as comparison_router
 from app.api.routes_email_inbound import router as email_inbound_router
 from app.api.routes_sms_inbound import router as sms_inbound_router
+from app.api.routes_inquiries import router as inquiries_router
 
 setup_logging()
 
@@ -164,6 +165,7 @@ app.include_router(scraper_router, prefix="/api", tags=["scraper"])
 app.include_router(wp_sites_router, prefix="/api", tags=["wordpress-sites"])
 app.include_router(email_inbound_router, tags=["inbound"])
 app.include_router(sms_inbound_router, tags=["inbound"])
+app.include_router(inquiries_router, prefix="/api", tags=["inquiries"])
 
 
 # Add anti-scraping middleware LAST so it runs FIRST (middleware runs in reverse order)

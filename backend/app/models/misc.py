@@ -189,12 +189,50 @@ class Inquiry(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     listing_id = Column(Integer, ForeignKey("listings.id"))
+
+    # Buyer contact info (public — no account required)
     sender_name = Column(String, nullable=False)
     sender_email = Column(String, nullable=False)
     sender_phone = Column(String)
     message = Column(Text, nullable=False)
-    status = Column(String, default="new")
+
+    # Assignment & pipeline
+    assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    lead_stage = Column(String, default="new")   # new | contacted | qualified | proposal | won | lost
+    lead_score = Column(Integer, default=0)       # 0-100
+
+    # Quick inline note (longer notes go in LeadNote)
+    notes = Column(Text, nullable=True)
+
+    # Legacy status kept for backwards compat
+    status = Column(String, default="new")        # new | read | replied | closed
+
+    # Paperwork placeholder — will be expanded later
+    paperwork_status = Column(String, nullable=True)  # none | pending | signed | complete
+
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    lead_notes = relationship("LeadNote", back_populates="inquiry", cascade="all, delete-orphan",
+                              order_by="LeadNote.created_at")
+
+
+class LeadNote(Base):
+    """Timestamped notes on an inquiry / lead, written by any team member."""
+    __tablename__ = "lead_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    inquiry_id = Column(Integer, ForeignKey("inquiries.id"), nullable=False, index=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    inquiry = relationship("Inquiry", back_populates="lead_notes")
+    author = relationship("User", foreign_keys=[author_id])
 
 
 # REMOVED MediaFile - it's now in media.py to avoid conflict

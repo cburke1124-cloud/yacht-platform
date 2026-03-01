@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing
-from app.models.misc import Message
+from app.models.misc import Message, Inquiry
 from app.exceptions import AuthorizationException, ValidationException, ResourceNotFoundException
 from app.services.permissions import Permission, has_permission, TEAM_ROLE_PERMISSIONS, TeamMemberRole
 from app.security.auth import get_password_hash
@@ -325,3 +325,179 @@ def remove_team_member(
     db.commit()
 
     return {"success": True, "message": "Team member removed and listings transferred"}
+
+
+# ── Dealer oversight: read a team member's messages (no alerts, safety view) ──
+
+def _assert_dealer_owns_member(dealer: User, member_id: int, db: Session) -> User:
+    """Raise if `member_id` is not a team member of `dealer`."""
+    if not has_permission(dealer, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+    member = (
+        db.query(User)
+        .filter(User.id == member_id, User.parent_dealer_id == dealer.id)
+        .first()
+    )
+    if not member:
+        raise ResourceNotFoundException("Team member", member_id)
+    return member
+
+
+@router.get("/members/{member_id}/messages")
+def get_member_messages(
+    member_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Dealer-only read-only view of a team member's messages.
+    No notifications are sent; this is a supervisory safety feature.
+    """
+    _assert_dealer_owns_member(current_user, member_id, db)
+
+    q = db.query(Message).filter(
+        or_(Message.sender_id == member_id, Message.recipient_id == member_id)
+    ).order_by(Message.created_at.desc())
+
+    total = q.count()
+    messages = q.offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "items": [
+            {
+                "id": m.id,
+                "subject": m.subject,
+                "body": m.body,
+                "message_type": m.message_type,
+                "status": m.status,
+                "sender_id": m.sender_id,
+                "recipient_id": m.recipient_id,
+                "sender_name": (
+                    f"{m.sender.first_name} {m.sender.last_name}".strip()
+                    if m.sender else "Unknown"
+                ),
+                "listing_id": m.listing_id,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in messages
+        ],
+    }
+
+
+@router.get("/members/{member_id}/inquiries")
+def get_member_inquiries(
+    member_id: int,
+    stage: str = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Dealer-only read-only view of leads assigned to a team member.
+    """
+    _assert_dealer_owns_member(current_user, member_id, db)
+
+    q = db.query(Inquiry).filter(Inquiry.assigned_to_id == member_id)
+    if stage:
+        q = q.filter(Inquiry.lead_stage == stage)
+    q = q.order_by(Inquiry.created_at.desc())
+
+    total = q.count()
+    inquiries = q.offset(offset).limit(limit).all()
+
+    from app.models.listing import Listing as ListingModel
+
+    def _fmt(inq: Inquiry) -> dict:
+        listing = (
+            db.query(ListingModel).filter(ListingModel.id == inq.listing_id).first()
+            if inq.listing_id else None
+        )
+        return {
+            "id": inq.id,
+            "sender_name": inq.sender_name,
+            "sender_email": inq.sender_email,
+            "sender_phone": inq.sender_phone,
+            "message": inq.message,
+            "lead_stage": inq.lead_stage or "new",
+            "lead_score": inq.lead_score or 0,
+            "listing_id": inq.listing_id,
+            "listing_title": listing.title if listing else None,
+            "created_at": inq.created_at.isoformat(),
+            "updated_at": inq.updated_at.isoformat() if inq.updated_at else None,
+        }
+
+    return {
+        "total": total,
+        "items": [_fmt(inq) for inq in inquiries],
+    }
+
+
+@router.get("/members/{member_id}/overview")
+def get_member_overview(
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Full dashboard overview for a single team member — listings, inquiry
+    pipeline counts, message count, and response metrics.
+    """
+    member = _assert_dealer_owns_member(current_user, member_id, db)
+
+    # Listings
+    listing_q = db.query(Listing).filter(
+        or_(
+            Listing.user_id == member_id,
+            Listing.assigned_salesman_id == member_id,
+        )
+    )
+    listings_total = listing_q.count()
+    listings_active = listing_q.filter(Listing.status == "active").count()
+
+    # Inquiries by stage
+    stage_counts: dict = {}
+    for (stage,), cnt in (
+        db.query(Inquiry.lead_stage, func.count(Inquiry.id))
+        .filter(Inquiry.assigned_to_id == member_id)
+        .group_by(Inquiry.lead_stage)
+        .all()
+    ):
+        stage_counts[stage or "new"] = cnt
+
+    # Messages
+    message_total = db.query(func.count(Message.id)).filter(
+        or_(Message.sender_id == member_id, Message.recipient_id == member_id)
+    ).scalar() or 0
+
+    pending_messages = db.query(func.count(Message.id)).filter(
+        Message.recipient_id == member_id,
+        Message.status.in_(["new", "read"]),
+    ).scalar() or 0
+
+    return {
+        "member": {
+            "id": member.id,
+            "name": f"{member.first_name} {member.last_name}".strip(),
+            "email": member.email,
+            "phone": member.phone,
+            "role": member.role,
+            "active": member.active,
+            "joined_at": member.created_at.isoformat() if member.created_at else None,
+        },
+        "listings": {
+            "total": listings_total,
+            "active": listings_active,
+        },
+        "inquiries": {
+            "total": sum(stage_counts.values()),
+            "by_stage": stage_counts,
+        },
+        "messages": {
+            "total": message_total,
+            "pending": pending_messages,
+        },
+    }
