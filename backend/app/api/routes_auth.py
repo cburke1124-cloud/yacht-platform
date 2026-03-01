@@ -28,6 +28,7 @@ from app.exceptions import (
 from app.services.email_service import email_service
 from app.utils.slug import create_slug
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.schemas.auth import UserRegister, UserLogin, Token, TrialStart, TrialConvert
 
 # Import API key service
@@ -74,7 +75,8 @@ def _apply_deal_price(base_price: float, deal: PartnerDeal) -> float:
 
 
 @router.post("/register", response_model=Token)
-async def register(user_data: UserRegister, request: Request, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(request: Request, user_data: UserRegister, db: Session = Depends(get_db)):
     try:
         # If an authenticated admin or dealer is creating this account, skip terms check
         caller_is_privileged = False
@@ -400,7 +402,8 @@ async def register(user_data: UserRegister, request: Request, db: Session = Depe
 
 
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
     try:
         row = db.execute(
             text("SELECT id, email, password_hash, COALESCE(active, true) AS active FROM users WHERE email = :email LIMIT 1"),
