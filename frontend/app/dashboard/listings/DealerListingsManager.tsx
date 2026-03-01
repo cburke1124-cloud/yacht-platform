@@ -276,13 +276,13 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   return (
     <div className="space-y-6">
       {/* Header & Filters */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">My Listings</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">My Listings</h2>
           <p className="text-gray-600 mt-1">{listings.length} total listings</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setQuickEditMode((prev) => !prev)}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${quickEditMode ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
@@ -299,7 +299,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       </div>
 
       {/* Status Filter Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
           { id: 'all', label: 'All' },
           { id: 'draft', label: 'Draft' },
@@ -330,8 +330,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           <p className="text-gray-600 text-lg">No listings found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <table className="min-w-[800px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

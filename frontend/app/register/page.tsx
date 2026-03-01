@@ -453,7 +453,7 @@ function RegisterContent() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-dark mb-2">First Name *</label>
                 <input type="text" required value={formData.first_name}
@@ -494,7 +494,7 @@ function RegisterContent() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-dark mb-2">Password *</label>
                 <input type="password" required value={formData.password}

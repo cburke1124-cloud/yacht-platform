@@ -70,10 +70,11 @@ function FeaturedCard({ listing }: { listing: Listing }) {
     <Link href={`/listings/${listing.id}`} className="block group h-full">
       <div
         className="bg-white overflow-hidden transition-shadow duration-300 group-hover:shadow-2xl flex flex-col"
-        style={{ border: '1px solid #DBDBDB', borderRadius: 12, height: 480 }}
+        style={{ border: '1px solid #DBDBDB', borderRadius: 12 }}
+        className="bg-white overflow-hidden transition-shadow duration-300 group-hover:shadow-2xl flex flex-col h-[380px] sm:h-[480px]"
       >
-        {/* Image — fixed 317px, never shrinks */}
-        <div className="relative w-full flex-shrink-0 overflow-hidden" style={{ height: 317 }}>
+        {/* Image — responsive height */}
+        <div className="relative w-full flex-shrink-0 overflow-hidden h-[220px] sm:h-[317px]">
           <Image
             src={imgSrc}
             alt={
@@ -510,7 +511,7 @@ export default function HomePage() {
       <section
         aria-label="Hero"
         className="relative overflow-hidden"
-        style={{ minHeight: 1000 }}
+        style={{ minHeight: 'clamp(500px, 80vh, 1000px)' }}
       >
         {/* Background photo */}
         <div className="absolute inset-0">
@@ -536,7 +537,7 @@ export default function HomePage() {
         {/* Hero content — Figma: TEXT block left: 312px, top: ~355px */}
         <div
           className="relative z-10 flex flex-col justify-center"
-          style={{ minHeight: 900, paddingLeft: 'clamp(24px, 16.25vw, 312px)', paddingRight: 24 }}
+          style={{ minHeight: 'clamp(400px, 70vh, 900px)', paddingLeft: 'clamp(20px, 16.25vw, 312px)', paddingRight: 20 }}
         >
           <div style={{ maxWidth: 590 }}>
             {/* H1 — Figma: Bahnschrift Bold 56/67, #10214F, width ~565px */}
@@ -545,8 +546,8 @@ export default function HomePage() {
               style={{
                 color: '#10214F',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 'clamp(36px, 3.5vw, 56px)',
-                lineHeight: '67px',
+                fontSize: 'clamp(28px, 3.5vw, 56px)',
+                lineHeight: 'clamp(34px, 4.5vw, 67px)',
                 fontWeight: 700,
                 marginBottom: 10,
               }}
@@ -605,7 +606,7 @@ export default function HomePage() {
           {/* Section header — Figma: "Featured Listings" Bahnschrift 40/48, button right */}
           <div
             className="flex items-center justify-between"
-            style={{ marginBottom: 116 }}
+            style={{ marginBottom: 'clamp(32px, 6vw, 116px)' }}
           >
             <h2
               className="font-normal"
@@ -708,10 +709,10 @@ export default function HomePage() {
             style={{
               color: '#10214F',
               fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-              fontSize: 40,
-              lineHeight: '48px',
+              fontSize: 'clamp(24px, 3vw, 40px)',
+              lineHeight: '1.2',
               fontWeight: 400,
-              marginBottom: 80,
+              marginBottom: 'clamp(32px, 5vw, 80px)',
             }}
           >
             How Buying Works

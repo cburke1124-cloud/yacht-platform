@@ -255,7 +255,7 @@ export default function Navbar() {
                   alt="YachtVersal"
                   width={280}
                   height={70}
-                  className="h-full w-auto"
+                  className="h-full w-auto max-w-[180px] sm:max-w-[240px] md:max-w-[280px]"
                   onError={() => setLogoError(true)}
                   priority
                 />

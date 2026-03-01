@@ -55,7 +55,7 @@ function AISearchBox({
       style={{
         boxShadow: '0px 1px 10.2px rgba(0,0,0,0.15)',
         borderRadius: 24,
-        padding: '36px 40px',
+        padding: 'clamp(20px, 3vw, 36px) clamp(16px, 3vw, 40px)',
       }}
     >
       {/* Heading */}
@@ -365,12 +365,11 @@ function UnifiedListingsContent() {
         </div>
 
         {/* Two-column layout: sidebar + results */}
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
 
-          {/* ── FILTERS SIDEBAR (unchanged from original) ── */}
+          {/* ── FILTERS SIDEBAR ── */}
           <div
-            className={`flex-shrink-0 ${showFilters ? 'block' : 'hidden lg:block'}`}
-            style={{ width: 306 }}
+            className={`flex-shrink-0 w-full lg:w-[306px] ${showFilters ? 'block' : 'hidden lg:block'}`}
           >
             <div
               className="sticky"
