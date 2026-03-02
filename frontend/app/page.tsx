@@ -538,20 +538,20 @@ export default function HomePage() {
           className="relative z-10 flex flex-col justify-center"
           style={{ minHeight: 'clamp(400px, 70vh, 900px)', paddingLeft: 'clamp(20px, 16.25vw, 312px)', paddingRight: 20 }}
         >
-          <div style={{ maxWidth: 590 }}>
+          <div style={{ maxWidth: 660 }}>
             {/* H1 — Figma: Bahnschrift Bold 56/67, #10214F, width ~565px */}
             <h1
               className="font-bold"
               style={{
                 color: '#10214F',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 'clamp(28px, 3.5vw, 56px)',
-                lineHeight: 'clamp(34px, 4.5vw, 67px)',
+                fontSize: 'clamp(26px, 3.2vw, 52px)',
+                lineHeight: 'clamp(32px, 4vw, 62px)',
                 fontWeight: 700,
-                marginBottom: 10,
+                marginBottom: 18,
               }}
             >
-              A Simpler Way to Buy and Sell Your Yacht
+              Yachtversal Simplifies Your Buying Experience by Connecting Buyers and Listings in a Trusted, Intuitive Online Marketplace.
             </h1>
 
             {/* Sub — Figma: Poppins 16/24, #10214F, width 590px, top 503 */}
@@ -560,13 +560,28 @@ export default function HomePage() {
                 color: '#10214F',
                 fontFamily: 'Poppins, sans-serif',
                 fontSize: 16,
-                lineHeight: '24px',
-                marginBottom: 40,
-                maxWidth: 590,
+                lineHeight: '26px',
+                marginBottom: 20,
+                maxWidth: 640,
               }}
             >
-              YachtVersal simplifies your buying experience by connecting buyers and listings
-              in a trusted, intuitive online marketplace.
+              We Bring Together Intelligent Technology, Global Reach, and Dedicated Support Representatives to Create a Better Experience for Buyers, Brokers, and Sellers—Without Unnecessary Complexity.
+            </p>
+
+            {/* Tagline */}
+            <p
+              style={{
+                color: '#10214F',
+                fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                fontSize: 'clamp(13px, 1.1vw, 16px)',
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                marginBottom: 40,
+                opacity: 0.75,
+              }}
+            >
+              Search Globally.&nbsp; Connect Confidently.&nbsp; Move Forward With Clarity.
             </p>
 
           </div>
