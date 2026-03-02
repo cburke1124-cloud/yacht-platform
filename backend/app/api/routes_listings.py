@@ -281,6 +281,22 @@ def _serialize_listing(listing: Listing) -> dict:
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
+@router.get("/makes")
+def get_distinct_makes(db: Session = Depends(get_db)):
+    """Return sorted list of distinct, non-empty makes from active listings."""
+    try:
+        rows = (
+            db.query(Listing.make)
+            .filter(Listing.status == "active", Listing.make != None, Listing.make != "")
+            .distinct()
+            .order_by(Listing.make)
+            .all()
+        )
+        return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
+    except Exception:
+        return []
+
+
 @router.get("")
 @router.get("/")
 def get_listings(
@@ -288,16 +304,39 @@ def get_listings(
     skip: int = 0,
     limit: int = 100,
     status: str = "active",
+    make: Optional[str] = None,
+    boat_type: Optional[str] = None,
+    condition: Optional[str] = None,
+    propulsion: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
 ):
+    SAIL_TYPES = {"Sailing Yacht", "Catamaran", "Sloop", "Ketch", "Schooner", "Motorsailer"}
     try:
-        listings = (
+        q = (
             db.query(Listing)
             .options(
                 joinedload(Listing.owner).joinedload(User.dealer_profile),
                 joinedload(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
             )
             .filter(Listing.status == status)
-            .order_by(
+        )
+        if make:
+            q = q.filter(Listing.make.ilike(f"%{make}%"))
+        if boat_type:
+            q = q.filter(Listing.boat_type == boat_type)
+        elif propulsion == "sail":
+            q = q.filter(Listing.boat_type.in_(SAIL_TYPES))
+        elif propulsion == "power":
+            q = q.filter(~Listing.boat_type.in_(SAIL_TYPES))
+        if condition:
+            q = q.filter(Listing.condition.ilike(condition))
+        if min_price is not None:
+            q = q.filter(Listing.price >= min_price)
+        if max_price is not None:
+            q = q.filter(Listing.price <= max_price)
+        listings = (
+            q.order_by(
                 Listing.featured.desc(),
                 Listing.featured_priority.desc(),
                 Listing.featured_until.desc(),

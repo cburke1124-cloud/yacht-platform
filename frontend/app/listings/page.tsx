@@ -185,6 +185,8 @@ function UnifiedListingsContent() {
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
     boat_type: searchParams.get('boat_type') || '',
+    make: searchParams.get('make') || '',
+    propulsion: searchParams.get('propulsion') || '',
     min_price: searchParams.get('min_price') || '',
     max_price: searchParams.get('max_price') || '',
     min_length: searchParams.get('min_length') || '',
@@ -231,7 +233,7 @@ function UnifiedListingsContent() {
   const applyFilters = () => fetchListings(searchType === 'ai');
 
   const clearFilters = () => {
-    setFilters({ search: '', boat_type: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', state: '', city: '', condition: '' });
+    setFilters({ search: '', boat_type: '', make: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', state: '', city: '', condition: '' });
     setAiQuery('');
     setSearchType('basic');
     fetchListings(false);
@@ -449,8 +451,8 @@ function UnifiedListingsContent() {
                   <FilterRow label="Make">
                     <input
                       type="text"
-                      value={filters.search}
-                      onChange={(e) => handleFilterChange('search', e.target.value)}
+                      value={filters.make}
+                      onChange={(e) => handleFilterChange('make', e.target.value)}
                       placeholder="Any make"
                       className="w-full focus:outline-none"
                       style={inputStyle}
