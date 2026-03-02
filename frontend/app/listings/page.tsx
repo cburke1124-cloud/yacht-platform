@@ -2,9 +2,12 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import ListingCard from '../components/ListingCard';
 import { apiUrl } from '@/app/lib/apiRoot';
+
+const ListingsMap = dynamic(() => import('../components/ListingsMap'), { ssr: false });
 
 interface Listing {
   id: number;
@@ -881,6 +884,47 @@ function UnifiedListingsContent() {
           </div>
         </div>
       </div>
+
+      {/* ── Listings Map ─────────────────────────────────────────────── */}
+      {!loading && processedListings.some((l) => l.latitude && l.longitude) && (
+        <div
+          style={{
+            maxWidth: 1296,
+            margin: '0 auto',
+            padding: '0 clamp(16px, 4vw, 48px) 80px',
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+              fontSize: 24,
+              fontWeight: 400,
+              color: '#10214F',
+              marginBottom: 16,
+            }}
+          >
+            Listings Map
+          </h2>
+          <ListingsMap
+            listings={processedListings
+              .filter((l) => l.latitude && l.longitude)
+              .map((l) => ({
+                id: l.id,
+                title: l.title,
+                price: l.price,
+                currency: l.currency,
+                make: l.make,
+                model: l.model,
+                year: l.year,
+                city: l.city,
+                state: l.state,
+                latitude: l.latitude!,
+                longitude: l.longitude!,
+                featured: l.featured,
+              }))}
+          />
+        </div>
+      )}
     </div>
   );
 }
