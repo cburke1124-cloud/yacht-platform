@@ -119,6 +119,8 @@ class ListingCreate(BaseModel):
     video_tour_url: Optional[str] = None
     feature_bullets: Optional[list[str]] = None
     additional_specs: Optional[dict[str, Any]] = None
+    # Co-brokering: set False to exclude this listing from the public co-brokering API
+    allow_cobrokering: Optional[bool] = True
 
 
 class ListingUpdate(BaseModel):
@@ -164,6 +166,8 @@ class ListingUpdate(BaseModel):
     video_tour_url: Optional[str] = None
     feature_bullets: Optional[list[str]] = None
     additional_specs: Optional[dict[str, Any]] = None
+    # Co-brokering opt-out at listing level
+    allow_cobrokering: Optional[bool] = None
 
 
 class ListingQuickEdit(BaseModel):

@@ -314,7 +314,8 @@ def get_dealer_profile(
         "facebook_url": profile.facebook_url,
         "instagram_url": profile.instagram_url,
         "twitter_url": profile.twitter_url,
-        "linkedin_url": profile.linkedin_url
+        "linkedin_url": profile.linkedin_url,
+        "cobrokering_enabled": profile.cobrokering_enabled if profile.cobrokering_enabled is not None else True,
     }
 
 
@@ -378,7 +379,9 @@ def update_dealer_profile(
         profile.twitter_url = data["twitter_url"]
     if "linkedin_url" in data:
         profile.linkedin_url = data["linkedin_url"]
-    
+    if "cobrokering_enabled" in data:
+        profile.cobrokering_enabled = bool(data["cobrokering_enabled"])
+
     db.commit()
     db.refresh(profile)
     

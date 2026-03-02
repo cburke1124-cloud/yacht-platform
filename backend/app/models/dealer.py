@@ -51,6 +51,12 @@ class DealerProfile(Base):
     verified = Column(Boolean, default=False)
     active = Column(Boolean, default=True)
 
+    # Co-Brokering / API Access
+    # When True (default), the dealer's listings are accessible via the public API (co-brokering enabled).
+    # When False, ALL of this dealer's listings are hidden from the public API regardless of
+    # individual listing settings.
+    cobrokering_enabled = Column(Boolean, default=True)
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

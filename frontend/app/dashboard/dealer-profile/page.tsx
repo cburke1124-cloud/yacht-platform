@@ -16,7 +16,8 @@ import {
   Linkedin,
   Save,
   Eye,
-  ArrowLeft
+  ArrowLeft,
+  Share2
 } from 'lucide-react';
 
 export default function DealerProfileEditPage() {
@@ -41,7 +42,8 @@ export default function DealerProfileEditPage() {
     instagram_url: '',
     twitter_url: '',
     linkedin_url: '',
-    slug: ''
+    slug: '',
+    cobrokering_enabled: true
   });
 
   useEffect(() => {
@@ -84,7 +86,8 @@ export default function DealerProfileEditPage() {
             instagram_url: profileData.instagram_url || '',
             twitter_url: profileData.twitter_url || '',
             linkedin_url: profileData.linkedin_url || '',
-            slug: profileData.slug || ''
+            slug: profileData.slug || '',
+            cobrokering_enabled: profileData.cobrokering_enabled !== false
           });
         } else {
           // Initialize with user data
@@ -515,6 +518,58 @@ export default function DealerProfileEditPage() {
                   placeholder="https://linkedin.com/company/yourdealership"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Co-Brokering & API Access */}
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="p-6 border-b border-primary/10">
+              <div className="flex items-center gap-3">
+                <Share2 size={20} className="text-accent" />
+                <div>
+                  <h2 className="text-xl font-semibold text-secondary">Co-Brokering &amp; API Access</h2>
+                  <p className="text-sm text-gray-600">Control whether your listings are accessible to other brokers via the platform API</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-secondary mb-1">Enable Co-Brokering</p>
+                  <p className="text-sm text-gray-500">
+                    When enabled, your active listings appear in the platform&apos;s co-brokering API so other licensed brokers can present them to their clients. You can still opt individual listings out below.
+                    <br /><br />
+                    When <strong>disabled</strong>, none of your listings will be accessible via the API regardless of individual listing settings — no co-brokering for this account.
+                  </p>
+                </div>
+                <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProfile(prev => ({ ...prev, cobrokering_enabled: !prev.cobrokering_enabled }))}
+                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                      profile.cobrokering_enabled ? 'bg-accent' : 'bg-gray-300'
+                    }`}
+                    aria-pressed={profile.cobrokering_enabled}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        profile.cobrokering_enabled ? 'translate-x-8' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-xs font-semibold ${
+                    profile.cobrokering_enabled ? 'text-accent' : 'text-gray-400'
+                  }`}>
+                    {profile.cobrokering_enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+
+              {!profile.cobrokering_enabled && (
+                <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                  <strong>Co-brokering is off for your entire account.</strong> None of your listings will appear in the co-brokering API. Save Changes to apply.
+                </div>
+              )}
             </div>
           </div>
 

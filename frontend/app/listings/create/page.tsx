@@ -88,6 +88,9 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [importText, setImportText] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [showScraperModal, setShowScraperModal] = useState(false);
+  // Tracks whether this dealer has co-brokering enabled at account level.
+  // Fetched after access check; defaults true so the toggle is hidden until we know.
+  const [dealerCobrokingEnabled, setDealerCobrokingEnabled] = useState(true);
 
   const [form, setForm] = useState({
     // Basic
@@ -101,6 +104,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     bin:             '',
     condition:       'used',
     status:          'draft',
+    allow_cobrokering: true,
     // Location
     city:            '',
     state:           '',
@@ -183,6 +187,21 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
         if (isAdmin || isPaidDealer || isPaidPrivate || hasPermission) {
           setHasListingAccess(true);
+          // Fetch dealer profile to check if account-level co-brokering is enabled
+          if (userType === 'dealer' || isAdmin) {
+            try {
+              const profileRes = await fetch(`${API_ROOT}/dealer-profile`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (profileRes.ok) {
+                const profileData = await profileRes.json();
+                // cobrokering_enabled defaults true; only hide toggle if explicitly false
+                setDealerCobrokingEnabled(profileData.cobrokering_enabled !== false);
+              }
+            } catch {
+              // Keep default (true) if profile fetch fails
+            }
+          }
           return;
         }
 
@@ -295,6 +314,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             holding_tank_gallons: extra.holding_tank_gallons != null ? String(extra.holding_tank_gallons) : '',
             feature_bullets: listing.feature_bullets?.length ? listing.feature_bullets : ['', '', '', '', ''],
             features_text: listing.features || '',
+            allow_cobrokering: listing.allow_cobrokering !== false,
             additional_engines: listing.additional_engines?.length
               ? listing.additional_engines.map((engine: any) => ({
                   make: engine.make || '',
@@ -746,6 +766,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         bin:             form.bin,
         condition:       form.condition,
         status:          form.status,
+        allow_cobrokering: form.allow_cobrokering,
         // Location
         city:            form.city     || null,
         state:           form.state    || null,
@@ -1063,6 +1084,40 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     </select>
                   </div>
                 </div>
+
+                {/* Co-Brokering opt-out — only shown when dealer has account-level co-brokering ON */}
+                {dealerCobrokingEnabled && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: '#10214F' }}>Co-Brokering for this listing</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          When enabled, this listing is accessible to other licensed brokers via the platform API.
+                          Turn off to keep this listing private to your brokerage only.
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setForm(p => ({ ...p, allow_cobrokering: !p.allow_cobrokering }))}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                            form.allow_cobrokering ? 'bg-[#01BBDC]' : 'bg-gray-300'
+                          }`}
+                          aria-pressed={form.allow_cobrokering}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                              form.allow_cobrokering ? 'translate-x-8' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <span className={`text-xs font-semibold ${form.allow_cobrokering ? 'text-[#01BBDC]' : 'text-gray-400'}`}>
+                          {form.allow_cobrokering ? 'Allowed' : 'Opted out'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
