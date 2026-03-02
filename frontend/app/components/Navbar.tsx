@@ -53,8 +53,8 @@ function NavDropdown({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-dark/80 hover:text-primary font-medium transition-colors text-sm"
-        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
+        className="flex items-center gap-1 hover:text-primary transition-colors"
+        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 16, color: '#10214F' }}
       >
         {label}
         <ChevronDown
@@ -73,8 +73,8 @@ function NavDropdown({
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className="block px-5 py-3 text-sm font-medium transition-colors hover:bg-gray-50"
-              style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
+              className="block px-5 py-3 transition-colors hover:bg-gray-50"
+              style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 16 }}
             >
               {item.label}
             </Link>
@@ -290,8 +290,8 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-8">
             <Link
               href="/listings"
-              className="text-dark/80 hover:text-primary font-medium transition-colors text-sm"
-              style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
+              className="hover:text-primary transition-colors"
+              style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 16, color: '#10214F' }}
             >
               Search Listings
             </Link>
