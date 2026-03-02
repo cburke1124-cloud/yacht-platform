@@ -297,6 +297,23 @@ def get_distinct_makes(db: Session = Depends(get_db)):
         return []
 
 
+@router.get("/models")
+def get_distinct_models(make: Optional[str] = None, db: Session = Depends(get_db)):
+    """Return sorted list of distinct models for a given make from active listings."""
+    try:
+        q = db.query(Listing.model).filter(
+            Listing.status == "active",
+            Listing.model != None,
+            Listing.model != "",
+        )
+        if make:
+            q = q.filter(Listing.make.ilike(f"%{make}%"))
+        rows = q.distinct().order_by(Listing.model).all()
+        return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
+    except Exception:
+        return []
+
+
 @router.get("")
 @router.get("/")
 def get_listings(

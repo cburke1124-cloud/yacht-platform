@@ -211,7 +211,11 @@ function UnifiedListingsContent() {
     [...POWER_TYPES, ...SAIL_TYPES];
 
   const [makes, setMakes] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [makeSearch, setMakeSearch] = useState('');
+  const [modelSearch, setModelSearch] = useState('');
+  const [typeSearch, setTypeSearch] = useState('');
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -221,6 +225,14 @@ function UnifiedListingsContent() {
       .then((data: string[]) => setMakes(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!filters.make) { setModels([]); return; }
+    fetch(apiUrl(`/listings/models?make=${encodeURIComponent(filters.make)}`))
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: string[]) => setModels(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [filters.make]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchListings(); }, []);
 
@@ -401,67 +413,90 @@ function UnifiedListingsContent() {
                 borderRadius: 6,
               }}
             >
-              <div className="p-6 pb-2">
-                {/* Save Search */}
+              <div className="p-4">
+
+                {/* ── Apply Filters (top) ── */}
                 <button
-                  onClick={handleSaveSearch}
+                  onClick={applyFilters}
                   className="w-full py-3 font-medium transition-opacity hover:opacity-90 mb-1"
-                  style={{
-                    backgroundColor: '#01BBDC',
-                    color: '#FFFFFF',
-                    borderRadius: 12,
-                    fontFamily: 'Poppins, sans-serif',
-                    fontSize: 15,
-                  }}
+                  style={{ backgroundColor: '#10214F', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 15 }}
                 >
-                  Save Search
+                  Apply Filters
                 </button>
                 {Object.values(filters).some((v) => v) && (
                   <button
                     onClick={clearFilters}
-                    className="w-full text-sm font-medium text-center py-2 transition-opacity hover:opacity-70"
+                    className="w-full text-sm font-medium text-center py-1.5 transition-opacity hover:opacity-70"
                     style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                   >
                     Clear all filters
                   </button>
                 )}
-                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 8 }} />
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 6 }} />
 
-                {/* Accordion filter sections */}
+                {/* ── Accordion sections ── */}
                 <div>
 
                   <FilterAccordion label="Condition" isOpen={!!openSections.condition} onToggle={() => toggleSection('condition')}>
-                    <select value={filters.condition} onChange={(e) => handleFilterChange('condition', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
-                      <option value="">Any</option>
-                      <option value="new">New</option>
-                      <option value="used">Used</option>
-                    </select>
+                    <FilterOptions
+                      options={['New', 'Used']}
+                      values={['new', 'used']}
+                      value={filters.condition}
+                      onChange={(v) => handleFilterChange('condition', v)}
+                    />
                   </FilterAccordion>
 
                   <FilterAccordion label="Power / Sail" isOpen={!!openSections.propulsion} onToggle={() => toggleSection('propulsion')}>
-                    <select value={filters.propulsion} onChange={(e) => handleFilterChange('propulsion', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
-                      <option value="">Any</option>
-                      <option value="power">Power</option>
-                      <option value="sail">Sail</option>
-                    </select>
+                    <FilterOptions
+                      options={['Power', 'Sail']}
+                      values={['power', 'sail']}
+                      value={filters.propulsion}
+                      onChange={(v) => handleFilterChange('propulsion', v)}
+                    />
                   </FilterAccordion>
 
                   <FilterAccordion label="Type" isOpen={!!openSections.boat_type} onToggle={() => toggleSection('boat_type')}>
-                    <select value={filters.boat_type} onChange={(e) => handleFilterChange('boat_type', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
-                      <option value="">Any</option>
-                      {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <FilterSearchList
+                      items={typeOptions}
+                      value={filters.boat_type}
+                      search={typeSearch}
+                      onSearchChange={setTypeSearch}
+                      onChange={(v) => handleFilterChange('boat_type', v)}
+                      placeholder="Search types…"
+                    />
                   </FilterAccordion>
 
                   <FilterAccordion label="Manufacturer" isOpen={!!openSections.make} onToggle={() => toggleSection('make')}>
-                    <select value={filters.make} onChange={(e) => handleFilterChange('make', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
-                      <option value="">Any</option>
-                      {makes.map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
+                    <FilterSearchList
+                      items={makes}
+                      value={filters.make}
+                      search={makeSearch}
+                      onSearchChange={setMakeSearch}
+                      onChange={(v) => {
+                        handleFilterChange('make', v);
+                        handleFilterChange('model', '');
+                        setModelSearch('');
+                      }}
+                      placeholder="Search makes…"
+                    />
                   </FilterAccordion>
 
                   <FilterAccordion label="Model" isOpen={!!openSections.model} onToggle={() => toggleSection('model')}>
-                    <input type="text" value={filters.model} onChange={(e) => handleFilterChange('model', e.target.value)} placeholder="Any model" style={accInputStyle} className="w-full focus:outline-none" />
+                    {filters.make ? (
+                      <FilterSearchList
+                        items={models}
+                        value={filters.model}
+                        search={modelSearch}
+                        onSearchChange={setModelSearch}
+                        onChange={(v) => handleFilterChange('model', v)}
+                        placeholder="Search models…"
+                        emptyMsg={models.length === 0 ? 'Loading…' : 'No models found'}
+                      />
+                    ) : (
+                      <p style={{ fontSize: 13, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif', padding: '4px 2px 8px' }}>
+                        Select a manufacturer first
+                      </p>
+                    )}
                   </FilterAccordion>
 
                   <FilterAccordion label="Price" isOpen={!!openSections.price} onToggle={() => toggleSection('price')}>
@@ -497,27 +532,21 @@ function UnifiedListingsContent() {
                   </FilterAccordion>
 
                   <FilterAccordion label="Fuel" isOpen={!!openSections.fuel} onToggle={() => toggleSection('fuel')}>
-                    <select value={filters.fuel} onChange={(e) => handleFilterChange('fuel', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
-                      <option value="">Any</option>
-                      <option value="diesel">Diesel</option>
-                      <option value="gasoline">Gasoline</option>
-                      <option value="electric">Electric</option>
-                      <option value="hybrid">Hybrid</option>
-                      <option value="other">Other</option>
-                    </select>
+                    <FilterOptions
+                      options={['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other']}
+                      values={['diesel', 'gasoline', 'electric', 'hybrid', 'other']}
+                      value={filters.fuel}
+                      onChange={(v) => handleFilterChange('fuel', v)}
+                    />
                   </FilterAccordion>
 
                   <FilterAccordion label="Hull Material" isOpen={!!openSections.hull_material} onToggle={() => toggleSection('hull_material')}>
-                    <select value={filters.hull_material} onChange={(e) => handleFilterChange('hull_material', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
-                      <option value="">Any</option>
-                      <option value="fiberglass">Fiberglass</option>
-                      <option value="steel">Steel</option>
-                      <option value="aluminum">Aluminum</option>
-                      <option value="carbon_fibre">Carbon Fibre</option>
-                      <option value="wood">Wood</option>
-                      <option value="composite">Composite</option>
-                      <option value="other">Other</option>
-                    </select>
+                    <FilterOptions
+                      options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fibre', 'Wood', 'Composite', 'Other']}
+                      values={['fiberglass', 'steel', 'aluminum', 'carbon_fibre', 'wood', 'composite', 'other']}
+                      value={filters.hull_material}
+                      onChange={(v) => handleFilterChange('hull_material', v)}
+                    />
                   </FilterAccordion>
 
                   <FilterAccordion label="Brokerage" isOpen={!!openSections.brokerage} onToggle={() => toggleSection('brokerage')} noBorder>
@@ -526,22 +555,17 @@ function UnifiedListingsContent() {
 
                 </div>
 
-                {/* Apply button */}
-                <div className="pt-3 pb-3">
+                {/* ── Save Search (bottom) ── */}
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 4, paddingTop: 12, paddingBottom: 4 }}>
                   <button
-                    onClick={applyFilters}
-                    className="w-full py-3 font-medium transition-opacity hover:opacity-90"
-                    style={{
-                      backgroundColor: '#10214F',
-                      color: '#FFFFFF',
-                      borderRadius: 12,
-                      fontFamily: 'Poppins, sans-serif',
-                      fontSize: 15,
-                    }}
+                    onClick={handleSaveSearch}
+                    className="w-full py-2.5 font-medium transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
                   >
-                    Apply Filters
+                    Save Search
                   </button>
                 </div>
+
               </div>
             </div>
           </div>
@@ -703,6 +727,17 @@ export default function UnifiedListingsPage() {
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
+const accInputStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  border: '1px solid rgba(0,0,0,0.15)',
+  borderRadius: 6,
+  fontSize: 14,
+  fontFamily: 'Poppins, sans-serif',
+  color: '#10214F',
+  width: '100%',
+  backgroundColor: '#FFFFFF',
+};
+
 function FilterAccordion({
   label, isOpen, onToggle, children, noBorder = false,
 }: {
@@ -734,7 +769,7 @@ function FilterAccordion({
         />
       </button>
       {isOpen && (
-        <div style={{ paddingBottom: 12 }}>
+        <div style={{ paddingBottom: 8 }}>
           {children}
         </div>
       )}
@@ -743,24 +778,106 @@ function FilterAccordion({
   );
 }
 
-const accInputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  border: '1px solid rgba(0,0,0,0.15)',
-  borderRadius: 6,
-  fontSize: 14,
-  fontFamily: 'Poppins, sans-serif',
-  color: '#10214F',
-  width: '100%',
-  backgroundColor: '#FFFFFF',
-};
+// Radio-style inline option picker (Condition, Power/Sail, Fuel, Hull Material)
+function FilterOptions({
+  options, values, value, onChange,
+}: {
+  options: string[];
+  values?: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 4 }}>
+      {options.map((opt, i) => {
+        const val = values ? values[i] : opt.toLowerCase();
+        const active = value === val;
+        return (
+          <button
+            key={val}
+            type="button"
+            onClick={() => onChange(active ? '' : val)}
+            className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md transition-colors text-left"
+            style={{ backgroundColor: active ? 'rgba(1,187,220,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
+          >
+            <span style={{
+              width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+              border: `2px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.3)'}`,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {active && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#01BBDC', display: 'block' }} />}
+            </span>
+            <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, color: active ? '#01BBDC' : '#10214F', fontWeight: active ? 500 : 400 }}>
+              {opt}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-const accSelectStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  border: '1px solid rgba(0,0,0,0.15)',
-  borderRadius: 6,
-  fontSize: 14,
-  fontFamily: 'Poppins, sans-serif',
-  color: '#10214F',
-  width: '100%',
-  backgroundColor: '#FFFFFF',
-};
+// Searchable scrollable list (Type, Manufacturer, Model)
+function FilterSearchList({
+  items, value, search, onSearchChange, onChange, placeholder, emptyMsg,
+}: {
+  items: string[];
+  value: string;
+  search: string;
+  onSearchChange: (v: string) => void;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  emptyMsg?: string;
+}) {
+  const filtered = search
+    ? items.filter((it) => it.toLowerCase().includes(search.toLowerCase()))
+    : items;
+
+  return (
+    <div>
+      <div style={{ position: 'relative', marginBottom: 6 }}>
+        <Search
+          size={13}
+          style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'rgba(16,33,79,0.35)', pointerEvents: 'none' }}
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={placeholder || 'Search...'}
+          className="w-full focus:outline-none"
+          style={{ ...accInputStyle, paddingLeft: 28, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+        />
+      </div>
+      <div style={{ maxHeight: 168, overflowY: 'auto' }}>
+        {filtered.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif', padding: '6px 4px' }}>
+            {emptyMsg || 'No results'}
+          </p>
+        ) : (
+          filtered.map((item) => {
+            const active = value === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => onChange(active ? '' : item)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors"
+                style={{ backgroundColor: active ? 'rgba(1,187,220,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
+              >
+                <span style={{
+                  width: 14, height: 14, borderRadius: 3, flexShrink: 0,
+                  border: `2px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.25)'}`,
+                  backgroundColor: active ? '#01BBDC' : 'transparent',
+                }} />
+                <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: active ? '#01BBDC' : '#10214F', fontWeight: active ? 500 : 400 }}>
+                  {item}
+                </span>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
