@@ -38,8 +38,9 @@ export default function LoginPage() {
         throw new Error(data.detail || 'Login failed');
       }
 
-      // Store token
+      // Store token and notify Navbar immediately
       localStorage.setItem('token', data.access_token);
+      window.dispatchEvent(new Event('authChange'));
 
       // Fetch user info to determine redirect and terms status
       const userResponse = await fetch(apiUrl('/auth/me'), {

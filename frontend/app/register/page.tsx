@@ -184,6 +184,7 @@ function RegisterContent() {
       const regData = await regRes.json();
       if (!regRes.ok) throw new Error(regData.detail || regData.error || 'Registration failed');
       localStorage.setItem('token', regData.access_token);
+      window.dispatchEvent(new Event('authChange'));
 
       // 2. If paid tier, redirect to Stripe Checkout
       if (isPaidTier(formData.user_type, formData.subscription_tier)) {

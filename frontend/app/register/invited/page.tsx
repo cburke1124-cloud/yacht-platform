@@ -87,6 +87,7 @@ function InvitedSignupContent() {
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem('token', data.access_token);
+        window.dispatchEvent(new Event('authChange'));
         router.push('/dashboard');
       } else {
         const errorData = await response.json();

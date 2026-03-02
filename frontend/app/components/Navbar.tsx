@@ -101,13 +101,23 @@ export default function Navbar() {
 
   const userMenuRef = useRef<HTMLDivElement>(null);
 
+  // Run on mount
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-check auth on every route change (handles SPA navigation after login)
   useEffect(() => {
+    checkAuth();
     setMobileMenuOpen(false);
-  }, [pathname]);
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Also respond instantly to explicit login/register events
+  useEffect(() => {
+    const handler = () => checkAuth();
+    window.addEventListener('authChange', handler);
+    return () => window.removeEventListener('authChange', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close user menu on outside click
   useEffect(() => {
