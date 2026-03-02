@@ -13,17 +13,6 @@ const POWER_CLASSES = [
 const SAIL_CLASSES = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner'];
 const ALL_CLASSES  = [...POWER_CLASSES, ...SAIL_CLASSES];
 
-const PRICE_OPTIONS = [
-  { label: 'Any Price',        min: '',        max: '' },
-  { label: 'Under $50K',       min: '',        max: '50000' },
-  { label: '$50K – $100K',     min: '50000',   max: '100000' },
-  { label: '$100K – $250K',    min: '100000',  max: '250000' },
-  { label: '$250K – $500K',    min: '250000',  max: '500000' },
-  { label: '$500K – $1M',      min: '500000',  max: '1000000' },
-  { label: '$1M – $5M',        min: '1000000', max: '5000000' },
-  { label: '$5M+',             min: '5000000', max: '' },
-];
-
 // Shared compact select style
 const SEL = [
   'h-10 px-3 text-sm rounded-lg border border-gray-200 bg-white',
@@ -33,17 +22,19 @@ const SEL = [
 
 interface SearchBarProps {
   onSearch?: (filters: any) => void;
-  showAIOption?: boolean; // kept for backwards compat, no longer used
+  showAIOption?: boolean;
+  squareTop?: boolean;
 }
 
-export default function SearchBar({ onSearch }: SearchBarProps) {
+export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
   const router = useRouter();
 
   const [condition,  setCondition]  = useState('');
   const [propulsion, setPropulsion] = useState('');   // 'power' | 'sail' | ''
   const [boatType,   setBoatType]   = useState('');
   const [make,       setMake]       = useState('');
-  const [priceKey,   setPriceKey]   = useState('Any Price');
+  const [priceMin,   setPriceMin]   = useState('');
+  const [priceMax,   setPriceMax]   = useState('');
   const [makes,      setMakes]      = useState<string[]>([]);
 
   // Fetch distinct makes from backend
@@ -67,15 +58,14 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const price = PRICE_OPTIONS.find((p) => p.label === priceKey) ?? PRICE_OPTIONS[0];
     const params = new URLSearchParams();
 
     if (condition)       params.set('condition',  condition);
     if (propulsion && !boatType) params.set('propulsion', propulsion);
     if (boatType)        params.set('boat_type',  boatType);
     if (make)            params.set('make',       make);
-    if (price.min)       params.set('min_price',  price.min);
-    if (price.max)       params.set('max_price',  price.max);
+    if (priceMin)        params.set('min_price',  priceMin);
+    if (priceMax)        params.set('max_price',  priceMax);
 
     const qs = params.toString();
 
@@ -89,8 +79,12 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
   return (
     <form onSubmit={handleSearch} className="w-full">
       <div
-        className="flex items-center gap-2 flex-wrap sm:flex-nowrap bg-white rounded-xl shadow-md border border-gray-200 px-3 py-2"
-        style={{ minHeight: 56 }}
+        className="flex items-center gap-2 flex-wrap sm:flex-nowrap bg-white shadow-md border border-gray-200 px-3 py-2"
+        style={{
+          minHeight: 56,
+          borderRadius: squareTop ? '0 0 12px 12px' : 12,
+          ...(squareTop ? { borderTop: 'none' } : {}),
+        }}
       >
         {/* ── Condition ── */}
         <select value={condition} onChange={(e) => setCondition(e.target.value)} className={SEL} style={{ minWidth: 100 }}>
@@ -110,9 +104,9 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
 
         <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-        {/* ── Class ── */}
+        {/* ── Type ── */}
         <select value={boatType} onChange={(e) => setBoatType(e.target.value)} className={SEL} style={{ minWidth: 130 }}>
-          <option value="">Class</option>
+          <option value="">Type</option>
           {classOptions.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
@@ -131,12 +125,26 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
 
         <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-        {/* ── Price ── */}
-        <select value={priceKey} onChange={(e) => setPriceKey(e.target.value)} className={SEL} style={{ minWidth: 130 }}>
-          {PRICE_OPTIONS.map((p) => (
-            <option key={p.label} value={p.label}>{p.label}</option>
-          ))}
-        </select>
+        {/* ── Price Range ── */}
+        <input
+          type="number"
+          placeholder="Min $"
+          value={priceMin}
+          onChange={(e) => setPriceMin(e.target.value)}
+          className="h-10 px-3 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0"
+          style={{ minWidth: 82 }}
+          min="0"
+        />
+        <span className="hidden sm:block text-gray-200 select-none">–</span>
+        <input
+          type="number"
+          placeholder="Max $"
+          value={priceMax}
+          onChange={(e) => setPriceMax(e.target.value)}
+          className="h-10 px-3 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0"
+          style={{ minWidth: 82 }}
+          min="0"
+        />
 
         {/* ── Search button ── */}
         <button

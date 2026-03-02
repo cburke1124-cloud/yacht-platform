@@ -293,7 +293,7 @@ function AISearchBox() {
       className="bg-secondary"
       style={{
         boxShadow: '0px 1px 10.2px rgba(0,0,0,0.15)',
-        borderRadius: 24,
+        borderRadius: '24px 24px 0 0',
         padding: '43px 0 43px 0',
       }}
     >
@@ -616,6 +616,7 @@ export default function HomePage() {
           }}
         >
           <AISearchBox />
+          <SearchBar showAIOption={false} squareTop />
         </div>
       </section>
 
@@ -704,20 +705,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          CONVENTIONAL SEARCH BAR — below featured listings
-      ══════════════════════════════════════════════════════════════════ */}
-      <section
-        className="bg-white"
-        style={{ paddingTop: 12, paddingBottom: 84 }}
-      >
-        <div
-          className="mx-auto"
-          style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
-        >
-          <SearchBar showAIOption={false} />
-        </div>
-      </section>
+
 
       {/* ══════════════════════════════════════════════════════════════════
           HOW BUYING WORKS — Figma: top 3099, 1296×822
