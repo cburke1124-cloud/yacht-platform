@@ -638,7 +638,7 @@ export default function HomePage() {
                 whiteSpace: 'nowrap',
               }}
             >
-              View All Listings
+              Search Listings
             </Link>
           </div>
 

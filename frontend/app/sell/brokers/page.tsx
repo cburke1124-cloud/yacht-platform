@@ -825,7 +825,7 @@ export default function SellBrokersPage() {
                 height: 48,
               }}
             >
-              View All Listings
+              Search Listings
             </Link>
           </div>
         </div>

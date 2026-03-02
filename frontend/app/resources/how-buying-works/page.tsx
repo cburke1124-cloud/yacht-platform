@@ -434,7 +434,7 @@ export default function HowBuyingWorksPage() {
               className="inline-flex items-center justify-center px-6 py-3 rounded-xl text-white font-medium text-base transition-opacity hover:opacity-90"
               style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
             >
-              View All Listings
+              Search Listings
             </Link>
           </div>
         </div>

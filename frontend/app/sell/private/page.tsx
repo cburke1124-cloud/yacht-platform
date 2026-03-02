@@ -765,7 +765,7 @@ export default function SellPrivatePage() {
                 height: 48,
               }}
             >
-              View All Listings
+              Search Listings
             </Link>
           </div>
         </div>
