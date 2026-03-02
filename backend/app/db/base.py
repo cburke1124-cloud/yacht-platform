@@ -58,3 +58,5 @@ from app.models.partner_growth import (
     PartnerDeal,
     ReferralSignup,
 )
+
+from app.models.catalog import VesselMake, VesselModel
