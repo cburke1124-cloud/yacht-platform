@@ -305,11 +305,21 @@ def get_listings(
     limit: int = 100,
     status: str = "active",
     make: Optional[str] = None,
+    model: Optional[str] = None,
     boat_type: Optional[str] = None,
     condition: Optional[str] = None,
     propulsion: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
+    min_length: Optional[float] = None,
+    max_length: Optional[float] = None,
+    min_year: Optional[int] = None,
+    max_year: Optional[int] = None,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    fuel: Optional[str] = None,
+    hull_material: Optional[str] = None,
+    engine: Optional[str] = None,
 ):
     SAIL_TYPES = {"Sailing Yacht", "Catamaran", "Sloop", "Ketch", "Schooner", "Motorsailer"}
     try:
@@ -323,6 +333,8 @@ def get_listings(
         )
         if make:
             q = q.filter(Listing.make.ilike(f"%{make}%"))
+        if model:
+            q = q.filter(Listing.model.ilike(f"%{model}%"))
         if boat_type:
             q = q.filter(Listing.boat_type == boat_type)
         elif propulsion == "sail":
@@ -335,6 +347,28 @@ def get_listings(
             q = q.filter(Listing.price >= min_price)
         if max_price is not None:
             q = q.filter(Listing.price <= max_price)
+        if min_length is not None:
+            q = q.filter(Listing.length_feet >= min_length)
+        if max_length is not None:
+            q = q.filter(Listing.length_feet <= max_length)
+        if min_year is not None:
+            q = q.filter(Listing.year >= min_year)
+        if max_year is not None:
+            q = q.filter(Listing.year <= max_year)
+        if city:
+            q = q.filter(Listing.city.ilike(f"%{city}%"))
+        if state:
+            q = q.filter(Listing.state.ilike(f"%{state}%"))
+        if fuel:
+            q = q.filter(Listing.fuel_type.ilike(f"%{fuel}%"))
+        if hull_material:
+            q = q.filter(Listing.hull_material.ilike(f"%{hull_material}%"))
+        if engine:
+            q = q.filter(
+                Listing.engine_make.ilike(f"%{engine}%") |
+                Listing.engine_type.ilike(f"%{engine}%") |
+                Listing.engine_model.ilike(f"%{engine}%")
+            )
         listings = (
             q.order_by(
                 Listing.featured.desc(),

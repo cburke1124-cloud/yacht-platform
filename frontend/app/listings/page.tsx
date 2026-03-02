@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle } from 'lucide-react';
+import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import ListingCard from '../components/ListingCard';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -186,22 +186,41 @@ function UnifiedListingsContent() {
     search: searchParams.get('search') || '',
     boat_type: searchParams.get('boat_type') || '',
     make: searchParams.get('make') || '',
+    model: searchParams.get('model') || '',
     propulsion: searchParams.get('propulsion') || '',
     min_price: searchParams.get('min_price') || '',
     max_price: searchParams.get('max_price') || '',
     min_length: searchParams.get('min_length') || '',
     max_length: searchParams.get('max_length') || '',
     min_year: searchParams.get('min_year') || '',
+    max_year: searchParams.get('max_year') || '',
     state: searchParams.get('state') || '',
     city: searchParams.get('city') || '',
     condition: searchParams.get('condition') || '',
+    fuel: searchParams.get('fuel') || '',
+    hull_material: searchParams.get('hull_material') || '',
+    engine: searchParams.get('engine') || '',
+    brokerage: searchParams.get('brokerage') || '',
   });
 
-  const BOAT_TYPES = [
-    'Motor Yacht', 'Sailing Yacht', 'Catamaran', 'Trawler',
-    'Express Cruiser', 'Sport Fisher', 'Center Console', 'Mega Yacht',
-  ];
-  const CONDITIONS = ['New', 'Used'];
+  const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
+  const SAIL_TYPES  = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner'];
+  const typeOptions =
+    filters.propulsion === 'power' ? POWER_TYPES :
+    filters.propulsion === 'sail'  ? SAIL_TYPES  :
+    [...POWER_TYPES, ...SAIL_TYPES];
+
+  const [makes, setMakes] = useState<string[]>([]);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (key: string) =>
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  useEffect(() => {
+    fetch(apiUrl('/listings/makes'))
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: string[]) => setMakes(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => { fetchListings(); }, []);
 
@@ -233,7 +252,7 @@ function UnifiedListingsContent() {
   const applyFilters = () => fetchListings(searchType === 'ai');
 
   const clearFilters = () => {
-    setFilters({ search: '', boat_type: '', make: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', state: '', city: '', condition: '' });
+    setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '' });
     setAiQuery('');
     setSearchType('basic');
     fetchListings(false);
@@ -382,197 +401,146 @@ function UnifiedListingsContent() {
                 borderRadius: 6,
               }}
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2
-                    className="flex items-center gap-2"
-                    style={{
-                      color: '#10214F',
-                      fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                      fontSize: 20,
-                      lineHeight: '24px',
-                      fontWeight: 400,
-                    }}
+              <div className="p-6 pb-2">
+                {/* Save Search */}
+                <button
+                  onClick={handleSaveSearch}
+                  className="w-full py-3 font-medium transition-opacity hover:opacity-90 mb-1"
+                  style={{
+                    backgroundColor: '#01BBDC',
+                    color: '#FFFFFF',
+                    borderRadius: 12,
+                    fontFamily: 'Poppins, sans-serif',
+                    fontSize: 15,
+                  }}
+                >
+                  Save Search
+                </button>
+                {Object.values(filters).some((v) => v) && (
+                  <button
+                    onClick={clearFilters}
+                    className="w-full text-sm font-medium text-center py-2 transition-opacity hover:opacity-70"
+                    style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                   >
-                    <SlidersHorizontal size={18} style={{ color: '#01BBDC' }} />
-                    Filters
-                  </h2>
-                  {Object.values(filters).some((v) => v) && (
-                    <button
-                      onClick={clearFilters}
-                      className="text-sm font-medium transition-opacity hover:opacity-70"
-                      style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      Clear all
-                    </button>
-                  )}
+                    Clear all filters
+                  </button>
+                )}
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 8 }} />
+
+                {/* Accordion filter sections */}
+                <div>
+
+                  <FilterAccordion label="Condition" isOpen={!!openSections.condition} onToggle={() => toggleSection('condition')}>
+                    <select value={filters.condition} onChange={(e) => handleFilterChange('condition', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
+                      <option value="">Any</option>
+                      <option value="new">New</option>
+                      <option value="used">Used</option>
+                    </select>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Power / Sail" isOpen={!!openSections.propulsion} onToggle={() => toggleSection('propulsion')}>
+                    <select value={filters.propulsion} onChange={(e) => handleFilterChange('propulsion', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
+                      <option value="">Any</option>
+                      <option value="power">Power</option>
+                      <option value="sail">Sail</option>
+                    </select>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Type" isOpen={!!openSections.boat_type} onToggle={() => toggleSection('boat_type')}>
+                    <select value={filters.boat_type} onChange={(e) => handleFilterChange('boat_type', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
+                      <option value="">Any</option>
+                      {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Manufacturer" isOpen={!!openSections.make} onToggle={() => toggleSection('make')}>
+                    <select value={filters.make} onChange={(e) => handleFilterChange('make', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
+                      <option value="">Any</option>
+                      {makes.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Model" isOpen={!!openSections.model} onToggle={() => toggleSection('model')}>
+                    <input type="text" value={filters.model} onChange={(e) => handleFilterChange('model', e.target.value)} placeholder="Any model" style={accInputStyle} className="w-full focus:outline-none" />
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Price" isOpen={!!openSections.price} onToggle={() => toggleSection('price')}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={filters.min_price} onChange={(e) => handleFilterChange('min_price', e.target.value)} placeholder="Min ($)" style={accInputStyle} className="focus:outline-none" />
+                      <input type="number" value={filters.max_price} onChange={(e) => handleFilterChange('max_price', e.target.value)} placeholder="Max ($)" style={accInputStyle} className="focus:outline-none" />
+                    </div>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Length (ft)" isOpen={!!openSections.length} onToggle={() => toggleSection('length')}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={filters.min_length} onChange={(e) => handleFilterChange('min_length', e.target.value)} placeholder="Min" style={accInputStyle} className="focus:outline-none" />
+                      <input type="number" value={filters.max_length} onChange={(e) => handleFilterChange('max_length', e.target.value)} placeholder="Max" style={accInputStyle} className="focus:outline-none" />
+                    </div>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Year Built" isOpen={!!openSections.year} onToggle={() => toggleSection('year')}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="number" value={filters.min_year} onChange={(e) => handleFilterChange('min_year', e.target.value)} placeholder="From" style={accInputStyle} className="focus:outline-none" />
+                      <input type="number" value={filters.max_year} onChange={(e) => handleFilterChange('max_year', e.target.value)} placeholder="To" style={accInputStyle} className="focus:outline-none" />
+                    </div>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Location" isOpen={!!openSections.location} onToggle={() => toggleSection('location')}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" style={accInputStyle} className="focus:outline-none" />
+                      <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State" style={accInputStyle} className="focus:outline-none" />
+                    </div>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Engine Details" isOpen={!!openSections.engine} onToggle={() => toggleSection('engine')}>
+                    <input type="text" value={filters.engine} onChange={(e) => handleFilterChange('engine', e.target.value)} placeholder="e.g. Twin diesel" style={accInputStyle} className="w-full focus:outline-none" />
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Fuel" isOpen={!!openSections.fuel} onToggle={() => toggleSection('fuel')}>
+                    <select value={filters.fuel} onChange={(e) => handleFilterChange('fuel', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
+                      <option value="">Any</option>
+                      <option value="diesel">Diesel</option>
+                      <option value="gasoline">Gasoline</option>
+                      <option value="electric">Electric</option>
+                      <option value="hybrid">Hybrid</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Hull Material" isOpen={!!openSections.hull_material} onToggle={() => toggleSection('hull_material')}>
+                    <select value={filters.hull_material} onChange={(e) => handleFilterChange('hull_material', e.target.value)} style={accSelectStyle} className="w-full focus:outline-none">
+                      <option value="">Any</option>
+                      <option value="fiberglass">Fiberglass</option>
+                      <option value="steel">Steel</option>
+                      <option value="aluminum">Aluminum</option>
+                      <option value="carbon_fibre">Carbon Fibre</option>
+                      <option value="wood">Wood</option>
+                      <option value="composite">Composite</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </FilterAccordion>
+
+                  <FilterAccordion label="Brokerage" isOpen={!!openSections.brokerage} onToggle={() => toggleSection('brokerage')} noBorder>
+                    <input type="text" value={filters.brokerage} onChange={(e) => handleFilterChange('brokerage', e.target.value)} placeholder="Any brokerage" style={accInputStyle} className="w-full focus:outline-none" />
+                  </FilterAccordion>
+
                 </div>
 
-                <div className="space-y-5">
-                  {/* Keywords */}
-                  <div>
-                    <label
-                      className="block text-sm font-semibold mb-2"
-                      style={{ color: 'rgba(16,33,79,0.8)', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 18 }}
-                    >
-                      Keywords
-                    </label>
-                    <div className="relative">
-                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'rgba(0,0,0,0.4)' }} />
-                      <input
-                        type="text"
-                        value={filters.search}
-                        onChange={(e) => handleFilterChange('search', e.target.value)}
-                        placeholder="Make, model..."
-                        className="w-full focus:outline-none"
-                        style={{
-                          paddingLeft: 36, paddingRight: 12, paddingTop: 10, paddingBottom: 10,
-                          border: '2px solid #e5e7eb', borderRadius: 8, fontSize: 14,
-                          fontFamily: 'Poppins, sans-serif',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <FilterRow label="Body type">
-                    <select
-                      value={filters.boat_type}
-                      onChange={(e) => handleFilterChange('boat_type', e.target.value)}
-                      className="w-full focus:outline-none"
-                      style={selectStyle}
-                    >
-                      <option value="">All Types</option>
-                      {BOAT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Make">
-                    <input
-                      type="text"
-                      value={filters.make}
-                      onChange={(e) => handleFilterChange('make', e.target.value)}
-                      placeholder="Any make"
-                      className="w-full focus:outline-none"
-                      style={inputStyle}
-                    />
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Location">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={filters.city}
-                        onChange={(e) => handleFilterChange('city', e.target.value)}
-                        placeholder="City"
-                        className="flex-1 focus:outline-none"
-                        style={inputStyle}
-                      />
-                      <input
-                        type="text"
-                        value={filters.state}
-                        onChange={(e) => handleFilterChange('state', e.target.value)}
-                        placeholder="State"
-                        className="flex-1 focus:outline-none"
-                        style={inputStyle}
-                      />
-                    </div>
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Condition">
-                    <select
-                      value={filters.condition}
-                      onChange={(e) => handleFilterChange('condition', e.target.value)}
-                      className="w-full focus:outline-none"
-                      style={selectStyle}
-                    >
-                      <option value="">All Conditions</option>
-                      {CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Length (ft)">
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" value={filters.min_length} onChange={(e) => handleFilterChange('min_length', e.target.value)} placeholder="Min" className="focus:outline-none" style={inputStyle} />
-                      <input type="number" value={filters.max_length} onChange={(e) => handleFilterChange('max_length', e.target.value)} placeholder="Max" className="focus:outline-none" style={inputStyle} />
-                    </div>
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Price">
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" value={filters.min_price} onChange={(e) => handleFilterChange('min_price', e.target.value)} placeholder="Min" className="focus:outline-none" style={inputStyle} />
-                      <input type="number" value={filters.max_price} onChange={(e) => handleFilterChange('max_price', e.target.value)} placeholder="Max" className="focus:outline-none" style={inputStyle} />
-                    </div>
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Year">
-                    <input type="number" value={filters.min_year} onChange={(e) => handleFilterChange('min_year', e.target.value)} placeholder="Min year" className="w-full focus:outline-none" style={inputStyle} />
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Engine Details">
-                    <input type="text" placeholder="e.g. Twin diesel" className="w-full focus:outline-none" style={inputStyle} />
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Fuel">
-                    <input type="text" placeholder="Diesel / Gas" className="w-full focus:outline-none" style={inputStyle} />
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Hull Material">
-                    <input type="text" placeholder="Fibreglass, Steel…" className="w-full focus:outline-none" style={inputStyle} />
-                  </FilterRow>
-
-                  <FilterDivider />
-
-                  <FilterRow label="Country">
-                    <input type="text" placeholder="e.g. United States" className="w-full focus:outline-none" style={inputStyle} />
-                  </FilterRow>
-
-                  {/* Save Search + Apply */}
-                  <div className="pt-2 flex flex-col gap-3">
-                    <button
-                      onClick={handleSaveSearch}
-                      className="w-full py-3 font-medium transition-opacity hover:opacity-90"
-                      style={{
-                        backgroundColor: '#01BBDC',
-                        color: '#FFFFFF',
-                        borderRadius: 12,
-                        fontFamily: 'Poppins, sans-serif',
-                        fontSize: 16,
-                      }}
-                    >
-                      Save Search
-                    </button>
-                    <button
-                      onClick={applyFilters}
-                      className="w-full py-3 font-medium transition-opacity hover:opacity-90"
-                      style={{
-                        backgroundColor: '#10214F',
-                        color: '#FFFFFF',
-                        borderRadius: 12,
-                        fontFamily: 'Poppins, sans-serif',
-                        fontSize: 16,
-                      }}
-                    >
-                      Apply Filters
-                    </button>
-                  </div>
+                {/* Apply button */}
+                <div className="pt-3 pb-3">
+                  <button
+                    onClick={applyFilters}
+                    className="w-full py-3 font-medium transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: '#10214F',
+                      color: '#FFFFFF',
+                      borderRadius: 12,
+                      fontFamily: 'Poppins, sans-serif',
+                      fontSize: 15,
+                    }}
+                  >
+                    Apply Filters
+                  </button>
                 </div>
               </div>
             </div>
@@ -735,33 +703,47 @@ export default function UnifiedListingsPage() {
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 
-function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+function FilterAccordion({
+  label, isOpen, onToggle, children, noBorder = false,
+}: {
+  label: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  noBorder?: boolean;
+}) {
   return (
     <div>
-      <label
-        className="block mb-2"
-        style={{
-          color: '#10214F',
-          fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-          fontSize: 18,
-          lineHeight: '22px',
-          fontWeight: 400,
-        }}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between"
+        style={{ padding: '13px 0', background: 'none', border: 'none', cursor: 'pointer' }}
       >
-        {label}
-      </label>
-      {children}
+        <span style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 500 }}>
+          {label}
+        </span>
+        <ChevronDown
+          size={18}
+          style={{
+            color: '#10214F',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+            flexShrink: 0,
+          }}
+        />
+      </button>
+      {isOpen && (
+        <div style={{ paddingBottom: 12 }}>
+          {children}
+        </div>
+      )}
+      {!noBorder && <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)' }} />}
     </div>
   );
 }
 
-function FilterDivider() {
-  return (
-    <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 4, marginBottom: 4 }} />
-  );
-}
-
-const inputStyle: React.CSSProperties = {
+const accInputStyle: React.CSSProperties = {
   padding: '8px 12px',
   border: '1px solid rgba(0,0,0,0.15)',
   borderRadius: 6,
@@ -769,9 +751,10 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'Poppins, sans-serif',
   color: '#10214F',
   width: '100%',
+  backgroundColor: '#FFFFFF',
 };
 
-const selectStyle: React.CSSProperties = {
+const accSelectStyle: React.CSSProperties = {
   padding: '8px 12px',
   border: '1px solid rgba(0,0,0,0.15)',
   borderRadius: 6,
