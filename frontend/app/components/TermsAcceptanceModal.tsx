@@ -9,20 +9,24 @@ interface TermsAcceptanceModalProps {
   onAccepted: () => void;
   onDecline: () => void;
   userName?: string;
+  userType?: string;
 }
 
 export default function TermsAcceptanceModal({
   onAccepted,
   onDecline,
   userName,
+  userType,
 }: TermsAcceptanceModalProps) {
+  const isDealer = userType === 'dealer';
   const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedDealerTerms, setAgreedDealerTerms] = useState(false);
   const [agreedCommunications, setAgreedCommunications] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleAccept = async () => {
-    if (!agreedTerms || !agreedCommunications) return;
+    if (!agreedTerms || !agreedCommunications || (isDealer && !agreedDealerTerms)) return;
 
     setLoading(true);
     setError('');
@@ -90,25 +94,38 @@ export default function TermsAcceptanceModal({
           </p>
 
           {/* Links to legal pages */}
-          <div className="flex gap-3">
-            <Link
-              href="/terms"
-              target="_blank"
-              className="flex-1 flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-            >
-              <FileText size={16} className="text-primary shrink-0" />
-              Terms of Service
-              <ExternalLink size={12} className="ml-auto text-gray-400" />
-            </Link>
-            <Link
-              href="/privacy"
-              target="_blank"
-              className="flex-1 flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
-            >
-              <Shield size={16} className="text-primary shrink-0" />
-              Privacy Policy
-              <ExternalLink size={12} className="ml-auto text-gray-400" />
-            </Link>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-3">
+              <Link
+                href="/terms"
+                target="_blank"
+                className="flex-1 flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
+              >
+                <FileText size={16} className="text-primary shrink-0" />
+                Terms of Service
+                <ExternalLink size={12} className="ml-auto text-gray-400" />
+              </Link>
+              <Link
+                href="/privacy"
+                target="_blank"
+                className="flex-1 flex items-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
+              >
+                <Shield size={16} className="text-primary shrink-0" />
+                Privacy Policy
+                <ExternalLink size={12} className="ml-auto text-gray-400" />
+              </Link>
+            </div>
+            {isDealer && (
+              <Link
+                href="/terms/dealer"
+                target="_blank"
+                className="flex items-center gap-2 px-4 py-3 border border-[#01BBDC]/40 bg-[#01BBDC]/5 rounded-xl hover:bg-[#01BBDC]/10 transition-colors text-sm font-medium text-[#10214F]"
+              >
+                <FileText size={16} className="text-[#01BBDC] shrink-0" />
+                Dealer Services Agreement
+                <ExternalLink size={12} className="ml-auto text-gray-400" />
+              </Link>
+            )}
           </div>
 
           {/* Checkboxes */}
@@ -122,23 +139,27 @@ export default function TermsAcceptanceModal({
               />
               <span className="text-sm text-gray-700 group-hover:text-gray-900">
                 I agree to the{' '}
-                <Link
-                  href="/terms"
-                  target="_blank"
-                  className="text-primary underline hover:text-primary/80"
-                >
-                  Terms of Service
-                </Link>{' '}
+                <Link href="/terms" target="_blank" className="text-primary underline hover:text-primary/80">Terms of Service</Link>{' '}
                 and{' '}
-                <Link
-                  href="/privacy"
-                  target="_blank"
-                  className="text-primary underline hover:text-primary/80"
-                >
-                  Privacy Policy
-                </Link>
+                <Link href="/privacy" target="_blank" className="text-primary underline hover:text-primary/80">Privacy Policy</Link>
               </span>
             </label>
+
+            {isDealer && (
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={agreedDealerTerms}
+                  onChange={(e) => setAgreedDealerTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                  I have read and agree to the{' '}
+                  <Link href="/terms/dealer" target="_blank" className="text-primary underline hover:text-primary/80">Dealer Services Agreement</Link>,
+                  including website data import authorization, API co-brokering rights, and media licensing terms
+                </span>
+              </label>
+            )}
 
             <label className="flex items-start gap-3 cursor-pointer group">
               <input
@@ -165,7 +186,7 @@ export default function TermsAcceptanceModal({
           </button>
           <button
             onClick={handleAccept}
-            disabled={!agreedTerms || !agreedCommunications || loading}
+            disabled={!agreedTerms || !agreedCommunications || (isDealer && !agreedDealerTerms) || loading}
             className="px-6 py-2.5 text-sm font-medium text-white rounded-xl transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
           >

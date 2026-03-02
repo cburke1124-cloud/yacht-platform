@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState<string>('/dashboard');
   const [userName, setUserName] = useState<string | undefined>();
+  const [userType, setUserType] = useState<string | undefined>();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +65,7 @@ export default function LoginPage() {
       // Check if terms acceptance is needed (skip for admins)
       if (userData.user_type !== 'admin' && !userData.agreed_terms) {
         setUserName(userData.first_name || undefined);
+        setUserType(userData.user_type || undefined);
         setPendingRedirect(redirectTo);
         setShowTermsModal(true);
         return;
@@ -95,6 +97,7 @@ export default function LoginPage() {
           onAccepted={handleTermsAccepted}
           onDecline={handleTermsDecline}
           userName={userName}
+          userType={userType}
         />
       )}
     <div className="min-h-screen section-light flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">

@@ -79,6 +79,7 @@ function RegisterContent() {
     company_name: '',
     subscription_tier: 'basic',
     agree_terms: false,
+    agree_dealer_terms: false,
     agree_communications: false,
     marketing_opt_in: false,
     referral_code: '',
@@ -151,6 +152,10 @@ function RegisterContent() {
     }
     if (!formData.agree_terms) {
       setError('You must agree to the Terms and Privacy Policy');
+      return;
+    }
+    if (formData.user_type === 'dealer' && !formData.agree_dealer_terms) {
+      setError('Dealers must read and agree to the Dealer Services Agreement');
       return;
     }
     if (!formData.agree_communications) {
@@ -522,9 +527,28 @@ function RegisterContent() {
                   className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1"
                 />
                 <label htmlFor="terms" className="ml-2 block text-sm text-dark">
-                  I agree to the <Link href="/terms" className="text-primary hover:text-primary/90">Terms and Conditions</Link> and <Link href="/privacy" className="text-primary hover:text-primary/90">Privacy Policy</Link>. *
+                  I agree to the <Link href="/terms" target="_blank" className="text-primary hover:text-primary/90">Terms and Conditions</Link> and <Link href="/privacy" target="_blank" className="text-primary hover:text-primary/90">Privacy Policy</Link>. *
                 </label>
               </div>
+
+              {formData.user_type === 'dealer' && (
+                <div className="flex items-start">
+                  <input
+                    id="dealer-terms"
+                    type="checkbox"
+                    checked={formData.agree_dealer_terms}
+                    onChange={(e) => setFormData({ ...formData, agree_dealer_terms: e.target.checked })}
+                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1"
+                  />
+                  <label htmlFor="dealer-terms" className="ml-2 block text-sm text-dark">
+                    I have read and agree to the{' '}
+                    <Link href="/terms/dealer" target="_blank" className="text-primary hover:text-primary/90">
+                      Dealer Services Agreement
+                    </Link>
+                    , including website data import authorization, API co-brokering rights, and media licensing terms. *
+                  </label>
+                </div>
+              )}
 
               <div className="flex items-start">
                 <input
