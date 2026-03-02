@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Heart, Download, MapPin, Calendar, ArrowLeft, Mail,
   Ship, Share2, Facebook, Twitter, Linkedin,
@@ -13,6 +14,8 @@ import {
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
+
+const ListingDetailMap = dynamic(() => import('../../components/ListingDetailMap'), { ssr: false });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -931,34 +934,12 @@ export default function ListingDetailPage() {
 
             {/* LOCATION MAP */}
             <div className="rounded-3xl overflow-hidden border border-gray-200 shadow-lg" style={{ height: 280 }}>
-              {(listing.latitude && listing.longitude) || locationString ? (
-                listing.latitude && listing.longitude ? (
-                  <iframe
-                    src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY'}&q=${listing.latitude},${listing.longitude}&zoom=12`}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                ) : (
-                  <iframe
-                    src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY'}&q=${encodeURIComponent(locationString)}&zoom=10`}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                )
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-50 flex flex-col items-center justify-center">
-                  <MapPin size={48} className="text-gray-300 mb-3" />
-                  <p className="text-sm text-gray-400">Location not specified</p>
-                </div>
-              )}
+              <ListingDetailMap
+                latitude={listing.latitude}
+                longitude={listing.longitude}
+                locationString={locationString}
+                title={listing.title}
+              />
             </div>
 
             {/* FINANCE CALCULATOR */}
