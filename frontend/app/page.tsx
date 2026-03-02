@@ -545,16 +545,30 @@ export default function HomePage() {
               style={{
                 color: '#10214F',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 'clamp(26px, 3.2vw, 52px)',
-                lineHeight: 'clamp(32px, 4vw, 62px)',
+                fontSize: 'clamp(28px, 3.5vw, 56px)',
+                lineHeight: 'clamp(34px, 4.5vw, 67px)',
                 fontWeight: 700,
                 marginBottom: 18,
               }}
             >
-              Yachtversal Simplifies Your Buying Experience by Connecting Buyers and Listings in a Trusted, Intuitive Online Marketplace.
+              A Simpler Way to Buy and Sell Your Yacht
             </h1>
 
-            {/* Sub — Figma: Poppins 16/24, #10214F, width 590px, top 503 */}
+            {/* Sub line 1 */}
+            <p
+              style={{
+                color: '#10214F',
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 16,
+                lineHeight: '26px',
+                marginBottom: 12,
+                maxWidth: 640,
+              }}
+            >
+              Yachtversal Simplifies Your Buying Experience by Connecting Buyers and Listings in a Trusted, Intuitive Online Marketplace.
+            </p>
+
+            {/* Sub line 2 */}
             <p
               style={{
                 color: '#10214F',
