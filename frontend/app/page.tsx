@@ -69,9 +69,8 @@ function FeaturedCard({ listing }: { listing: Listing }) {
   return (
     <Link href={`/listings/${listing.id}`} className="block group h-full">
       <div
-        className="bg-white overflow-hidden transition-shadow duration-300 group-hover:shadow-2xl flex flex-col"
-        style={{ border: '1px solid #DBDBDB', borderRadius: 12 }}
         className="bg-white overflow-hidden transition-shadow duration-300 group-hover:shadow-2xl flex flex-col h-[380px] sm:h-[480px]"
+        style={{ border: '1px solid #DBDBDB', borderRadius: 12 }}
       >
         {/* Image — responsive height */}
         <div className="relative w-full flex-shrink-0 overflow-hidden h-[220px] sm:h-[317px]">
