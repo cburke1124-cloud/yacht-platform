@@ -20,6 +20,96 @@ const SEL = [
   'cursor-pointer shrink-0',
 ].join(' ');
 
+// ─── Price helpers ─────────────────────────────────────────────────────────
+function fmtPrice(v: number): string {
+  if (v >= 1_000_000) {
+    const m = v / 1_000_000;
+    return `$${m % 1 === 0 ? m : m.toFixed(1)}M`;
+  }
+  if (v >= 1_000) return `$${Math.round(v / 1_000)}K`;
+  return `$${v.toLocaleString()}`;
+}
+
+// ─── Dual range slider ─────────────────────────────────────────────────────
+interface SliderProps {
+  min: number;
+  max: number;
+  low: number;
+  high: number;
+  onLow: (v: number) => void;
+  onHigh: (v: number) => void;
+}
+
+function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: SliderProps) {
+  const range = max - min || 1;
+  const pct   = (v: number) => ((v - min) / range) * 100;
+
+  const handleLow = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    if (v < high) onLow(v);
+  };
+  const handleHigh = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    if (v > low) onHigh(v);
+  };
+
+  const thumbStyle: React.CSSProperties = {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    opacity: 0,
+    cursor: 'pointer',
+    margin: 0,
+    padding: 0,
+    pointerEvents: 'auto',
+    WebkitAppearance: 'none',
+  };
+
+  return (
+    <div className="flex flex-col justify-center shrink-0" style={{ width: 180 }}>
+      {/* Label */}
+      <div
+        className="text-center"
+        style={{ fontSize: 11, color: '#10214F', fontFamily: 'Poppins, sans-serif', marginBottom: 3, fontWeight: 500 }}
+      >
+        {fmtPrice(low)} &ndash; {fmtPrice(high)}
+      </div>
+
+      {/* Track container */}
+      <div className="relative" style={{ height: 20, pointerEvents: 'none' }}>
+        {/* grey base track */}
+        <div
+          style={{
+            position: 'absolute', top: 8, left: 0, right: 0,
+            height: 4, background: '#E5E7EB', borderRadius: 2,
+          }}
+        />
+        {/* cyan active track */}
+        <div
+          style={{
+            position: 'absolute', top: 8,
+            left: `${pct(low)}%`,
+            right: `${100 - pct(high)}%`,
+            height: 4, background: '#01BBDC', borderRadius: 2,
+          }}
+        />
+        {/* low thumb */}
+        <input
+          type="range" min={min} max={max} step={Math.round(range / 200) || 1}
+          value={low} onChange={handleLow}
+          style={{ ...thumbStyle, zIndex: low > max - range * 0.1 ? 5 : 3 }}
+        />
+        {/* high thumb */}
+        <input
+          type="range" min={min} max={max} step={Math.round(range / 200) || 1}
+          value={high} onChange={handleHigh}
+          style={{ ...thumbStyle, zIndex: 4 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface SearchBarProps {
   onSearch?: (filters: any) => void;
   showAIOption?: boolean;
@@ -33,8 +123,10 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
   const [propulsion, setPropulsion] = useState('');   // 'power' | 'sail' | ''
   const [boatType,   setBoatType]   = useState('');
   const [make,       setMake]       = useState('');
-  const [priceMin,   setPriceMin]   = useState('');
-  const [priceMax,   setPriceMax]   = useState('');
+  const [rangeMin,   setRangeMin]   = useState(0);
+  const [rangeMax,   setRangeMax]   = useState(10_000_000);
+  const [lowVal,     setLowVal]     = useState(0);
+  const [highVal,    setHighVal]    = useState(10_000_000);
   const [makes,      setMakes]      = useState<string[]>([]);
 
   // Fetch distinct makes from backend
@@ -42,6 +134,23 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
     fetch(apiUrl('/listings/makes'))
       .then((r) => r.ok ? r.json() : [])
       .then((data: string[]) => setMakes(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  // Fetch live price range from backend
+  useEffect(() => {
+    fetch(apiUrl('/listings/price-range'))
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: { min: number; max: number } | null) => {
+        if (data) {
+          const lo = Math.floor(data.min / 1000) * 1000;
+          const hi = Math.ceil(data.max / 1000) * 1000;
+          setRangeMin(lo);
+          setRangeMax(hi);
+          setLowVal(lo);
+          setHighVal(hi);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -64,8 +173,8 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
     if (propulsion && !boatType) params.set('propulsion', propulsion);
     if (boatType)        params.set('boat_type',  boatType);
     if (make)            params.set('make',       make);
-    if (priceMin)        params.set('min_price',  priceMin);
-    if (priceMax)        params.set('max_price',  priceMax);
+    if (lowVal  > rangeMin) params.set('min_price', String(lowVal));
+    if (highVal < rangeMax) params.set('max_price', String(highVal));
 
     const qs = params.toString();
 
@@ -125,45 +234,32 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
 
         <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-        {/* ── Price Range ── */}
-        <input
-          type="number"
-          placeholder="Min $"
-          value={priceMin}
-          onChange={(e) => setPriceMin(e.target.value)}
-          className="h-10 px-3 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0"
-          style={{ minWidth: 82 }}
-          min="0"
-        />
-        <span className="hidden sm:block text-gray-200 select-none">–</span>
-        <input
-          type="number"
-          placeholder="Max $"
-          value={priceMax}
-          onChange={(e) => setPriceMax(e.target.value)}
-          className="h-10 px-3 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0"
-          style={{ minWidth: 82 }}
-          min="0"
+        {/* ── Price Range Slider ── */}
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
+        <PriceRangeSlider
+          min={rangeMin} max={rangeMax}
+          low={lowVal}   high={highVal}
+          onLow={setLowVal} onHigh={setHighVal}
         />
 
-        {/* ── Search button ── */}
-        <button
-          type="submit"
-          className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0 ml-auto"
-        >
-          <Search size={15} />
-          Search
-        </button>
-
-        {/* ── Advanced Search ── */}
-        <button
-          type="button"
-          onClick={() => router.push('/listings')}
-          className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200"
-        >
-          <SlidersHorizontal size={13} />
-          Advanced Search
-        </button>
+        {/* ── Action buttons ── */}
+        <div className="flex items-center gap-2 shrink-0 ml-auto">
+          <button
+            type="submit"
+            className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
+          >
+            <Search size={15} />
+            Search
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/listings')}
+            className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200"
+          >
+            <SlidersHorizontal size={13} />
+            Advanced Search
+          </button>
+        </div>
       </div>
     </form>
   );

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from typing import Optional, Any
 from functools import lru_cache
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, func
 import logging
 
 from app.db.session import get_db
@@ -299,6 +299,22 @@ def get_distinct_makes(db: Session = Depends(get_db)):
         return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
     except Exception:
         return []
+
+
+@router.get("/price-range")
+def get_price_range(db: Session = Depends(get_db)):
+    """Return the min and max price of active listings with a price set."""
+    try:
+        result = (
+            db.query(func.min(Listing.price), func.max(Listing.price))
+            .filter(Listing.status == "active", Listing.price.isnot(None), Listing.price > 0)
+            .first()
+        )
+        lo = int(result[0]) if result and result[0] else 0
+        hi = int(result[1]) if result and result[1] else 10_000_000
+        return {"min": lo, "max": hi}
+    except Exception:
+        return {"min": 0, "max": 10_000_000}
 
 
 @router.get("/models")
