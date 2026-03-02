@@ -93,6 +93,10 @@ function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: SliderProps) {
             height: 4, background: '#01BBDC', borderRadius: 2,
           }}
         />
+        {/* left end-cap dot */}
+        <div style={{ position: 'absolute', top: 6, left: 0, width: 8, height: 8, borderRadius: '50%', background: pct(low) <= 2 ? '#01BBDC' : '#E5E7EB', zIndex: 1 }} />
+        {/* right end-cap dot */}
+        <div style={{ position: 'absolute', top: 6, right: 0, width: 8, height: 8, borderRadius: '50%', background: pct(high) >= 98 ? '#01BBDC' : '#E5E7EB', zIndex: 1 }} />
         {/* low thumb */}
         <input
           type="range" min={min} max={max} step={Math.round(range / 200) || 1}
@@ -242,24 +246,24 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
           onLow={setLowVal} onHigh={setHighVal}
         />
 
-        {/* ── Action buttons ── */}
-        <div className="flex items-center gap-2 shrink-0 ml-auto">
-          <button
-            type="submit"
-            className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
-          >
-            <Search size={15} />
-            Search
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push('/listings')}
-            className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200"
-          >
-            <SlidersHorizontal size={13} />
-            Advanced Search
-          </button>
-        </div>
+        {/* ── Search button (directly after slider) ── */}
+        <button
+          type="submit"
+          className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
+        >
+          <Search size={15} />
+          Search
+        </button>
+
+        {/* ── Advanced Search (far right) ── */}
+        <button
+          type="button"
+          onClick={() => router.push('/listings')}
+          className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200 ml-auto"
+        >
+          <SlidersHorizontal size={13} />
+          Advanced Search
+        </button>
       </div>
     </form>
   );

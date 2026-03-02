@@ -4,7 +4,10 @@ from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json
+import os
 from datetime import datetime
+
+import anthropic as _anthropic
 
 from app.db.session import get_db
 from app.models.listing import Listing
@@ -74,43 +77,26 @@ Key conversions:
 
 Return ONLY valid JSON, no markdown or explanations."""
 
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return SearchCriteria(features=[query.lower()])
+
     try:
-        response = await fetch("https://api.anthropic.com/v1/messages", {
-            "method": "POST",
-            "headers": {
-                "Content-Type": "application/json",
-            },
-            "body": json.dumps({
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 1000,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ]
-            })
-        })
-        
-        data = await response.json()
-        content = data["content"][0]["text"]
-        
-        # Clean up response (remove markdown if present)
-        content = content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-        
-        criteria_dict = json.loads(content)
-        return SearchCriteria(**criteria_dict)
-        
-    except Exception as e:
-        # Fallback to basic keyword extraction
-        return SearchCriteria(
-            features=[query.lower()],
-            use_case=None
+        client = _anthropic.AsyncAnthropic(api_key=api_key)
+        message = await client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
         )
+        content = message.content[0].text.strip()
+        # Strip markdown fences if present
+        if content.startswith("```json"): content = content[7:]
+        if content.startswith("```"):     content = content[3:]
+        if content.endswith("```"):       content = content[:-3]
+        criteria_dict = json.loads(content.strip())
+        return SearchCriteria(**criteria_dict)
+    except Exception:
+        return SearchCriteria(features=[query.lower()])
 
 
 def score_listing(listing: Listing, criteria: SearchCriteria, query: str) -> ScoredListing:
@@ -316,6 +302,19 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str) -> Sco
         match_reasons=match_reasons,
         warnings=warnings if warnings else None
     )
+
+
+@router.get("/ai/search")
+async def ai_search_get(
+    query: str,
+    db: Session = Depends(get_db)
+):
+    """
+    GET version of AI search — called by the listings page.
+    Accepts ?query= and returns the same shape as the POST endpoint.
+    """
+    request = AISearchRequest(query=query)
+    return await ai_search(request, db)
 
 
 @router.post("/ai")
