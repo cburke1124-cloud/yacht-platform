@@ -354,6 +354,7 @@ def get_listings(
     max_year: Optional[int] = None,
     city: Optional[str] = None,
     state: Optional[str] = None,
+    country: Optional[str] = None,
     fuel: Optional[str] = None,
     hull_material: Optional[str] = None,
     engine: Optional[str] = None,
@@ -396,6 +397,8 @@ def get_listings(
             q = q.filter(Listing.city.ilike(f"%{city}%"))
         if state:
             q = q.filter(Listing.state.ilike(f"%{state}%"))
+        if country:
+            q = q.filter(Listing.country.ilike(f"%{country}%"))
         if fuel:
             q = q.filter(Listing.fuel_type.ilike(f"%{fuel}%"))
         if hull_material:
@@ -538,6 +541,9 @@ def get_listings(
             "length_feet": l.length_feet,
             "city": l.city,
             "state": l.state,
+            "country": l.country,
+            "latitude": l.latitude,
+            "longitude": l.longitude,
             "status": l.status,
             "views": l.views or 0,
             "featured": l.featured or False,

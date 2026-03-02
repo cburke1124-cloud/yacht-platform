@@ -18,6 +18,9 @@ interface Listing {
   boat_type: string;
   city: string;
   state: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
   cabins?: number;
   images: Array<{ url: string }>;
   condition: string;
@@ -181,6 +184,12 @@ function UnifiedListingsContent() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchType, setSearchType] = useState<'basic' | 'ai'>('basic');
   const [aiQuery, setAiQuery] = useState('');
+  const [sort, setSort] = useState<'nearest' | 'price_asc' | 'price_desc' | 'year_desc' | 'year_asc'>('nearest');
+  const [sortOpen, setSortOpen] = useState(false);
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+  const [centerLat, setCenterLat] = useState<number | null>(null);
+  const [centerLng, setCenterLng] = useState<number | null>(null);
 
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
@@ -201,6 +210,9 @@ function UnifiedListingsContent() {
     hull_material: searchParams.get('hull_material') || '',
     engine: searchParams.get('engine') || '',
     brokerage: searchParams.get('brokerage') || '',
+    country: searchParams.get('country') || '',
+    location_query: searchParams.get('location_query') || '',
+    max_distance: searchParams.get('max_distance') || '',
   });
 
   const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
@@ -236,6 +248,16 @@ function UnifiedListingsContent() {
 
   useEffect(() => { fetchListings(); }, []);
 
+  // Request browser geolocation for nearest-first sort
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { setUserLat(pos.coords.latitude); setUserLng(pos.coords.longitude); },
+        () => {}
+      );
+    }
+  }, []);
+
   const fetchListings = async (isAISearch = false) => {
     setLoading(true);
     try {
@@ -243,8 +265,9 @@ function UnifiedListingsContent() {
       if (isAISearch && aiQuery) {
         url = apiUrl(`/ai/search?query=${encodeURIComponent(aiQuery)}`);
       } else {
+        const skipKeys = new Set(['location_query', 'max_distance']);
         Object.entries(filters).forEach(([key, value]) => {
-          if (value) url += `&${key}=${encodeURIComponent(value)}`;
+          if (value && !skipKeys.has(key)) url += `&${key}=${encodeURIComponent(value)}`;
         });
       }
       const response = await fetch(url);
@@ -261,10 +284,33 @@ function UnifiedListingsContent() {
   const handleFilterChange = (key: string, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const applyFilters = () => fetchListings(searchType === 'ai');
+  const geocodeLocation = async (query: string): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+        { headers: { 'User-Agent': 'YachtVersal/1.0' } }
+      );
+      const data = await res.json();
+      if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch { /* ignore */ }
+    return null;
+  };
+
+  const applyFilters = async () => {
+    if (filters.location_query && filters.max_distance) {
+      const coords = await geocodeLocation(filters.location_query);
+      setCenterLat(coords ? coords.lat : null);
+      setCenterLng(coords ? coords.lng : null);
+    } else {
+      setCenterLat(null);
+      setCenterLng(null);
+    }
+    fetchListings(searchType === 'ai');
+  };
 
   const clearFilters = () => {
-    setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '' });
+    setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '', country: '', location_query: '', max_distance: '' });
+    setCenterLat(null); setCenterLng(null);
     setAiQuery('');
     setSearchType('basic');
     fetchListings(false);
@@ -295,6 +341,45 @@ function UnifiedListingsContent() {
       alert(response.ok ? 'Search saved successfully!' : 'Failed to save search');
     } catch { alert('Failed to save search'); }
   };
+
+  const SORT_OPTIONS = [
+    { value: 'nearest',    label: 'Nearest First' },
+    { value: 'price_asc',  label: 'Price: Low to High' },
+    { value: 'price_desc', label: 'Price: High to Low' },
+    { value: 'year_desc',  label: 'Year: Newest First' },
+    { value: 'year_asc',   label: 'Year: Oldest First' },
+  ];
+
+  const haversineMiles = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 3958.8;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  let processedListings = [...listings];
+  if (centerLat !== null && centerLng !== null && filters.max_distance) {
+    const maxDist = parseFloat(filters.max_distance);
+    processedListings = processedListings.filter((l) =>
+      (!l.latitude || !l.longitude) ? true : haversineMiles(centerLat!, centerLng!, l.latitude, l.longitude) <= maxDist
+    );
+  }
+  processedListings.sort((a, b) => {
+    if (sort === 'nearest' && userLat !== null && userLng !== null) {
+      const da = (a.latitude && a.longitude) ? haversineMiles(userLat, userLng, a.latitude, a.longitude) : Infinity;
+      const db = (b.latitude && b.longitude) ? haversineMiles(userLat, userLng, b.latitude, b.longitude) : Infinity;
+      return da - db;
+    }
+    if (sort === 'price_asc')  return (a.price || 0) - (b.price || 0);
+    if (sort === 'price_desc') return (b.price || 0) - (a.price || 0);
+    if (sort === 'year_desc')  return (b.year  || 0) - (a.year  || 0);
+    if (sort === 'year_asc')   return (a.year  || 0) - (b.year  || 0);
+    return 0;
+  });
+  const pinnedFeatured = processedListings.filter((l) => l.featured).slice(0, 4);
+  const pinnedIds = new Set(pinnedFeatured.map((l) => l.id));
+  const regularListings = processedListings.filter((l) => !pinnedIds.has(l.id));
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
@@ -338,7 +423,7 @@ function UnifiedListingsContent() {
                 color: '#000000',
               }}
             >
-              {listings.length.toLocaleString()} yacht{listings.length !== 1 ? 's' : ''} found
+              {processedListings.length.toLocaleString()} yacht{processedListings.length !== 1 ? 's' : ''} found
             </span>
             {searchType === 'ai' && (
               <span
@@ -415,7 +500,42 @@ function UnifiedListingsContent() {
             >
               <div className="p-4">
 
-                {/* ── Apply Filters (top) ── */}
+                {/* ── Sort dropdown ── */}
+                <div className="relative mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setSortOpen((v) => !v)}
+                    className="w-full flex items-center justify-between py-2.5 px-4 font-medium transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
+                  >
+                    <span>{SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Sort By'}</span>
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${sortOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {sortOpen && (
+                    <div
+                      className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl overflow-hidden z-50"
+                      style={{ border: '1px solid rgba(0,0,0,0.1)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
+                    >
+                      {SORT_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-gray-50"
+                          style={{
+                            fontFamily: 'Poppins, sans-serif',
+                            color: sort === opt.value ? '#01BBDC' : '#10214F',
+                            fontWeight: sort === opt.value ? 600 : 400,
+                          }}
+                          onClick={() => { setSort(opt.value as typeof sort); setSortOpen(false); }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Apply Filters ── */}
                 <button
                   onClick={applyFilters}
                   className="w-full py-3 font-medium transition-opacity hover:opacity-90 mb-1"
@@ -521,10 +641,23 @@ function UnifiedListingsContent() {
                   </FilterAccordion>
 
                   <FilterAccordion label="Location" isOpen={!!openSections.location} onToggle={() => toggleSection('location')}>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2 mb-2">
                       <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" style={accInputStyle} className="focus:outline-none" />
                       <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State" style={accInputStyle} className="focus:outline-none" />
                     </div>
+                    <input type="text" value={filters.country} onChange={(e) => handleFilterChange('country', e.target.value)} placeholder="Country" style={{ ...accInputStyle, marginBottom: 8 }} className="focus:outline-none" />
+                    <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginBottom: 8 }} />
+                    <p style={{ fontSize: 11, color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif', marginBottom: 6 }}>Filter by distance from a location</p>
+                    <input type="text" value={filters.location_query} onChange={(e) => handleFilterChange('location_query', e.target.value)} placeholder="Zip, city, or address" style={{ ...accInputStyle, marginBottom: 6 }} className="focus:outline-none" />
+                    <select value={filters.max_distance} onChange={(e) => handleFilterChange('max_distance', e.target.value)} style={accInputStyle} className="focus:outline-none">
+                      <option value="">Any distance</option>
+                      <option value="25">Within 25 miles</option>
+                      <option value="50">Within 50 miles</option>
+                      <option value="100">Within 100 miles</option>
+                      <option value="250">Within 250 miles</option>
+                      <option value="500">Within 500 miles</option>
+                      <option value="1000">Within 1,000 miles</option>
+                    </select>
                   </FilterAccordion>
 
                   <FilterAccordion label="Engine Details" isOpen={!!openSections.engine} onToggle={() => toggleSection('engine')}>
@@ -553,17 +686,6 @@ function UnifiedListingsContent() {
                     <input type="text" value={filters.brokerage} onChange={(e) => handleFilterChange('brokerage', e.target.value)} placeholder="Any brokerage" style={accInputStyle} className="w-full focus:outline-none" />
                   </FilterAccordion>
 
-                </div>
-
-                {/* ── Save Search (bottom) ── */}
-                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 4, paddingTop: 12, paddingBottom: 4 }}>
-                  <button
-                    onClick={handleSaveSearch}
-                    className="w-full py-2.5 font-medium transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
-                  >
-                    Save Search
-                  </button>
                 </div>
 
               </div>
@@ -617,12 +739,62 @@ function UnifiedListingsContent() {
                   </div>
                 )}
 
-                {/* ── 3-column grid ── */}
+                {/* ── Featured strip ── */}
+                {pinnedFeatured.length > 0 && (
+                  <div className="mb-6">
+                    <p
+                      className="mb-3 text-xs font-semibold uppercase tracking-wider"
+                      style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      ★ Featured Listings
+                    </p>
+                    <div
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+                      style={{ gap: 16 }}
+                    >
+                      {pinnedFeatured.map((listing) => (
+                        <div key={`featured-${listing.id}`} className="relative">
+                          <div
+                            className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full text-xs font-semibold"
+                            style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+                          >
+                            Featured
+                          </div>
+                          <ListingCard
+                            id={listing.id}
+                            title={listing.title}
+                            price={listing.price}
+                            year={listing.year}
+                            make={listing.make}
+                            model={listing.model}
+                            boatType={listing.boat_type}
+                            cabins={listing.cabins}
+                            length={listing.length_feet}
+                            city={listing.city}
+                            state={listing.state}
+                            images={listing.images.map((img) => (typeof img === 'string' ? img : img.url))}
+                            condition={listing.condition}
+                            featured={listing.featured}
+                            dealerInfo={listing.dealer ? {
+                              name: listing.dealer.name || '',
+                              company: listing.dealer.company_name || '',
+                              slug: listing.dealer.slug,
+                              logoUrl: listing.dealer.logo_url,
+                            } : undefined}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', marginTop: 16, marginBottom: 20 }} />
+                  </div>
+                )}
+
+                {/* ── All Results grid ── */}
                 <div
                   className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
                   style={{ gap: 24 }}
                 >
-                  {listings.map((listing) => (
+                  {regularListings.map((listing) => (
                     <div key={listing.id} className="relative">
                       {/* AI Match Score Badge */}
                       {listing.match_score !== undefined && (
