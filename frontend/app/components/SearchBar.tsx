@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/app/lib/apiRoot';
@@ -41,73 +41,101 @@ interface SliderProps {
 }
 
 function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: SliderProps) {
+  const trackRef  = useRef<HTMLDivElement>(null);
+  const dragging  = useRef<'low' | 'high' | null>(null);
   const range = max - min || 1;
   const pct   = (v: number) => ((v - min) / range) * 100;
 
-  const handleLow = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = Number(e.target.value);
-    if (v < high) onLow(v);
-  };
-  const handleHigh = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = Number(e.target.value);
-    if (v > low) onHigh(v);
+  const valueFromPointer = useCallback((clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return min;
+    const { left, width } = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - left) / width));
+    const step  = Math.round(range / 200) || 1;
+    return Math.round((min + ratio * range) / step) * step;
+  }, [min, range]);
+
+  const onPointerMove = useCallback((e: PointerEvent) => {
+    if (!dragging.current) return;
+    const val = valueFromPointer(e.clientX);
+    if (dragging.current === 'low'  && val < high) onLow(val);
+    if (dragging.current === 'high' && val > low)  onHigh(val);
+  }, [valueFromPointer, low, high, onLow, onHigh]);
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = null;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup',   onPointerUp);
+  }, [onPointerMove]);
+
+  const startDrag = (which: 'low' | 'high') => (e: React.PointerEvent) => {
+    e.preventDefault();
+    dragging.current = which;
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup',   onPointerUp);
   };
 
-  const thumbStyle: React.CSSProperties = {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    opacity: 0,
-    cursor: 'pointer',
-    margin: 0,
-    padding: 0,
-    pointerEvents: 'auto',
-    WebkitAppearance: 'none',
-  };
+  const HANDLE = 14; // diameter px
 
   return (
-    <div className="flex flex-col justify-center shrink-0" style={{ width: 180 }}>
-      {/* Label */}
+    <div className="flex flex-col justify-center shrink-0" style={{ width: 190 }}>
+      {/* Price label */}
       <div
         className="text-center"
-        style={{ fontSize: 11, color: '#10214F', fontFamily: 'Poppins, sans-serif', marginBottom: 3, fontWeight: 500 }}
+        style={{ fontSize: 11, color: '#10214F', fontFamily: 'Poppins, sans-serif', marginBottom: 4, fontWeight: 600, letterSpacing: '0.01em' }}
       >
-        {fmtPrice(low)} &ndash; {fmtPrice(high)}
+        {fmtPrice(low)}&nbsp;&ndash;&nbsp;{fmtPrice(high)}
       </div>
 
-      {/* Track container */}
-      <div className="relative" style={{ height: 20, pointerEvents: 'none' }}>
-        {/* grey base track */}
+      {/* Track */}
+      <div
+        ref={trackRef}
+        style={{ position: 'relative', height: HANDLE, margin: `0 ${HANDLE / 2}px`, cursor: 'default' }}
+      >
+        {/* Base line */}
+        <div style={{
+          position: 'absolute', top: '50%', left: 0, right: 0,
+          height: 3, marginTop: -1.5, background: '#E5E7EB', borderRadius: 2,
+        }} />
+        {/* Active range line */}
+        <div style={{
+          position: 'absolute', top: '50%', marginTop: -1.5, height: 3,
+          left: `${pct(low)}%`, width: `${pct(high) - pct(low)}%`,
+          background: '#01BBDC', borderRadius: 2,
+        }} />
+        {/* Low handle */}
         <div
+          onPointerDown={startDrag('low')}
           style={{
-            position: 'absolute', top: 8, left: 0, right: 0,
-            height: 4, background: '#E5E7EB', borderRadius: 2,
-          }}
-        />
-        {/* cyan active track */}
-        <div
-          style={{
-            position: 'absolute', top: 8,
+            position: 'absolute', top: '50%',
             left: `${pct(low)}%`,
-            right: `${100 - pct(high)}%`,
-            height: 4, background: '#01BBDC', borderRadius: 2,
+            transform: 'translate(-50%, -50%)',
+            width: HANDLE, height: HANDLE,
+            borderRadius: '50%',
+            background: '#01BBDC',
+            border: '2px solid #FFFFFF',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+            cursor: 'grab',
+            zIndex: 3,
+            touchAction: 'none',
           }}
         />
-        {/* left end-cap dot */}
-        <div style={{ position: 'absolute', top: 6, left: 0, width: 8, height: 8, borderRadius: '50%', background: pct(low) <= 2 ? '#01BBDC' : '#E5E7EB', zIndex: 1 }} />
-        {/* right end-cap dot */}
-        <div style={{ position: 'absolute', top: 6, right: 0, width: 8, height: 8, borderRadius: '50%', background: pct(high) >= 98 ? '#01BBDC' : '#E5E7EB', zIndex: 1 }} />
-        {/* low thumb */}
-        <input
-          type="range" min={min} max={max} step={Math.round(range / 200) || 1}
-          value={low} onChange={handleLow}
-          style={{ ...thumbStyle, zIndex: low > max - range * 0.1 ? 5 : 3 }}
-        />
-        {/* high thumb */}
-        <input
-          type="range" min={min} max={max} step={Math.round(range / 200) || 1}
-          value={high} onChange={handleHigh}
-          style={{ ...thumbStyle, zIndex: 4 }}
+        {/* High handle */}
+        <div
+          onPointerDown={startDrag('high')}
+          style={{
+            position: 'absolute', top: '50%',
+            left: `${pct(high)}%`,
+            transform: 'translate(-50%, -50%)',
+            width: HANDLE, height: HANDLE,
+            borderRadius: '50%',
+            background: '#01BBDC',
+            border: '2px solid #FFFFFF',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
+            cursor: 'grab',
+            zIndex: 3,
+            touchAction: 'none',
+          }}
         />
       </div>
     </div>
