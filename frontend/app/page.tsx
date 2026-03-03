@@ -607,11 +607,12 @@ export default function HomePage() {
               style={{
                 color: '#01BBDC',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 'clamp(14px, 1.2vw, 18px)',
+                fontSize: 'clamp(11px, 1.1vw, 18px)',
                 fontWeight: 600,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 marginBottom: 40,
+                whiteSpace: 'nowrap',
               }}
             >
               Search Globally.&nbsp; Connect Confidently.&nbsp; Move Forward With Clarity.
