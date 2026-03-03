@@ -515,7 +515,7 @@ export default function HomePage() {
         {/* Background photo */}
         <div className="absolute inset-0">
           <Image
-            src="/images/hero-yacht.jpg"
+            src="/images/hero-yacht.png"
             alt="Luxury yacht at sea"
             aria-hidden={true}
             fill
