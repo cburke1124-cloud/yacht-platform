@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from datetime import datetime
 from typing import Optional
 import secrets
+import sys
+import platform
+import os
+import time
+import logging
+
+from app.core.logging import memory_log_handler
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
@@ -1408,4 +1415,146 @@ def get_admin_stats(
             "monthly": monthly_revenue,
             "annual": monthly_revenue * 12
         }
+    }
+
+
+# ============= SYSTEM / DIAGNOSTICS =============
+
+_app_start_time = time.time()
+
+
+@router.get("/logs")
+def get_logs(
+    level: str = Query(default="ALL", description="Filter by level: ALL DEBUG INFO WARNING ERROR CRITICAL"),
+    search: str = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=2000),
+    current_user: User = Depends(require_admin),
+):
+    """Return recent in-memory log records."""
+    records = memory_log_handler.get_records(level=level, search=search, limit=limit)
+    return {
+        "count": len(records),
+        "total_in_buffer": memory_log_handler.entry_count,
+        "records": records,
+    }
+
+
+@router.post("/logs/clear")
+def clear_logs(current_user: User = Depends(require_admin)):
+    """Clear the in-memory log buffer."""
+    before = memory_log_handler.entry_count
+    memory_log_handler.clear()
+    return {"cleared": before, "message": "Log buffer cleared"}
+
+
+@router.post("/logs/test")
+def test_logging(current_user: User = Depends(require_admin)):
+    """Write one test entry at every log level — useful to verify logging is wired up."""
+    logger = logging.getLogger("yachtversal")
+    logger.debug("[ADMIN TEST] Debug-level test entry")
+    logger.info("[ADMIN TEST] Info-level test entry")
+    logger.warning("[ADMIN TEST] Warning-level test entry")
+    logger.error("[ADMIN TEST] Error-level test entry")
+    return {"message": "Test log entries written at DEBUG / INFO / WARNING / ERROR"}
+
+
+@router.get("/system/health")
+def system_health(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Run a suite of health checks and return status for each subsystem."""
+    results = {}
+
+    # Database connectivity
+    try:
+        db.execute(text("SELECT 1"))
+        results["database"] = {"status": "ok", "message": "Connection successful"}
+    except Exception as exc:
+        results["database"] = {"status": "error", "message": str(exc)}
+
+    # Database table row counts
+    try:
+        table_counts = {
+            "users": db.query(User).count(),
+            "listings": db.query(Listing).count(),
+            "media_files": db.query(MediaFile).count(),
+        }
+        results["table_counts"] = {"status": "ok", "counts": table_counts}
+    except Exception as exc:
+        results["table_counts"] = {"status": "error", "message": str(exc)}
+
+    # Storage health (re-uses existing helper)
+    try:
+        storage = get_storage_health()
+        results["storage"] = storage
+    except Exception as exc:
+        results["storage"] = {"status": "error", "message": str(exc)}
+
+    # Environment variable presence check
+    env_vars = [
+        "DATABASE_URL",
+        "SECRET_KEY",
+        "SENDGRID_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "CLOUDFLARE_R2_BUCKET",
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_R2_ACCESS_KEY",
+        "CLOUDFLARE_R2_SECRET_KEY",
+        "FRONTEND_URL",
+        "AUTO_CREATE_TABLES",
+    ]
+    env_status = {
+        v: ("set" if os.environ.get(v) else "missing") for v in env_vars
+    }
+    results["env_vars"] = env_status
+
+    # Scheduler — check if APScheduler is running
+    try:
+        from app.core.scheduler import scheduler as apscheduler
+        results["scheduler"] = {
+            "status": "ok" if apscheduler.running else "stopped",
+            "jobs": len(apscheduler.get_jobs()),
+        }
+    except Exception as exc:
+        results["scheduler"] = {"status": "error", "message": str(exc)}
+
+    # Email service
+    sendgrid_key = os.environ.get("SENDGRID_API_KEY", "")
+    results["email"] = {
+        "status": "ok" if sendgrid_key else "missing_key",
+        "provider": "SendGrid",
+    }
+
+    results["generated_at"] = datetime.utcnow().isoformat()
+    return results
+
+
+@router.get("/system/info")
+def system_info(current_user: User = Depends(require_admin)):
+    """Return runtime environment information."""
+    uptime_seconds = int(time.time() - _app_start_time)
+    hours, remainder = divmod(uptime_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{hours}h {minutes}m {seconds}s"
+
+    log_file_info = {"path": "logs/yachtversal.log", "size_bytes": None, "exists": False}
+    try:
+        import pathlib
+        lf = pathlib.Path("logs/yachtversal.log")
+        if lf.exists():
+            log_file_info["exists"] = True
+            log_file_info["size_bytes"] = lf.stat().st_size
+    except Exception:
+        pass
+
+    return {
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "architecture": platform.machine(),
+        "uptime_seconds": uptime_seconds,
+        "uptime_human": uptime_str,
+        "log_buffer_entries": memory_log_handler.entry_count,
+        "log_file": log_file_info,
+        "pid": os.getpid(),
     }

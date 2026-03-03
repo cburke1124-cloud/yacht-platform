@@ -11,6 +11,7 @@ import AdminScraperTab from '@/app/components/admin/AdminScraperTab';
 import AdminSettingsPage from '@/app/admin/settings/page';
 import AdminSalesRepTab from '@/app/components/admin/AdminSalesRepTab';
 import AdminMediaDashboard from '@/app/components/admin/AdminMediaDashboard';
+import AdminSystemTab from '@/app/components/admin/AdminSystemTab';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3 } from 'lucide-react';
 
@@ -28,7 +29,8 @@ function AdminPageContent() {
     { id: 'scraper', label: 'Scraper', icon: '🔍' },
     { id: 'analytics', label: 'Analytics', icon: '📈' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
-    { id: 'sales-reps', label: 'Sales Reps', icon: '💼' }
+    { id: 'sales-reps', label: 'Sales Reps', icon: '💼' },
+    { id: 'system', label: 'System', icon: '🛠️' }
   ];
 
   return (
@@ -71,6 +73,7 @@ function AdminPageContent() {
           {activeTab === 'scraper' && <AdminScraperTab />}
           {activeTab === 'analytics' && <AdminAnalyticsTab />}
           {activeTab === 'settings' && <AdminSettingsPage />}
+          {activeTab === 'system' && <AdminSystemTab />}
         </section>
       </div>
     </AdminLayout>
