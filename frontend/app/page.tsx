@@ -533,15 +533,14 @@ export default function HomePage() {
         aria-label="Hero"
         className="relative overflow-hidden"
       >
-        {/* Background photo — natural aspect ratio drives section height */}
-        <Image
+        {/* Background photo — natural aspect ratio, no stretch */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src="/images/hero-yacht.png"
-          alt="Luxury yacht at sea"
+          alt=""
           aria-hidden={true}
-          width={1920}
-          height={1000}
-          className="w-full h-auto block"
-          priority
+          className="block w-full h-auto"
+          style={{ display: 'block' }}
         />
 
         {/* Figma gradient overlay */}
