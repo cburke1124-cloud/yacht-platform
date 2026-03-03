@@ -18,6 +18,13 @@ def setup_scheduler():
         trigger="interval",
         minutes=15
     )
+
+    # Run every 30 minutes - execute any due scraper jobs
+    scheduler.add_job(
+        func=run_due_scraper_jobs_task,
+        trigger="interval",
+        minutes=30,
+    )
     
     scheduler.start()
 
@@ -60,5 +67,19 @@ def publish_scheduled_blog_posts():
     except Exception as e:
         print(f"Error publishing scheduled posts: {e}")
         db.rollback()
+    finally:
+        db.close()
+
+
+def run_due_scraper_jobs_task():
+    """Find all enabled ScraperJobs whose next_run_at is due and run them."""
+    db = SessionLocal()
+    try:
+        from app.services.scraper import run_due_scraper_jobs
+        count = run_due_scraper_jobs(db)
+        if count:
+            print(f"[Scheduler] Ran {count} due scraper job(s)")
+    except Exception as e:
+        print(f"[Scheduler] Error running scraper jobs: {e}")
     finally:
         db.close()

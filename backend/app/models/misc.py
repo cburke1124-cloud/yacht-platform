@@ -115,26 +115,37 @@ class ScraperJob(Base):
     __tablename__ = "scraper_jobs"
 
     id = Column(Integer, primary_key=True, index=True)
-    dealer_id = Column(Integer, ForeignKey("users.id"))
+    dealer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    salesman_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # optionally pin listings to a salesman
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # admin who configured this
 
-    broker_url = Column(String, nullable=False)
-    status = Column(String, default="pending")  # pending, running, completed, failed
+    site_name = Column(String)                        # friendly label e.g. "Suntex Marina Fleet"
+    broker_url = Column(String, nullable=False)        # inventory/listings page URL
 
+    # State
+    enabled = Column(Boolean, default=True)            # whether the scheduler should auto-run this
+    status = Column(String, default="idle")            # idle, running, completed, failed
+
+    # Schedule
+    schedule_hours = Column(Integer, default=24)       # run every N hours (24=daily, 168=weekly)
+    next_run_at = Column(DateTime)
+    last_run_at = Column(DateTime)
+
+    # Counters (last run)
     listings_found = Column(Integer, default=0)
     listings_created = Column(Integer, default=0)
     listings_updated = Column(Integer, default=0)
     listings_removed = Column(Integer, default=0)
-
     media_downloaded = Column(Integer, default=0)
-    team_members_imported = Column(Integer, default=0)
 
-    error_message = Column(Text)
+    # Legacy / extra
+    team_members_imported = Column(Integer, default=0)
+    total_runs = Column(Integer, default=0)
+    last_error = Column(Text)
+    notes = Column(Text)                               # admin notes / instructions
 
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
-    next_run_at = Column(DateTime)
-
-    frequency = Column(String, default="weekly")  # daily, weekly
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
