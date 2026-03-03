@@ -35,10 +35,11 @@ interface Props {
 
 export default function ListingDetailMap({ latitude, longitude, locationString, title }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapInitialized = useRef<any>(false);
   const [resolvedLat, setResolvedLat] = useState<number | null>(latitude ?? null);
   const [resolvedLng, setResolvedLng] = useState<number | null>(longitude ?? null);
   const [geocodeAttempted, setGeocodeAttempted] = useState(false);
-  const mapInitialized = useRef(false);
 
   // Geocode via Google Geocoding API when no direct coords available
   useEffect(() => {
