@@ -247,8 +247,7 @@ export default function Navbar() {
   const resourceItems = [
     { label: 'How Buying Works / Buyer\'s Guide', href: '/resources/how-buying-works' },
     { label: 'Financing', href: '/resources/financing' },
-    { label: 'Blog', href: '/blog' },
-    { label: 'Boat Shows', href: '/resources/boat-shows' },
+    { label: 'Contact', href: '/contact' },
   ];
 
   return (

@@ -54,6 +54,7 @@ from app.api.routes_email_inbound import router as email_inbound_router
 from app.api.routes_catalog import router as catalog_router
 from app.api.routes_sms_inbound import router as sms_inbound_router
 from app.api.routes_inquiries import router as inquiries_router
+from app.api.routes_contact import router as contact_router
 
 setup_logging()
 
@@ -167,6 +168,7 @@ app.include_router(wp_sites_router, prefix="/api", tags=["wordpress-sites"])
 app.include_router(email_inbound_router, tags=["inbound"])
 app.include_router(sms_inbound_router, tags=["inbound"])
 app.include_router(inquiries_router, prefix="/api", tags=["inquiries"])
+app.include_router(contact_router, prefix="/api", tags=["contact"])
 app.include_router(catalog_router, prefix="/api/catalog", tags=["catalog"])
 
 
