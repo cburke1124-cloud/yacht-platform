@@ -26,7 +26,7 @@ export default function Footer() {
 
   return (
     <footer className="relative overflow-hidden bg-secondary text-light">
-      <div className="pointer-events-none absolute right-0 top-10 hidden opacity-10 lg:block">
+      <div className="pointer-events-none absolute right-0 top-10 hidden opacity-20 lg:block">
         <Image
           src="/logo/footer-watermark.png"
           alt=""
@@ -43,9 +43,9 @@ export default function Footer() {
               <Image
                 src="/logo/logo-two-tone-white.png"
                 alt="YachtVersal"
-                width={170}
-                height={32}
-                className="h-auto w-[170px]"
+                width={220}
+                height={60}
+                className="h-auto w-[220px]"
               />
             </div>
             <p className="max-w-[303px] text-base leading-6 text-light/90">

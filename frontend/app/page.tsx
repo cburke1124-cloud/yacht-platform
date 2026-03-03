@@ -299,18 +299,19 @@ function AISearchBox() {
         overflow: 'hidden',
       }}
     >
-      {/* Faint logomark watermark */}
+      {/* Faint logomark watermark — centered */}
       <Image
         src="/logo/Two-tone-logomark-white.png"
         alt=""
         aria-hidden={true}
-        width={420}
-        height={420}
+        width={500}
+        height={500}
         style={{
           position: 'absolute',
-          right: '-60px',
-          bottom: '-60px',
-          opacity: 0.06,
+          top: '50%',
+          left: '50%',
+          transform: 'translateX(-50%) translateY(-50%)',
+          opacity: 0.05,
           pointerEvents: 'none',
           userSelect: 'none',
         }}
@@ -342,7 +343,8 @@ function AISearchBox() {
           marginBottom: 46,
         }}
       >
-        Our AI-powered search goes beyond basic filters. Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
+        Our AI-powered search goes beyond basic filters.<br />
+        Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
       </p>
 
       {/* Search row — Figma: 666px input + 30px AI icon + 121px button */}
