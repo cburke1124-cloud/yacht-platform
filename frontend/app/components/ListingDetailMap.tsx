@@ -123,10 +123,7 @@ export default function ListingDetailMap({ latitude, longitude, locationString, 
 
   return <div ref={mapRef} style={{ height: '100%', width: '100%' }} />;
 }
-
-
-// Centers + zooms to the given coords whenever they change
-function SetView({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
+{ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
   useEffect(() => {
     map.setView([lat, lng], zoom);

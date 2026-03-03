@@ -160,8 +160,6 @@ export default function ListingsMap({ listings }: Props) {
   );
 }
 
-
-export interface MapListing {
   id: number | string;
   title: string;
   price?: number;
