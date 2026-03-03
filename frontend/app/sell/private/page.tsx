@@ -567,6 +567,27 @@ export default function SellPrivatePage() {
                 </p>
               </div>
             ))}
+
+            {/* 6th card — logo only, symmetry filler */}
+            <div
+              className="flex items-center justify-center"
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid rgba(16,33,79,0.1)',
+                borderRadius: 12,
+                padding: 32,
+                minHeight: 269,
+              }}
+            >
+              <Image
+                src="/logo/logo-full.png"
+                alt="YachtVersal"
+                width={200}
+                height={60}
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+
           </div>
         </div>
       </section>

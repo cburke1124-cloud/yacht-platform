@@ -597,6 +597,7 @@ export default function HomePage() {
                 fontFamily: 'Poppins, sans-serif',
                 fontSize: 16,
                 lineHeight: '26px',
+                fontWeight: 700,
                 marginBottom: 20,
                 maxWidth: 640,
               }}
@@ -607,14 +608,13 @@ export default function HomePage() {
             {/* Tagline */}
             <p
               style={{
-                color: '#10214F',
+                color: '#01BBDC',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 'clamp(13px, 1.1vw, 16px)',
+                fontSize: 'clamp(14px, 1.2vw, 18px)',
                 fontWeight: 600,
-                letterSpacing: '0.04em',
+                letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 marginBottom: 40,
-                opacity: 0.75,
               }}
             >
               Search Globally.&nbsp; Connect Confidently.&nbsp; Move Forward With Clarity.

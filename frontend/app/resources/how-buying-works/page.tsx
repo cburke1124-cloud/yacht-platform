@@ -252,7 +252,7 @@ export default function HowBuyingWorksPage() {
                 <div className="flex items-start gap-4">
                   <User className="w-6 h-6 mt-1" style={{ color: '#01BBDC' }} />
                   <div>
-                    <h3 className="text-3xl leading-none mb-2" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+                    <h3 className="text-xl font-semibold mb-1" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                       Contact Brokers
                     </h3>
                     <p className="text-base" style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif' }}>
@@ -264,7 +264,7 @@ export default function HowBuyingWorksPage() {
                 <div className="flex items-start gap-4">
                   <Shield className="w-6 h-6 mt-1" style={{ color: '#01BBDC' }} />
                   <div>
-                    <h3 className="text-3xl leading-none mb-2" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+                    <h3 className="text-xl font-semibold mb-1" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                       Ask Securely
                     </h3>
                     <p className="text-base" style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif' }}>
@@ -276,7 +276,7 @@ export default function HowBuyingWorksPage() {
                 <div className="flex items-start gap-4">
                   <FileText className="w-6 h-6 mt-1" style={{ color: '#01BBDC' }} />
                   <div>
-                    <h3 className="text-3xl leading-none mb-2" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+                    <h3 className="text-xl font-semibold mb-1" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                       Request Docs
                     </h3>
                     <p className="text-base" style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif' }}>
