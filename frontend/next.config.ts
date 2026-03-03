@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['react-leaflet', 'leaflet', '@react-leaflet/core'],
   images: {
     remotePatterns: [
       {
