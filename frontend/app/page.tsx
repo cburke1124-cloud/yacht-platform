@@ -532,19 +532,17 @@ export default function HomePage() {
       <section
         aria-label="Hero"
         className="relative overflow-hidden"
-        style={{ minHeight: 'clamp(500px, 80vh, 1000px)' }}
       >
-        {/* Background photo */}
-        <div className="absolute inset-0">
-          <Image
-            src="/images/hero-yacht.png"
-            alt="Luxury yacht at sea"
-            aria-hidden={true}
-            fill
-            className="object-cover object-center"
-            priority
-          />
-        </div>
+        {/* Background photo — natural aspect ratio drives section height */}
+        <Image
+          src="/images/hero-yacht.png"
+          alt="Luxury yacht at sea"
+          aria-hidden={true}
+          width={1920}
+          height={1000}
+          className="w-full h-auto block"
+          priority
+        />
 
         {/* Figma gradient overlay */}
         <div
@@ -555,10 +553,10 @@ export default function HomePage() {
           }}
         />
 
-        {/* Hero content — Figma: TEXT block left: 312px, top: ~355px */}
+        {/* Hero content — overlaid on image */}
         <div
-          className="relative z-10 flex flex-col justify-center"
-          style={{ minHeight: 'clamp(400px, 70vh, 900px)', paddingLeft: 'clamp(20px, 16.25vw, 312px)', paddingRight: 20 }}
+          className="absolute inset-0 z-10 flex flex-col justify-center"
+          style={{ paddingLeft: 'clamp(20px, 16.25vw, 312px)', paddingRight: 20 }}
         >
           <div style={{ maxWidth: 660 }}>
             {/* H1 — Figma: Bahnschrift Bold 56/67, #10214F, width ~565px */}
