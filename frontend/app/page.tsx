@@ -370,15 +370,16 @@ function AISearchBox() {
             className="w-full focus:outline-none"
             style={{
               height: 56,
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 6,
-              backgroundColor: 'rgba(255,255,255,0.08)',
-              paddingLeft: 20,
+              border: '2px solid rgba(1, 187, 220, 0.85)',
+              borderRadius: 999,
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              paddingLeft: 24,
               paddingRight: 52,
               fontSize: 14,
               lineHeight: '21px',
               fontFamily: 'Poppins, sans-serif',
               color: '#FFFFFF',
+              boxShadow: '0 0 18px 4px rgba(1, 187, 220, 0.45), inset 0 0 12px rgba(1, 187, 220, 0.08)',
             }}
           />
           {/* AI icon inside input — Figma: 30×30, path fill #01BBDC */}
@@ -416,7 +417,7 @@ function AISearchBox() {
             fontSize: 16,
             lineHeight: '24px',
             fontWeight: 500,
-            borderRadius: 12,
+            borderRadius: 999,
             width: 121,
             height: 56,
             flexShrink: 0,
@@ -600,7 +601,7 @@ export default function HomePage() {
                 maxWidth: 640,
               }}
             >
-              We Bring Together Intelligent Technology, Global Reach, and Dedicated Support Representatives to Create a Better Experience for Buyers, Brokers, and Sellers—Without Unnecessary Complexity.
+              We combine smart technology, global reach, and dedicated support to deliver a smooth experience for Buyers, Brokers, and Sellers—without the complexity.
             </p>
 
             {/* Tagline */}
