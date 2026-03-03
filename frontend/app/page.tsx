@@ -295,8 +295,27 @@ function AISearchBox() {
         boxShadow: '0px 1px 10.2px rgba(0,0,0,0.15)',
         borderRadius: '24px 24px 0 0',
         padding: '43px 0 43px 0',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* Faint logomark watermark */}
+      <Image
+        src="/logo/Two-tone-logomark-white.png"
+        alt=""
+        aria-hidden={true}
+        width={420}
+        height={420}
+        style={{
+          position: 'absolute',
+          right: '-60px',
+          bottom: '-60px',
+          opacity: 0.06,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
+
       {/* Heading — Figma: Bahnschrift 40/48, #10214F, centered */}
       <h2
         className="text-center font-normal"
