@@ -309,7 +309,7 @@ function AISearchBox() {
           marginBottom: 22,
         }}
       >
-        Find the Right Yacht — Without Endless Filters
+        Find the Yacht - Skip the Filters
       </h2>
 
       {/* Sub-heading — Figma: Poppins 16/24, #10214F, centered */}
@@ -323,7 +323,7 @@ function AISearchBox() {
           marginBottom: 46,
         }}
       >
-        Tell us what you&apos;re looking for, and YachtVersal AI does the rest.
+        Our AI-powered search goes beyond basic filters. Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
       </p>
 
       {/* Search row — Figma: 666px input + 30px AI icon + 121px button */}

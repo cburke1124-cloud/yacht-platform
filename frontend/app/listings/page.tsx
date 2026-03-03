@@ -76,7 +76,7 @@ function AISearchBox({
           marginBottom: 10,
         }}
       >
-        Find the Right Yacht — Without Endless Filters
+        Find the Yacht - Skip the Filters
       </h2>
 
       <p
@@ -89,7 +89,7 @@ function AISearchBox({
           marginBottom: 28,
         }}
       >
-        Tell us what you&apos;re looking for, and YachtVersal AI does the rest.
+        Our AI-powered search goes beyond basic filters. Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
       </p>
 
       {/* Search row */}

@@ -402,7 +402,7 @@ export default function FinancingPage() {
               Ready to Start Your Search?
             </h2>
             <p className="text-base mb-1" style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}>
-              Find the Right Yacht—Without Endless Filters
+              Find the Yacht - Skip the Filters
             </p>
             <p className="text-base mb-8" style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif' }}>
               Describe what you're looking for and let YachtVersal guide the way.
