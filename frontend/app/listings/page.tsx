@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle, ChevronDown } from 'lucide-react';
@@ -191,6 +191,7 @@ function UnifiedListingsContent() {
   const [sortOpen, setSortOpen] = useState(false);
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
+  const isFirstRender = useRef(true);
   const [centerLat, setCenterLat] = useState<number | null>(null);
   const [centerLng, setCenterLng] = useState<number | null>(null);
 
@@ -250,6 +251,13 @@ function UnifiedListingsContent() {
   }, [filters.make]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchListings(); }, []);
+
+  // Auto-apply filters when they change (debounced 400ms, skips initial render)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    const timer = setTimeout(() => { applyFilters(); }, 400);
+    return () => clearTimeout(timer);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Request browser geolocation for nearest-first sort
   useEffect(() => {
@@ -505,13 +513,14 @@ function UnifiedListingsContent() {
 
                 {/* ── Sort dropdown ── */}
                 <div className="relative mb-2">
+                  <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 11, fontWeight: 600, color: 'rgba(16,33,79,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Sort by</p>
                   <button
                     type="button"
                     onClick={() => setSortOpen((v) => !v)}
                     className="w-full flex items-center justify-between py-2.5 px-4 font-medium transition-opacity hover:opacity-90"
                     style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
                   >
-                    <span>{SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Sort By'}</span>
+                    <span>{SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Nearest First'}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${sortOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {sortOpen && (
@@ -538,14 +547,6 @@ function UnifiedListingsContent() {
                   )}
                 </div>
 
-                {/* ── Apply Filters ── */}
-                <button
-                  onClick={applyFilters}
-                  className="w-full py-3 font-medium transition-opacity hover:opacity-90 mb-1"
-                  style={{ backgroundColor: '#10214F', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 15 }}
-                >
-                  Apply Filters
-                </button>
                 {Object.values(filters).some((v) => v) && (
                   <button
                     onClick={clearFilters}
@@ -555,7 +556,7 @@ function UnifiedListingsContent() {
                     Clear all filters
                   </button>
                 )}
-                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 6 }} />
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 4 }} />
 
                 {/* ── Accordion sections ── */}
                 <div>
@@ -994,7 +995,7 @@ function FilterAccordion({
   );
 }
 
-// Radio-style inline option picker (Condition, Power/Sail, Fuel, Hull Material)
+// Checkbox-style multi-select option picker (Condition, Power/Sail, Fuel, Hull Material)
 function FilterOptions({
   options, values, value, onChange,
 }: {
@@ -1003,25 +1004,35 @@ function FilterOptions({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const selected = value ? value.split(',').filter(Boolean) : [];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 4 }}>
       {options.map((opt, i) => {
         const val = values ? values[i] : opt.toLowerCase();
-        const active = value === val;
+        const active = selected.includes(val);
+        const toggle = () => {
+          const next = active ? selected.filter((v) => v !== val) : [...selected, val];
+          onChange(next.join(','));
+        };
         return (
           <button
             key={val}
             type="button"
-            onClick={() => onChange(active ? '' : val)}
+            onClick={toggle}
             className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md transition-colors text-left"
             style={{ backgroundColor: active ? 'rgba(1,187,220,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
           >
             <span style={{
-              width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+              width: 16, height: 16, borderRadius: 3, flexShrink: 0,
               border: `2px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.3)'}`,
+              backgroundColor: active ? '#01BBDC' : 'transparent',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {active && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#01BBDC', display: 'block' }} />}
+              {active && (
+                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
             </span>
             <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, color: active ? '#01BBDC' : '#10214F', fontWeight: active ? 500 : 400 }}>
               {opt}
