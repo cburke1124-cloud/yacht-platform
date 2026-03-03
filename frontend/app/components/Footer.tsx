@@ -41,7 +41,7 @@ export default function Footer() {
           <div>
             <div className="mb-6">
               <Image
-                src="/logo/logo-white-cropped.png"
+                src="/logo/logo-two-tone-white.png"
                 alt="YachtVersal"
                 width={170}
                 height={32}
