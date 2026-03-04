@@ -20,6 +20,7 @@ from app.models.listing import Listing
 from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.partner_growth import PartnerDeal
+from app.models.misc import SiteSettings
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -1295,6 +1296,27 @@ def get_deal_performance(
 
 # ============= SETTINGS MANAGEMENT =============
 
+_DEFAULT_BROKER_TIERS = {
+    "basic": {"name": "Basic", "price": 29, "listings": 25, "images_per_listing": 15, "videos_per_listing": 1, "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"], "trial_days": 14, "active": True},
+    "plus":  {"name": "Plus",  "price": 59, "listings": 75, "images_per_listing": 30, "videos_per_listing": 3, "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"], "trial_days": 14, "active": True},
+    "pro":   {"name": "Pro",   "price": 99, "listings": 999999, "images_per_listing": 50, "videos_per_listing": 5, "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"], "trial_days": 30, "active": True},
+}
+
+_DEFAULT_PRIVATE_TIERS = {
+    "private_basic": {"name": "Basic", "price": 9,  "listings": 1,  "images_per_listing": 20, "videos_per_listing": 0, "features": ["1 active listing", "20 photos per listing", "Standard search visibility", "Email support"], "trial_days": 7, "active": True},
+    "private_plus":  {"name": "Plus",  "price": 19, "listings": 3,  "images_per_listing": 35, "videos_per_listing": 1, "features": ["3 active listings", "35 photos per listing", "1 video per listing", "Priority search placement", "Listing analytics"], "trial_days": 7, "active": True},
+    "private_pro":   {"name": "Pro",   "price": 39, "listings": 10, "images_per_listing": 50, "videos_per_listing": 3, "features": ["10 active listings", "50 photos per listing", "3 videos per listing", "Top search placement", "Featured badge", "Priority support", "Social media promotion"], "trial_days": 14, "active": True},
+}
+
+
+def _get_or_create_settings(db: Session) -> SiteSettings:
+    settings = db.query(SiteSettings).first()
+    if not settings:
+        settings = SiteSettings(subscription_config={})
+        db.add(settings)
+        db.commit()
+    return settings
+
 @router.get("/settings")
 def get_settings(
     current_user: User = Depends(require_admin),
@@ -1332,29 +1354,11 @@ def get_subscription_config(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Get subscription tier configuration."""
-    return {
-        "tiers": {
-            "free": {
-                "name": "Free",
-                "price": 0,
-                "max_listings": 3,
-                "features": ["Basic listing", "Photo uploads", "Contact form"]
-            },
-            "basic": {
-                "name": "Basic",
-                "price": 29,
-                "max_listings": 25,
-                "features": ["25 listings", "Featured listings", "Analytics", "Priority support"]
-            },
-            "premium": {
-                "name": "Premium",
-                "price": 99,
-                "max_listings": -1,  # Unlimited
-                "features": ["Unlimited listings", "Team members", "Advanced analytics", "API access", "White label"]
-            }
-        }
-    }
+    """Get broker subscription tier configuration."""
+    settings = _get_or_create_settings(db)
+    config = settings.subscription_config or {}
+    tiers = config.get("broker_tiers", _DEFAULT_BROKER_TIERS)
+    return {"tiers": tiers}
 
 
 @router.put("/subscription-config")
@@ -1363,10 +1367,44 @@ def update_subscription_config(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Update subscription configuration."""
-    # Store config in database
-    # For now, just return success
-    return {"success": True, "message": "Subscription config updated"}
+    """Update broker subscription configuration."""
+    settings = _get_or_create_settings(db)
+    config = dict(settings.subscription_config or {})
+    config["broker_tiers"] = data.get("tiers", data)
+    settings.subscription_config = config
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(settings, "subscription_config")
+    db.commit()
+    return {"success": True, "message": "Broker subscription config updated"}
+
+
+@router.get("/subscription-config/private")
+def get_private_subscription_config(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get private seller subscription tier configuration."""
+    settings = _get_or_create_settings(db)
+    config = settings.subscription_config or {}
+    tiers = config.get("private_tiers", _DEFAULT_PRIVATE_TIERS)
+    return {"tiers": tiers}
+
+
+@router.put("/subscription-config/private")
+def update_private_subscription_config(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update private seller subscription configuration."""
+    settings = _get_or_create_settings(db)
+    config = dict(settings.subscription_config or {})
+    config["private_tiers"] = data.get("tiers", data)
+    settings.subscription_config = config
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(settings, "subscription_config")
+    db.commit()
+    return {"success": True, "message": "Private subscription config updated"}
 
 
 # ============= DASHBOARD STATS =============

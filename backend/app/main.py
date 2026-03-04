@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.responses import JSONResponse
@@ -6,12 +6,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
+from sqlalchemy.orm import Session
 import os
 import logging
 
 from app.core.logging import setup_logging
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import engine, get_db
 
 from app.api.routes_auth import router as auth_router
 from app.api.routes_users import router as users_router
@@ -183,4 +184,17 @@ def health_check():
     return {
         "status": "ok",
         "service": "yachtversal-backend",
+    }
+
+
+@app.get("/api/pricing-tiers")
+def get_public_pricing_tiers(db: Session = Depends(get_db)):
+    """Public endpoint — returns subscription tier pricing for the sell/pricing page."""
+    from app.models.misc import SiteSettings
+    from app.api.routes_admin import _DEFAULT_BROKER_TIERS, _DEFAULT_PRIVATE_TIERS
+    settings = db.query(SiteSettings).first()
+    config = (settings.subscription_config or {}) if settings else {}
+    return {
+        "broker": config.get("broker_tiers", _DEFAULT_BROKER_TIERS),
+        "private": config.get("private_tiers", _DEFAULT_PRIVATE_TIERS),
     }

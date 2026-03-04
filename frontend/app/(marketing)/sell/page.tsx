@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiUrl } from '@/app/lib/apiRoot';
 import { 
   Ship, Building2, User, CheckCircle, ArrowRight, 
   Sparkles, TrendingUp, Users, DollarSign, Camera,
@@ -11,6 +12,34 @@ import {
 export default function SellYourYachtPage() {
   const router = useRouter();
   const [sellerType, setSellerType] = useState<'broker' | 'private' | null>(null);
+  const [apiPlans, setApiPlans] = useState<{ broker: any; private: any } | null>(null);
+
+  useEffect(() => {
+    fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setApiPlans(data); })
+      .catch(() => {});
+  }, []);
+
+  // Convert the raw tier record from the API into the card format used below
+  function tiersToPlans(tiersRecord: Record<string, any>): { name: string; price: string; period: string; description: string; features: string[]; popular: boolean }[] {
+    const entries = Object.values(tiersRecord).filter((t: any) => t.active !== false);
+    if (entries.length === 0) return [];
+    const midIdx = Math.floor((entries.length - 1) / 2);
+    const descriptions = [
+      'Perfect for getting started',
+      entries.length > 2 ? 'Most popular for growing businesses' : 'Enhanced features and visibility',
+      'Maximum reach and capabilities',
+    ];
+    return entries.map((tier: any, idx: number) => ({
+      name: tier.name,
+      price: tier.price > 0 ? `$${tier.price}` : 'Custom',
+      period: '/month',
+      description: tier.description || descriptions[Math.min(idx, descriptions.length - 1)] || '',
+      features: tier.features || [],
+      popular: idx === midIdx,
+    }));
+  }
 
   const sellerTypes = [
     {
@@ -135,86 +164,21 @@ export default function SellYourYachtPage() {
     }
   ];
 
+  // Static fallback plans (used if API hasn't loaded yet or fails)
+  const fallbackBrokerPlans = [
+    { name: 'Basic', price: '$29', period: '/month', description: 'Perfect for getting started', features: ['25 active listings', '15 images per listing', 'Enhanced search visibility', 'Priority email support', 'Analytics dashboard'], popular: false },
+    { name: 'Plus', price: '$59', period: '/month', description: 'Most popular for growing businesses', features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured broker badge', 'Advanced analytics'], popular: true },
+    { name: 'Pro', price: '$99', period: '/month', description: 'Maximum reach and capabilities', features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Dedicated account manager', 'AI scraper tools'], popular: false },
+  ];
+  const fallbackPrivatePlans = [
+    { name: 'Basic', price: '$9', period: '/month', description: 'Perfect for getting started', features: ['1 active listing', '20 photos per listing', 'Standard search visibility', 'Email support'], popular: false },
+    { name: 'Plus', price: '$19', period: '/month', description: 'Enhanced features and visibility', features: ['3 active listings', '35 photos per listing', '1 video per listing', 'Priority search placement', 'Listing analytics'], popular: true },
+    { name: 'Pro', price: '$39', period: '/month', description: 'Maximum listings and reach', features: ['10 active listings', '50 photos per listing', '3 videos per listing', 'Top search placement', 'Featured badge', 'Priority support'], popular: false },
+  ];
+
   const pricingPlans = {
-    broker: [
-      {
-        name: 'Basic',
-        price: '$99',
-        period: '/month',
-        description: 'Perfect for small brokerages',
-        features: [
-          'Unlimited listings',
-          'AI listing import',
-          'Basic analytics',
-          'Email support',
-          'Mobile app access',
-          '1 team member'
-        ],
-        popular: false
-      },
-      {
-        name: 'Professional',
-        price: '$199',
-        period: '/month',
-        description: 'Most popular for growing businesses',
-        features: [
-          'Everything in Basic',
-          'Up to 5 team members',
-          'Advanced analytics',
-          'Priority support',
-          '3 featured listings/month',
-          'Custom branding'
-        ],
-        popular: true
-      },
-      {
-        name: 'Enterprise',
-        price: 'Custom',
-        period: '',
-        description: 'For large brokerages',
-        features: [
-          'Everything in Professional',
-          'Unlimited team members',
-          'Dedicated account manager',
-          'Unlimited featured listings',
-          'API access',
-          'White-label options'
-        ],
-        popular: false
-      }
-    ],
-    private: [
-      {
-        name: 'Single Listing',
-        price: '$49',
-        period: '/30 days',
-        description: 'List one yacht for 30 days',
-        features: [
-          '1 yacht listing',
-          'Up to 50 photos',
-          'Basic analytics',
-          'Buyer messaging',
-          'Mobile app access',
-          'Price alert feature'
-        ],
-        popular: false
-      },
-      {
-        name: 'Premium Listing',
-        price: '$99',
-        period: '/60 days',
-        description: 'Enhanced visibility',
-        features: [
-          'Everything in Single',
-          'Extended 60-day duration',
-          'Featured placement',
-          'Homepage carousel',
-          'Priority in search',
-          'Photo enhancement'
-        ],
-        popular: true
-      }
-    ]
+    broker:  apiPlans ? tiersToPlans(apiPlans.broker)  : fallbackBrokerPlans,
+    private: apiPlans ? tiersToPlans(apiPlans.private) : fallbackPrivatePlans,
   };
 
   const testimonials = [
