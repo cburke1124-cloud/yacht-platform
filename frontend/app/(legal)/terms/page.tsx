@@ -154,6 +154,24 @@ export default function TermsOfServicePage() {
           text: "You agree to indemnify and hold harmless YachtVersal and its officers, directors, employees, and agents from any claims, damages, or expenses arising from your use of the platform, your violation of these Terms, or your infringement of any third-party rights."
         }
       ]
+    },
+    {
+      icon: CreditCard,
+      title: "Refund & Cancellation Policy",
+      content: [
+        {
+          subtitle: "Refund Policy",
+          text: "YachtVersal customers agree not to submit chargebacks to their bank. Refunds will not be accepted through credit card chargebacks. All sales are final. For refund requests, please email us at info@yachtversal.com. Refunds will be processed within 48 hours of acknowledged receipt of request."
+        },
+        {
+          subtitle: "Cancellation Policy",
+          text: "All cancellation requests must be submitted directly to YachtVersal. We require a minimum of two (2) weeks\u2019 notice prior to the scheduled service date for any cancellation requests. To initiate a cancellation, please contact us via email at info@yachtversal.com."
+        },
+        {
+          subtitle: "No Chargebacks",
+          text: "By using YachtVersal\u2019s paid services, you expressly agree not to dispute or chargeback any charges through your financial institution. Unauthorized chargebacks will be disputed and may result in account suspension."
+        }
+      ]
     }
   ];
 
@@ -166,7 +184,7 @@ export default function TermsOfServicePage() {
             <FileText className="w-10 h-10 text-primary" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-secondary mb-6">
-            General Terms of Service
+            General Terms & Conditions
           </h1>
           <p className="text-xl text-dark/70 mb-4">
             These terms apply to all visitors, registered users, and buyers on the YachtVersal platform.
@@ -208,7 +226,7 @@ export default function TermsOfServicePage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-12">
             <h2 className="text-2xl font-bold text-secondary mb-4">Agreement to Terms</h2>
             <p className="text-dark leading-relaxed mb-4">
-              These General Terms of Service ("Terms") govern your access to and use of the YachtVersal website, mobile application, and related services (collectively, the "Platform"). This is a binding legal agreement between you and YachtVersal.
+              These General Terms & Conditions ("Terms") govern your access to and use of the YachtVersal website, mobile application, and related services (collectively, the "Platform"). This is a binding legal agreement between you and YachtVersal.
             </p>
             <p className="text-dark leading-relaxed mb-4">
               By accessing or using the Platform, you acknowledge that you have read, understood, and agree to be bound by these Terms and our <Link href="/privacy" className="text-primary underline">Privacy Policy</Link>. If you do not agree, you must not access or use the Platform.

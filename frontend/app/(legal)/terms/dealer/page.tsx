@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {
   Building2, FileText, Globe, Image, Code2, Users, Wrench,
-  Star, ShieldAlert, DollarSign, Scale, ArrowLeft, Key, Share2, Shield
+  Star, ShieldAlert, DollarSign, Scale, ArrowLeft, Key, Share2, Shield, CreditCard
 } from 'lucide-react';
 
 export default function DealerServicesAgreementPage() {
@@ -242,7 +242,7 @@ export default function DealerServicesAgreementPage() {
         },
         {
           subtitle: "Team Member Data",
-          text: "When you invite team members, their name, email address, and role are collected and stored as part of your account data. Team members are individual users bound by the General Terms of Service in addition to operating within your dealer account."
+          text: "When you invite team members, their name, email address, and role are collected and stored as part of your account data. Team members are individual users bound by the General Terms & Conditions in addition to operating within your dealer account."
         },
         {
           subtitle: "Revoking Access",
@@ -307,6 +307,24 @@ export default function DealerServicesAgreementPage() {
           text: "Following termination you have 30 days to export your listing data through your dashboard before it is permanently deleted, subject to YachtVersal's data retention obligations under applicable law."
         }
       ]
+    },
+    {
+      icon: CreditCard,
+      title: "Refund & Cancellation Policy",
+      content: [
+        {
+          subtitle: "Refund Policy",
+          text: "YachtVersal customers agree not to submit chargebacks to their bank. Refunds will not be accepted through credit card chargebacks. All sales are final. For refund requests, please email us at info@yachtversal.com. Refunds will be processed within 48 hours of acknowledged receipt of request."
+        },
+        {
+          subtitle: "Cancellation Policy",
+          text: "All cancellation requests must be submitted directly to YachtVersal. We require a minimum of two (2) weeks\u2019 notice prior to the scheduled service date for any cancellation requests. To initiate a cancellation, please contact us via email at info@yachtversal.com."
+        },
+        {
+          subtitle: "No Chargebacks",
+          text: "By using YachtVersal\u2019s paid services, you expressly agree not to dispute or chargeback any charges through your financial institution. Unauthorized chargebacks will be disputed and may result in account suspension."
+        }
+      ]
     }
   ];
 
@@ -328,7 +346,7 @@ export default function DealerServicesAgreementPage() {
             Dealer Services Agreement
           </h1>
           <p className="text-xl text-white/70 mb-6">
-            This agreement governs your use of YachtVersal as a professional broker or dealer. It supplements — and must be read alongside — our General Terms of Service and Privacy Policy.
+            This agreement governs your use of YachtVersal as a professional broker or dealer. It supplements — and must be read alongside — our General Terms & Conditions and Privacy Policy.
           </p>
           <p className="text-sm text-white/50">
             Last Updated: <span className="font-semibold text-white/70">{lastUpdated}</span>
@@ -349,7 +367,7 @@ export default function DealerServicesAgreementPage() {
               </p>
               <p>
                 This Dealer Agreement incorporates by reference the{' '}
-                <Link href="/terms" className="text-primary underline">General Terms of Service</Link> and the{' '}
+                <Link href="/terms" className="text-primary underline">General Terms & Conditions</Link> and the{' '}
                 <Link href="/privacy" className="text-primary underline">Privacy Policy</Link>.
                 In the event of a conflict between this Dealer Agreement and the General Terms, this Dealer Agreement governs with respect to dealer-specific matters.
               </p>
@@ -438,7 +456,7 @@ export default function DealerServicesAgreementPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-8 mt-8">
             <h2 className="text-2xl font-bold text-secondary mb-4">Entire Agreement</h2>
             <p className="text-dark leading-relaxed text-sm">
-              This Dealer Agreement, together with the General Terms of Service and Privacy Policy, constitutes the entire agreement between you and YachtVersal with respect to your dealer account and supersedes all prior negotiations, understandings, and agreements, whether written or oral. Any order forms or specific addenda signed with YachtVersal also form part of this agreement.
+              This Dealer Agreement, together with the General Terms & Conditions and Privacy Policy, constitutes the entire agreement between you and YachtVersal with respect to your dealer account and supersedes all prior negotiations, understandings, and agreements, whether written or oral. Any order forms or specific addenda signed with YachtVersal also form part of this agreement.
             </p>
           </div>
 
@@ -461,7 +479,7 @@ export default function DealerServicesAgreementPage() {
               href="/terms"
               className="inline-flex items-center gap-2 text-primary hover:text-primary/80 text-sm font-medium transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" /> Back to General Terms of Service
+              <ArrowLeft className="w-4 h-4" /> Back to General Terms & Conditions
             </Link>
           </div>
 
