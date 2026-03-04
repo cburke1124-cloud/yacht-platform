@@ -570,7 +570,7 @@ export default function HomePage() {
                 marginBottom: 18,
               }}
             >
-              A Simpler Way to<br />Buy and Sell Your Yacht
+              A Simpler Way to<br /><span style={{ color: '#01BBDC' }}>Buy and Sell</span> Your Yacht
             </h1>
 
             {/* Sub line 1 */}
@@ -626,13 +626,14 @@ export default function HomePage() {
           AI SEARCH BOX — Figma: 1296×339, top 956px (overlaps hero bottom)
           shadow: 0px 1px 10.2px rgba(0,0,0,0.15), radius 24
       ══════════════════════════════════════════════════════════════════ */}
-      <section className="relative z-20" style={{ marginTop: -160 }}>
+      <section className="relative z-20" style={{ marginTop: 0 }}>
         <div
           className="mx-auto"
           style={{
             maxWidth: 1296,
             paddingLeft: 'clamp(16px, 2vw, 0px)',
             paddingRight: 'clamp(16px, 2vw, 0px)',
+            paddingTop: 40,
           }}
         >
           <AISearchBox />

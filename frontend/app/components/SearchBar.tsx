@@ -195,10 +195,12 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
   return (
     <form onSubmit={handleSearch} className="w-full">
       <div
-        className="flex items-center bg-white shadow-md border border-gray-200 px-3 py-2"
+        className="flex items-center bg-white px-3 py-2"
         style={{
           minHeight: 56,
           borderRadius: squareTop ? '0 0 12px 12px' : 12,
+          border: '2px solid rgba(1, 187, 220, 0.85)',
+          boxShadow: '0 0 18px 4px rgba(1, 187, 220, 0.35), inset 0 0 10px rgba(1, 187, 220, 0.06)',
           ...(squareTop ? { borderTop: 'none' } : {}),
           gap: 0,
         }}

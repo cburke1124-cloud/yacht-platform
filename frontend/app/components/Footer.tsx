@@ -43,9 +43,10 @@ export default function Footer() {
               <Image
                 src="/logo/logo-two-tone-white.png"
                 alt="YachtVersal"
-                width={220}
-                height={60}
-                className="h-auto w-[220px]"
+                width={260}
+                height={70}
+                className="h-auto w-[260px]"
+                style={{ filter: 'drop-shadow(0 0 8px rgba(1,187,220,0.45))' }}
               />
             </div>
             <p className="max-w-[303px] text-base leading-6 text-light/90">
