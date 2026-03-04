@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
@@ -18,6 +18,11 @@ export default function LoginPage() {
   const [pendingRedirect, setPendingRedirect] = useState<string>('/dashboard');
   const [userName, setUserName] = useState<string | undefined>();
   const [userType, setUserType] = useState<string | undefined>();
+
+  // Pre-warm the Render backend on page load so it's awake by the time the user submits
+  useEffect(() => {
+    fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {/* silent */});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +78,12 @@ export default function LoginPage() {
 
       router.push(redirectTo);
     } catch (err: any) {
-      setError(err.message || 'Failed to login. Please try again.');
+      const msg: string = err.message || '';
+      if (msg.toLowerCase().includes('failed to fetch')) {
+        setError('Unable to reach the server. Please wait a moment and try again.');
+      } else {
+        setError(msg || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
