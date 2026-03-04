@@ -301,7 +301,7 @@ function AISearchBox() {
     >
       {/* Faint logomark watermark — centered */}
       <Image
-        src="/logo/Two-tone-logomark-white.png"
+        src="/logo/footer-watermark.png"
         alt=""
         aria-hidden={true}
         width={500}
@@ -600,7 +600,7 @@ export default function HomePage() {
                 maxWidth: 640,
               }}
             >
-              We Combine Smart Technology, Global Reach, and Dedicated Support to Deliver a Smooth Experience for Buyers, Brokers, and Sellers—Without the Complexity.
+              YachtVersal Combines Smart Technology, Global Reach, and Dedicated Support to Deliver a Smooth Experience for Buyers, Brokers, and Sellers—Without the Complexity.
             </p>
 
             {/* Tagline */}
