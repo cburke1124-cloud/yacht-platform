@@ -195,13 +195,17 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
   return (
     <form onSubmit={handleSearch} className="w-full">
       <div
-        className="flex items-center gap-2 flex-wrap sm:flex-nowrap bg-white shadow-md border border-gray-200 px-3 py-2"
+        className="flex items-center bg-white shadow-md border border-gray-200 px-3 py-2"
         style={{
           minHeight: 56,
           borderRadius: squareTop ? '0 0 12px 12px' : 12,
           ...(squareTop ? { borderTop: 'none' } : {}),
+          gap: 0,
         }}
       >
+        {/* ── Scrollable controls row ── */}
+        <div className="flex items-center gap-2 overflow-x-auto flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
+
         {/* ── Condition ── */}
         <select value={condition} onChange={(e) => setCondition(e.target.value)} className={SEL} style={{ minWidth: 100 }}>
           <option value="">Condition</option>
@@ -242,7 +246,6 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
         <span className="hidden sm:block text-gray-200 select-none">|</span>
 
         {/* ── Price Range Slider ── */}
-        <span className="hidden sm:block text-gray-200 select-none">|</span>
         <PriceRangeSlider
           min={rangeMin} max={rangeMax}
           low={lowVal}   high={highVal}
@@ -258,24 +261,27 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
           onLow={setLowLen} onHigh={setHighLen}
         />
 
-        {/* ── Search button (directly after slider) ── */}
-        <button
-          type="submit"
-          className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
-        >
-          <Search size={15} />
-          Search
-        </button>
+        </div>{/* end scrollable controls */}
 
-        {/* ── Advanced Search (far right) ── */}
-        <button
-          type="button"
-          onClick={() => router.push('/listings')}
-          className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200 ml-auto"
-        >
-          <SlidersHorizontal size={13} />
-          Advanced Search
-        </button>
+        {/* ── Pinned action buttons ── */}
+        <div className="flex items-center gap-2 flex-shrink-0 pl-3" style={{ borderLeft: '1px solid #e5e7eb', marginLeft: 8 }}>
+          <button
+            type="submit"
+            className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
+          >
+            <Search size={15} />
+            Search
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/listings')}
+            className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200"
+          >
+            <SlidersHorizontal size={13} />
+            Advanced
+          </button>
+        </div>
+
       </div>
     </form>
   );
