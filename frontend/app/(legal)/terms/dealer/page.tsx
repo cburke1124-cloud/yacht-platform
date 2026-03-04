@@ -6,17 +6,17 @@ import {
   Star, ShieldAlert, DollarSign, Scale, ArrowLeft, Key, Share2, Shield, CreditCard
 } from 'lucide-react';
 
-export default function DealerServicesAgreementPage() {
+export default function BrokerServicesAgreementPage() {
   const lastUpdated = "March 2, 2026";
 
   const sections = [
     {
       icon: Building2,
-      title: "Dealer Eligibility & Account",
+      title: "Broker Eligibility & Account",
       content: [
         {
-          subtitle: "Who May Register as a Dealer",
-          text: "Dealer accounts are available to licensed yacht brokers, dealers, and brokerage companies (\"Dealer\"). By registering as a Dealer you represent that you are duly licensed where required by applicable law and that you have the legal authority to list and sell the vessels on your account."
+          subtitle: "Who May Register as a Broker",
+          text: "Broker accounts are available to licensed yacht brokers, brokers, and brokerage companies (\"Broker\"). By registering as a Broker you represent that you are duly licensed where required by applicable law and that you have the legal authority to list and sell the vessels on your account."
         },
         {
           subtitle: "Accurate Business Information",
@@ -24,11 +24,11 @@ export default function DealerServicesAgreementPage() {
         },
         {
           subtitle: "Sales Representative Sub-Accounts",
-          text: "You may invite sales representatives to operate under your dealer account. You are fully responsible for all actions taken by team members operating under your account, and their activity is subject to the same restrictions that apply to you."
+          text: "You may invite sales representatives to operate under your broker account. You are fully responsible for all actions taken by team members operating under your account, and their activity is subject to the same restrictions that apply to you."
         },
         {
           subtitle: "Account Termination",
-          text: "We reserve the right to suspend or terminate dealer accounts that violate these terms, maintain inaccurate or fraudulent listings, or fail to honor inquiries in good faith. You may close your account at any time; pending subscription periods are non-refundable unless otherwise stated."
+          text: "We reserve the right to suspend or terminate broker accounts that violate these terms, maintain inaccurate or fraudulent listings, or fail to honor inquiries in good faith. You may close your account at any time; pending subscription periods are non-refundable unless otherwise stated."
         }
       ]
     },
@@ -84,7 +84,7 @@ export default function DealerServicesAgreementPage() {
         },
         {
           subtitle: "Data Accuracy",
-          text: "YachtVersal does not guarantee the completeness or accuracy of data imported via scraping. You remain responsible for reviewing imported listings and correcting any errors. Imported data is treated the same as any other dealer-submitted content under these Terms."
+          text: "YachtVersal does not guarantee the completeness or accuracy of data imported via scraping. You remain responsible for reviewing imported listings and correcting any errors. Imported data is treated the same as any other broker-submitted content under these Terms."
         }
       ]
     },
@@ -102,11 +102,11 @@ export default function DealerServicesAgreementPage() {
         },
         {
           subtitle: "Opt-Out Right",
-          text: "If you do not wish for your listings to be accessible to third-party API consumers, you may opt out by enabling the \"Co-Brokering Opt-Out\" setting in your dealer dashboard. When this setting is enabled, your listings will be excluded from all API responses to third-party consumers. Note that opting out may reduce your listing's visibility and reach."
+          text: "If you do not wish for your listings to be accessible to third-party API consumers, you may opt out by enabling the \"Co-Brokering Opt-Out\" setting in your broker dashboard. When this setting is enabled, your listings will be excluded from all API responses to third-party consumers. Note that opting out may reduce your listing's visibility and reach."
         },
         {
           subtitle: "No Commission Guarantee",
-          text: "YachtVersal does not guarantee, negotiate, or enforce co-brokering commission agreements between dealers and third-party brokers who display listings via the API. Any commission arrangements are solely between you and the displaying broker."
+          text: "YachtVersal does not guarantee, negotiate, or enforce co-brokering commission agreements between brokers and third-party brokers who display listings via the API. Any commission arrangements are solely between you and the displaying broker."
         },
         {
           subtitle: "Your Own API Keys",
@@ -124,23 +124,23 @@ export default function DealerServicesAgreementPage() {
       content: [
         {
           subtitle: "Your License Grant",
-          text: "By uploading photographs, videos, 3D renderings, virtual tours, floor plans, or any other media to the YachtVersal platform (\"Dealer Media\"), you grant YachtVersal a non-exclusive, worldwide, royalty-free, sublicensable, and perpetual license to use, reproduce, modify (e.g., crop, resize, watermark), distribute, publicly display, and publicly perform such Dealer Media for the following purposes: (i) operating and displaying listings on the YachtVersal platform; (ii) marketing, advertising, and promotional materials in any medium, including digital advertising, social media posts, email campaigns, billboards, and print; (iii) press releases, media kits, blog content, and case studies; and (iv) product demonstrations, sales presentations, and trade show materials."
+          text: "By uploading photographs, videos, 3D renderings, virtual tours, floor plans, or any other media to the YachtVersal platform (\"Broker Media\"), you grant YachtVersal a non-exclusive, worldwide, royalty-free, sublicensable, and perpetual license to use, reproduce, modify (e.g., crop, resize, watermark), distribute, publicly display, and publicly perform such Broker Media for the following purposes: (i) operating and displaying listings on the YachtVersal platform; (ii) marketing, advertising, and promotional materials in any medium, including digital advertising, social media posts, email campaigns, billboards, and print; (iii) press releases, media kits, blog content, and case studies; and (iv) product demonstrations, sales presentations, and trade show materials."
         },
         {
           subtitle: "Attribution",
-          text: "YachtVersal will make commercially reasonable efforts to attribute Dealer Media to your brokerage when used in marketing contexts where attribution is practical. However, attribution is not guaranteed in all contexts (e.g., programmatically generated ad formats, resized social thumbnails)."
+          text: "YachtVersal will make commercially reasonable efforts to attribute Broker Media to your brokerage when used in marketing contexts where attribution is practical. However, attribution is not guaranteed in all contexts (e.g., programmatically generated ad formats, resized social thumbnails)."
         },
         {
           subtitle: "Your Warranties",
-          text: "You represent and warrant that: (a) you own or have all necessary rights, licenses, and permissions to upload the Dealer Media and to grant the license described above; (b) the Dealer Media does not infringe the intellectual property rights, privacy rights, or any other rights of any third party; and (c) persons depicted in media have provided any required consent."
+          text: "You represent and warrant that: (a) you own or have all necessary rights, licenses, and permissions to upload the Broker Media and to grant the license described above; (b) the Broker Media does not infringe the intellectual property rights, privacy rights, or any other rights of any third party; and (c) persons depicted in media have provided any required consent."
         },
         {
           subtitle: "Post-Termination Use",
-          text: "Upon termination or expiration of your dealer account, YachtVersal may continue to use Dealer Media in existing published marketing materials (e.g., blog posts, case studies, ad campaigns already in distribution) for up to eighteen (18) months following termination. After that period, YachtVersal will remove Dealer Media from ongoing use in new marketing materials, though cached or archived copies may remain. Media associated with active listings on the platform (where co-brokering applies) may be retained for the listing's lifetime."
+          text: "Upon termination or expiration of your broker account, YachtVersal may continue to use Broker Media in existing published marketing materials (e.g., blog posts, case studies, ad campaigns already in distribution) for up to eighteen (18) months following termination. After that period, YachtVersal will remove Broker Media from ongoing use in new marketing materials, though cached or archived copies may remain. Media associated with active listings on the platform (where co-brokering applies) may be retained for the listing's lifetime."
         },
         {
           subtitle: "No Compensation",
-          text: "The license granted above is provided without additional compensation beyond the services you receive as a platform subscriber. You acknowledge that the marketing exposure generated by YachtVersal's use of Dealer Media constitutes reasonable consideration."
+          text: "The license granted above is provided without additional compensation beyond the services you receive as a platform subscriber. You acknowledge that the marketing exposure generated by YachtVersal's use of Broker Media constitutes reasonable consideration."
         }
       ]
     },
@@ -154,11 +154,11 @@ export default function DealerServicesAgreementPage() {
         },
         {
           subtitle: "Default Participation",
-          text: "All active dealer listings are included in the co-brokering program by default. This is designed to maximize listing exposure and buyer reach."
+          text: "All active broker listings are included in the co-brokering program by default. This is designed to maximize listing exposure and buyer reach."
         },
         {
           subtitle: "Opting Out",
-          text: "You may disable co-brokering for your account at any time through the Preferences section of your dealer dashboard. Opting out removes your listings from co-brokering queries. Re-enabling is also available at any time."
+          text: "You may disable co-brokering for your account at any time through the Preferences section of your broker dashboard. Opting out removes your listings from co-brokering queries. Re-enabling is also available at any time."
         },
         {
           subtitle: "Co-Broker Responsibilities",
@@ -172,7 +172,7 @@ export default function DealerServicesAgreementPage() {
       content: [
         {
           subtitle: "Subscription Plans",
-          text: "Dealer accounts require a paid subscription. Plan features (number of listings, images, team seats, etc.) are defined on the pricing page and may change with at least 30 days' written notice to existing subscribers."
+          text: "Broker accounts require a paid subscription. Plan features (number of listings, images, team seats, etc.) are defined on the pricing page and may change with at least 30 days' written notice to existing subscribers."
         },
         {
           subtitle: "Billing & Auto-Renewal",
@@ -206,7 +206,7 @@ export default function DealerServicesAgreementPage() {
         },
         {
           subtitle: "Not an Endorsement",
-          text: "Featured placement is a paid marketing service and does not constitute YachtVersal's endorsement, verification, or recommendation of a vessel or dealer."
+          text: "Featured placement is a paid marketing service and does not constitute YachtVersal's endorsement, verification, or recommendation of a vessel or broker."
         },
         {
           subtitle: "Compliance",
@@ -220,7 +220,7 @@ export default function DealerServicesAgreementPage() {
       content: [
         {
           subtitle: "Bulk Upload & Management",
-          text: "YachtVersal provides bulk listing tools to allow dealers to create or update multiple listings simultaneously. Use of bulk tools for the purpose of creating spam listings, manipulating search rankings, or flooding the platform with inaccurate data is a material breach of these Terms and may result in immediate account termination."
+          text: "YachtVersal provides bulk listing tools to allow brokers to create or update multiple listings simultaneously. Use of bulk tools for the purpose of creating spam listings, manipulating search rankings, or flooding the platform with inaccurate data is a material breach of these Terms and may result in immediate account termination."
         },
         {
           subtitle: "Accuracy of Bulk-Submitted Data",
@@ -237,16 +237,16 @@ export default function DealerServicesAgreementPage() {
       title: "Team Accounts & Sales Representatives",
       content: [
         {
-          subtitle: "Dealer Admin Responsibility",
-          text: "As the dealer account holder, you are the \"Dealer Admin\" and bear full legal responsibility for all activity conducted by team members and sales representatives operating under your account, regardless of whether you authorized the specific actions."
+          subtitle: "Broker Admin Responsibility",
+          text: "As the broker account holder, you are the \"Broker Admin\" and bear full legal responsibility for all activity conducted by team members and sales representatives operating under your account, regardless of whether you authorized the specific actions."
         },
         {
           subtitle: "Team Member Data",
-          text: "When you invite team members, their name, email address, and role are collected and stored as part of your account data. Team members are individual users bound by the General Terms & Conditions in addition to operating within your dealer account."
+          text: "When you invite team members, their name, email address, and role are collected and stored as part of your account data. Team members are individual users bound by the General Terms & Conditions in addition to operating within your broker account."
         },
         {
           subtitle: "Revoking Access",
-          text: "You may revoke a team member's access at any time through Team Settings. Upon revocation, the team member loses access to your dealer account immediately."
+          text: "You may revoke a team member's access at any time through Team Settings. Upon revocation, the team member loses access to your broker account immediately."
         },
         {
           subtitle: "Salesman Profiles",
@@ -256,7 +256,7 @@ export default function DealerServicesAgreementPage() {
     },
     {
       icon: ShieldAlert,
-      title: "Prohibited Dealer Conduct",
+      title: "Prohibited Broker Conduct",
       content: [
         {
           subtitle: "Fraudulent Listings",
@@ -281,7 +281,7 @@ export default function DealerServicesAgreementPage() {
       title: "Indemnification",
       content: [
         {
-          subtitle: "Dealer Indemnification",
+          subtitle: "Broker Indemnification",
           text: "You agree to indemnify, defend, and hold harmless YachtVersal, its officers, directors, employees, agents, and licensors from and against any claims, liabilities, damages, judgments, awards, losses, and expenses (including reasonable attorneys' fees) arising out of: (a) your listing content; (b) your breach of these Terms; (c) your violation of any applicable law; (d) third-party claims that content you uploaded infringes their intellectual property or other rights; (e) inaccuracies in vessel representations; or (f) any buyer dispute related to a transaction initiated through the platform."
         }
       ]
@@ -292,15 +292,15 @@ export default function DealerServicesAgreementPage() {
       content: [
         {
           subtitle: "Term",
-          text: "This Agreement is effective from the date you accept it and continues until your dealer account is terminated."
+          text: "This Agreement is effective from the date you accept it and continues until your broker account is terminated."
         },
         {
           subtitle: "Termination by YachtVersal",
-          text: "We may terminate this Agreement and your dealer account immediately upon notice for material breach, fraud, non-payment, or conduct that harms the platform or other users."
+          text: "We may terminate this Agreement and your broker account immediately upon notice for material breach, fraud, non-payment, or conduct that harms the platform or other users."
         },
         {
           subtitle: "Effect of Termination",
-          text: "Upon termination: your listings will be deactivated; your API keys will be revoked; your team member accounts will lose dealer-account access. Sections on media licensing (during the 18-month wind-down), indemnification, intellectual property, disclaimers, limitation of liability, and governing law survive termination."
+          text: "Upon termination: your listings will be deactivated; your API keys will be revoked; your team member accounts will lose broker-account access. Sections on media licensing (during the 18-month wind-down), indemnification, intellectual property, disclaimers, limitation of liability, and governing law survive termination."
         },
         {
           subtitle: "Data Retrieval",
@@ -343,10 +343,10 @@ export default function DealerServicesAgreementPage() {
             <Building2 className="w-10 h-10 text-[#01BBDC]" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
-            Dealer Services Agreement
+            Broker Services Agreement
           </h1>
           <p className="text-xl text-white/70 mb-6">
-            This agreement governs your use of YachtVersal as a professional broker or dealer. It supplements — and must be read alongside — our General Terms & Conditions and Privacy Policy.
+            This agreement governs your use of YachtVersal as a professional broker or broker. It supplements — and must be read alongside — our General Terms & Conditions and Privacy Policy.
           </p>
           <p className="text-sm text-white/50">
             Last Updated: <span className="font-semibold text-white/70">{lastUpdated}</span>
@@ -363,16 +363,16 @@ export default function DealerServicesAgreementPage() {
             <h2 className="text-2xl font-bold text-secondary mb-4">About This Agreement</h2>
             <div className="space-y-4 text-dark leading-relaxed">
               <p>
-                This Dealer Services Agreement ("Dealer Agreement") is a binding legal contract between you (the "Dealer") and YachtVersal governing your use of the platform as a professional yacht broker or seller.
+                This Broker Services Agreement ("Broker Agreement") is a binding legal contract between you (the "Broker") and YachtVersal governing your use of the platform as a professional yacht broker or seller.
               </p>
               <p>
-                This Dealer Agreement incorporates by reference the{' '}
+                This Broker Agreement incorporates by reference the{' '}
                 <Link href="/terms" className="text-primary underline">General Terms & Conditions</Link> and the{' '}
                 <Link href="/privacy" className="text-primary underline">Privacy Policy</Link>.
-                In the event of a conflict between this Dealer Agreement and the General Terms, this Dealer Agreement governs with respect to dealer-specific matters.
+                In the event of a conflict between this Broker Agreement and the General Terms, this Broker Agreement governs with respect to broker-specific matters.
               </p>
               <p>
-                By registering a dealer account, checking the acceptance checkbox during registration, or continuing to use a dealer account after these terms are posted, you agree to be bound by this Dealer Agreement.
+                By registering a broker account, checking the acceptance checkbox during registration, or continuing to use a broker account after these terms are posted, you agree to be bound by this Broker Agreement.
               </p>
             </div>
           </div>
@@ -433,7 +433,7 @@ export default function DealerServicesAgreementPage() {
             <h2 className="text-2xl font-bold text-secondary mb-4">Governing Law and Disputes</h2>
             <div className="space-y-4 text-dark leading-relaxed text-sm">
               <p>
-                This Dealer Agreement shall be governed by the laws of the State of Florida, United States, without regard to its conflict-of-law provisions.
+                This Broker Agreement shall be governed by the laws of the State of Florida, United States, without regard to its conflict-of-law provisions.
               </p>
               <p>
                 Disputes arising under this Agreement that cannot be resolved informally shall be submitted to binding arbitration under the rules of the American Arbitration Association, conducted in Florida. Each party waives the right to a jury trial and to participate in any class or representative proceeding.
@@ -448,7 +448,7 @@ export default function DealerServicesAgreementPage() {
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 mt-8">
             <h2 className="text-2xl font-bold text-secondary mb-4">Modifications to This Agreement</h2>
             <p className="text-dark leading-relaxed text-sm">
-              YachtVersal reserves the right to update this Dealer Agreement at any time. We will notify you of material changes by email to your registered address at least 30 days before the new terms take effect. Your continued use of the platform after the effective date constitutes acceptance.
+              YachtVersal reserves the right to update this Broker Agreement at any time. We will notify you of material changes by email to your registered address at least 30 days before the new terms take effect. Your continued use of the platform after the effective date constitutes acceptance.
             </p>
           </div>
 
@@ -456,7 +456,7 @@ export default function DealerServicesAgreementPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-8 mt-8">
             <h2 className="text-2xl font-bold text-secondary mb-4">Entire Agreement</h2>
             <p className="text-dark leading-relaxed text-sm">
-              This Dealer Agreement, together with the General Terms & Conditions and Privacy Policy, constitutes the entire agreement between you and YachtVersal with respect to your dealer account and supersedes all prior negotiations, understandings, and agreements, whether written or oral. Any order forms or specific addenda signed with YachtVersal also form part of this agreement.
+              This Broker Agreement, together with the General Terms & Conditions and Privacy Policy, constitutes the entire agreement between you and YachtVersal with respect to your broker account and supersedes all prior negotiations, understandings, and agreements, whether written or oral. Any order forms or specific addenda signed with YachtVersal also form part of this agreement.
             </p>
           </div>
 
@@ -464,12 +464,10 @@ export default function DealerServicesAgreementPage() {
           <div className="bg-[#10214F] rounded-2xl p-8 mt-8">
             <h2 className="text-2xl font-bold text-white mb-4">Questions About This Agreement?</h2>
             <p className="text-white/70 leading-relaxed mb-4 text-sm">
-              If you have questions about this Dealer Services Agreement or wish to discuss specific terms, please contact our dealer relations team:
+              If you have questions about this Broker Services Agreement or wish to discuss specific terms, please contact us:
             </p>
             <div className="space-y-2 text-white/80 text-sm">
-              <p><strong className="text-white">Legal / Compliance:</strong> legal@yachtversal.com</p>
-              <p><strong className="text-white">Dealer Support:</strong> dealers@yachtversal.com</p>
-              <p><strong className="text-white">Mail:</strong> YachtVersal Legal Department, [Address], [City, State ZIP]</p>
+              <p><strong className="text-white">Email:</strong> info@yachtversal.com</p>
             </div>
           </div>
 
