@@ -570,7 +570,7 @@ export default function HomePage() {
                 marginBottom: 18,
               }}
             >
-              A Simpler Way to Buy and Sell Your Yacht
+              A Simpler Way to<br />Buy and Sell Your Yacht
             </h1>
 
             {/* Sub line 1 */}

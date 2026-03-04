@@ -30,7 +30,11 @@ function fmtPrice(v: number): string {
   return `$${v.toLocaleString()}`;
 }
 
-// ─── Dual range slider ─────────────────────────────────────────────────────
+function fmtLength(v: number): string {
+  return `${v} ft`;
+}
+
+// ─── Dual range slider (generic) ─────────────────────────────────────────
 interface SliderProps {
   min: number;
   max: number;
@@ -38,9 +42,11 @@ interface SliderProps {
   high: number;
   onLow: (v: number) => void;
   onHigh: (v: number) => void;
+  label: (low: number, high: number) => string;
+  step?: number;
 }
 
-function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: SliderProps) {
+function DualRangeSlider({ min, max, low, high, onLow, onHigh, label, step = 1 }: SliderProps) {
   const trackRef  = useRef<HTMLDivElement>(null);
   const dragging  = useRef<'low' | 'high' | null>(null);
   const range = max - min || 1;
@@ -51,9 +57,8 @@ function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: SliderProps) {
     if (!el) return min;
     const { left, width } = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - left) / width));
-    const step  = Math.round(range / 200) || 1;
     return Math.round((min + ratio * range) / step) * step;
-  }, [min, range]);
+  }, [min, range, step]);
 
   const onPointerMove = useCallback((e: PointerEvent) => {
     if (!dragging.current) return;
@@ -75,71 +80,35 @@ function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: SliderProps) {
     window.addEventListener('pointerup',   onPointerUp);
   };
 
-  const HANDLE = 14; // diameter px
+  const HANDLE = 14;
 
   return (
     <div className="flex flex-col justify-center shrink-0" style={{ width: 190 }}>
-      {/* Price label */}
       <div
         className="text-center"
         style={{ fontSize: 11, color: '#10214F', fontFamily: 'Poppins, sans-serif', marginBottom: 4, fontWeight: 600, letterSpacing: '0.01em' }}
       >
-        {fmtPrice(low)}&nbsp;&ndash;&nbsp;{fmtPrice(high)}
+        {label(low, high)}
       </div>
-
-      {/* Track */}
       <div
         ref={trackRef}
         style={{ position: 'relative', height: HANDLE, margin: `0 ${HANDLE / 2}px`, cursor: 'default' }}
       >
-        {/* Base line */}
-        <div style={{
-          position: 'absolute', top: '50%', left: 0, right: 0,
-          height: 3, marginTop: -1.5, background: '#E5E7EB', borderRadius: 2,
-        }} />
-        {/* Active range line */}
-        <div style={{
-          position: 'absolute', top: '50%', marginTop: -1.5, height: 3,
-          left: `${pct(low)}%`, width: `${pct(high) - pct(low)}%`,
-          background: '#01BBDC', borderRadius: 2,
-        }} />
-        {/* Low handle */}
-        <div
-          onPointerDown={startDrag('low')}
-          style={{
-            position: 'absolute', top: '50%',
-            left: `${pct(low)}%`,
-            transform: 'translate(-50%, -50%)',
-            width: HANDLE, height: HANDLE,
-            borderRadius: '50%',
-            background: '#01BBDC',
-            border: '2px solid #FFFFFF',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-            cursor: 'grab',
-            zIndex: 3,
-            touchAction: 'none',
-          }}
-        />
-        {/* High handle */}
-        <div
-          onPointerDown={startDrag('high')}
-          style={{
-            position: 'absolute', top: '50%',
-            left: `${pct(high)}%`,
-            transform: 'translate(-50%, -50%)',
-            width: HANDLE, height: HANDLE,
-            borderRadius: '50%',
-            background: '#01BBDC',
-            border: '2px solid #FFFFFF',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-            cursor: 'grab',
-            zIndex: 3,
-            touchAction: 'none',
-          }}
-        />
+        <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 3, marginTop: -1.5, background: '#E5E7EB', borderRadius: 2 }} />
+        <div style={{ position: 'absolute', top: '50%', marginTop: -1.5, height: 3, left: `${pct(low)}%`, width: `${pct(high) - pct(low)}%`, background: '#01BBDC', borderRadius: 2 }} />
+        <div onPointerDown={startDrag('low')} style={{ position: 'absolute', top: '50%', left: `${pct(low)}%`, transform: 'translate(-50%, -50%)', width: HANDLE, height: HANDLE, borderRadius: '50%', background: '#01BBDC', border: '2px solid #FFFFFF', boxShadow: '0 1px 4px rgba(0,0,0,0.25)', cursor: 'grab', zIndex: 3, touchAction: 'none' }} />
+        <div onPointerDown={startDrag('high')} style={{ position: 'absolute', top: '50%', left: `${pct(high)}%`, transform: 'translate(-50%, -50%)', width: HANDLE, height: HANDLE, borderRadius: '50%', background: '#01BBDC', border: '2px solid #FFFFFF', boxShadow: '0 1px 4px rgba(0,0,0,0.25)', cursor: 'grab', zIndex: 3, touchAction: 'none' }} />
       </div>
     </div>
   );
+}
+
+function PriceRangeSlider({ min, max, low, high, onLow, onHigh }: Omit<SliderProps, 'label' | 'step'>) {
+  return <DualRangeSlider min={min} max={max} low={low} high={high} onLow={onLow} onHigh={onHigh} label={(l, h) => `${fmtPrice(l)} – ${fmtPrice(h)}`} step={Math.round((max - min) / 200) || 1} />;
+}
+
+function LengthRangeSlider({ min, max, low, high, onLow, onHigh }: Omit<SliderProps, 'label' | 'step'>) {
+  return <DualRangeSlider min={min} max={max} low={low} high={high} onLow={onLow} onHigh={onHigh} label={(l, h) => `${fmtLength(l)} – ${fmtLength(h)}`} step={1} />;
 }
 
 interface SearchBarProps {
@@ -159,6 +128,10 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
   const [rangeMax,   setRangeMax]   = useState(10_000_000);
   const [lowVal,     setLowVal]     = useState(0);
   const [highVal,    setHighVal]    = useState(10_000_000);
+  const [lenMin,     setLenMin]     = useState(20);
+  const [lenMax,     setLenMax]     = useState(300);
+  const [lowLen,     setLowLen]     = useState(20);
+  const [highLen,    setHighLen]    = useState(300);
   const [makes,      setMakes]      = useState<string[]>([]);
 
   // Fetch distinct makes from backend
@@ -205,8 +178,10 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
     if (propulsion && !boatType) params.set('propulsion', propulsion);
     if (boatType)        params.set('boat_type',  boatType);
     if (make)            params.set('make',       make);
-    if (lowVal  > rangeMin) params.set('min_price', String(lowVal));
-    if (highVal < rangeMax) params.set('max_price', String(highVal));
+    if (lowVal  > rangeMin) params.set('min_price',  String(lowVal));
+    if (highVal < rangeMax) params.set('max_price',  String(highVal));
+    if (lowLen  > lenMin)   params.set('min_length', String(lowLen));
+    if (highLen < lenMax)   params.set('max_length', String(highLen));
 
     const qs = params.toString();
 
@@ -272,6 +247,15 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
           min={rangeMin} max={rangeMax}
           low={lowVal}   high={highVal}
           onLow={setLowVal} onHigh={setHighVal}
+        />
+
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
+
+        {/* ── Length Range Slider ── */}
+        <LengthRangeSlider
+          min={lenMin} max={lenMax}
+          low={lowLen} high={highLen}
+          onLow={setLowLen} onHigh={setHighLen}
         />
 
         {/* ── Search button (directly after slider) ── */}
