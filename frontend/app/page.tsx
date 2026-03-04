@@ -316,6 +316,22 @@ function AISearchBox() {
           userSelect: 'none',
         }}
       />
+      {/* Footer logo ghost — bottom-right */}
+      <Image
+        src="/logo/logo-two-tone-white.png"
+        alt=""
+        aria-hidden={true}
+        width={480}
+        height={130}
+        style={{
+          position: 'absolute',
+          bottom: 16,
+          right: 32,
+          opacity: 0.06,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
 
       {/* Heading — Figma: Bahnschrift 40/48, #10214F, centered */}
       <h2
@@ -329,10 +345,9 @@ function AISearchBox() {
           marginBottom: 22,
         }}
       >
-        Find the Yacht - Skip the Filters
+        Skip the Filters - Find the Yacht
       </h2>
 
-      {/* Sub-heading — Figma: Poppins 16/24, #10214F, centered */}
       <p
         className="text-center"
         style={{
@@ -573,21 +588,7 @@ export default function HomePage() {
               A Simpler Way to<br /><span style={{ color: '#01BBDC' }}>Buy and Sell</span> Your Yacht
             </h1>
 
-            {/* Sub line 1 */}
-            <p
-              style={{
-                color: '#10214F',
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 16,
-                lineHeight: '26px',
-                marginBottom: 12,
-                maxWidth: 640,
-              }}
-            >
-              Yachtversal Simplifies Your Buying Experience by Connecting Buyers and Listings in a Trusted, Intuitive Online Marketplace.
-            </p>
-
-            {/* Sub line 2 */}
+            {/* Sub line */}
             <p
               style={{
                 color: '#10214F',
@@ -599,7 +600,7 @@ export default function HomePage() {
                 maxWidth: 640,
               }}
             >
-              We combine smart technology, global reach, and dedicated support to deliver a smooth experience for Buyers, Brokers, and Sellers—without the complexity.
+              We Combine Smart Technology, Global Reach, and Dedicated Support to Deliver a Smooth Experience for Buyers, Brokers, and Sellers—Without the Complexity.
             </p>
 
             {/* Tagline */}

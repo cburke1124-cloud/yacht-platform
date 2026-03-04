@@ -199,8 +199,8 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
         style={{
           minHeight: 56,
           borderRadius: squareTop ? '0 0 12px 12px' : 12,
-          border: '2px solid rgba(1, 187, 220, 0.85)',
-          boxShadow: '0 0 18px 4px rgba(1, 187, 220, 0.35), inset 0 0 10px rgba(1, 187, 220, 0.06)',
+          border: '1px solid rgba(0,0,0,0.12)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           ...(squareTop ? { borderTop: 'none' } : {}),
           gap: 0,
         }}

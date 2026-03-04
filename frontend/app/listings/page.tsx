@@ -76,7 +76,7 @@ function AISearchBox({
           marginBottom: 10,
         }}
       >
-        Find the Yacht - Skip the Filters
+        Skip the Filters - Find the Yacht
       </h2>
 
       <p
