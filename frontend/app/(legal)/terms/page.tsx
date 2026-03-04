@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, UserCheck, ShieldAlert, Scale, AlertTriangle, Bell, MessageSquare, Building2, ArrowRight } from 'lucide-react';
+import { FileText, UserCheck, ShieldAlert, Scale, AlertTriangle, Bell, MessageSquare, Building2, ArrowRight, CreditCard } from 'lucide-react';
 
 export default function TermsOfServicePage() {
   const lastUpdated = "March 2, 2026";
