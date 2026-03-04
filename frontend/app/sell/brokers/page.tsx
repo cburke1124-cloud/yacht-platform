@@ -180,12 +180,13 @@ export default function SellBrokersPage() {
   useEffect(() => {
     const fetchTiers = async () => {
       try {
-        const res = await fetch(apiUrl('/subscription-tiers'));
+        const res = await fetch(apiUrl('/pricing-tiers'));
         if (res.ok) {
           const data = await res.json();
-          const tiersArray: SubscriptionTier[] = Array.isArray(data)
-            ? data
-            : Object.entries(data).map(([key, val]: [string, any]) => ({ key, ...val }));
+          const source = data.broker ?? data;
+          const tiersArray: SubscriptionTier[] = Array.isArray(source)
+            ? source
+            : Object.entries(source).map(([key, val]: [string, any]) => ({ key, ...val }));
           if (tiersArray.length > 0) setTiers(tiersArray);
         }
       } catch {

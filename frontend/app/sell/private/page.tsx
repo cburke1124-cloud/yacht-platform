@@ -165,12 +165,13 @@ export default function SellPrivatePage() {
   useEffect(() => {
     const fetchTiers = async () => {
       try {
-        const res = await fetch(apiUrl('/subscription-tiers/private'));
+        const res = await fetch(apiUrl('/pricing-tiers'));
         if (res.ok) {
           const data = await res.json();
-          const arr: PrivateTier[] = Array.isArray(data)
-            ? data
-            : Object.entries(data).map(([key, val]: [string, any]) => ({ key, ...val }));
+          const source = data.private ?? data;
+          const arr: PrivateTier[] = Array.isArray(source)
+            ? source
+            : Object.entries(source).map(([key, val]: [string, any]) => ({ key, ...val }));
           if (arr.length > 0) setTiers(arr.filter((t) => t.active !== false));
         }
       } catch {

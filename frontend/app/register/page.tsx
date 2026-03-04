@@ -88,6 +88,20 @@ function RegisterContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [stripeRedirecting, setStripeRedirecting] = useState(false);
+  const [liveDealerTiers, setLiveDealerTiers] = useState<Record<string, any>>(DEALER_TIERS);
+  const [livePrivateTiers, setLivePrivateTiers] = useState<Record<string, any>>(PRIVATE_TIERS);
+
+  // Fetch live tier pricing from DB (set by admin)
+  useEffect(() => {
+    fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return;
+        if (data.broker)  setLiveDealerTiers(data.broker);
+        if (data.private) setLivePrivateTiers(data.private);
+      })
+      .catch(() => {});
+  }, []);
 
   // ─── Deep-link from marketing pages ─────────────────────────────────────
   // /sell/list-brokers  → /register?user_type=dealer&subscription_tier=basic
@@ -124,8 +138,8 @@ function RegisterContent() {
   };
 
   const getTierInfo = (userType: string, tier: string) => {
-    if (userType === 'dealer') return DEALER_TIERS[tier as DealerTierKey] ?? DEALER_TIERS.basic;
-    if (userType === 'private') return PRIVATE_TIERS[tier as PrivateTierKey] ?? PRIVATE_TIERS.private_basic;
+    if (userType === 'dealer')  return liveDealerTiers[tier]  ?? liveDealerTiers['basic'];
+    if (userType === 'private') return livePrivateTiers[tier] ?? livePrivateTiers['private_basic'];
     return null;
   };
 
@@ -326,7 +340,7 @@ function RegisterContent() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 mb-6">
-            {Object.entries(DEALER_TIERS).map(([key, tier]) => (
+            {Object.entries(liveDealerTiers).map(([key, tier]) => (
               <div key={key} className={`bg-white p-8 rounded-2xl shadow-xl relative ${key === 'plus' ? 'border-4 border-primary' : ''}`}>
                 {key === 'plus' && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -341,7 +355,7 @@ function RegisterContent() {
                 {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
                 <p className="text-xs text-dark/50 mb-4">🔒 Billed securely via Stripe</p>
                 <ul className="space-y-3 mb-8">
-                  {tier.features.map((f, i) => (
+                  {(tier.features as string[]).map((f: string, i: number) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-dark">
                       <Check size={16} className="text-green-600 mt-1 flex-shrink-0" />{f}
                     </li>
@@ -379,7 +393,7 @@ function RegisterContent() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 mb-6">
-            {Object.entries(PRIVATE_TIERS).map(([key, tier]) => (
+            {Object.entries(livePrivateTiers).map(([key, tier]) => (
               <div key={key} className={`bg-white p-8 rounded-2xl shadow-xl relative ${key === 'private_plus' ? 'border-4 border-primary' : ''}`}>
                 {key === 'private_plus' && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
@@ -394,7 +408,7 @@ function RegisterContent() {
                 {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
                 <p className="text-xs text-dark/50 mb-4">🔒 Billed securely via Stripe</p>
                 <ul className="space-y-3 mb-8">
-                  {tier.features.map((f, i) => (
+                  {(tier.features as string[]).map((f: string, i: number) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-dark">
                       <Check size={16} className="text-green-600 mt-1 flex-shrink-0" />{f}
                     </li>
