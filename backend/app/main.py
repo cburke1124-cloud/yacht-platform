@@ -70,6 +70,8 @@ def _resolve_cors_origins() -> list[str]:
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://yacht-platform.vercel.app",
+        "https://yachtversal.com",
+        "https://www.yachtversal.com",
     ]
 
     configured = []
@@ -124,7 +126,7 @@ app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_resolve_cors_origins(),
-    allow_origin_regex=r"https://yacht-platform[^/]*\.vercel\.app",
+    allow_origin_regex=r"https://(yacht-platform[^/]*\.vercel\.app|yachtversal\.com|[^/]+\.yachtversal\.com)",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
