@@ -212,14 +212,11 @@ function SellerLoginContent() {
             className="overflow-hidden transition-all duration-500 ease-in-out"
             style={{ maxHeight: showSignup ? 9999 : 0, opacity: showSignup ? 1 : 0 }}
           >
-            {/* Broker / Dealer tiers — 3 columns */}
+            {/* Broker tiers — 3 columns */}
             <div className="mb-8">
-              <div className="flex items-center gap-3 mb-5">
-                <span className="text-2xl">🏢</span>
-                <div>
-                  <h3 className="text-xl font-bold text-secondary">Yacht Broker / Dealer</h3>
-                  <p className="text-sm text-dark/60">Professional brokerage or dealership with multiple listings</p>
-                </div>
+              <div className="mb-5">
+                <h3 className="text-xl font-bold text-secondary">Yacht Broker</h3>
+                <p className="text-sm text-dark/60">Professional brokerage with multiple listings</p>
               </div>
               <div className="grid md:grid-cols-3 gap-5">
                 {Object.entries(liveBrokerTiers).map(([key, tier]) => (
@@ -260,15 +257,12 @@ function SellerLoginContent() {
 
             {/* Private Seller tier */}
             <div>
-              <div className="flex items-center gap-3 mb-5">
-                <span className="text-2xl">🏠</span>
-                <div>
-                  <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-                  <p className="text-sm text-dark/60">Individual selling a personal yacht</p>
-                </div>
+              <div className="mb-5">
+                <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
+                <p className="text-sm text-dark/60">Individual selling a personal yacht</p>
               </div>
               {Object.entries(livePrivateTier).map(([key, tier]) => (
-                <div key={key} className="bg-white p-7 rounded-2xl shadow-xl border border-gray-100 max-w-sm">
+                <div key={key} className="bg-white p-7 rounded-2xl shadow-xl border border-gray-100">
                   <h4 className="text-xl font-bold text-secondary mb-1">{(tier as any).name}</h4>
                   <div className="flex items-baseline gap-1 mb-1">
                     <span className="text-3xl font-bold text-primary">${(tier as any).price}</span>
