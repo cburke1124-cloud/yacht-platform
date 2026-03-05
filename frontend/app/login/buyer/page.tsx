@@ -150,23 +150,22 @@ function BuyerLoginContent() {
                   {loading ? 'Signing in...' : 'Sign In'}
                 </button>
               </form>
-            </div>
 
-            {/* ── Sign Up section ── */}
-            <div className="mt-4 pt-5 border-t border-gray-100 space-y-3">
-              <p className="text-center text-sm text-dark/60">
-                Don't have an account?{' '}
-                <span className="font-medium text-secondary">Buyer accounts are always free.</span>
-              </p>
-              <Link
-                href="/register?user_type=buyer"
-                className="block w-full py-3 px-4 text-center rounded-lg font-semibold text-sm text-white transition-opacity hover:opacity-90"
-                style={{ backgroundColor: '#10214F' }}
-              >
-                Create a Free Buyer Account →
-              </Link>
+              {/* ── Sign Up section ── */}
+              <div className="mt-4 pt-5 border-t border-gray-100 space-y-3">
+                <p className="text-center text-sm text-dark/60">
+                  Don't have an account?{' '}
+                  <span className="font-medium text-secondary">Buyer accounts are always free.</span>
+                </p>
+                <Link
+                  href="/register?user_type=buyer"
+                  className="block w-full py-3 px-4 text-center rounded-lg font-semibold text-sm text-white transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: '#10214F' }}
+                >
+                  Create a Free Buyer Account →
+                </Link>
+              </div>
             </div>
-          </div>
 
           {/* ── Cross-link ── */}
           <div className="text-center mt-5 space-y-2">
