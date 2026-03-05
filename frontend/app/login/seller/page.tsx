@@ -5,16 +5,39 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiUrl } from '@/app/lib/apiRoot';
-import { ChevronDown, Loader2, Star } from 'lucide-react';
+import { ChevronDown, Loader2, Check } from 'lucide-react';
 import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
 
-const BROKER_PLANS = [
-  { key: 'basic',   name: 'Basic',          price: 29,  trial: 14, popular: false },
-  { key: 'plus',    name: 'Plus',           price: 59,  trial: 14, popular: true  },
-  { key: 'pro',     name: 'Pro',            price: 99,  trial: 30, popular: false },
-];
+// Fallback broker tiers (used until API responds)
+const BROKER_TIERS: Record<string, any> = {
+  basic: {
+    name: 'Basic',
+    price: 29,
+    trial_days: 14,
+    features: ['25 active listings', '15 images per listing', '1 video per listing', 'Enhanced search visibility', 'Priority email support', 'Analytics dashboard'],
+  },
+  plus: {
+    name: 'Plus',
+    price: 59,
+    trial_days: 14,
+    features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured broker badge', 'Priority support', 'Advanced analytics'],
+  },
+  pro: {
+    name: 'Pro',
+    price: 99,
+    trial_days: 30,
+    features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured broker badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
+  },
+};
 
-const PRIVATE_PLAN = { key: 'private_basic', name: 'Private Seller', price: 9, trial: 7 };
+const PRIVATE_TIER: Record<string, any> = {
+  private_basic: {
+    name: 'Private Seller',
+    price: 9,
+    trial_days: 7,
+    features: ['1 active listing', '20 photos per listing', '1 video per listing', 'Standard search visibility', 'Direct buyer messaging', 'Email support'],
+  },
+};
 
 function SellerLoginContent() {
   const router = useRouter();
@@ -27,8 +50,22 @@ function SellerLoginContent() {
   const [userName, setUserName] = useState<string | undefined>();
   const [userType, setUserType] = useState<string | undefined>();
 
+  const [liveBrokerTiers, setLiveBrokerTiers] = useState<Record<string, any>>(BROKER_TIERS);
+  const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
+
   useEffect(() => {
     fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
+    fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return;
+        if (data.broker) setLiveBrokerTiers(data.broker);
+        if (data.private) {
+          const k = Object.keys(data.private)[0];
+          if (k) setLivePrivateTier({ private_basic: data.private[k] });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,8 +135,8 @@ function SellerLoginContent() {
         />
       )}
 
-      <div className="min-h-screen section-light flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full">
+      <div className="min-h-screen section-light flex flex-col items-center justify-start py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-5xl">
 
           {/* Header */}
           <div className="text-center mb-8">
@@ -114,9 +151,9 @@ function SellerLoginContent() {
             </p>
           </div>
 
-          {/* ── Sign In form — collapses when accordion open ── */}
+          {/* ── Sign In form — constrained width, collapses when accordion open ── */}
           <div
-            className="overflow-hidden transition-all duration-500 ease-in-out"
+            className="overflow-hidden transition-all duration-500 ease-in-out max-w-md mx-auto"
             style={{ maxHeight: showSignup ? 0 : 9999, opacity: showSignup ? 0 : 1 }}
           >
             <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -170,74 +207,99 @@ function SellerLoginContent() {
             </div>
           </div>
 
-          {/* ── Signup accordion with pricing ── */}
+          {/* ── Signup accordion with full plan cards ── */}
           <div
             className="overflow-hidden transition-all duration-500 ease-in-out"
             style={{ maxHeight: showSignup ? 9999 : 0, opacity: showSignup ? 1 : 0 }}
           >
-            <div className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
-
-              {/* Broker / Dealer plans */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-dark/40 mb-2">
-                  🏢 Broker / Dealer
-                </p>
-                <div className="space-y-2">
-                  {BROKER_PLANS.map((plan) => (
-                    <Link
-                      key={plan.key}
-                      href={`/register?user_type=dealer&subscription_tier=${plan.key}`}
-                      className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-colors hover:bg-primary/5 ${
-                        plan.popular
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-100'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-secondary text-sm">{plan.name}</span>
-                        {plan.popular && (
-                          <span className="flex items-center gap-0.5 text-[10px] font-semibold text-primary">
-                            <Star size={10} fill="currentColor" /> POPULAR
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-secondary">${plan.price}<span className="text-xs font-normal text-dark/50">/mo</span></span>
-                        <span className="text-xs text-primary font-semibold">Get Started →</span>
-                      </div>
-                    </Link>
-                  ))}
+            {/* Broker / Dealer tiers — 3 columns */}
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-5">
+                <span className="text-2xl">🏢</span>
+                <div>
+                  <h3 className="text-xl font-bold text-secondary">Yacht Broker / Dealer</h3>
+                  <p className="text-sm text-dark/60">Professional brokerage or dealership with multiple listings</p>
                 </div>
               </div>
-
-              {/* Divider */}
-              <div className="border-t border-gray-100" />
-
-              {/* Private seller plan */}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-dark/40 mb-2">
-                  🏠 Private Seller
-                </p>
-                <Link
-                  href={`/register?user_type=private&subscription_tier=${PRIVATE_PLAN.key}`}
-                  className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-100 transition-colors hover:bg-primary/5"
-                >
-                  <span className="font-semibold text-secondary text-sm">{PRIVATE_PLAN.name}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-secondary">${PRIVATE_PLAN.price}<span className="text-xs font-normal text-dark/50">/mo</span></span>
-                    <span className="text-xs text-primary font-semibold">Get Started →</span>
+              <div className="grid md:grid-cols-3 gap-5">
+                {Object.entries(liveBrokerTiers).map(([key, tier]) => (
+                  <div key={key} className={`bg-white p-7 rounded-2xl shadow-xl relative ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
+                    {key === 'plus' && (
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                        <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
+                      </div>
+                    )}
+                    <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-3xl font-bold text-primary">${tier.price}</span>
+                      <span className="text-dark/50 text-sm">/month</span>
+                    </div>
+                    {tier.trial_days > 0 && (
+                      <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
+                    )}
+                    <ul className="space-y-2 mb-6">
+                      {(tier.features || []).map((f: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
+                          <Check size={14} className="text-primary mt-0.5 shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={`/register?user_type=dealer&subscription_tier=${key}`}
+                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${
+                        key === 'plus' ? 'bg-primary' : 'bg-secondary'
+                      }`}
+                    >
+                      Get Started
+                    </Link>
                   </div>
-                </Link>
+                ))}
               </div>
-
-              <p className="text-center text-xs text-dark/40 pt-1">
-                All plans include a free trial · No commission on sales
-              </p>
             </div>
+
+            {/* Private Seller tier */}
+            <div>
+              <div className="flex items-center gap-3 mb-5">
+                <span className="text-2xl">🏠</span>
+                <div>
+                  <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
+                  <p className="text-sm text-dark/60">Individual selling a personal yacht</p>
+                </div>
+              </div>
+              {Object.entries(livePrivateTier).map(([key, tier]) => (
+                <div key={key} className="bg-white p-7 rounded-2xl shadow-xl border border-gray-100 max-w-sm">
+                  <h4 className="text-xl font-bold text-secondary mb-1">{(tier as any).name}</h4>
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className="text-3xl font-bold text-primary">${(tier as any).price}</span>
+                    <span className="text-dark/50 text-sm">/month</span>
+                  </div>
+                  {(tier as any).trial_days > 0 && (
+                    <p className="text-xs text-primary font-medium mb-4">{(tier as any).trial_days}-day free trial</p>
+                  )}
+                  <ul className="space-y-2 mb-6">
+                    {((tier as any).features || []).map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
+                        <Check size={14} className="text-primary mt-0.5 shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={`/register?user_type=private&subscription_tier=${key}`}
+                    className="block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white bg-secondary transition-opacity hover:opacity-90"
+                  >
+                    Get Started
+                  </Link>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-center text-xs text-dark/40 mt-6">All plans include a free trial · Cancel anytime · No commission on sales</p>
           </div>
 
           {/* ── Toggle button ── */}
-          <div className="mt-5">
+          <div className="mt-5 max-w-md mx-auto">
             <button
               onClick={() => { setShowSignup((v) => !v); setError(''); }}
               className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 bg-white rounded-xl shadow-sm text-sm font-medium text-secondary hover:bg-gray-50 transition-colors"
@@ -251,7 +313,7 @@ function SellerLoginContent() {
           </div>
 
           {/* ── Cross-link ── */}
-          <div className="text-center mt-5 space-y-2">
+          <div className="text-center mt-5 space-y-2 max-w-md mx-auto">
             <p className="text-sm text-dark/50">
               Looking to buy a yacht?{' '}
               <Link href="/login/buyer" className="text-primary font-medium hover:text-primary/80">

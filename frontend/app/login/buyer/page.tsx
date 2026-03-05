@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiUrl } from '@/app/lib/apiRoot';
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
 
 function BuyerLoginContent() {
@@ -13,7 +13,6 @@ function BuyerLoginContent() {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showSignup, setShowSignup] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState<string>('/account');
   const [userName, setUserName] = useState<string | undefined>();
@@ -98,20 +97,12 @@ function BuyerLoginContent() {
             <Link href="/" className="inline-flex justify-center mb-4">
               <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
             </Link>
-            <h2 className="text-2xl font-semibold text-secondary">
-              {showSignup ? 'Create a Buyer Account' : 'Buyer Sign In'}
-            </h2>
-            <p className="mt-2 text-dark/70">
-              {showSignup ? 'Free to join — browse and connect with sellers' : 'Welcome back to your buyer account'}
-            </p>
+            <h2 className="text-2xl font-semibold text-secondary">Buyer Sign In</h2>
+            <p className="mt-2 text-dark/70">Welcome back to your buyer account</p>
           </div>
 
-          {/* ── Sign In form — collapses when accordion open ── */}
-          <div
-            className="overflow-hidden transition-all duration-500 ease-in-out"
-            style={{ maxHeight: showSignup ? 0 : 9999, opacity: showSignup ? 0 : 1 }}
-          >
-            <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* ── Sign In form ── */}
+          <div className="bg-white rounded-2xl shadow-xl p-8">
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-sm text-red-600">{error}</p>
@@ -160,16 +151,12 @@ function BuyerLoginContent() {
                 </button>
               </form>
             </div>
-          </div>
 
-          {/* ── Signup accordion ── */}
-          <div
-            className="overflow-hidden transition-all duration-500 ease-in-out"
-            style={{ maxHeight: showSignup ? 9999 : 0, opacity: showSignup ? 1 : 0 }}
-          >
-            <div className="bg-white rounded-2xl shadow-xl p-8 space-y-4">
-              <p className="text-sm text-dark/60 text-center">
-                Buyer accounts are always <span className="font-semibold text-secondary">free</span>. Browse listings, save favourites, and message sellers.
+            {/* ── Sign Up section ── */}
+            <div className="mt-4 pt-5 border-t border-gray-100 space-y-3">
+              <p className="text-center text-sm text-dark/60">
+                Don't have an account?{' '}
+                <span className="font-medium text-secondary">Buyer accounts are always free.</span>
               </p>
               <Link
                 href="/register?user_type=buyer"
@@ -179,20 +166,6 @@ function BuyerLoginContent() {
                 Create a Free Buyer Account →
               </Link>
             </div>
-          </div>
-
-          {/* ── Toggle button ── */}
-          <div className="mt-5">
-            <button
-              onClick={() => { setShowSignup((v) => !v); setError(''); }}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 bg-white rounded-xl shadow-sm text-sm font-medium text-secondary hover:bg-gray-50 transition-colors"
-            >
-              {showSignup ? 'Already have an account? Sign In' : "Don't have an account? Sign Up — Free"}
-              <ChevronDown
-                size={16}
-                className={`text-dark/50 transition-transform duration-300 ${showSignup ? 'rotate-180' : ''}`}
-              />
-            </button>
           </div>
 
           {/* ── Cross-link ── */}
