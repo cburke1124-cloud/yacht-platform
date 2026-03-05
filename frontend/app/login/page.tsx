@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { apiUrl } from '@/app/lib/apiRoot';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
@@ -100,8 +101,8 @@ function LoginContent() {
         <div className="max-w-md w-full">
           {/* Header */}
           <div className="text-center mb-8">
-            <Link href="/" className="inline-block">
-              <h1 className="text-4xl font-bold text-primary mb-2">YachtVersal</h1>
+            <Link href="/" className="inline-flex justify-center mb-4">
+              <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
             </Link>
             <h2 className="text-2xl font-semibold text-secondary">{showSignup ? 'Create Your Account' : 'Welcome Back'}</h2>
             <p className="mt-2 text-dark/70">{showSignup ? 'Choose how you want to join' : 'Sign in to your account'}</p>

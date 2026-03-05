@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Check, Loader2, ChevronLeft } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -52,7 +53,7 @@ function RegisterContent() {
     first_name: '',
     last_name: '',
     phone: '',
-    user_type: 'dealer' as 'dealer' | 'private',
+    user_type: 'dealer' as 'dealer' | 'private' | 'buyer',
     company_name: '',
     subscription_tier: 'basic',
     agree_terms: false,
@@ -97,7 +98,10 @@ function RegisterContent() {
       }));
     }
 
-    if (userType === 'dealer' && tier && tier in BROKER_TIERS) {
+    if (userType === 'buyer') {
+      setFormData((prev) => ({ ...prev, user_type: 'buyer', subscription_tier: '' }));
+      setShowForm(true);
+    } else if (userType === 'dealer' && tier && tier in BROKER_TIERS) {
       setFormData((prev) => ({ ...prev, user_type: 'dealer', subscription_tier: tier }));
       setShowForm(true);
     } else if (userType === 'private') {
@@ -186,7 +190,7 @@ function RegisterContent() {
         return;
       }
 
-      router.push('/dashboard');
+      router.push(formData.user_type === 'buyer' ? '/account' : '/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to register. Please try again.');
       setStripeRedirecting(false);
@@ -203,7 +207,9 @@ function RegisterContent() {
       <div className="min-h-screen bg-gradient-to-br from-section-light to-soft py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-10">
-            <Link href="/"><h1 className="text-4xl font-bold text-primary mb-2">YachtVersal</h1></Link>
+            <Link href="/" className="inline-flex justify-center mb-4">
+              <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
+            </Link>
             <h2 className="text-2xl font-semibold text-secondary">Choose Your Plan</h2>
             <p className="mt-2 text-dark/70">All plans include a free trial. Cancel anytime. No commission on sales.</p>
           </div>
@@ -312,14 +318,18 @@ function RegisterContent() {
   // REGISTRATION FORM
   // ===========================================================================
   const selectedTierInfo = getSelectedTierInfo();
-  const isBuyer = !formData.subscription_tier;
+  const isBuyer = formData.user_type === 'buyer';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-section-light to-soft py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <Link href="/"><h1 className="text-4xl font-bold text-primary mb-2">YachtVersal</h1></Link>
-          <h2 className="text-2xl font-semibold text-secondary">Complete Your Registration</h2>
+          <Link href="/" className="inline-flex justify-center mb-4">
+            <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
+          </Link>
+          <h2 className="text-2xl font-semibold text-secondary">
+            {isBuyer ? 'Create a Free Buyer Account' : 'Complete Your Registration'}
+          </h2>
 
           {selectedTierInfo && !isBuyer && (
             <p className="mt-3">
@@ -468,13 +478,22 @@ function RegisterContent() {
               {getSubmitLabel()}
             </button>
 
-            <button
-              type="button"
-              onClick={() => { setShowForm(false); setError(''); }}
-              className="w-full flex items-center justify-center gap-1 text-sm text-dark/70 hover:text-dark transition-colors"
-            >
-              <ChevronLeft size={14} /> Back to plan selection
-            </button>
+            {isBuyer ? (
+              <Link
+                href="/login"
+                className="w-full flex items-center justify-center gap-1 text-sm text-dark/70 hover:text-dark transition-colors"
+              >
+                <ChevronLeft size={14} /> Back to sign in
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); setError(''); }}
+                className="w-full flex items-center justify-center gap-1 text-sm text-dark/70 hover:text-dark transition-colors"
+              >
+                <ChevronLeft size={14} /> Back to plan selection
+              </button>
+            )}
           </form>
         </div>
 
