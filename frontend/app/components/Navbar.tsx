@@ -428,16 +428,7 @@ export default function Navbar() {
                   )}
                 </div>
 
-                {/* List a Yacht CTA */}
-                {canCreateListings() && (
-                  <Link
-                    href="/listings/create"
-                    className="px-5 py-2 text-white font-medium text-sm rounded-xl transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    List a Yacht
-                  </Link>
-                )}
+
               </>
             ) : (
               <>
@@ -446,14 +437,14 @@ export default function Navbar() {
                   className="px-4 py-2 text-dark/80 hover:text-primary rounded-lg transition-colors font-medium text-sm"
                   style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
-                  Sign In
+                  Sign In as Buyer
                 </Link>
                 <Link
-                  href="/register?user_type=dealer&subscription_tier=basic"
+                  href="/login?type=seller"
                   className="px-6 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
                   style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
                 >
-                  List a Yacht
+                  Sign In as Seller
                 </Link>
               </>
             )}
@@ -580,17 +571,6 @@ export default function Navbar() {
                     </span>
                   </div>
 
-                  {canCreateListings() && (
-                    <Link
-                      href="/listings/create"
-                      className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
-                      style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      + List a Yacht
-                    </Link>
-                  )}
-
                   <Link
                     href={getDashboardLink()}
                     className="block w-full px-4 py-2 text-dark/80 text-center border border-gray-200 rounded-lg font-medium text-sm"
@@ -634,15 +614,15 @@ export default function Navbar() {
                     className="block w-full px-4 py-2 text-dark/80 text-center border border-gray-200 rounded-lg font-medium text-sm"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Sign In
+                    Sign In as Buyer
                   </Link>
                   <Link
-                    href="/register?user_type=dealer&subscription_tier=basic"
+                    href="/login?type=seller"
                     className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
                     style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    List a Yacht
+                    Sign In as Seller
                   </Link>
                 </>
               )}

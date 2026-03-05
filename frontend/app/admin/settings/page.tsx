@@ -58,39 +58,16 @@ const DEFAULT_DEALER_TIERS: TiersRecord = {
   },
 };
 
-// ─── Default private seller tiers — fallback if DB fetch fails ───────────────
-// The 'name' field is FULLY EDITABLE in the admin UI — changes saved to
-// subscription_tiers table (user_type='private'). Internal keys (private_basic,
-// private_plus, private_pro) must never change once subscribers are live.
+// ─── Default private seller tier — one plan only ────────────────────────────
 const DEFAULT_PRIVATE_TIERS: TiersRecord = {
   private_basic: {
-    name: 'Basic',
+    name: 'Private Seller',
     price: 9,
     listings: 1,
     images_per_listing: 20,
-    videos_per_listing: 0,
-    features: ['1 active listing', '20 photos per listing', 'Standard search visibility', 'Email support'],
-    trial_days: 7,
-    active: true,
-  },
-  private_plus: {
-    name: 'Plus',
-    price: 19,
-    listings: 3,
-    images_per_listing: 35,
     videos_per_listing: 1,
-    features: ['3 active listings', '35 photos per listing', '1 video per listing', 'Priority search placement', 'Listing analytics'],
+    features: ['1 active listing', '20 photos per listing', '1 video per listing', 'Standard search visibility', 'Direct buyer messaging', 'Email support'],
     trial_days: 7,
-    active: true,
-  },
-  private_pro: {
-    name: 'Pro',
-    price: 39,
-    listings: 10,
-    images_per_listing: 50,
-    videos_per_listing: 3,
-    features: ['10 active listings', '50 photos per listing', '3 videos per listing', 'Top search placement', 'Featured badge', 'Priority support', 'Social media promotion'],
-    trial_days: 14,
     active: true,
   },
 };
@@ -101,8 +78,6 @@ const STRIPE_KEY_HINTS: Record<string, string> = {
   plus:          'STRIPE_PRICE_DEALER_PLUS env var',
   pro:           'STRIPE_PRICE_DEALER_PRO env var',
   private_basic: 'STRIPE_PRICE_PRIVATE_BASIC env var',
-  private_plus:  'STRIPE_PRICE_PRIVATE_PLUS env var',
-  private_pro:   'STRIPE_PRICE_PRIVATE_PRO env var',
 };
 
 // ─── Reusable Tier Editor component ──────────────────────────────────────────
@@ -336,7 +311,7 @@ function useToast() {
 // ─── Main AdminSettingsPage ───────────────────────────────────────────────────
 
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState<'banner' | 'dealer_subs' | 'private_subs'>('banner');
+  const [activeTab, setActiveTab] = useState<'banner' | 'subscriptions'>('banner');
 
   // Banner
   const [bannerSettings, setBannerSettings] = useState({
@@ -471,8 +446,7 @@ export default function AdminSettingsPage() {
 
   const tabs = [
     { id: 'banner', label: '📢 Banner Settings' },
-    { id: 'dealer_subs', label: '🏢 Dealer Subscriptions' },
-    { id: 'private_subs', label: '👤 Private Seller Subscriptions' },
+    { id: 'subscriptions', label: '💳 Subscription Tiers' },
   ] as const;
 
   return (
@@ -598,54 +572,49 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      {/* ── Dealer Subscriptions Tab ─────────────────────────────────────── */}
-      {activeTab === 'dealer_subs' && (
-        <div>
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Dealer Subscription Tiers</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              These tiers are shown on the <strong>/sell/list-brokers</strong> pricing page and in the
-              dealer registration flow. Stripe price IDs for <code className="bg-gray-100 px-1 rounded text-xs">basic</code> and{' '}
-              <code className="bg-gray-100 px-1 rounded text-xs">premium</code> must match{' '}
-              <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_BASIC</code> /{' '}
-              <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PREMIUM</code> env vars.
-            </p>
+      {/* ── Subscription Tiers Tab (Broker + Private combined) ────────────── */}
+      {activeTab === 'subscriptions' && (
+        <div className="space-y-12">
+          {/* Broker tiers */}
+          <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">🏢 Broker / Dealer Tiers</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Three tiers shown to brokers on the pricing and registration pages.
+                Stripe env vars: <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_DEALER_BASIC</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_DEALER_PLUS</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_DEALER_PRO</code>.
+              </p>
+            </div>
+            <TierEditor
+              tiers={dealerTiers}
+              onUpdate={updateDealerTier}
+              onDelete={deleteDealerTier}
+              saving={savingDealer}
+              onSave={handleSaveDealerTiers}
+              saveEndpoint="PUT /api/admin/subscription-config"
+              userTypeLabel="broker / dealer accounts"
+            />
           </div>
-          <TierEditor
-            tiers={dealerTiers}
-            onUpdate={updateDealerTier}
-            onDelete={deleteDealerTier}
-            saving={savingDealer}
-            onSave={handleSaveDealerTiers}
-            saveEndpoint="PUT /api/admin/subscription-config"
-            userTypeLabel="dealer accounts"
-          />
-        </div>
-      )}
 
-      {/* ── Private Seller Subscriptions Tab ─────────────────────────────── */}
-      {activeTab === 'private_subs' && (
-        <div>
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Private Seller Subscription Tiers</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              These tiers are shown on the <strong>/sell/private</strong> pricing page and in the
-              private seller registration flow. They are <strong>completely independent</strong> from dealer
-              tiers — different prices, different features, different Stripe price IDs.
-              Set <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_BASIC</code> /{' '}
-              <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_PREMIUM</code> env vars
-              in your server config.
-            </p>
+          <div className="border-t border-gray-200 pt-10">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">👤 Private Seller Tier</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Single tier for private sellers (one yacht listing).
+                Stripe env var: <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_BASIC</code>.
+              </p>
+            </div>
+            <TierEditor
+              tiers={privateTiers}
+              onUpdate={updatePrivateTier}
+              onDelete={deletePrivateTier}
+              saving={savingPrivate}
+              onSave={handleSavePrivateTiers}
+              saveEndpoint="PUT /api/admin/subscription-config/private"
+              userTypeLabel="private seller accounts"
+            />
           </div>
-          <TierEditor
-            tiers={privateTiers}
-            onUpdate={updatePrivateTier}
-            onDelete={deletePrivateTier}
-            saving={savingPrivate}
-            onSave={handleSavePrivateTiers}
-            saveEndpoint="PUT /api/admin/subscription-config/private"
-            userTypeLabel="private seller accounts"
-          />
         </div>
       )}
     </div>
