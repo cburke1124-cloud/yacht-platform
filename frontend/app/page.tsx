@@ -311,7 +311,7 @@ function AISearchBox() {
           top: '50%',
           left: '50%',
           transform: 'translateX(-50%) translateY(-50%)',
-          opacity: 0.05,
+          opacity: 0.15,
           pointerEvents: 'none',
           userSelect: 'none',
         }}
