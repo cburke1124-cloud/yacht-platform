@@ -434,17 +434,17 @@ export default function Navbar() {
               <>
                 <Link
                   href="/login"
-                  className="px-4 py-2 text-dark/80 hover:text-primary rounded-lg transition-colors font-medium text-sm"
-                  style={{ fontFamily: 'Poppins, sans-serif' }}
+                  className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: '#10214F', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
                 >
-                  Sign In as Buyer
+                  Buyer Sign In
                 </Link>
                 <Link
                   href="/login?type=seller"
-                  className="px-6 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
+                  className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
                   style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
                 >
-                  Sign In as Seller
+                  Seller Sign In
                 </Link>
               </>
             )}
@@ -611,10 +611,11 @@ export default function Navbar() {
                 <>
                   <Link
                     href="/login"
-                    className="block w-full px-4 py-2 text-dark/80 text-center border border-gray-200 rounded-lg font-medium text-sm"
+                    className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
+                    style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Sign In as Buyer
+                    Buyer Sign In
                   </Link>
                   <Link
                     href="/login?type=seller"
@@ -622,7 +623,7 @@ export default function Navbar() {
                     style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Sign In as Seller
+                    Seller Sign In
                   </Link>
                 </>
               )}

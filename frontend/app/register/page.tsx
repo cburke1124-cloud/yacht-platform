@@ -269,7 +269,7 @@ function RegisterContent() {
               </div>
             </div>
 
-            <div className="max-w-sm">
+            <div>
               {Object.entries(livePrivateTier).map(([key, tier]) => (
                 <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
                   <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
@@ -297,13 +297,7 @@ function RegisterContent() {
             </div>
           </div>
 
-          <div className="text-center mt-4 space-y-2">
-            <p className="text-sm text-dark/50">
-              Just browsing?{' '}
-              <button onClick={() => { setFormData((p) => ({ ...p, user_type: 'dealer', subscription_tier: '' })); setShowForm(true); }} className="text-primary hover:underline">
-                Create a free buyer account
-              </button>
-            </p>
+          <div className="text-center mt-4">
             <p className="text-sm text-dark/50">
               Already have an account?{' '}
               <Link href="/login" className="text-primary hover:underline">Sign in</Link>

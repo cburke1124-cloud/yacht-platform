@@ -4,18 +4,8 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
-import { Check, ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
-
-// Fallback tiers for the signup accordion
-const BROKER_TIERS: Record<string, any> = {
-  basic: { name: 'Basic', price: 29, trial_days: 14, features: ['25 active listings', '15 images/listing', 'Analytics dashboard'] },
-  plus:  { name: 'Plus',  price: 59, trial_days: 14, features: ['75 active listings', '30 images/listing', 'Priority placement', 'Featured badge'] },
-  pro:   { name: 'Pro',   price: 99, trial_days: 30, features: ['Unlimited listings', '50 images/listing', 'Dedicated manager', 'AI tools'] },
-};
-const PRIVATE_TIER: Record<string, any> = {
-  private_basic: { name: 'Private Seller', price: 9, trial_days: 7, features: ['1 active listing', '20 photos', 'Direct buyer messaging', 'No sales commission'] },
-};
 
 function LoginContent() {
   const router = useRouter();
@@ -28,28 +18,14 @@ function LoginContent() {
   const [userName, setUserName] = useState<string | undefined>();
   const [userType, setUserType] = useState<string | undefined>();
 
-  // Accordion state: showSignup=true collapses the login form and shows signup plans
+  // Accordion state: showSignup=true collapses the login form and shows signup options
   const [showSignup, setShowSignup] = useState(false);
 
-  const [liveBrokerTiers, setLiveBrokerTiers] = useState<Record<string, any>>(BROKER_TIERS);
-  const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
-
-  // Pre-warm backend + fetch tiers + check URL param
+  // Pre-warm backend + check URL param
   useEffect(() => {
     fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
-    fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (!data) return;
-        if (data.broker) setLiveBrokerTiers(data.broker);
-        if (data.private) {
-          const k = Object.keys(data.private)[0];
-          if (k) setLivePrivateTier({ private_basic: data.private[k] });
-        }
-      })
-      .catch(() => {});
 
-    // If coming from "Sign In as Seller" in navbar, open signup section immediately
+    // If coming from "Seller Sign In" in navbar, open signup section immediately
     if (searchParams.get('type') === 'seller') setShowSignup(true);
   }, [searchParams]);
 
@@ -128,7 +104,7 @@ function LoginContent() {
               <h1 className="text-4xl font-bold text-primary mb-2">YachtVersal</h1>
             </Link>
             <h2 className="text-2xl font-semibold text-secondary">{showSignup ? 'Create Your Account' : 'Welcome Back'}</h2>
-            <p className="mt-2 text-dark/70">{showSignup ? 'Select a plan to get started' : 'Sign in to your account'}</p>
+            <p className="mt-2 text-dark/70">{showSignup ? 'Choose how you want to join' : 'Sign in to your account'}</p>
           </div>
 
           {/* ── Sign In section — collapses when showSignup is true ── */}
@@ -192,63 +168,23 @@ function LoginContent() {
             className="overflow-hidden transition-all duration-500 ease-in-out"
             style={{ maxHeight: showSignup ? 9999 : 0, opacity: showSignup ? 1 : 0 }}
           >
-            <div className="space-y-4">
-              {/* Broker tiers */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
-                <p className="text-xs font-semibold uppercase tracking-wider text-dark/50 mb-4">Yacht Broker / Dealer</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {Object.entries(liveBrokerTiers).map(([key, tier]) => (
-                    <Link
-                      key={key}
-                      href={`/register?user_type=dealer&subscription_tier=${key}`}
-                      className={`block p-4 rounded-xl border-2 text-center transition-all hover:border-primary hover:shadow-md ${key === 'plus' ? 'border-primary bg-primary/5' : 'border-gray-100'}`}
-                    >
-                      <p className="font-bold text-secondary text-sm">{tier.name}</p>
-                      <p className="text-2xl font-bold text-primary mt-1">${tier.price}</p>
-                      <p className="text-xs text-dark/50">/month</p>
-                      {tier.trial_days > 0 && <p className="text-xs text-primary mt-1">{tier.trial_days}-day trial</p>}
-                      <ul className="mt-3 space-y-1 text-left">
-                        {(tier.features as string[]).map((f: string, i: number) => (
-                          <li key={i} className="flex items-start gap-1 text-xs text-dark/70">
-                            <Check size={10} className="text-green-500 mt-0.5 flex-shrink-0" />{f}
-                          </li>
-                        ))}
-                      </ul>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {/* Private seller tier */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
-                <p className="text-xs font-semibold uppercase tracking-wider text-dark/50 mb-4">Private Seller</p>
-                {Object.entries(livePrivateTier).map(([key, tier]) => (
-                  <Link
-                    key={key}
-                    href={`/register?user_type=private&subscription_tier=${key}`}
-                    className="flex items-center justify-between p-4 rounded-xl border-2 border-primary/20 hover:border-primary transition-all hover:shadow-md"
-                  >
-                    <div>
-                      <p className="font-bold text-secondary">{tier.name}</p>
-                      {tier.trial_days > 0 && <p className="text-xs text-primary">{tier.trial_days}-day free trial</p>}
-                      <ul className="mt-1 space-y-0.5">
-                        {(tier.features as string[]).map((f: string, i: number) => (
-                          <li key={i} className="flex items-start gap-1 text-xs text-dark/70">
-                            <Check size={10} className="text-green-500 mt-0.5 flex-shrink-0" />{f}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="text-right ml-4 flex-shrink-0">
-                      <p className="text-3xl font-bold text-primary">${tier.price}</p>
-                      <p className="text-xs text-dark/50">/month</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-
-              <p className="text-center text-xs text-dark/50 pb-2">
-                All plans billed via Stripe. Cancel anytime. No sales commission.
+            <div className="bg-white rounded-2xl shadow-xl p-8 space-y-4">
+              <Link
+                href="/register"
+                className="block w-full py-3 px-4 text-center rounded-lg font-semibold text-sm text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: '#01BBDC' }}
+              >
+                Sign Up as a Seller — View Plans
+              </Link>
+              <Link
+                href="/register?user_type=buyer"
+                className="block w-full py-3 px-4 text-center rounded-lg font-semibold text-sm text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: '#10214F' }}
+              >
+                Sign Up as a Buyer — Free
+              </Link>
+              <p className="text-center text-xs text-dark/50">
+                Seller plans start at $9/month. Buyer accounts are always free.
               </p>
             </div>
           </div>
