@@ -236,7 +236,7 @@ export default function Navbar() {
     return `Hi, ${user.email.split('@')[0]}`;
   };
 
-  if (pathname === '/login' || pathname === '/register') return null;
+  if (pathname === '/login' || pathname === '/login/buyer' || pathname === '/login/seller' || pathname === '/register') return null;
 
   // ─── Nav link definitions (matches Figma) ───────────────────────────────
   const sellItems = [
@@ -433,14 +433,14 @@ export default function Navbar() {
             ) : (
               <>
                 <Link
-                  href="/login"
+                  href="/login/buyer"
                   className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
                   style={{ backgroundColor: '#10214F', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
                 >
                   Buyer Sign In
                 </Link>
                 <Link
-                  href="/login?type=seller"
+                  href="/login/seller"
                   className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
                   style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
                 >
@@ -610,7 +610,7 @@ export default function Navbar() {
               ) : (
                 <>
                   <Link
-                    href="/login"
+                    href="/login/buyer"
                     className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
                     style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                     onClick={() => setMobileMenuOpen(false)}
@@ -618,7 +618,7 @@ export default function Navbar() {
                     Buyer Sign In
                   </Link>
                   <Link
-                    href="/login?type=seller"
+                    href="/login/seller"
                     className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
                     style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                     onClick={() => setMobileMenuOpen(false)}
