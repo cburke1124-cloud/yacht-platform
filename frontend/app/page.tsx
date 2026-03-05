@@ -299,7 +299,23 @@ function AISearchBox() {
         overflow: 'hidden',
       }}
     >
-
+      {/* Faint logomark watermark — centered */}
+      <Image
+        src="/logo/footer-watermark.png"
+        alt=""
+        aria-hidden={true}
+        width={500}
+        height={500}
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translateX(-50%) translateY(-50%)',
+          opacity: 0.05,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
 
       {/* Heading — Figma: Bahnschrift 40/48, #10214F, centered */}
       <h2
