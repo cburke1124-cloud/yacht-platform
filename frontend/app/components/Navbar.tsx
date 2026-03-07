@@ -309,7 +309,7 @@ export default function Navbar() {
                 <Link
                   href="/messages"
                   className="relative p-2 text-dark/70 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Messages"
+                  aria-label="Messages"
                 >
                   <MessageSquare size={20} />
                 </Link>
@@ -318,7 +318,7 @@ export default function Navbar() {
                 <Link
                   href="/notifications"
                   className="relative p-2 text-dark/70 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Notifications"
+                  aria-label="Notifications"
                 >
                   <Bell size={20} />
                   {unreadCount > 0 && (
@@ -333,6 +333,8 @@ export default function Navbar() {
                   <button
                     onClick={() => setShowUserMenu((v) => !v)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    aria-label="User menu"
+                    aria-expanded={showUserMenu}
                   >
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                       <User size={16} className="text-primary" />
@@ -454,7 +456,7 @@ export default function Navbar() {
           <div className="md:hidden flex items-center gap-2">
             {isLoggedIn && (
               <>
-                <Link href="/notifications" className="relative p-2 text-dark/70">
+                <Link href="/notifications" aria-label="Notifications" className="relative p-2 text-dark/70">
                   <Bell size={20} />
                   {unreadCount > 0 && (
                     <span className="absolute top-0 right-0 w-4 h-4 text-xs flex items-center justify-center text-white bg-primary rounded-full">
@@ -462,7 +464,7 @@ export default function Navbar() {
                     </span>
                   )}
                 </Link>
-                <Link href="/messages" className="p-2 text-dark/70">
+                <Link href="/messages" aria-label="Messages" className="p-2 text-dark/70">
                   <MessageSquare size={20} />
                 </Link>
               </>
@@ -470,6 +472,8 @@ export default function Navbar() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-dark/70 hover:text-primary"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>

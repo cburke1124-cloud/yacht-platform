@@ -1,4 +1,4 @@
-Ôªø'use client';
+'use client';
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -217,7 +217,7 @@ function RegisterContent() {
           {/* Broker / Dealer Tiers */}
           <div className="mb-10">
             <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">üè¢</span>
+              <span className="text-2xl">??</span>
               <div>
                 <h3 className="text-xl font-bold text-secondary">Yacht Broker / Dealer</h3>
                 <p className="text-sm text-dark/60">Professional brokerage or dealership with multiple listings</p>
@@ -268,10 +268,10 @@ function RegisterContent() {
           {/* Private Seller Tier */}
           <div className="mb-10">
             <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">üë§</span>
+              <span className="text-2xl">??</span>
               <div>
                 <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-                <p className="text-sm text-dark/60">Selling your own yacht ‚Äî no broker, no sales commission</p>
+                <p className="text-sm text-dark/60">Selling your own yacht ó no broker, no sales commission</p>
               </div>
             </div>
 
@@ -284,7 +284,7 @@ function RegisterContent() {
                     <span className="text-dark/70">/month</span>
                   </div>
                   {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
-                  <p className="text-xs text-dark/50 mb-4">No commission on your sale price ‚Äî ever</p>
+                  <p className="text-xs text-dark/50 mb-4">No commission on your sale price ó ever</p>
                   <ul className="space-y-2 mb-8">
                     {(tier.features as string[]).map((f: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-dark">
@@ -334,8 +334,8 @@ function RegisterContent() {
           {selectedTierInfo && !isBuyer && (
             <p className="mt-3">
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-secondary rounded-full text-sm font-medium">
-                {selectedTierInfo.name} Plan ‚Äî ${selectedTierInfo.price}/month
-                <span className="text-xs text-dark/50">¬∑ payment via Stripe</span>
+                {selectedTierInfo.name} Plan ó ${selectedTierInfo.price}/month
+                <span className="text-xs text-dark/50">∑ payment via Stripe</span>
               </span>
             </p>
           )}
@@ -345,7 +345,7 @@ function RegisterContent() {
           {searchParams.get('payment') === 'cancelled' && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                <strong>Payment was cancelled.</strong> Your account has been created ‚Äî complete payment from your dashboard at any time.
+                <strong>Payment was cancelled.</strong> Your account has been created ó complete payment from your dashboard at any time.
               </p>
             </div>
           )}
@@ -362,13 +362,13 @@ function RegisterContent() {
                 <label className="block text-sm font-medium text-dark mb-2">First Name *</label>
                 <input type="text" required value={formData.first_name}
                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
+                  className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark mb-2">Last Name *</label>
                 <input type="text" required value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
+                  className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent" />
               </div>
             </div>
 
@@ -376,7 +376,7 @@ function RegisterContent() {
               <label className="block text-sm font-medium text-dark mb-2">Email Address *</label>
               <input type="email" required value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="you@example.com" />
             </div>
 
@@ -384,7 +384,7 @@ function RegisterContent() {
               <label className="block text-sm font-medium text-dark mb-2">Phone Number</label>
               <input type="tel" value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="+1 (555) 000-0000" />
             </div>
 
@@ -393,7 +393,7 @@ function RegisterContent() {
                 <label className="block text-sm font-medium text-dark mb-2">Company / Brokerage Name *</label>
                 <input type="text" required value={formData.company_name}
                   onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="Your brokerage or company name" />
               </div>
             )}
@@ -403,14 +403,14 @@ function RegisterContent() {
                 <label className="block text-sm font-medium text-dark mb-2">Password *</label>
                 <input type="password" required value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="........" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-dark mb-2">Confirm Password *</label>
                 <input type="password" required value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="........" />
               </div>
             </div>

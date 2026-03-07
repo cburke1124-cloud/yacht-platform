@@ -170,7 +170,7 @@ function SellerLoginContent() {
                     id="email" name="email" type="email" required autoComplete="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -181,14 +181,14 @@ function SellerLoginContent() {
                     id="password" name="password" type="password" required autoComplete="current-password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder="........"
                   />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 text-primary focus:ring-primary border-gray-200 rounded" />
+                    <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 text-primary focus:ring-primary border-gray-400 rounded" />
                     <label htmlFor="remember-me" className="ml-2 block text-sm text-dark">Remember me</label>
                   </div>
                   <div className="text-sm">
