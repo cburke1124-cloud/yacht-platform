@@ -271,7 +271,7 @@ function RegisterContent() {
               <span className="text-2xl">??</span>
               <div>
                 <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-                <p className="text-sm text-dark/60">Selling your own yacht — no broker, no sales commission</p>
+                <p className="text-sm text-dark/60">Selling your own yacht ï¿½ no broker, no sales commission</p>
               </div>
             </div>
 
@@ -284,7 +284,7 @@ function RegisterContent() {
                     <span className="text-dark/70">/month</span>
                   </div>
                   {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
-                  <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
+                  <p className="text-xs text-dark/50 mb-4">No commission on your sale price ï¿½ ever</p>
                   <ul className="space-y-2 mb-8">
                     {(tier.features as string[]).map((f: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-dark">
@@ -334,8 +334,8 @@ function RegisterContent() {
           {selectedTierInfo && !isBuyer && (
             <p className="mt-3">
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-secondary rounded-full text-sm font-medium">
-                {selectedTierInfo.name} Plan — ${selectedTierInfo.price}/month
-                <span className="text-xs text-dark/50">· payment via Stripe</span>
+                {selectedTierInfo.name} Plan ï¿½ ${selectedTierInfo.price}/month
+                <span className="text-xs text-dark/50">ï¿½ payment via Stripe</span>
               </span>
             </p>
           )}
@@ -345,7 +345,7 @@ function RegisterContent() {
           {searchParams.get('payment') === 'cancelled' && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                <strong>Payment was cancelled.</strong> Your account has been created — complete payment from your dashboard at any time.
+                <strong>Payment was cancelled.</strong> Your account has been created ï¿½ complete payment from your dashboard at any time.
               </p>
             </div>
           )}
