@@ -216,12 +216,9 @@ function RegisterContent() {
 
           {/* Broker / Dealer Tiers */}
           <div className="mb-10">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">??</span>
-              <div>
-                <h3 className="text-xl font-bold text-secondary">Yacht Broker / Dealer</h3>
-                <p className="text-sm text-dark/60">Professional brokerage or dealership with multiple listings</p>
-              </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-secondary">Yacht Broker / Dealer</h3>
+              <p className="text-sm text-dark/60">Professional brokerage or dealership with multiple listings</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -267,25 +264,30 @@ function RegisterContent() {
 
           {/* Private Seller Tier */}
           <div className="mb-10">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">??</span>
-              <div>
-                <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-                <p className="text-sm text-dark/60">Selling your own yacht � no broker, no sales commission</p>
-              </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
+              <p className="text-sm text-dark/60">Selling your own yacht — no broker, no sales commission</p>
             </div>
 
             <div>
               {Object.entries(livePrivateTier).map(([key, tier]) => (
                 <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
-                  <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
-                  <div className="mb-1">
-                    <span className="text-4xl font-bold text-secondary">${tier.price}</span>
-                    <span className="text-dark/70">/month</span>
+                  <div className="flex flex-wrap items-end gap-x-8 gap-y-1 mb-6">
+                    <div>
+                      <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name}</h4>
+                      <p className="text-xs text-dark/50">No commission on your sale price — ever</p>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-bold text-secondary">${tier.price}</span>
+                      <span className="text-dark/70 text-sm">/month</span>
+                    </div>
+                    {tier.trial_days > 0 && (
+                      <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
+                        {tier.trial_days}-day free trial
+                      </span>
+                    )}
                   </div>
-                  {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
-                  <p className="text-xs text-dark/50 mb-4">No commission on your sale price � ever</p>
-                  <ul className="space-y-2 mb-8">
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 mb-6">
                     {(tier.features as string[]).map((f: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-dark">
                         <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0" />{f}
@@ -296,7 +298,7 @@ function RegisterContent() {
                     onClick={() => selectPlan('private', key)}
                     className="w-full py-3 rounded-lg font-semibold text-sm bg-primary text-white hover:bg-primary/90 transition-colors"
                   >
-                    {tier.trial_days > 0 ? `Start ${tier.trial_days}-Day Free Trial` : 'Get Started'}
+                    Get Started
                   </button>
                 </div>
               ))}
