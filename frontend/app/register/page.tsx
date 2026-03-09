@@ -205,7 +205,7 @@ function RegisterContent() {
   if (!showForm) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-section-light to-soft py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10">
             <Link href="/" className="inline-flex justify-center mb-4">
               <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
@@ -214,80 +214,24 @@ function RegisterContent() {
             <p className="mt-2 text-dark/70">All plans include a free trial. Cancel anytime. No commission on sales.</p>
           </div>
 
-          {/* Broker / Dealer Tiers */}
+          {/* All Tiers — 4-column grid: Private Seller first, then Broker tiers */}
           <div className="mb-10">
-            <div className="mb-6">
-              <h3 className="text-xl font-bold text-secondary">Yacht Broker / Dealer</h3>
-              <p className="text-sm text-dark/60">Professional brokerage or dealership with multiple listings</p>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 
-            <div className="grid md:grid-cols-3 gap-6">
-              {Object.entries(liveBrokerTiers).map(([key, tier]) => (
-                <div key={key} className={`bg-white p-8 rounded-2xl shadow-xl relative ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
-                  {key === 'plus' && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                      <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
-                    </div>
-                  )}
-                  <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
+              {/* Private Seller — leftmost column */}
+              {Object.entries(livePrivateTier).map(([key, tier]) => (
+                <div key={key} className="bg-white p-6 rounded-2xl shadow-xl border-2 border-primary/20 flex flex-col">
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-3">Private Seller</p>
+                  <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name}</h4>
+                  <p className="text-xs text-dark/50 mb-3">No commission — ever</p>
                   <div className="mb-1">
                     <span className="text-4xl font-bold text-secondary">${tier.price}</span>
-                    <span className="text-dark/70">/month</span>
+                    <span className="text-dark/70 text-sm">/month</span>
                   </div>
-                  {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
-                  <p className="text-xs text-dark/50 mb-4">Billed securely via Stripe</p>
-                  <ul className="space-y-2 mb-8">
-                    {(tier.features as string[]).map((f: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-dark">
-                        <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0" />{f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    onClick={() => selectPlan('dealer', key)}
-                    className={`w-full py-3 rounded-lg font-semibold text-sm transition-colors ${key === 'plus' ? 'bg-primary text-white hover:bg-primary/90' : 'bg-gray-100 text-secondary hover:bg-gray-200'}`}
-                  >
-                    {tier.trial_days > 0 ? `Start ${tier.trial_days}-Day Trial` : `Select ${tier.name}`}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-10">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-            <div className="relative flex justify-center">
-              <span className="px-4 bg-gradient-to-br from-section-light to-soft text-dark/50 text-sm">or</span>
-            </div>
-          </div>
-
-          {/* Private Seller Tier */}
-          <div className="mb-10">
-            <div className="mb-6">
-              <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-              <p className="text-sm text-dark/60">Selling your own yacht — no broker, no sales commission</p>
-            </div>
-
-            <div>
-              {Object.entries(livePrivateTier).map(([key, tier]) => (
-                <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
-                  <div className="flex flex-wrap items-end gap-x-8 gap-y-1 mb-6">
-                    <div>
-                      <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name}</h4>
-                      <p className="text-xs text-dark/50">No commission on your sale price — ever</p>
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold text-secondary">${tier.price}</span>
-                      <span className="text-dark/70 text-sm">/month</span>
-                    </div>
-                    {tier.trial_days > 0 && (
-                      <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
-                        {tier.trial_days}-day free trial
-                      </span>
-                    )}
-                  </div>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 mb-6">
+                  {tier.trial_days > 0 && (
+                    <p className="text-xs text-primary font-medium mt-1 mb-3">{tier.trial_days}-day free trial</p>
+                  )}
+                  <ul className="space-y-2 mb-6 mt-auto pt-4">
                     {(tier.features as string[]).map((f: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-dark">
                         <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0" />{f}
@@ -302,6 +246,39 @@ function RegisterContent() {
                   </button>
                 </div>
               ))}
+
+              {/* Yacht Broker tiers */}
+              {Object.entries(liveBrokerTiers).map(([key, tier]) => (
+                <div key={key} className={`bg-white p-6 rounded-2xl shadow-xl relative flex flex-col ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
+                  {key === 'plus' && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                      <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
+                    </div>
+                  )}
+                  <p className="text-xs font-semibold text-secondary/50 uppercase tracking-wide mb-3">Yacht Broker</p>
+                  <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
+                  <div className="mb-1">
+                    <span className="text-4xl font-bold text-secondary">${tier.price}</span>
+                    <span className="text-dark/70">/month</span>
+                  </div>
+                  {tier.trial_days > 0 && <p className="text-xs text-primary font-medium mb-3">{tier.trial_days}-day free trial</p>}
+                  <p className="text-xs text-dark/50 mb-4">Billed securely via Stripe</p>
+                  <ul className="space-y-2 mb-8 mt-auto">
+                    {(tier.features as string[]).map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-dark">
+                        <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0" />{f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => selectPlan('dealer', key)}
+                    className={`w-full py-3 rounded-lg font-semibold text-sm transition-colors ${key === 'plus' ? 'bg-primary text-white hover:bg-primary/90' : 'bg-gray-100 text-secondary hover:bg-gray-200'}`}
+                  >
+                    {tier.trial_days > 0 ? `Start ${tier.trial_days}-Day Trial` : `Select ${tier.name}`}
+                  </button>
+                </div>
+              ))}
+
             </div>
           </div>
 
