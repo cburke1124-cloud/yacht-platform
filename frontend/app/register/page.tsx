@@ -215,14 +215,14 @@ function RegisterContent() {
           </div>
 
           {/* Plan tiers */}
-          <div className="mb-10 flex flex-col lg:flex-row gap-8 items-start">
+          <div className="mb-10 flex flex-col lg:flex-row gap-8 items-stretch">
 
             {/* Private Seller */}
-            <div className="w-full lg:w-[23%] flex-shrink-0">
+            <div className="w-full lg:w-[23%] flex-shrink-0 flex flex-col">
               <h3 className="text-base font-bold text-secondary mb-4">Private Seller</h3>
               {Object.entries(livePrivateTier).map(([key, tier]) => (
-                <div key={key} className="bg-white p-6 rounded-2xl shadow-xl border-2 border-primary/20 flex flex-col">
-                  <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name}</h4>
+                <div key={key} className="bg-white p-6 rounded-2xl shadow-xl border-2 border-primary/20 flex flex-col flex-1">
+                  <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name.toLowerCase() === 'basic' ? 'Owner' : tier.name}</h4>
                   <p className="text-xs text-dark/50 mb-3">No commission — ever</p>
                   <div className="mb-1">
                     <span className="text-4xl font-bold text-secondary">${tier.price}</span>
@@ -252,11 +252,11 @@ function RegisterContent() {
             <div className="hidden lg:block w-px self-stretch bg-gray-200 mx-2" />
 
             {/* Yacht Broker */}
-            <div className="flex-1">
+            <div className="flex-1 flex flex-col">
               <h3 className="text-base font-bold text-secondary mb-4">Yacht Broker</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 flex-1">
                 {Object.entries(liveBrokerTiers).map(([key, tier]) => (
-                  <div key={key} className={`bg-white p-6 rounded-2xl shadow-xl relative flex flex-col ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
+                  <div key={key} className={`bg-white p-6 rounded-2xl shadow-xl relative flex flex-col h-full ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
                     {key === 'plus' && (
                       <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                         <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
