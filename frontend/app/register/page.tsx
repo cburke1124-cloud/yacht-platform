@@ -39,8 +39,6 @@ const PRIVATE_TIER: Record<string, any> = {
   },
 };
 
-const PAID_TIERS = new Set(['basic', 'plus', 'pro', 'private_basic']);
-
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -71,14 +69,25 @@ function RegisterContent() {
   const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
 
   useEffect(() => {
+    // Wake the backend (Render free tier spins down) before fetching tiers
+    fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
     fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (!data) return;
-        if (data.broker) setLiveBrokerTiers(data.broker);
+        if (data.broker) {
+          // Filter out any tiers marked inactive by admin
+          const active = Object.fromEntries(
+            Object.entries(data.broker).filter(([, t]: [string, any]) => t.active !== false)
+          );
+          if (Object.keys(active).length > 0) setLiveBrokerTiers(active);
+        }
         if (data.private) {
-          const k = Object.keys(data.private)[0];
-          if (k) setLivePrivateTier({ private_basic: data.private[k] });
+          const activePrivate = Object.fromEntries(
+            Object.entries(data.private).filter(([, t]: [string, any]) => t.active !== false)
+          );
+          const k = Object.keys(activePrivate)[0];
+          if (k) setLivePrivateTier({ private_basic: activePrivate[k] });
         }
       })
       .catch(() => {});
@@ -101,7 +110,7 @@ function RegisterContent() {
     if (userType === 'buyer') {
       setFormData((prev) => ({ ...prev, user_type: 'buyer', subscription_tier: '' }));
       setShowForm(true);
-    } else if (userType === 'dealer' && tier && tier in BROKER_TIERS) {
+    } else if (userType === 'dealer' && tier) {
       setFormData((prev) => ({ ...prev, user_type: 'dealer', subscription_tier: tier }));
       setShowForm(true);
     } else if (userType === 'private') {
@@ -117,14 +126,14 @@ function RegisterContent() {
   };
 
   const getSelectedTierInfo = () => {
-    if (formData.user_type === 'dealer') return liveBrokerTiers[formData.subscription_tier] ?? liveBrokerTiers['basic'];
+    if (formData.user_type === 'dealer') return liveBrokerTiers[formData.subscription_tier] ?? Object.values(liveBrokerTiers)[0];
     return livePrivateTier['private_basic'];
   };
 
   const getSubmitLabel = () => {
     if (stripeRedirecting) return 'Redirecting to payment...';
     if (loading) return 'Creating account...';
-    return PAID_TIERS.has(formData.subscription_tier) ? 'Create Account & Pay' : 'Create Account';
+    return formData.subscription_tier ? 'Create Account & Pay' : 'Create Account';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -166,7 +175,7 @@ function RegisterContent() {
       localStorage.setItem('token', regData.access_token);
       window.dispatchEvent(new Event('authChange'));
 
-      if (PAID_TIERS.has(formData.subscription_tier)) {
+      if (formData.subscription_tier) {
         setStripeRedirecting(true);
         setLoading(false);
 
