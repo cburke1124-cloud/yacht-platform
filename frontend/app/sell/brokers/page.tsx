@@ -250,42 +250,7 @@ export default function SellBrokersPage() {
             Yacht Brokers
           </h1>
 
-          {/* CTAs — Figma: "List a Yacht" cyan 136×48, "Buy a Yacht" white 140×48, top 375 */}
-          <div className="flex gap-4 mt-8">
-            <Link
-              href="/sell/list"
-              className="inline-flex items-center justify-center font-medium text-white transition hover:opacity-90"
-              style={{
-                backgroundColor: '#01BBDC',
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 16,
-                lineHeight: '24px',
-                fontWeight: 500,
-                borderRadius: 12,
-                width: 136,
-                height: 48,
-              }}
-            >
-              List a Yacht
-            </Link>
-            <Link
-              href="/listings"
-              className="inline-flex items-center justify-center font-medium transition hover:bg-gray-50"
-              style={{
-                backgroundColor: '#FFFFFF',
-                color: '#10214F',
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 16,
-                lineHeight: '24px',
-                fontWeight: 500,
-                borderRadius: 12,
-                width: 140,
-                height: 48,
-              }}
-            >
-              Buy a Yacht
-            </Link>
-          </div>
+
         </div>
       </section>
 
