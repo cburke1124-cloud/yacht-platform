@@ -216,12 +216,12 @@ function RegisterContent() {
 
           {/* Yacht Broker tiers */}
           <div className="mb-10">
-            <h3 className="text-base font-bold text-secondary mb-4">Yacht Broker</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <h3 className="text-base font-bold text-secondary mb-2">Yacht Broker</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6">
               {Object.entries(liveBrokerTiers).map(([key, tier]) => (
-                <div key={key} className={`bg-white p-6 rounded-2xl shadow-xl relative flex flex-col ${key === 'plus' ? 'border-4 border-primary mt-6' : 'border border-gray-100'}`}>
+                <div key={key} className={`bg-white p-8 rounded-2xl shadow-xl relative flex flex-col ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
                   {key === 'plus' && (
-                    <div className="absolute -top-[1.35rem] left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
                       <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
                     </div>
                   )}
@@ -258,37 +258,41 @@ function RegisterContent() {
             </div>
           </div>
 
-          {/* Private Seller */}
+          {/* Private Seller — full width */}
           <div className="mb-10">
             <h3 className="text-base font-bold text-secondary mb-4">Private Seller</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {Object.entries(livePrivateTier).map(([key, tier]) => (
-                <div key={key} className="bg-white p-6 rounded-2xl shadow-xl border-2 border-primary/20 flex flex-col">
-                  <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name.toLowerCase() === 'basic' ? 'Owner' : tier.name}</h4>
-                  <p className="text-xs text-dark/50 mb-3">No commission — ever</p>
-                  <div className="mb-1">
+            {Object.entries(livePrivateTier).map(([key, tier]) => (
+              <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
+                <div className="flex flex-wrap items-end gap-x-8 gap-y-1 mb-6">
+                  <div>
+                    <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name.toLowerCase() === 'basic' ? 'Owner' : tier.name}</h4>
+                    <p className="text-xs text-dark/50">No commission on your sale price — ever</p>
+                  </div>
+                  <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-bold text-secondary">${tier.price}</span>
                     <span className="text-dark/70 text-sm">/month</span>
                   </div>
                   {tier.trial_days > 0 && (
-                    <p className="text-xs text-primary font-medium mt-1 mb-3">{tier.trial_days}-day free trial</p>
+                    <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
+                      {tier.trial_days}-day free trial
+                    </span>
                   )}
-                  <ul className="space-y-2 mb-6 mt-4">
-                    {(tier.features as string[]).map((f: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-dark">
-                        <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0" />{f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    onClick={() => selectPlan('private', key)}
-                    className="w-full py-3 mt-auto rounded-lg font-semibold text-sm bg-primary text-white hover:bg-primary/90 transition-colors"
-                  >
-                    Get Started
-                  </button>
                 </div>
-              ))}
-            </div>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 mb-6">
+                  {(tier.features as string[]).map((f: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-dark">
+                      <Check size={14} className="text-green-600 mt-0.5 flex-shrink-0" />{f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => selectPlan('private', key)}
+                  className="w-full py-3 rounded-lg font-semibold text-sm bg-primary text-white hover:bg-primary/90 transition-colors"
+                >
+                  Get Started
+                </button>
+              </div>
+            ))}
           </div>
 
           <div className="text-center mt-4">
