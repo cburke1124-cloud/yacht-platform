@@ -263,33 +263,38 @@ function SellerLoginContent() {
               </div>
               {Object.entries(livePrivateTier).map(([key, tier]) => (
                 <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
-                  <div className="flex flex-col md:flex-row md:items-start md:gap-12">
-                    <div className="md:w-48 shrink-0 mb-5 md:mb-0">
-                      <h4 className="text-xl font-bold text-secondary mb-1">{(tier as any).name}</h4>
-                      <div className="mb-1">
-                        <span className="text-4xl font-bold text-secondary">${(tier as any).price}</span>
-                        <span className="text-dark/70">/month</span>
-                      </div>
-                      {(tier as any).trial_days > 0 && (
-                        <p className="text-xs text-primary font-medium mb-2">{(tier as any).trial_days}-day free trial</p>
-                      )}
-                      <p className="text-xs text-dark/50 mb-5">No commission on your sale price — ever</p>
-                      <Link
-                        href={`/register?user_type=private&subscription_tier=${key}`}
-                        className="block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white bg-primary transition-opacity hover:opacity-90"
-                      >
-                        {(tier as any).trial_days > 0 ? `Start ${(tier as any).trial_days}-Day Free Trial` : 'Get Started'}
-                      </Link>
+                  {/* Top row: name, price, trial */}
+                  <div className="flex flex-wrap items-end gap-x-8 gap-y-1 mb-6">
+                    <div>
+                      <h4 className="text-xl font-bold text-secondary mb-0.5">{(tier as any).name}</h4>
+                      <p className="text-xs text-dark/50">No commission on your sale price — ever</p>
                     </div>
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 flex-1">
-                      {((tier as any).features || []).map((f: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-dark">
-                          <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-bold text-secondary">${(tier as any).price}</span>
+                      <span className="text-dark/70 text-sm">/month</span>
+                    </div>
+                    {(tier as any).trial_days > 0 && (
+                      <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
+                        {(tier as any).trial_days}-day free trial
+                      </span>
+                    )}
                   </div>
+                  {/* Features grid */}
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 mb-6">
+                    {((tier as any).features || []).map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-dark">
+                        <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  {/* Full-width CTA */}
+                  <Link
+                    href={`/register?user_type=private&subscription_tier=${key}`}
+                    className="block w-full py-3 text-center rounded-lg text-sm font-semibold text-white bg-primary transition-opacity hover:opacity-90"
+                  >
+                    Get Started
+                  </Link>
                 </div>
               ))}
             </div>
