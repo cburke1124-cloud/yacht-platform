@@ -165,7 +165,8 @@ export default function SellPrivatePage() {
   useEffect(() => {
     const fetchTiers = async () => {
       try {
-        const res = await fetch(apiUrl('/pricing-tiers'));
+        fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
+        const res = await fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           const source = data.private ?? data;
@@ -339,9 +340,7 @@ export default function SellPrivatePage() {
               : tiers.map((tier) => {
                   const display = TIER_DISPLAY[tier.key] ?? { badge: tier.name, variant: 'outline' as const };
                   const priceLabel = `$${tier.price}/month`;
-                  const ctaLabel = tier.trial_days > 0
-                    ? `Start ${tier.trial_days}-day trial`
-                    : 'Get Started';
+                  const ctaLabel = 'Get Started';
 
                   return (
                     <div key={tier.key} className="relative flex flex-col" style={{ paddingTop: 24 }}>
@@ -367,7 +366,7 @@ export default function SellPrivatePage() {
                             color: '#FFFFFF',
                           }}
                         >
-                          {display.badge}
+                          {tier.name}
                         </span>
                       </div>
 

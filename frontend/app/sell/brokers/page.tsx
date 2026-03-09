@@ -180,13 +180,15 @@ export default function SellBrokersPage() {
   useEffect(() => {
     const fetchTiers = async () => {
       try {
-        const res = await fetch(apiUrl('/pricing-tiers'));
+        fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
+        const res = await fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           const source = data.broker ?? data;
-          const tiersArray: SubscriptionTier[] = Array.isArray(source)
+          const tiersArray: SubscriptionTier[] = (Array.isArray(source)
             ? source
-            : Object.entries(source).map(([key, val]: [string, any]) => ({ key, ...val }));
+            : Object.entries(source).map(([key, val]: [string, any]) => ({ key, ...val }))
+          ).filter((t: any) => t.active !== false);
           if (tiersArray.length > 0) setTiers(tiersArray);
         }
       } catch {
@@ -357,9 +359,7 @@ export default function SellBrokersPage() {
                   const isFree = tier.price === 0;
                   const priceLabel = isFree ? 'Free' : `$${tier.price}/month`;
                   const trialDays = tier.trial_days ?? 0;
-                  const ctaLabel = trialDays > 0
-                    ? `Start ${trialDays}-day trial`
-                    : `Choose ${display.badge}`;
+                  const ctaLabel = 'Get Started';
 
                   return (
                     <div key={tier.key} className="relative flex flex-col" style={{ paddingTop: 24 }}>
@@ -385,7 +385,7 @@ export default function SellBrokersPage() {
                             color: '#FFFFFF',
                           }}
                         >
-                          {display.badge}
+                          {tier.name}
                         </span>
                       </div>
 
