@@ -268,39 +268,60 @@ function RegisterContent() {
           <div className="mb-8">
             <div className="mb-5">
               <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-              <p className="text-sm text-dark/60">Selling your own yacht — no broker, no sales commission</p>
+              <p className="text-sm text-dark/60">For individual yacht owners selling directly to buyers — no broker, no sales commission, no middleman</p>
             </div>
             {Object.entries(livePrivateTier).map(([key, tier]) => (
               <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
-                <div className="flex flex-wrap items-end gap-x-8 gap-y-1 mb-6">
-                  <div>
-                    <h4 className="text-xl font-bold text-secondary mb-0.5">{tier.name.toLowerCase() === 'basic' ? 'Owner' : tier.name}</h4>
-                    <p className="text-xs text-dark/50">No commission on your sale price — ever</p>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                  {/* Left: Description */}
+                  <div className="lg:col-span-1">
+                    <h4 className="text-xl font-bold text-secondary mb-3">{tier.name.toLowerCase() === 'basic' ? 'Owner' : tier.name}</h4>
+                    <p className="text-sm text-dark/70 mb-4">Perfect if you're selling your own yacht and want to keep 100% of the sale price. No commission. No broker involvement. You control all communications with buyers.</p>
+                    <p className="text-xs text-dark/50">Simple, transparent pricing with a dedicated support team to help you along the way.</p>
                   </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold text-secondary">${tier.price}</span>
-                    <span className="text-dark/70 text-sm">/month</span>
+
+                  {/* Center: Pricing & Features */}
+                  <div className="lg:col-span-1">
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1 mb-2">
+                        <span className="text-4xl font-bold text-secondary">${tier.price}</span>
+                        <span className="text-dark/70 text-sm">/month</span>
+                      </div>
+                      <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
+                      {tier.trial_days > 0 && (
+                        <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
+                          {tier.trial_days}-day free trial
+                        </span>
+                      )}
+                    </div>
+                    <ul className="space-y-2">
+                      {(tier.features as string[]).slice(0, 3).map((f: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-dark">
+                          <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  {tier.trial_days > 0 && (
-                    <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
-                      {tier.trial_days}-day free trial
-                    </span>
-                  )}
+
+                  {/* Right: More Features & CTA */}
+                  <div className="lg:col-span-1">
+                    <ul className="space-y-2 mb-6">
+                      {(tier.features as string[]).slice(3).map((f: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-dark">
+                          <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={() => selectPlan('private', key)}
+                      className="w-full py-3 text-center rounded-lg text-sm font-semibold text-white bg-primary transition-opacity hover:opacity-90"
+                    >
+                      Get Started
+                    </button>
+                  </div>
                 </div>
-                <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-2 mb-6">
-                  {(tier.features as string[]).map((f: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-dark">
-                      <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => selectPlan('private', key)}
-                  className="block w-full py-3 text-center rounded-lg text-sm font-semibold text-white bg-primary transition-opacity hover:opacity-90"
-                >
-                  Get Started
-                </button>
               </div>
             ))}
           </div>
