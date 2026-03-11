@@ -6,7 +6,7 @@ Visibility rules:
   - Team member:  sees only inquiries assigned to themselves.
   - Admin:        sees everything.
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from datetime import datetime
@@ -162,6 +162,77 @@ def list_inquiries(
         "total": total,
         "items": [_serialize_inquiry(inq, db) for inq in inquiries],
     }
+
+
+# ── Create inquiry (public endpoint for listing inquiries) ─────────────────────
+
+@router.post("/inquiries")
+async def create_inquiry(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a new inquiry (public endpoint, no auth required).
+    
+    Required fields:
+      - sender_name: str
+      - sender_email: str
+      - message: str
+      - listing_id: int (optional)
+    
+    Optional fields:
+      - sender_phone: str
+    """
+    sender_name = data.get("sender_name", "").strip()
+    sender_email = data.get("sender_email", "").strip()
+    message = data.get("message", "").strip()
+    sender_phone = data.get("sender_phone", "").strip() if data.get("sender_phone") else None
+    listing_id = data.get("listing_id")
+    
+    # Validate required fields
+    if not sender_name:
+        raise ValidationException("sender_name is required")
+    if not sender_email or "@" not in sender_email:
+        raise ValidationException("valid sender_email is required")
+    if not message:
+        raise ValidationException("message is required")
+    
+    # Create inquiry
+    inquiry = Inquiry(
+        sender_name=sender_name,
+        sender_email=sender_email,
+        sender_phone=sender_phone,
+        message=message,
+        listing_id=listing_id,
+        lead_stage="new",
+        lead_score=0,
+    )
+    
+    db.add(inquiry)
+    db.commit()
+    db.refresh(inquiry)
+    
+    # Dispatch webhook in background
+    background_tasks.add_task(dispatch_webhook_for_inquiry_bg, inquiry.id)
+    
+    return {
+        "success": True,
+        "inquiry_id": inquiry.id,
+        "message": "Inquiry created successfully"
+    }
+
+
+async def dispatch_webhook_for_inquiry_bg(inquiry_id: int):
+    """Background task to dispatch webhook for inquiry"""
+    from app.db.session import SessionLocal
+    from app.api.routes_crm import dispatch_webhook_for_inquiry
+    
+    db = SessionLocal()
+    try:
+        await dispatch_webhook_for_inquiry(inquiry_id, db)
+    finally:
+        db.close()
 
 
 # ── Inquiry detail ────────────────────────────────────────────────────────────

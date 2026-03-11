@@ -353,3 +353,43 @@ class ComparisonItem(Base):
     comparison_id = Column(Integer, ForeignKey("comparisons.id"))
     listing_id = Column(Integer, ForeignKey("listings.id"))
     added_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WebhookConfig(Base):
+    """Stores webhook configuration for lead/inquiry delivery to dealer DMS/CRM"""
+    __tablename__ = "webhook_configs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    
+    webhook_url = Column(String, nullable=False)  # Target DMS/CRM webhook URL
+    format_type = Column(String, default="json")   # json or adf_xml
+    auth_type = Column(String, default="none")     # none, api_key, bearer, basic
+    auth_token = Column(String, nullable=True)     # encrypted auth token/API key
+    
+    enabled = Column(Boolean, default=True)
+    test_passed = Column(Boolean, default=False)
+    
+    last_webhook_sent = Column(DateTime, nullable=True)
+    total_webhooks_sent = Column(Integer, default=0)
+    webhook_failures = Column(Integer, default=0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WebhookLog(Base):
+    """Log of webhook delivery attempts"""
+    __tablename__ = "webhook_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    webhook_config_id = Column(Integer, ForeignKey("webhook_configs.id"), nullable=False, index=True)
+    inquiry_id = Column(Integer, ForeignKey("inquiries.id"), nullable=False, index=True)
+    
+    status_code = Column(Integer, nullable=True)
+    success = Column(Boolean, default=False)
+    error_message = Column(Text, nullable=True)
+    payload = Column(JSON, nullable=True)  # Store the payload sent
+    
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    retry_count = Column(Integer, default=0)

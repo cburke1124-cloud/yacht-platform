@@ -8,7 +8,7 @@ import logging
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.misc import CRMIntegration, CRMSyncLog, Inquiry, Message
+from app.models.misc import CRMIntegration, CRMSyncLog, Inquiry, Message, WebhookConfig, WebhookLog
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -896,6 +896,303 @@ async def gohighlevel_webhook(
     """Handle incoming GoHighLevel webhooks"""
     logger.info(f"Received GoHighLevel webhook: {data}")
     return {"success": True}
+
+
+# ==================== WEBHOOK CONFIGURATION ====================
+
+@router.get("/webhooks/config")
+def get_webhook_config(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's webhook configuration"""
+    config = db.query(WebhookConfig).filter(
+        WebhookConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        return None
+    
+    return {
+        "id": config.id,
+        "webhook_url": config.webhook_url,
+        "format_type": config.format_type,
+        "auth_type": config.auth_type,
+        "enabled": config.enabled,
+        "test_passed": config.test_passed,
+        "last_webhook_sent": config.last_webhook_sent.isoformat() if config.last_webhook_sent else None,
+        "total_webhooks_sent": config.total_webhooks_sent,
+        "webhook_failures": config.webhook_failures,
+    }
+
+
+@router.post("/webhooks/config")
+async def create_or_update_webhook_config(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create or update webhook configuration"""
+    webhook_url = data.get("webhook_url")
+    format_type = data.get("format_type", "json")
+    auth_type = data.get("auth_type", "none")
+    auth_token = data.get("auth_token")
+    
+    if not webhook_url:
+        raise ValidationException("webhook_url is required")
+    
+    if format_type not in ["json", "adf_xml"]:
+        raise ValidationException("format_type must be 'json' or 'adf_xml'")
+    
+    if auth_type not in ["none", "api_key", "bearer", "basic"]:
+        raise ValidationException("auth_type must be one of: none, api_key, bearer, basic")
+    
+    # Find existing config
+    config = db.query(WebhookConfig).filter(
+        WebhookConfig.user_id == current_user.id
+    ).first()
+    
+    if config:
+        config.webhook_url = webhook_url
+        config.format_type = format_type
+        config.auth_type = auth_type
+        if auth_token:
+            config.auth_token = auth_token
+        config.updated_at = datetime.utcnow()
+    else:
+        config = WebhookConfig(
+            user_id=current_user.id,
+            webhook_url=webhook_url,
+            format_type=format_type,
+            auth_type=auth_type,
+            auth_token=auth_token
+        )
+    
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+    
+    return {
+        "success": True,
+        "message": "Webhook configuration saved",
+        "config_id": config.id
+    }
+
+
+@router.post("/webhooks/test")
+async def test_webhook(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Send a test webhook"""
+    config = db.query(WebhookConfig).filter(
+        WebhookConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        raise ResourceNotFoundException("Webhook", "configuration")
+    
+    # Send test payload
+    test_payload = {
+        "test": True,
+        "message": "Test webhook from YachtVersal",
+        "timestamp": datetime.utcnow().isoformat(),
+        "format": config.format_type
+    }
+    
+    try:
+        success, status_code, error = await send_webhook_payload(config, test_payload)
+        
+        if success:
+            config.test_passed = True
+            db.add(config)
+            db.commit()
+            
+            return {
+                "success": True,
+                "status_code": status_code,
+                "message": "Test webhook delivered successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "status_code": status_code,
+                "error": error
+            }
+    except Exception as e:
+        logger.error(f"Error sending test webhook: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@router.delete("/webhooks/config")
+def delete_webhook_config(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete webhook configuration"""
+    config = db.query(WebhookConfig).filter(
+        WebhookConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        raise ResourceNotFoundException("Webhook", "configuration")
+    
+    db.delete(config)
+    db.commit()
+    
+    return {"success": True, "message": "Webhook configuration deleted"}
+
+
+@router.get("/webhooks/logs")
+def get_webhook_logs(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get webhook delivery logs"""
+    config = db.query(WebhookConfig).filter(
+        WebhookConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        return []
+    
+    logs = db.query(WebhookLog).filter(
+        WebhookLog.webhook_config_id == config.id
+    ).order_by(WebhookLog.sent_at.desc()).limit(limit).all()
+    
+    return [
+        {
+            "id": log.id,
+            "inquiry_id": log.inquiry_id,
+            "success": log.success,
+            "status_code": log.status_code,
+            "error_message": log.error_message,
+            "retry_count": log.retry_count,
+            "sent_at": log.sent_at.isoformat() if log.sent_at else None
+        }
+        for log in logs
+    ]
+
+
+# ==================== WEBHOOK DELIVERY ====================
+
+async def send_webhook_payload(config: WebhookConfig, payload: dict) -> tuple[bool, int, str]:
+    """Send webhook payload to configured URL. Returns (success, status_code, error_message)"""
+    if not config.enabled:
+        return False, 0, "Webhook is disabled"
+    
+    headers = {"Content-Type": "application/json"}
+    
+    # Add authentication headers
+    if config.auth_type == "api_key":
+        headers["X-API-Key"] = config.auth_token
+    elif config.auth_type == "bearer":
+        headers["Authorization"] = f"Bearer {config.auth_token}"
+    elif config.auth_type == "basic":
+        headers["Authorization"] = f"Basic {config.auth_token}"
+    
+    # Format payload if needed
+    if config.format_type == "adf_xml":
+        from app.services.adf_xml_service import format_inquiry_as_adf_xml
+        payload_data = format_inquiry_as_adf_xml(payload)
+        headers["Content-Type"] = "application/xml"
+    else:
+        payload_data = payload
+    
+    try:
+        response = requests.post(
+            config.webhook_url,
+            json=payload_data if isinstance(payload_data, dict) else None,
+            data=payload_data if isinstance(payload_data, str) else None,
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code in [200, 201, 202, 204]:
+            return True, response.status_code, ""
+        else:
+            error_text = response.text[:200] if response.text else "No response body"
+            return False, response.status_code, error_text
+    except requests.exceptions.Timeout:
+        return False, 0, "Request timeout"
+    except Exception as e:
+        return False, 0, str(e)
+
+
+async def dispatch_webhook_for_inquiry(inquiry_id: int, db: Session):
+    """Send webhook notification for a new inquiry"""
+    inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inquiry:
+        return
+    
+    # Get listing info
+    from app.models.listing import Listing
+    listing = db.query(Listing).filter(Listing.id == inquiry.listing_id).first() if inquiry.listing_id else None
+    
+    # GET webhook config for the listing owner (dealer)
+    dealer_id = listing.dealer_id if listing else None
+    if not dealer_id:
+        return
+    
+    config = db.query(WebhookConfig).filter(
+        WebhookConfig.user_id == dealer_id,
+        WebhookConfig.enabled == True
+    ).first()
+    
+    if not config:
+        return
+    
+    # Build payload
+    payload  = {
+        "inquiry_id": inquiry.id,
+        "inquiry_type": "boat_inquiry",
+        "timestamp": inquiry.created_at.isoformat(),
+        "contact": {
+            "name": inquiry.sender_name,
+            "email": inquiry.sender_email,
+            "phone": inquiry.sender_phone
+        },
+        "message": inquiry.message,
+    }
+    
+    if listing:
+        payload["listing"] = {
+            "id": listing.id,
+            "title": listing.title,
+            "year": listing.year,
+            "make": listing.make,
+            "model": listing.model,
+            "price": float(listing.price) if listing.price else None
+        }
+    
+    # Send webhook
+    success, status_code, error = await send_webhook_payload(config, payload)
+    
+    # Log attempt
+    log_entry = WebhookLog(
+        webhook_config_id=config.id,
+        inquiry_id=inquiry.id,
+        status_code=status_code,
+        success=success,
+        error_message=error,
+        payload=payload
+    )
+    
+    if success:
+        config.last_webhook_sent = datetime.utcnow()
+        config.total_webhooks_sent += 1
+    else:
+        config.webhook_failures += 1
+    
+    db.add(log_entry)
+    db.add(config)
+    db.commit()
+    
+    logger.info(f"Webhook dispatch for inquiry {inquiry_id}: {'success' if success else 'failed'} (status: {status_code})")
 
 
 # ==================== SYNC HISTORY ====================

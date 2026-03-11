@@ -57,6 +57,16 @@ export default function CRMSettings() {
     api_endpoint: ''
   });
   
+  // Webhook state
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookFormat, setWebhookFormat] = useState<'json' | 'adf_xml'>('json');
+  const [webhookAuthType, setWebhookAuthType] = useState<'none' | 'api_key' | 'bearer' | 'basic'>('none');
+  const [webhookAuthToken, setWebhookAuthToken] = useState('');
+  const [webhookConfigured, setWebhookConfigured] = useState(false);
+  const [webhookTestPassed, setWebhookTestPassed] = useState(false);
+  const [webhookTesting, setWebhookTesting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'crm' | 'webhook'>('crm');
+  
   const [syncSettings, setSyncSettings] = useState<SyncSettings>({
     sync_enabled: true,
     sync_leads: true,
@@ -66,6 +76,7 @@ export default function CRMSettings() {
 
   useEffect(() => {
     fetchStatus();
+    fetchWebhookConfig();
   }, []);
 
   const fetchStatus = async () => {
@@ -229,6 +240,105 @@ export default function CRMSettings() {
     }
   };
 
+  const fetchWebhookConfig = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/webhooks/config'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data) {
+          setWebhookUrl(data.webhook_url);
+          setWebhookFormat(data.format_type || 'json');
+          setWebhookAuthType(data.auth_type || 'none');
+          setWebhookConfigured(true);
+          setWebhookTestPassed(data.test_passed);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch webhook config:', error);
+    }
+  };
+
+  const handleSaveWebhook = async () => {
+    if (!webhookUrl.trim()) {
+      alert('Webhook URL is required');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/webhooks/config'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          webhook_url: webhookUrl,
+          format_type: webhookFormat,
+          auth_type: webhookAuthType,
+          auth_token: webhookAuthToken
+        })
+      });
+
+      if (response.ok) {
+        alert('Webhook configuration saved!');
+        setWebhookConfigured(true);
+      } else {
+        alert('Failed to save webhook configuration');
+      }
+    } catch (error) {
+      console.error('Error saving webhook:', error);
+      alert('Error saving webhook configuration');
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setWebhookTesting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/webhooks/test'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setWebhookTestPassed(true);
+        alert(`✅ Test webhook delivered successfully!`);
+      } else {
+        alert(`❌ Test webhook failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error testing webhook:', error);
+      alert('Error testing webhook');
+    } finally {
+      setWebhookTesting(false);
+    }
+  };
+
+  const handleDeleteWebhook = async () => {
+    if (!confirm('Delete webhook configuration? Leads will no longer be sent to your DMS.')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/webhooks/config'), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        alert('Webhook configuration deleted');
+        setWebhookConfigured(false);
+        setWebhookUrl('');
+      }
+    } catch (error) {
+      console.error('Error deleting webhook:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -257,7 +367,32 @@ export default function CRMSettings() {
         </div>
       </div>
 
-      {connected ? (
+      {/* Tab Navigation */}
+      <div className="flex gap-4 mb-8 border-b-2 border-gray-200">
+        <button
+          onClick={() => setActiveTab('crm')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'crm'
+              ? 'border-b-2 border-primary text-primary -mb-0.5'
+              : 'text-dark/70 hover:text-dark'
+          }`}
+        >
+          📊 CRM Integration
+        </button>
+        <button
+          onClick={() => setActiveTab('webhook')}
+          className={`px-6 py-3 font-semibold transition-colors ${
+            activeTab === 'webhook'
+              ? 'border-b-2 border-primary text-primary -mb-0.5'
+              : 'text-dark/70 hover:text-dark'
+          }`}
+        >
+          🪝 Direct Webhook
+        </button>
+      </div>
+
+      {/* CRM Tab Content */}
+      {activeTab === 'crm' && (
         <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-200">
             <div className="flex items-center gap-4">
@@ -491,8 +626,177 @@ export default function CRMSettings() {
           </div>
         </div>
       )}
+      )}
 
-      {/* Info Box */}
+      {/* Webhook Tab Content */}
+      {activeTab === 'webhook' && (
+        <div>
+          <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mb-6">
+            <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-200">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Zap className="text-primary" size={28} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-dark">
+                  {webhookConfigured ? '✅ Webhook Configured' : '🪝 Configure Direct Webhook'}
+                </h2>
+                <p className="text-sm text-dark/60">
+                  Send leads directly to your DMS, CRM, or custom system via webhook
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-dark mb-2">Webhook URL *</label>
+                <input
+                  type="url"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://your-dms.com/webhook/leads"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                />
+                <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
+                  <span className="text-primary">💡</span>
+                  Enter the webhook URL from your DMS or CRM system
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-dark mb-2">Format Type</label>
+                  <select
+                    value={webhookFormat}
+                    onChange={(e) => setWebhookFormat(e.target.value as 'json' | 'adf_xml')}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  >
+                    <option value="json">JSON (Standard)</option>
+                    <option value="adf_xml">ADF XML (DMS Standard)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-dark mb-2">Authentication</label>
+                  <select
+                    value={webhookAuthType}
+                    onChange={(e) => setWebhookAuthType(e.target.value as any)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  >
+                    <option value="none">None</option>
+                    <option value="api_key">API Key (X-API-Key header)</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="basic">Basic Auth</option>
+                  </select>
+                </div>
+              </div>
+
+              {webhookAuthType !== 'none' && (
+                <div>
+                  <label className="block text-sm font-semibold text-dark mb-2">
+                    {webhookAuthType === 'api_key' ? 'API Key' : webhookAuthType === 'bearer' ? 'Token' : 'Credentials'}
+                  </label>
+                  <input
+                    type="password"
+                    value={webhookAuthToken}
+                    onChange={(e) => setWebhookAuthToken(e.target.value)}
+                    placeholder={
+                      webhookAuthType === 'api_key'
+                        ? 'Your API key'
+                        : webhookAuthType === 'bearer'
+                        ? 'Bearer token'
+                        : 'base64 encoded credentials'
+                    }
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  />
+                </div>
+              )}
+
+              <div className="bg-primary/10 border-l-4 border-primary p-4 rounded-lg">
+                <p className="text-sm text-dark/80">
+                  <strong>Supported Format:</strong> {webhookFormat === 'adf_xml' ? 'ADF XML' : 'JSON'} with vehicle/lead data
+                </p>
+                <p className="text-xs text-dark/60 mt-2">
+                  Each new inquiry will POST to your webhook URL with buyer contact info and listing details.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveWebhook}
+                  className="flex-1 px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 font-semibold transition-all"
+                >
+                  💾 Save Configuration
+                </button>
+                <button
+                  onClick={handleTestWebhook}
+                  disabled={!webhookUrl || webhookTesting}
+                  className="flex-1 px-6 py-3 bg-secondary text-white rounded-xl hover:bg-secondary/90 disabled:bg-gray-300 font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  {webhookTesting ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      🧪 Test Webhook
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {webhookTestPassed && (
+                <div className="bg-green-50 border-2 border-green-200 p-4 rounded-xl text-green-800 flex items-center gap-2">
+                  <CheckCircle size={20} />
+                  <span>✅ Test passed! Webhook is working correctly.</span>
+                </div>
+              )}
+
+              {webhookConfigured && (
+                <button
+                  onClick={handleDeleteWebhook}
+                  className="w-full px-6 py-3 border-2 border-secondary text-secondary rounded-xl hover:bg-secondary/10 font-semibold transition-all"
+                >
+                  🗑️ Delete Configuration
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Webhook Documentation */}
+          <div className="bg-gradient-to-br from-primary/10 to-soft rounded-2xl border-2 border-primary/20 p-6">
+            <h3 className="font-bold text-dark mb-4 flex items-center gap-2">
+              <Zap size={22} className="text-primary" />
+              How Webhooks Work
+            </h3>
+            <ul className="space-y-3 text-sm text-dark/80">
+              <li className="flex items-start gap-3">
+                <span className="text-primary flex-shrink-0 mt-0.5">✓</span>
+                <span>When a buyer submits an inquiry, we POST the lead data to your webhook URL</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-primary flex-shrink-0 mt-0.5">✓</span>
+                <span>Choose JSON format for custom integrations, or ADF XML for DMS compatibility</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-primary flex-shrink-0 mt-0.5">✓</span>
+                <span>Includes buyer contact info (name, email, phone) and yacht listing details</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-primary flex-shrink-0 mt-0.5">✓</span>
+                <span>Authenticate with API key, Bearer token, or Basic auth if needed</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-primary flex-shrink-0 mt-0.5">✓</span>
+                <span>Real-time delivery with automatic retry on failure</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Info Box - CRM Tab Only */}
+      {activeTab === 'crm' && (
       <div className="bg-gradient-to-br from-primary/10 to-soft rounded-2xl border-2 border-primary/20 p-6">
         <h3 className="font-bold text-dark mb-4 flex items-center gap-2">
           <Zap size={22} className="text-primary" />
@@ -517,6 +821,7 @@ export default function CRMSettings() {
           </li>
         </ul>
       </div>
+      )}
     </div>
   );
 }
