@@ -8,6 +8,7 @@ import {
   Handshake,
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ReactMarkdown from 'react-markdown';
 
 /* --- Types ---------------------------------------------------- */
 
@@ -708,7 +709,9 @@ export default function SalesRepDashboard() {
               <button onClick={() => setActiveDoc(null)} className="text-gray-400 hover:text-gray-600 shrink-0"><X size={20} /></button>
             </div>
             <div className="p-6">
-              <div className="prose prose-sm max-w-none text-dark/80" style={{ whiteSpace: 'pre-wrap' }}>{activeDoc.content || 'No content available.'}</div>
+              <div className="prose prose-sm max-w-none text-dark/80">
+                <ReactMarkdown>{activeDoc.content || 'No content available.'}</ReactMarkdown>
+              </div>
               {activeDoc.updated_at && <p className="text-xs text-dark/40 mt-6 border-t pt-3">Last updated: {new Date(activeDoc.updated_at).toLocaleDateString()}</p>}
             </div>
             <div className="px-6 pb-6">
