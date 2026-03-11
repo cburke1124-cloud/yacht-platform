@@ -100,34 +100,22 @@ from app.scheduler import setup_scheduler
 
 @app.on_event("startup")
 async def startup_event():
-    # Run alembic migrations before anything else
-    import subprocess
+    # Run alembic migrations via Python API (avoids PATH issues on Render)
     import os
     try:
+        from alembic.config import Config
+        from alembic import command as alembic_command
         backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        print(f"[STARTUP] Running alembic upgrade head from {backend_dir}", flush=True)
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            cwd=backend_dir,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if result.returncode == 0:
-            print(f"[STARTUP] Migrations OK: {result.stdout.strip()}", flush=True)
-        else:
-            print(f"[STARTUP] Migrations FAILED: {result.stderr.strip()}", flush=True)
+        alembic_ini = os.path.join(backend_dir, "alembic.ini")
+        print(f"[STARTUP] Running alembic upgrade head (ini={alembic_ini})", flush=True)
+        cfg = Config(alembic_ini)
+        database_url = os.getenv("DATABASE_URL", "")
+        if database_url:
+            cfg.set_main_option("sqlalchemy.url", database_url)
+        alembic_command.upgrade(cfg, "head")
+        print("[STARTUP] Alembic migrations completed successfully", flush=True)
     except Exception as e:
-        try:
-            from alembic.config import Config
-            from alembic import command
-            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cfg = Config(os.path.join(backend_dir, "alembic.ini"))
-            cfg.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", ""))
-            command.upgrade(cfg, "head")
-            print("[STARTUP] Migrations OK via direct import", flush=True)
-        except Exception as e2:
-            print(f"[STARTUP] Migrations error: {e2}", flush=True)
+        print(f"[STARTUP] Alembic migration failed: {e}", flush=True)
 
     setup_scheduler()
 
