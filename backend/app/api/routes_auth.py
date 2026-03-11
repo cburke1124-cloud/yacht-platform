@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import secrets
 import logging
 from types import SimpleNamespace
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import ProgrammingError
@@ -715,4 +716,106 @@ def get_demo_account_info(
             "inquiries": inquiries,
         },
         "message": "Demo account ready. Use /auth/demo/access to get login token."
+    }
+
+# ============= DOCUMENTATION - PUBLIC ENDPOINTS =============
+
+@router.get("/docs")
+def list_available_docs(
+    category: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    List available documentation pages.
+    Filters by category and user's audience level.
+    """
+    from app.models.documentation import Documentation
+    
+    # Determine user's audience level
+    if current_user:
+        if current_user.user_type == "admin":
+            audiences = ["admin", "all", current_user.user_type]
+        elif current_user.user_type == "salesman":
+            audiences = ["sales_rep", "all", current_user.user_type]
+        else:
+            audiences = ["all", current_user.user_type]
+    else:
+        audiences = ["all", "public"]
+    
+    query = db.query(Documentation).filter(
+        Documentation.published == True,
+        Documentation.audience.in_(audiences)
+    )
+    
+    if category:
+        query = query.filter(Documentation.category == category)
+    
+    docs = query.order_by(Documentation.category, Documentation.order).all()
+    
+    # Group by category
+    by_category = {}
+    for doc in docs:
+        if doc.category not in by_category:
+            by_category[doc.category] = []
+        by_category[doc.category].append({
+            "slug": doc.slug,
+            "title": doc.title,
+            "description": doc.description,
+        })
+    
+    return {
+        "total": len(docs),
+        "by_category": by_category,
+        "docs": [
+            {
+                "slug": doc.slug,
+                "title": doc.title,
+                "description": doc.description,
+                "category": doc.category,
+            }
+            for doc in docs
+        ]
+    }
+
+
+@router.get("/docs/{slug}")
+def get_documentation(
+    slug: str,
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get a documentation page by slug.
+    Returns full content if user has appropriate audience access.
+    """
+    from app.models.documentation import Documentation
+    
+    doc = db.query(Documentation).filter(
+        Documentation.slug == slug,
+        Documentation.published == True
+    ).first()
+    
+    if not doc:
+        raise ResourceNotFoundException("Documentation", slug)
+    
+    # Check audience access
+    user_audiences = ["all"]
+    if current_user:
+        user_audiences.append(current_user.user_type)
+        if current_user.user_type == "salesman":
+            user_audiences.append("sales_rep")
+    else:
+        user_audiences.append("public")
+    
+    if doc.audience not in user_audiences:
+        raise AuthorizationException("You don't have access to this documentation")
+    
+    return {
+        "slug": doc.slug,
+        "title": doc.title,
+        "description": doc.description,
+        "category": doc.category,
+        "content": doc.content,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
     }

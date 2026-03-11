@@ -30,6 +30,8 @@ from app.services.media_storage import get_storage_health, run_storage_test
 from app.security.auth import get_password_hash
 from app.services.email_service import email_service
 from app.services.demo_fixtures import get_demo_listing_data
+from app.models.documentation import Documentation
+from app.services.default_documentation import get_default_doc_by_slug
 
 router = APIRouter()
 
@@ -2046,4 +2048,225 @@ def list_all_demo_accounts(
     return {
         "total": len(result),
         "demo_accounts": result
+    }
+
+# ============= DOCUMENTATION MANAGEMENT =============
+
+@router.post("/docs/init-defaults")
+def initialize_default_docs(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Initialize default documentation (demo guide, sales guide).
+    Safe to call multiple times - will skip existing docs.
+    """
+    from app.services.default_documentation import DEFAULT_DOCS
+    
+    created = []
+    skipped = []
+    
+    for doc_data in DEFAULT_DOCS:
+        existing = db.query(Documentation).filter(
+            Documentation.slug == doc_data["slug"]
+        ).first()
+        
+        if existing:
+            skipped.append(doc_data["slug"])
+            continue
+        
+        doc = Documentation(
+            slug=doc_data["slug"],
+            title=doc_data["title"],
+            description=doc_data["description"],
+            category=doc_data["category"],
+            audience=doc_data["audience"],
+            order=doc_data["order"],
+            content=doc_data["content"],
+            published=True,
+            updated_by_user_id=current_user.id,
+        )
+        db.add(doc)
+        created.append(doc_data["slug"])
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "created": created,
+        "skipped": skipped,
+        "message": f"Initialized {len(created)} default documentation(s)"
+    }
+
+
+@router.post("/docs")
+def create_documentation(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Create a new documentation page."""
+    slug = (data.get("slug") or "").strip().lower().replace(" ", "-")
+    if not slug:
+        raise ValidationException("slug is required")
+    
+    # Check for duplicate slug
+    existing = db.query(Documentation).filter(Documentation.slug == slug).first()
+    if existing:
+        raise ValidationException("Documentation with this slug already exists")
+    
+    doc = Documentation(
+        slug=slug,
+        title=data.get("title", "Untitled").strip(),
+        description=data.get("description", "").strip(),
+        category=data.get("category", "general"),
+        audience=data.get("audience", "all"),
+        order=int(data.get("order", 0)),
+        content=data.get("content", ""),
+        published=bool(data.get("published", True)),
+        updated_by_user_id=current_user.id,
+    )
+    
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    
+    return {
+        "success": True,
+        "id": doc.id,
+        "slug": doc.slug,
+        "title": doc.title,
+        "message": "Documentation created"
+    }
+
+
+@router.get("/docs")
+def list_documentation(
+    category: Optional[str] = None,
+    audience: Optional[str] = None,
+    published_only: bool = True,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """List all documentation pages (admin view)."""
+    query = db.query(Documentation)
+    
+    if published_only:
+        query = query.filter(Documentation.published == True)
+    
+    if category:
+        query = query.filter(Documentation.category == category)
+    
+    if audience:
+        query = query.filter(Documentation.audience == audience)
+    
+    docs = query.order_by(Documentation.category, Documentation.order).all()
+    
+    return {
+        "total": len(docs),
+        "docs": [
+            {
+                "id": doc.id,
+                "slug": doc.slug,
+                "title": doc.title,
+                "description": doc.description,
+                "category": doc.category,
+                "audience": doc.audience,
+                "order": doc.order,
+                "published": doc.published,
+                "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+            }
+            for doc in docs
+        ]
+    }
+
+
+@router.get("/docs/{slug}")
+def get_documentation_admin(
+    slug: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Get a specific documentation page (admin view with full content)."""
+    doc = db.query(Documentation).filter(Documentation.slug == slug).first()
+    
+    if not doc:
+        raise ResourceNotFoundException("Documentation", slug)
+    
+    return {
+        "id": doc.id,
+        "slug": doc.slug,
+        "title": doc.title,
+        "description": doc.description,
+        "category": doc.category,
+        "audience": doc.audience,
+        "order": doc.order,
+        "content": doc.content,
+        "published": doc.published,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+        "updated_by_user_id": doc.updated_by_user_id,
+    }
+
+
+@router.put("/docs/{slug}")
+def update_documentation(
+    slug: str,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update a documentation page."""
+    doc = db.query(Documentation).filter(Documentation.slug == slug).first()
+    
+    if not doc:
+        raise ResourceNotFoundException("Documentation", slug)
+    
+    # Update fields
+    if "title" in data:
+        doc.title = data["title"].strip()
+    if "description" in data:
+        doc.description = data["description"].strip()
+    if "content" in data:
+        doc.content = data["content"]
+    if "category" in data:
+        doc.category = data["category"]
+    if "audience" in data:
+        doc.audience = data["audience"]
+    if "order" in data:
+        doc.order = int(data["order"])
+    if "published" in data:
+        doc.published = bool(data["published"])
+    
+    doc.updated_by_user_id = current_user.id
+    doc.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(doc)
+    
+    return {
+        "success": True,
+        "slug": doc.slug,
+        "title": doc.title,
+        "message": "Documentation updated"
+    }
+
+
+@router.delete("/docs/{slug}")
+def delete_documentation(
+    slug: str,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a documentation page."""
+    doc = db.query(Documentation).filter(Documentation.slug == slug).first()
+    
+    if not doc:
+        raise ResourceNotFoundException("Documentation", slug)
+    
+    db.delete(doc)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Documentation deleted"
     }
