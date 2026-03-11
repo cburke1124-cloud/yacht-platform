@@ -45,6 +45,7 @@ TIER_PRICES = {
     "plus": 59.0,
     "premium": 99.0,
     "pro": 99.0,
+    "ultimate": 0.0,  # Custom/enterprise pricing — managed manually by admin
     "private_basic": 9.0,
     "private_plus": 19.0,
     "private_pro": 39.0,

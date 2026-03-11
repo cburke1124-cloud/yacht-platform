@@ -28,6 +28,12 @@ const BROKER_TIERS: Record<string, any> = {
     trial_days: 30,
     features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured broker badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
   },
+  ultimate: {
+    name: 'Ultimate',
+    price: null,
+    trial_days: 0,
+    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Branded micro-site', 'Premium search placement', 'Co-brokering network access'],
+  },
 };
 
 const PRIVATE_TIER: Record<string, any> = {
@@ -212,46 +218,76 @@ function SellerLoginContent() {
             className="overflow-hidden transition-all duration-500 ease-in-out"
             style={{ maxHeight: showSignup ? 9999 : 0, opacity: showSignup ? 1 : 0 }}
           >
-            {/* Broker tiers — 3 columns */}
+            {/* Broker tiers — 4 columns */}
             <div className="mb-8">
               <div className="mb-5">
                 <h3 className="text-xl font-bold text-secondary">Yacht Broker</h3>
                 <p className="text-sm text-dark/60">Professional brokerage with multiple listings</p>
               </div>
-              <div className="grid md:grid-cols-3 gap-5">
-                {Object.entries(liveBrokerTiers).map(([key, tier]) => (
-                  <div key={key} className={`bg-white p-7 rounded-2xl shadow-xl relative ${key === 'plus' ? 'border-4 border-primary' : 'border border-gray-100'}`}>
-                    {key === 'plus' && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                        <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
-                      </div>
-                    )}
-                    <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
-                    <div className="flex items-baseline gap-1 mb-1">
-                      <span className="text-3xl font-bold text-primary">${tier.price}</span>
-                      <span className="text-dark/50 text-sm">/month</span>
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+                {Object.entries(liveBrokerTiers).map(([key, tier]) => {
+                  const isUltimate = key === 'ultimate';
+                  return (
+                    <div key={key} className={`p-7 rounded-2xl shadow-xl relative ${
+                      isUltimate
+                        ? 'bg-secondary text-white border-2 border-secondary'
+                        : key === 'plus'
+                        ? 'bg-white border-4 border-primary'
+                        : 'bg-white border border-gray-100'
+                    }`}>
+                      {key === 'plus' && (
+                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                          <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
+                        </div>
+                      )}
+                      {isUltimate && (
+                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                          <span className="bg-gold text-secondary px-4 py-1 rounded-full text-sm font-semibold" style={{ backgroundColor: '#D4AF37' }}>ENTERPRISE</span>
+                        </div>
+                      )}
+                      <h4 className={`text-xl font-bold mb-1 ${isUltimate ? 'text-white' : 'text-secondary'}`}>{tier.name}</h4>
+                      {isUltimate ? (
+                        <div className="mb-4">
+                          <span className="text-2xl font-bold text-white/90">Custom Pricing</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-baseline gap-1 mb-1">
+                          <span className="text-3xl font-bold text-primary">${tier.price}</span>
+                          <span className="text-dark/50 text-sm">/month</span>
+                        </div>
+                      )}
+                      {!isUltimate && tier.trial_days > 0 && (
+                        <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
+                      )}
+                      {isUltimate && <p className="text-xs text-white/60 font-medium mb-4">Tailored to your brokerage</p>}
+                      <ul className="space-y-2 mb-6">
+                        {(tier.features || []).map((f: string, i: number) => (
+                          <li key={i} className={`flex items-start gap-2 text-sm ${isUltimate ? 'text-white/80' : 'text-dark/70'}`}>
+                            <Check size={14} className={`${isUltimate ? 'text-white/60' : 'text-primary'} mt-0.5 shrink-0`} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      {isUltimate ? (
+                        <Link
+                          href="/contact?tier=ultimate"
+                          className="block w-full py-2.5 text-center rounded-lg text-sm font-semibold bg-white text-secondary transition-opacity hover:opacity-90"
+                        >
+                          Contact Us
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/register?user_type=dealer&subscription_tier=${key}`}
+                          className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${
+                            key === 'plus' ? 'bg-primary' : 'bg-secondary'
+                          }`}
+                        >
+                          Get Started
+                        </Link>
+                      )}
                     </div>
-                    {tier.trial_days > 0 && (
-                      <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
-                    )}
-                    <ul className="space-y-2 mb-6">
-                      {(tier.features || []).map((f: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
-                          <Check size={14} className="text-primary mt-0.5 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <Link
-                      href={`/register?user_type=dealer&subscription_tier=${key}`}
-                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${
-                        key === 'plus' ? 'bg-primary' : 'bg-secondary'
-                      }`}
-                    >
-                      Get Started
-                    </Link>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

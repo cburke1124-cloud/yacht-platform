@@ -12,6 +12,7 @@ interface TierConfig {
   features: string[];
   trial_days: number;
   active: boolean;
+  is_custom_pricing?: boolean;
 }
 
 const DEFAULT_TIERS: Record<string, TierConfig> = {
@@ -44,6 +45,17 @@ const DEFAULT_TIERS: Record<string, TierConfig> = {
     features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured dealer badge', 'Priority support', 'Advanced analytics', 'AI scraper tools'],
     trial_days: 30,
     active: true
+  },
+  ultimate: {
+    name: 'Ultimate',
+    price: 0,
+    listings: 999999,
+    images_per_listing: 999999,
+    videos_per_listing: 999999,
+    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Branded micro-site', 'Premium search placement', 'Co-brokering network access'],
+    trial_days: 0,
+    active: true,
+    is_custom_pricing: true,
   }
 };
 
@@ -149,17 +161,26 @@ export default function AdminSubscriptionTab() {
         </p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         {Object.entries(tiers).map(([tierId, tier]) => (
           <div
             key={tierId}
             className={`bg-white rounded-xl shadow-lg p-6 ${
-                tierId === 'premium' ? 'border-2 border-primary' : ''
+              tierId === 'ultimate'
+                ? 'border-2 border-secondary ring-2 ring-secondary/20'
+                : tierId === 'premium'
+                ? 'border-2 border-primary'
+                : ''
             }`}
           >
             {/* Tier Header */}
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-2xl font-bold text-gray-900">{tier.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-2xl font-bold text-gray-900">{tier.name}</h3>
+                {tierId === 'ultimate' && (
+                  <span className="px-2 py-0.5 text-xs font-semibold rounded text-secondary" style={{ backgroundColor: '#D4AF37' }}>ENTERPRISE</span>
+                )}
+              </div>
               {!tier.active && (
                 <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
                   Inactive
@@ -169,8 +190,17 @@ export default function AdminSubscriptionTab() {
 
             {/* Price */}
             <div className="mb-6">
-              <span className="text-4xl font-bold text-gray-900">${tier.price}</span>
-              <span className="text-gray-600">/month</span>
+              {tier.is_custom_pricing ? (
+                <div>
+                  <span className="text-2xl font-bold text-secondary">Custom</span>
+                  <span className="text-gray-500 ml-1 text-sm">pricing</span>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-4xl font-bold text-gray-900">${tier.price}</span>
+                  <span className="text-gray-600">/month</span>
+                </div>
+              )}
             </div>
 
             {/* Limits */}
@@ -363,6 +393,21 @@ export default function AdminSubscriptionTab() {
                     />
                     <span className="text-sm font-medium text-gray-700">
                       Tier is active (visible to users)
+                    </span>
+                  </label>
+                </div>
+
+                {/* Custom Pricing */}
+                <div>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!formData.is_custom_pricing}
+                      onChange={(e) => setFormData({ ...formData, is_custom_pricing: e.target.checked })}
+                      className="rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Custom / enterprise pricing (hides Stripe, shows "Contact Us")
                     </span>
                   </label>
                 </div>
