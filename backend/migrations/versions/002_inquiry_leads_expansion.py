@@ -4,6 +4,11 @@ Adds: assigned_to_id, lead_stage, lead_score, notes, paperwork_status, updated_a
       to the `inquiries` table, and creates the `lead_notes` table.
 """
 
+revision = '002_inquiry_leads_expansion'
+down_revision = '001_sms_prefs'
+branch_labels = None
+depends_on = None
+
 from alembic import op
 import sqlalchemy as sa
 

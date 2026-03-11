@@ -4,6 +4,11 @@ Adds: is_demo, demo_owner_sales_rep_id columns to users table
 Allows sales reps to have dedicated demo dealer accounts for showcasing features
 """
 
+revision = '005_demo_account_support'
+down_revision = '004_soft_delete_users'
+branch_labels = None
+depends_on = None
+
 from alembic import op
 import sqlalchemy as sa
 

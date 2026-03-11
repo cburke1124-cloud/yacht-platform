@@ -3,6 +3,11 @@
 Adds: webhook_configs and webhook_logs tables for direct DMS/CRM lead delivery
 """
 
+revision = '003_webhook_integration'
+down_revision = '002_inquiry_leads_expansion'
+branch_labels = None
+depends_on = None
+
 from alembic import op
 import sqlalchemy as sa
 

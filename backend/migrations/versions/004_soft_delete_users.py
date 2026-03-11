@@ -5,6 +5,11 @@ Removes: unique constraint on email (will enforce at app level with index)
 Creates: Unique index on (email, deleted_at) to allow deleted emails to be reused
 """
 
+revision = '004_soft_delete_users'
+down_revision = '003_webhook_integration'
+branch_labels = None
+depends_on = None
+
 from alembic import op
 import sqlalchemy as sa
 
