@@ -15,19 +15,20 @@ import sqlalchemy as sa
 
 def upgrade():
     conn = op.get_bind()
+    inspector = sa.inspect(conn)
 
-    # ── inquiries: new columns ────────────────────────────────────────────────
-    existing = set()
-    try:
-        rows = conn.execute(
-            sa.text(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = 'inquiries'"
-            )
-        ).fetchall()
-        existing = {r[0] for r in rows}
-    except Exception:
-        pass
+    # Skip if inquiries table doesn't exist
+    if "inquiries" not in inspector.get_table_names():
+        return
+
+    # ── inquiries: new columns (PostgreSQL-safe) ──────────────────────────────
+    rows = conn.execute(
+        sa.text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'inquiries'"
+        )
+    ).fetchall()
+    existing = {r[0] for r in rows}
 
     new_inquiry_cols = {
         "assigned_to_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",
@@ -43,16 +44,13 @@ def upgrade():
                 sa.text(f"ALTER TABLE inquiries ADD COLUMN {col} {definition}")
             )
 
-    # Index on assigned_to_id for fast salesman queries
-    try:
-        conn.execute(
-            sa.text(
-                "CREATE INDEX IF NOT EXISTS ix_inquiries_assigned_to_id "
-                "ON inquiries(assigned_to_id)"
-            )
+    # Index on assigned_to_id
+    conn.execute(
+        sa.text(
+            "CREATE INDEX IF NOT EXISTS ix_inquiries_assigned_to_id "
+            "ON inquiries(assigned_to_id)"
         )
-    except Exception:
-        pass
+    )
 
     # ── lead_notes table ──────────────────────────────────────────────────────
     conn.execute(
@@ -70,15 +68,12 @@ def upgrade():
         )
     )
 
-    try:
-        conn.execute(
-            sa.text(
-                "CREATE INDEX IF NOT EXISTS ix_lead_notes_inquiry_id "
-                "ON lead_notes(inquiry_id)"
-            )
+    conn.execute(
+        sa.text(
+            "CREATE INDEX IF NOT EXISTS ix_lead_notes_inquiry_id "
+            "ON lead_notes(inquiry_id)"
         )
-    except Exception:
-        pass
+    )
 
 
 def downgrade():

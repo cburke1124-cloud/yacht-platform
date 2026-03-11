@@ -15,10 +15,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Use try/except per column so the migration is idempotent —
-    # safe to run even if the column already exists.
+    # Use inspector to check if table/columns exist — safe for PostgreSQL
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+    
+    # Skip entirely if user_preferences table doesn't exist
+    if "user_preferences" not in inspector.get_table_names():
+        return
+    
     existing = [c["name"] for c in inspector.get_columns("user_preferences")]
 
     if "sms_new_message" not in existing:
@@ -35,5 +39,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "user_preferences" not in inspector.get_table_names():
+        return
     op.drop_column("user_preferences", "sms_new_inquiry")
     op.drop_column("user_preferences", "sms_new_message")
