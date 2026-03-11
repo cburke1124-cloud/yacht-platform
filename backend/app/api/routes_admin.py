@@ -1303,6 +1303,7 @@ _DEFAULT_BROKER_TIERS = {
     "basic": {"name": "Basic", "price": 29, "listings": 25, "images_per_listing": 15, "videos_per_listing": 1, "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"], "trial_days": 14, "active": True},
     "plus":  {"name": "Plus",  "price": 59, "listings": 75, "images_per_listing": 30, "videos_per_listing": 3, "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"], "trial_days": 14, "active": True},
     "pro":   {"name": "Pro",   "price": 99, "listings": 999999, "images_per_listing": 50, "videos_per_listing": 5, "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"], "trial_days": 30, "active": True},
+    "ultimate": {"name": "Ultimate", "price": 0, "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Branded micro-site", "Premium search placement", "Co-brokering network access"], "trial_days": 0, "active": True, "is_custom_pricing": True},
 }
 
 _DEFAULT_PRIVATE_TIERS = {

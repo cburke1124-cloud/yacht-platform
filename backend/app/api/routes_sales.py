@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.listing import Listing
 from app.models.dealer import DealerProfile
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
+from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 
 router = APIRouter()
@@ -22,6 +23,7 @@ TIER_PRICES = {
     "plus": 59.0,
     "premium": 99.0,
     "pro": 99.0,
+    "ultimate": 0.0,  # Custom/enterprise pricing — managed manually
     "private_basic": 9.0,
     "private_plus": 19.0,
     "private_pro": 39.0,
@@ -344,3 +346,36 @@ def get_sales_rep_profile(
             for l in listings
         ]
     }
+
+
+@router.get("/docs")
+def get_sales_rep_docs(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get documentation pages visible to sales reps (audience = 'sales_rep' or 'all')."""
+    if current_user.user_type not in ("salesman", "admin"):
+        raise AuthorizationException("Sales rep access required")
+
+    docs = (
+        db.query(Documentation)
+        .filter(
+            Documentation.published == True,
+            Documentation.audience.in_(["sales_rep", "all"])
+        )
+        .order_by(Documentation.category, Documentation.order)
+        .all()
+    )
+
+    return [
+        {
+            "id": doc.id,
+            "slug": doc.slug,
+            "title": doc.title,
+            "description": doc.description,
+            "category": doc.category,
+            "content": doc.content,
+            "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+        }
+        for doc in docs
+    ]

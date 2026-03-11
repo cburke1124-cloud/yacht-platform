@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { DollarSign, Users, TrendingUp, Mail, Eye, MessageSquare, BarChart3 } from 'lucide-react';
+import { DollarSign, Users, TrendingUp, Mail, Eye, MessageSquare, BarChart3, BookOpen, ChevronRight, X } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface DealerStats {
@@ -45,6 +45,16 @@ interface SalesDeal {
   usage_count: number;
 }
 
+interface DocItem {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  content: string;
+  updated_at: string | null;
+}
+
 export default function SalesRepDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
@@ -52,6 +62,8 @@ export default function SalesRepDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedDealer, setSelectedDealer] = useState<DealerStats | null>(null);
   const [deals, setDeals] = useState<SalesDeal[]>([]);
+  const [docs, setDocs] = useState<DocItem[]>([]);
+  const [activeDoc, setActiveDoc] = useState<DocItem | null>(null);
   const [showDealModal, setShowDealModal] = useState(false);
   const [dealForm, setDealForm] = useState({
     name: '',
@@ -100,6 +112,20 @@ export default function SalesRepDashboard() {
     }
   };
 
+  const fetchDocs = async (token: string) => {
+    try {
+      const response = await fetch(apiUrl('/sales-rep/docs'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDocs(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch docs:', error);
+    }
+  };
+
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -123,7 +149,7 @@ export default function SalesRepDashboard() {
       }
 
       setUser(userData);
-      await Promise.all([fetchAnalytics(token), fetchDeals(token)]);
+      await Promise.all([fetchAnalytics(token), fetchDeals(token), fetchDocs(token)]);
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('token');
@@ -203,16 +229,25 @@ export default function SalesRepDashboard() {
 
   const getTierColor = (tier: string) => {
     switch (tier) {
+      case 'ultimate': return 'bg-secondary text-white';
+      case 'pro': return 'bg-purple-100 text-purple-800';
       case 'premium': return 'bg-purple-100 text-purple-800';
-      case 'basic': return 'bg-blue-100 text-blue-800';
+      case 'plus': return 'bg-blue-100 text-blue-800';
+      case 'basic': return 'bg-sky-100 text-sky-800';
       case 'trial': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getTierPrice = (tier: string) => {
-    const prices: Record<string, number> = { free: 0, basic: 29, premium: 99, trial: 0 };
-    return prices[tier] || 0;
+    const prices: Record<string, number> = { free: 0, basic: 29, plus: 59, pro: 99, premium: 99, trial: 0 };
+    return prices[tier] ?? 0;
+  };
+
+  const getTierCommission = (tier: string) => {
+    if (tier === 'ultimate') return 'Custom';
+    const price = getTierPrice(tier);
+    return price > 0 ? `$${(price * 0.10).toFixed(2)}/mo` : '$0.00/mo';
   };
 
   if (loading) {
@@ -502,7 +537,7 @@ export default function SalesRepDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-semibold text-primary">
-                          ${(getTierPrice(dealer.subscription_tier) * 0.10).toFixed(2)}/mo
+                          {getTierCommission(dealer.subscription_tier)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -528,9 +563,45 @@ export default function SalesRepDashboard() {
           <ul className="text-sm text-dark space-y-2">
             <li>• Invite yacht brokers and dealers to join the platform</li>
             <li>• Help clients upgrade from Free → Basic → Premium for higher commissions</li>
+            <li>• Refer large brokerages to the <strong>Ultimate</strong> tier — commission negotiated directly</li>
             <li>• Provide excellent support to retain clients long-term</li>
             <li>• You earn 10% recurring commission for as long as clients stay subscribed</li>
           </ul>
+        </div>
+
+        {/* Documentation */}
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <BookOpen className="text-primary" size={22} />
+            <h3 className="text-xl font-semibold text-secondary">Sales Documentation & Resources</h3>
+          </div>
+          {docs.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-md p-8 text-center text-dark/50">
+              <BookOpen size={40} className="mx-auto mb-3 text-gray-300" />
+              <p>No documentation available yet. Ask your admin to publish sales resources.</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {docs.map((doc) => (
+                <button
+                  key={doc.id}
+                  onClick={() => setActiveDoc(doc)}
+                  className="bg-white rounded-lg shadow-md p-5 text-left hover:shadow-lg transition-shadow border border-gray-100 hover:border-primary/30"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-semibold uppercase text-primary/70 tracking-wide">{doc.category}</span>
+                      <h4 className="text-base font-semibold text-secondary mt-0.5">{doc.title}</h4>
+                      {doc.description && (
+                        <p className="text-sm text-dark/60 mt-1 line-clamp-2">{doc.description}</p>
+                      )}
+                    </div>
+                    <ChevronRight size={18} className="text-gray-400 shrink-0 mt-1" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
@@ -560,7 +631,7 @@ export default function SalesRepDashboard() {
                 <div className="bg-accent/10 rounded-lg p-4">
                   <p className="text-sm text-accent font-medium mb-1">Your Commission</p>
                   <p className="text-2xl font-bold text-accent">
-                    ${(getTierPrice(selectedDealer.subscription_tier) * 0.10).toFixed(2)}/mo
+                    {getTierCommission(selectedDealer.subscription_tier)}
                   </p>
                 </div>
 
@@ -687,6 +758,50 @@ export default function SalesRepDashboard() {
                 <button onClick={() => setShowDealModal(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
                 <button onClick={createDeal} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg">Create Deal</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Doc Viewer Modal */}
+      {activeDoc && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8">
+            <div className="p-6 border-b flex items-start justify-between gap-4">
+              <div>
+                <span className="text-xs font-semibold uppercase text-primary/70 tracking-wide">{activeDoc.category}</span>
+                <h2 className="text-2xl font-bold text-secondary mt-0.5">{activeDoc.title}</h2>
+                {activeDoc.description && (
+                  <p className="text-sm text-dark/60 mt-1">{activeDoc.description}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setActiveDoc(null)}
+                className="text-gray-400 hover:text-gray-600 shrink-0"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <div
+                className="prose prose-sm max-w-none text-dark/80 whitespace-pre-wrap"
+                style={{ whiteSpace: 'pre-wrap' }}
+              >
+                {activeDoc.content || 'No content available.'}
+              </div>
+              {activeDoc.updated_at && (
+                <p className="text-xs text-dark/40 mt-6 border-t pt-3">
+                  Last updated: {new Date(activeDoc.updated_at).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setActiveDoc(null)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
