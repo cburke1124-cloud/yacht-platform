@@ -30,7 +30,8 @@ class _MemoryLogHandler(logging.Handler):
             "message": self.format(record),
         }
         if record.exc_info:
-            entry["exc_info"] = self.formatException(record.exc_info)
+            import traceback
+            entry["exc_info"] = "".join(traceback.format_exception(*record.exc_info))
         with self._lock:
             self._buf.append(entry)
 

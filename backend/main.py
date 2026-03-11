@@ -1889,21 +1889,48 @@ app = FastAPI(title="YachtVersal API", version="2.0.0")
 @app.on_event("startup")
 async def startup_event():
     """Run alembic migrations on startup"""
+    import os
+    import subprocess
     try:
-        import subprocess
+        # Get the backend directory
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        print(f"[STARTUP] Running alembic upgrade from {backend_dir}", flush=True)
+        
         result = subprocess.run(
             ["alembic", "upgrade", "head"],
-            cwd="/app" if os.path.exists("/app") else os.path.dirname(__file__),
+            cwd=backend_dir,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=120
         )
+        
         if result.returncode == 0:
-            logger.info("Database migrations completed successfully")
+            print(f"[STARTUP] Alembic migrations completed successfully", flush=True)
+            if result.stdout:
+                print(f"[STARTUP] Output: {result.stdout}", flush=True)
         else:
-            logger.warning(f"Alembic upgrade warning: {result.stderr}")
+            print(f"[STARTUP] Alembic upgrade failed with code {result.returncode}", flush=True)
+            print(f"[STARTUP] Stderr: {result.stderr}", flush=True)
+            if result.stdout:
+                print(f"[STARTUP] Stdout: {result.stdout}", flush=True)
+    except FileNotFoundError:
+        print("[STARTUP] Alembic command not found, trying to import alembic directly", flush=True)
+        try:
+            from alembic.config import Config
+            from alembic import command
+            import os
+            
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
+            alembic_cfg.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", ""))
+            
+            command.upgrade(alembic_cfg, "head")
+            print("[STARTUP] Alembic migrations completed via direct import", flush=True)
+        except Exception as e:
+            print(f"[STARTUP] Direct alembic import failed: {e}", flush=True)
     except Exception as e:
-        logger.warning(f"Could not run alembic upgrade at startup: {e}")
+        print(f"[STARTUP] Alembic migration error: {e}", flush=True)
 
 # Global error handler
 @app.exception_handler(Exception)
