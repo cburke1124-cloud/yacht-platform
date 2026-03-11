@@ -392,7 +392,7 @@ export default function CRMSettings() {
       </div>
 
       {/* CRM Tab Content */}
-      {activeTab === 'crm' && (
+      {activeTab === 'crm' ? (
         <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 p-6 mb-6">
           <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-200">
             <div className="flex items-center gap-4">
