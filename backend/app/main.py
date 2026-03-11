@@ -117,16 +117,17 @@ async def startup_event():
     except Exception as e:
         print(f"[STARTUP] Alembic migration failed: {e}", flush=True)
 
-    # Auto-seed default documentation if not already present
+    # Auto-seed / update default documentation
     try:
         from app.db.session import SessionLocal
         from app.models.documentation import Documentation
         from app.services.default_documentation import DEFAULT_DOCS
         seed_db = SessionLocal()
         seeded = []
+        updated = []
         for doc_data in DEFAULT_DOCS:
-            exists = seed_db.query(Documentation).filter(Documentation.slug == doc_data["slug"]).first()
-            if not exists:
+            existing = seed_db.query(Documentation).filter(Documentation.slug == doc_data["slug"]).first()
+            if not existing:
                 doc = Documentation(
                     slug=doc_data["slug"],
                     title=doc_data["title"],
@@ -139,9 +140,21 @@ async def startup_event():
                 )
                 seed_db.add(doc)
                 seeded.append(doc_data["slug"])
-        if seeded:
+            else:
+                # Update content if it has changed
+                changed = False
+                for field in ("title", "description", "category", "audience", "order", "content"):
+                    if getattr(existing, field) != doc_data.get(field):
+                        setattr(existing, field, doc_data[field])
+                        changed = True
+                if changed:
+                    updated.append(doc_data["slug"])
+        if seeded or updated:
             seed_db.commit()
-            print(f"[STARTUP] Seeded documentation: {seeded}", flush=True)
+            if seeded:
+                print(f"[STARTUP] Seeded documentation: {seeded}", flush=True)
+            if updated:
+                print(f"[STARTUP] Updated documentation: {updated}", flush=True)
         seed_db.close()
     except Exception as e:
         print(f"[STARTUP] Documentation seed skipped: {e}", flush=True)

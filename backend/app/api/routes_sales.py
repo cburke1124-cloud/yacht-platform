@@ -379,3 +379,32 @@ def get_sales_rep_docs(
         }
         for doc in docs
     ]
+
+
+@router.get("/demo-account")
+def get_my_demo_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the demo account for the authenticated sales rep."""
+    if current_user.user_type not in ("salesman", "admin"):
+        raise AuthorizationException("Sales rep access required")
+
+    demo = db.query(User).filter(
+        User.demo_owner_sales_rep_id == current_user.id,
+        User.deleted_at.is_(None),
+        User.is_demo == True,
+    ).first()
+
+    if not demo:
+        return {"exists": False}
+
+    listing_count = db.query(func.count(Listing.id)).filter(Listing.user_id == demo.id).scalar() or 0
+
+    return {
+        "exists": True,
+        "id": demo.id,
+        "email": demo.email,
+        "company_name": demo.company_name,
+        "listings": listing_count,
+    }
