@@ -13,6 +13,9 @@ from app.models.dealer import DealerProfile
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
 from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
+from app.security.auth import get_password_hash
+from app.utils.slug import create_slug
+from app.services.api_key_service import generate_api_key_for_dealer
 
 router = APIRouter()
 
@@ -407,4 +410,109 @@ def get_my_demo_account(
         "email": demo.email,
         "company_name": demo.company_name,
         "listings": listing_count,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Register Broker (Sales-Rep initiated)
+# --------------------------------------------------------------------------- #
+
+@router.post("/register-broker")
+def register_broker_for_sales_rep(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Allow a sales rep to manually register a new broker/dealer account."""
+    if current_user.user_type != "salesman":
+        raise AuthorizationException("Sales rep access required")
+
+    # --- validate required fields ---------------------------------------- #
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise ValidationException("Email is required")
+
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
+    company_name = (data.get("company_name") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    tier = (data.get("subscription_tier") or "basic").strip().lower()
+
+    if tier not in TIER_PRICES:
+        raise ValidationException(f"Invalid subscription tier: {tier}")
+
+    # Check duplicate email
+    existing = (
+        db.query(User)
+        .filter(User.email == email, User.deleted_at.is_(None))
+        .first()
+    )
+    if existing:
+        raise ValidationException("A user with this email already exists")
+
+    # --- create user ----------------------------------------------------- #
+    temp_password = secrets.token_urlsafe(12)
+    hashed = get_password_hash(temp_password)
+
+    new_user = User(
+        email=email,
+        password_hash=hashed,
+        first_name=first_name or None,
+        last_name=last_name or None,
+        phone=phone or None,
+        user_type="dealer",
+        company_name=company_name or None,
+        subscription_tier=tier,
+        assigned_sales_rep_id=current_user.id,
+        active=True,
+        verified=False,
+    )
+    db.add(new_user)
+    db.flush()  # get new_user.id
+
+    # --- create dealer profile ------------------------------------------- #
+    slug = create_slug(company_name or f"{first_name} {last_name}".strip() or email.split("@")[0], db)
+    profile = DealerProfile(
+        user_id=new_user.id,
+        name=f"{first_name} {last_name}".strip() or company_name or email.split("@")[0],
+        company_name=company_name or None,
+        email=email,
+        phone=phone or None,
+        slug=slug,
+    )
+    db.add(profile)
+
+    # --- generate API key ------------------------------------------------ #
+    try:
+        generate_api_key_for_dealer(new_user, db)
+    except Exception:
+        pass  # non-critical
+
+    # --- create referral signup ------------------------------------------ #
+    affiliate_account = _ensure_sales_rep_affiliate_account(current_user, db)
+    commission_rate = float(current_user.commission_rate or 10.0)
+    effective_price = float(TIER_PRICES.get(tier, 0.0))
+
+    referral = ReferralSignup(
+        dealer_user_id=new_user.id,
+        source_type="sales_rep_manual",
+        sales_rep_id=current_user.id,
+        affiliate_account_id=affiliate_account.id,
+        referral_code_used=affiliate_account.code,
+        effective_monthly_price=effective_price,
+        commission_rate=commission_rate,
+    )
+    db.add(referral)
+
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "Broker registered successfully",
+        "dealer_id": new_user.id,
+        "email": new_user.email,
+        "company_name": new_user.company_name,
+        "subscription_tier": new_user.subscription_tier,
+        "temp_password": temp_password,
+        "slug": slug,
     }
