@@ -272,9 +272,11 @@ export default function ListingDetailPage() {
       const dealer  = contact?.dealer;
       const recipId = sc?.id ?? dealer?.id ?? listing?.created_by_user_id ?? listing?.user_id;
       if (token && recipId) {
+        // Logged-in users: create a message
         await fetch(`${API_ROOT}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
       } else {
-        await fetch(`${API_ROOT}/listings/${id}/inquiry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message }) });
+        // Anonymous users: create an inquiry (triggers webhook delivery)
+        await fetch(`${API_ROOT}/inquiries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message, listing_id: Number(id) }) });
       }
       setMsgDone(true); setMsgForm({ name: '', email: '', phone: '', message: '' });
     } catch {}

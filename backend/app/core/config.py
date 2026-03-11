@@ -7,6 +7,12 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     STRIPE_SECRET_KEY: str | None = os.getenv("STRIPE_SECRET_KEY")
+    
+    # Webhook configuration
+    WEBHOOK_SIGNING_SECRET: str = os.getenv("WEBHOOK_SIGNING_SECRET", "webhook-secret-key-change-in-production")
+    WEBHOOK_MAX_RETRIES: int = int(os.getenv("WEBHOOK_MAX_RETRIES", "3"))
+    WEBHOOK_TIMEOUT: int = int(os.getenv("WEBHOOK_TIMEOUT", "10"))
+    WEBHOOK_RETRY_DELAY: int = int(os.getenv("WEBHOOK_RETRY_DELAY", "60"))  # seconds between retries
 
 settings = Settings()
 

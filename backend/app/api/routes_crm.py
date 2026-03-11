@@ -1,14 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import requests
 import logging
+import hmac
+import hashlib
+import json
+import time
+import asyncio
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.misc import CRMIntegration, CRMSyncLog, Inquiry, Message, WebhookConfig, WebhookLog
+from app.core.config import settings
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -1080,8 +1086,13 @@ def get_webhook_logs(
 
 # ==================== WEBHOOK DELIVERY ====================
 
-async def send_webhook_payload(config: WebhookConfig, payload: dict) -> tuple[bool, int, str]:
-    """Send webhook payload to configured URL. Returns (success, status_code, error_message)"""
+async def send_webhook_payload(config: WebhookConfig, payload: dict, retry_count: int = 0) -> tuple[bool, int, str]:
+    """
+    Send webhook payload to configured URL with HMAC-SHA256 signing.
+    Automatically retries on failure with exponential backoff.
+    
+    Returns (success, status_code, error_message)
+    """
     if not config.enabled:
         return False, 0, "Webhook is disabled"
     
@@ -1095,13 +1106,27 @@ async def send_webhook_payload(config: WebhookConfig, payload: dict) -> tuple[bo
     elif config.auth_type == "basic":
         headers["Authorization"] = f"Basic {config.auth_token}"
     
-    # Format payload if needed
+    # Format payload
     if config.format_type == "adf_xml":
         from app.services.adf_xml_service import format_inquiry_as_adf_xml
         payload_data = format_inquiry_as_adf_xml(payload)
         headers["Content-Type"] = "application/xml"
+        payload_bytes = payload_data.encode('utf-8')
     else:
         payload_data = payload
+        payload_bytes = json.dumps(payload_data).encode('utf-8')
+    
+    # Add HMAC-SHA256 signature
+    timestamp = str(int(time.time()))
+    signature_payload = f"{timestamp}.{payload_bytes.decode('utf-8') if isinstance(payload_bytes, bytes) else payload_bytes}"
+    signature = hmac.new(
+        settings.WEBHOOK_SIGNING_SECRET.encode('utf-8'),
+        signature_payload.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    
+    headers["X-Webhook-Timestamp"] = timestamp
+    headers["X-Webhook-Signature"] = f"sha256={signature}"
     
     try:
         response = requests.post(
@@ -1109,17 +1134,31 @@ async def send_webhook_payload(config: WebhookConfig, payload: dict) -> tuple[bo
             json=payload_data if isinstance(payload_data, dict) else None,
             data=payload_data if isinstance(payload_data, str) else None,
             headers=headers,
-            timeout=10
+            timeout=settings.WEBHOOK_TIMEOUT
         )
         
         if response.status_code in [200, 201, 202, 204]:
             return True, response.status_code, ""
         else:
             error_text = response.text[:200] if response.text else "No response body"
+            # Retry on 5xx errors
+            if response.status_code >= 500 and retry_count < settings.WEBHOOK_MAX_RETRIES:
+                logger.warning(f"Webhook returned {response.status_code}, retrying...")
+                await asyncio.sleep(settings.WEBHOOK_RETRY_DELAY * (2 ** retry_count))  # exponential backoff
+                return await send_webhook_payload(config, payload, retry_count + 1)
+            
             return False, response.status_code, error_text
     except requests.exceptions.Timeout:
+        if retry_count < settings.WEBHOOK_MAX_RETRIES:
+            logger.warning(f"Webhook timeout, retrying...")
+            await asyncio.sleep(settings.WEBHOOK_RETRY_DELAY * (2 ** retry_count))
+            return await send_webhook_payload(config, payload, retry_count + 1)
         return False, 0, "Request timeout"
     except Exception as e:
+        if retry_count < settings.WEBHOOK_MAX_RETRIES:
+            logger.warning(f"Webhook error {str(e)}, retrying...")
+            await asyncio.sleep(settings.WEBHOOK_RETRY_DELAY * (2 ** retry_count))
+            return await send_webhook_payload(config, payload, retry_count + 1)
         return False, 0, str(e)
 
 
