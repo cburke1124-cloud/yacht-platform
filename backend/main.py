@@ -1885,6 +1885,26 @@ def create_slug(text: str, db: Session, model) -> str:
 
 app = FastAPI(title="YachtVersal API", version="2.0.0")
 
+# Startup event to run alembic migrations
+@app.on_event("startup")
+async def startup_event():
+    """Run alembic migrations on startup"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            cwd="/app" if os.path.exists("/app") else os.path.dirname(__file__),
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if result.returncode == 0:
+            logger.info("Database migrations completed successfully")
+        else:
+            logger.warning(f"Alembic upgrade warning: {result.stderr}")
+    except Exception as e:
+        logger.warning(f"Could not run alembic upgrade at startup: {e}")
+
 # Global error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
