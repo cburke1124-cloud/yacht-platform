@@ -622,3 +622,97 @@ def convert_trial(
         "message": f"Upgraded to {payment_data.tier} plan!",
         "subscription_tier": payment_data.tier
     }
+
+
+# ============= DEMO ACCOUNT ACCESS FOR SALES REPS =============
+
+@router.post("/demo/access")
+def access_demo_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Sales rep endpoint to get login credentials for their demo account.
+    Returns a token to directly access the demo dealer account.
+    """
+    if current_user.user_type != "salesman":
+        raise AuthenticationException("Only sales reps can access demo accounts")
+    
+    # Find the demo account for this sales rep
+    demo_account = db.query(User).filter(
+        User.demo_owner_sales_rep_id == current_user.id,
+        User.is_demo == True,
+        User.deleted_at.is_(None)
+    ).first()
+    
+    if not demo_account:
+        raise ResourceNotFoundException("Demo account", "not assigned to this sales rep")
+    
+    # Create an access token for the demo account
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": demo_account.email},
+        expires_delta=access_token_expires
+    )
+    
+    # Get demo account info
+    listings = db.query(Listing).filter(Listing.user_id == demo_account.id).count()
+    
+    return {
+        "success": True,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "demo_account": {
+            "id": demo_account.id,
+            "email": demo_account.email,
+            "company_name": demo_account.company_name,
+            "listings": listings,
+        },
+        "message": "Use this token to access the demo account dashboard"
+    }
+
+
+@router.get("/demo/info")
+def get_demo_account_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get info about the demo account for the current sales rep.
+    Useful for checking if a demo account exists before trying to access it.
+    """
+    if current_user.user_type != "salesman":
+        raise AuthenticationException("Only sales reps can access this endpoint")
+    
+    demo_account = db.query(User).filter(
+        User.demo_owner_sales_rep_id == current_user.id,
+        User.is_demo == True,
+        User.deleted_at.is_(None)
+    ).first()
+    
+    if not demo_account:
+        return {
+            "has_demo_account": False,
+            "message": "No demo account assigned. Contact an administrator.",
+        }
+    
+    # Get stats
+    listings = db.query(Listing).filter(Listing.user_id == demo_account.id).count()
+    
+    from app.models.misc import Message
+    inquiries = db.query(func.count(Message.id)).filter(
+        Message.recipient_id == demo_account.id,
+        Message.message_type == "inquiry",
+    ).scalar() or 0
+    
+    return {
+        "has_demo_account": True,
+        "demo_account": {
+            "id": demo_account.id,
+            "email": demo_account.email,
+            "company_name": demo_account.company_name,
+            "listings": listings,
+            "inquiries": inquiries,
+        },
+        "message": "Demo account ready. Use /auth/demo/access to get login token."
+    }

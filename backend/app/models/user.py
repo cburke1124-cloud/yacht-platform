@@ -55,6 +55,10 @@ class User(Base):
     specialties = Column(JSON, default=[])
 
     wordpress_sites = relationship("WordPressSite", back_populates="dealer")
+    
+    # Demo account fields
+    is_demo = Column(Boolean, default=False, index=True)  # Mark as demo account
+    demo_owner_sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Sales rep who owns this demo
 
     # Relationships
     listings = relationship("Listing", back_populates="owner", foreign_keys="Listing.user_id")
