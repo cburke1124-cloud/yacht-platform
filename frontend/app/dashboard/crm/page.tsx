@@ -626,7 +626,6 @@ export default function CRMSettings() {
           </div>
         </div>
       )}
-      )}
 
       {/* Webhook Tab Content */}
       {activeTab === 'webhook' && (
