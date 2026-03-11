@@ -117,6 +117,35 @@ async def startup_event():
     except Exception as e:
         print(f"[STARTUP] Alembic migration failed: {e}", flush=True)
 
+    # Auto-seed default documentation if not already present
+    try:
+        from app.db.session import SessionLocal
+        from app.models.documentation import Documentation
+        from app.services.default_documentation import DEFAULT_DOCS
+        seed_db = SessionLocal()
+        seeded = []
+        for doc_data in DEFAULT_DOCS:
+            exists = seed_db.query(Documentation).filter(Documentation.slug == doc_data["slug"]).first()
+            if not exists:
+                doc = Documentation(
+                    slug=doc_data["slug"],
+                    title=doc_data["title"],
+                    description=doc_data["description"],
+                    category=doc_data["category"],
+                    audience=doc_data["audience"],
+                    order=doc_data["order"],
+                    content=doc_data["content"],
+                    published=True,
+                )
+                seed_db.add(doc)
+                seeded.append(doc_data["slug"])
+        if seeded:
+            seed_db.commit()
+            print(f"[STARTUP] Seeded documentation: {seeded}", flush=True)
+        seed_db.close()
+    except Exception as e:
+        print(f"[STARTUP] Documentation seed skipped: {e}", flush=True)
+
     setup_scheduler()
 
 
@@ -211,7 +240,11 @@ def get_public_pricing_tiers(db: Session = Depends(get_db)):
     from app.api.routes_admin import _DEFAULT_BROKER_TIERS, _DEFAULT_PRIVATE_TIERS
     settings = db.query(SiteSettings).first()
     config = (settings.subscription_config or {}) if settings else {}
+    # Merge: start with current defaults (which always have the latest tiers),
+    # then overlay any admin-customised tiers on top.
+    broker = {**_DEFAULT_BROKER_TIERS, **config.get("broker_tiers", {})}
+    private = {**_DEFAULT_PRIVATE_TIERS, **config.get("private_tiers", {})}
     return {
-        "broker": config.get("broker_tiers", _DEFAULT_BROKER_TIERS),
-        "private": config.get("private_tiers", _DEFAULT_PRIVATE_TIERS),
+        "broker": broker,
+        "private": private,
     }
