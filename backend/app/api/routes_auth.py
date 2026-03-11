@@ -407,7 +407,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
 async def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
     try:
         row = db.execute(
-            text("SELECT id, email, password_hash, COALESCE(active, true) AS active FROM users WHERE email = :email LIMIT 1"),
+            text("SELECT id, email, password_hash, COALESCE(active, true) AS active FROM users WHERE email = :email AND deleted_at IS NULL LIMIT 1"),
             {"email": user_data.email},
         ).mappings().first()
     except Exception:
