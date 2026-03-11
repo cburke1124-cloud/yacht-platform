@@ -11,7 +11,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, index=True, nullable=False)  # Removed unique constraint; will be enforced at app level
     password_hash = Column(String, nullable=False)
     first_name = Column(String)
     last_name = Column(String)
@@ -23,6 +23,10 @@ class User(Base):
     verified = Column(Boolean, default=False)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Soft delete fields for account recovery
+    deleted_at = Column(DateTime, nullable=True, index=True)  # Timestamp when account was deleted
+    recovery_deadline = Column(DateTime, nullable=True)  # Until when account can be recovered (60-90 days)
 
     parent_dealer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     role = Column(String, default="owner")

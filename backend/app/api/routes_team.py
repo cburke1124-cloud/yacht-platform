@@ -184,7 +184,7 @@ def invite_team_member(
         raise AuthorizationException("No permission to manage team")
 
     email = data.get("email")
-    if db.query(User).filter(User.email == email).first():
+    if db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first():
         raise ValidationException("User already exists")
 
     role = data.get("role", "salesperson")
@@ -301,7 +301,10 @@ def remove_team_member(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Remove a team member and transfer their listings to the dealer."""
+    """
+    Soft-delete a team member with 90-day recovery window.
+    Transfer their listings to the dealer owner.
+    """
     if not has_permission(current_user, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission")
 
@@ -316,15 +319,26 @@ def remove_team_member(
 
     # Transfer listings to dealer
     from app.models.listing import Listing
+    listing_count = db.query(Listing).filter(Listing.user_id == member_id).count()
+    
     db.query(Listing).filter(Listing.user_id == member_id).update(
         {"user_id": current_user.id}
     )
 
-    # Delete the team member
-    db.delete(member)
+    # Soft-delete the team member (90-day recovery window)
+    member.deleted_at = datetime.utcnow()
+    member.recovery_deadline = datetime.utcnow() + timedelta(days=90)
     db.commit()
 
-    return {"success": True, "message": "Team member removed and listings transferred"}
+    return {
+        "success": True,
+        "message": f"Team member removed. {listing_count} listing(s) transferred to dealer.",
+        "member_id": member.id,
+        "member_email": member.email,
+        "listings_transferred": listing_count,
+        "recovery_deadline": member.recovery_deadline.isoformat(),
+        "note": "This team member can be recovered within 90 days via admin recovery endpoints."
+    }
 
 
 # ── Dealer oversight: read a team member's messages (no alerts, safety view) ──
@@ -500,4 +514,162 @@ def get_member_overview(
             "total": message_total,
             "pending": pending_messages,
         },
+    }
+
+# ============= Listing Reassignment (After Team Member Removal) =============
+
+@router.get("/members/{member_id}/listings")
+def get_member_listings(
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get all listings owned by a team member.
+    Useful for reassignment after member is removed.
+    """
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+
+    member = (
+        db.query(User)
+        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .first()
+    )
+
+    if not member:
+        raise ResourceNotFoundException("Team member", member_id)
+
+    listings = db.query(Listing).filter(Listing.user_id == member_id).all()
+
+    return {
+        "member_id": member.id,
+        "member_name": f"{member.first_name or ''} {member.last_name or ''}".strip() or member.email,
+        "member_email": member.email,
+        "total_listings": len(listings),
+        "listings": [
+            {
+                "id": listing.id,
+                "title": listing.title,
+                "status": listing.status,
+                "make_model": listing.make_model,
+                "price": listing.price,
+                "created_at": listing.created_at.isoformat() if listing.created_at else None,
+                "views": listing.views or 0,
+                "inquiries": listing.inquiries or 0,
+            }
+            for listing in listings
+        ]
+    }
+
+
+@router.put("/listings/{listing_id}/reassign-owner")
+def reassign_listing_owner(
+    listing_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Reassign a listing to a different team member or dealer.
+    Can only be done by dealer owners or admins.
+    """
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+
+    # Check if current user owns this listing or is an admin/dealer
+    if listing.user_id != current_user.id:
+        if not has_permission(current_user, Permission.MANAGE_TEAM):
+            raise AuthorizationException("Not authorized to reassign this listing")
+
+    new_owner_id = data.get("new_owner_id")
+    if not new_owner_id:
+        raise ValidationException("new_owner_id is required")
+
+    new_owner = db.query(User).filter(User.id == new_owner_id).first()
+    if not new_owner:
+        raise ResourceNotFoundException("New owner", new_owner_id)
+
+    # Verify new owner is part of the same organization
+    if current_user.user_type == "dealer":
+        # Can only assign to own team members or self
+        if new_owner_id != current_user.id:
+            if new_owner.parent_dealer_id != current_user.id:
+                raise AuthorizationException("New owner must be part of your team")
+
+    # Reassign
+    listing.user_id = new_owner_id
+    db.commit()
+    db.refresh(listing)
+
+    return {
+        "success": True,
+        "listing_id": listing.id,
+        "listing_title": listing.title,
+        "old_owner_id": listing.user_id,
+        "new_owner_id": new_owner_id,
+        "new_owner_name": f"{new_owner.first_name or ''} {new_owner.last_name or ''}".strip() or new_owner.email,
+        "message": f"Listing reassigned to {new_owner.first_name or new_owner.email}"
+    }
+
+
+@router.post("/members/{member_id}/bulk-reassign-listings")
+def bulk_reassign_team_member_listings(
+    member_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Bulk reassign all listings from one team member to another.
+    Useful when removing a team member.
+    """
+    if not has_permission(current_user, Permission.MANAGE_TEAM):
+        raise AuthorizationException("No permission")
+
+    member = (
+        db.query(User)
+        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .first()
+    )
+
+    if not member:
+        raise ResourceNotFoundException("Team member", member_id)
+
+    new_owner_id = data.get("new_owner_id")
+    if not new_owner_id:
+        raise ValidationException("new_owner_id is required")
+
+    new_owner = (
+        db.query(User)
+        .filter(User.id == new_owner_id)
+        .first()
+    )
+
+    if not new_owner:
+        raise ResourceNotFoundException("New owner", new_owner_id)
+
+    # Verify new owner is dealer or part of same team
+    if new_owner_id != current_user.id:
+        if new_owner.parent_dealer_id != current_user.id:
+            raise AuthorizationException("New owner must be part of your team or be the dealer")
+
+    # Reassign all listings
+    updated_count = db.query(Listing).filter(
+        Listing.user_id == member_id
+    ).update(
+        {"user_id": new_owner_id},
+        synchronize_session=False
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "member_id": member.id,
+        "member_name": f"{member.first_name or ''} {member.last_name or ''}".strip() or member.email,
+        "new_owner_id": new_owner_id,
+        "new_owner_name": f"{new_owner.first_name or ''} {new_owner.last_name or ''}".strip() or new_owner.email,
+        "listings_reassigned": updated_count,
+        "message": f"{updated_count} listing(s) reassigned from {member.first_name or member.email} to {new_owner.first_name or new_owner.email}"
     }

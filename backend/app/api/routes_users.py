@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User, UserPreferences
 from app.models.dealer import DealerProfile
-from app.exceptions import ResourceNotFoundException
+from app.exceptions import ResourceNotFoundException, ValidationException
 
 router = APIRouter()
 
@@ -115,3 +115,81 @@ def update_preferences(data: dict, current_user: User = Depends(get_current_user
 
     db.commit()
     return {"success": True}
+
+
+# ============= Account Deletion & Recovery =============
+
+@router.post("/account/delete")
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Soft delete the current user account. Account can be recovered for 90 days.
+    """
+    from datetime import datetime, timedelta
+    
+    # Set deletion timestamp and recovery deadline (90 days)
+    current_user.deleted_at = datetime.utcnow()
+    current_user.recovery_deadline = datetime.utcnow() + timedelta(days=90)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Account deleted. You can restore it within 90 days.",
+        "recovery_deadline": current_user.recovery_deadline.isoformat()
+    }
+
+
+@router.post("/account/restore")
+def restore_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Restore a soft-deleted account if within recovery period.
+    """
+    from datetime import datetime
+    
+    if not current_user.deleted_at:
+        raise ResourceNotFoundException("No deleted account to restore")
+    
+    if current_user.recovery_deadline and datetime.utcnow() > current_user.recovery_deadline:
+        raise ValidationException("Recovery period has expired (90 days). Your account cannot be restored.")
+    
+    # Restore the account
+    current_user.deleted_at = None
+    current_user.recovery_deadline = None
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Account restored successfully"
+    }
+
+
+@router.get("/account/deletion-status")
+def get_deletion_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get the current deletion status of the account.
+    """
+    from datetime import datetime
+    
+    if not current_user.deleted_at:
+        return {
+            "deleted": False,
+            "message": "Account is active"
+        }
+    
+    is_expired = current_user.recovery_deadline and datetime.utcnow() > current_user.recovery_deadline
+    
+    return {
+        "deleted": True,
+        "deleted_at": current_user.deleted_at.isoformat(),
+        "recovery_deadline": current_user.recovery_deadline.isoformat() if current_user.recovery_deadline else None,
+        "recovery_expired": is_expired,
+        "days_remaining": (current_user.recovery_deadline - datetime.utcnow()).days if current_user.recovery_deadline and not is_expired else 0
+    }

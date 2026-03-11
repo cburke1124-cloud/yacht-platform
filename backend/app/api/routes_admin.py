@@ -1594,3 +1594,164 @@ def system_info(current_user: User = Depends(require_admin)):
         "log_file": log_file_info,
         "pid": os.getpid(),
     }
+
+# ============= ACCOUNT RECOVERY & SOFT DELETE =============
+
+@router.get("/users/recovery/pending")
+def get_deleted_users_pending_recovery(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Get all users pending recovery (soft-deleted within recovery period).
+    """
+    now = datetime.utcnow()
+    
+    # Find deleted users within recovery deadline
+    deleted_users = db.query(User).filter(
+        User.deleted_at.isnot(None),
+        User.recovery_deadline > now  # Not yet expired
+    ).order_by(User.deleted_at.desc()).all()
+    
+    result = []
+    for user in deleted_users:
+        days_remaining = (user.recovery_deadline - now).days
+        
+        # Get listing count
+        listing_count = db.query(Listing).filter(Listing.user_id == user.id).count()
+        
+        result.append({
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "company_name": user.company_name,
+            "user_type": user.user_type,
+            "deleted_at": user.deleted_at.isoformat(),
+            "recovery_deadline": user.recovery_deadline.isoformat(),
+            "days_remaining": days_remaining,
+            "listings": listing_count,
+        })
+    
+    return {
+        "total": len(result),
+        "users": result
+    }
+
+
+@router.post("/users/{user_id}/recover")
+def admin_recover_user(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Admin endpoint to restore a deleted user account.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    if not user.deleted_at:
+        raise ValidationException("User account is not deleted")
+    
+    now = datetime.utcnow()
+    if user.recovery_deadline and now > user.recovery_deadline:
+        raise ValidationException("Recovery period has expired. This account cannot be restored.")
+    
+    # Restore the account
+    user.deleted_at = None
+    user.recovery_deadline = None
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"User {user.email} has been restored",
+        "user_id": user.id,
+        "email": user.email
+    }
+
+
+@router.post("/users/{user_id}/permanent-delete")
+def admin_permanently_delete_user(
+    user_id: int,
+    data: dict = None,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Admin endpoint to permanently delete a user after recovery period expires.
+    This will hard-delete the user and all associated data.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    if not user.deleted_at:
+        raise ValidationException("User is not deleted")
+    
+    # Check if recovery period has expired
+    now = datetime.utcnow()
+    if user.recovery_deadline and now <= user.recovery_deadline:
+        days_remaining = (user.recovery_deadline - now).days
+        raise ValidationException(
+            f"Cannot permanently delete: recovery period expires in {days_remaining} days. "
+            "Pass force=true in request body to override."
+        )
+    
+    # Optional force parameter for immediate deletion
+    force = (data or {}).get("force", False) if data else False
+    if not force and user.recovery_deadline and now <= user.recovery_deadline:
+        raise ValidationException("Recovery period not expired. Pass force=true to override safety check.")
+    
+    # Delete all user data
+    email = user.email
+    
+    # Delete listings
+    db.query(Listing).filter(Listing.user_id == user_id).delete()
+    
+    # Delete user record
+    db.delete(user)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"User {email} permanently deleted with all associated data",
+    }
+
+
+@router.get("/users/{user_id}/deletion-status")
+def get_user_deletion_status_admin(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Admin endpoint to check deletion status of any user.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    
+    if not user.deleted_at:
+        return {
+            "user_id": user.id,
+            "email": user.email,
+            "status": "active",
+            "message": "Account is active"
+        }
+    
+    now = datetime.utcnow()
+    is_expired = user.recovery_deadline and now > user.recovery_deadline
+    days_remaining = (user.recovery_deadline - now).days if user.recovery_deadline and not is_expired else 0
+    
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "status": "deleted_expired" if is_expired else "deleted_recoverable",
+        "deleted_at": user.deleted_at.isoformat(),
+        "recovery_deadline": user.recovery_deadline.isoformat() if user.recovery_deadline else None,
+        "days_remaining": max(days_remaining, 0),
+        "can_restore": not is_expired,
+        "can_permanently_delete": is_expired
+    }

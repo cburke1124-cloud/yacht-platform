@@ -104,7 +104,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
 
         try:
             existing_user = db.execute(
-                text("SELECT id FROM users WHERE email = :email LIMIT 1"),
+                text("SELECT id FROM users WHERE email = :email AND deleted_at IS NULL LIMIT 1"),
                 {"email": user_data.email},
             ).first()
         except Exception:
