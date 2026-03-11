@@ -542,6 +542,15 @@ export default function HomePage() {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'right bottom' }}
         />
 
+        {/* Figma gradient overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(90deg, #FFFFFF 0%, #FFFFFF 20%, rgba(255,255,255,0.9) 35%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.2) 70%, rgba(255,255,255,0) 85%)',
+          }}
+        />
+
         {/* Hero content — overlaid on image */}
         <div
           className="absolute inset-0 z-10 flex flex-col justify-center"
