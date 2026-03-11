@@ -17,10 +17,6 @@ def upgrade():
     conn = op.get_bind()
 
     # ── inquiries: new columns ────────────────────────────────────────────────
-    cols = {r[0] for r in conn.execute(sa.text("PRAGMA table_info(inquiries)")).fetchall()
-            if True}  # SQLite; for Postgres use information_schema below
-
-    # Postgres-safe existence check
     existing = set()
     try:
         rows = conn.execute(
@@ -31,9 +27,7 @@ def upgrade():
         ).fetchall()
         existing = {r[0] for r in rows}
     except Exception:
-        # SQLite fallback
-        rows = conn.execute(sa.text("PRAGMA table_info(inquiries)")).fetchall()
-        existing = {r[1] for r in rows}
+        pass
 
     new_inquiry_cols = {
         "assigned_to_id": "INTEGER REFERENCES users(id) ON DELETE SET NULL",

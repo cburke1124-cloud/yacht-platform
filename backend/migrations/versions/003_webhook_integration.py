@@ -22,14 +22,14 @@ def upgrade():
     if 'webhook_configs' not in existing_tables:
         conn.execute(sa.text("""
             CREATE TABLE webhook_configs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL UNIQUE,
                 webhook_url VARCHAR NOT NULL,
                 format_type VARCHAR DEFAULT 'json',
                 auth_type VARCHAR DEFAULT 'none',
                 auth_token VARCHAR,
-                enabled BOOLEAN DEFAULT 1,
-                test_passed BOOLEAN DEFAULT 0,
+                enabled BOOLEAN DEFAULT TRUE,
+                test_passed BOOLEAN DEFAULT FALSE,
                 last_webhook_sent TIMESTAMP,
                 total_webhooks_sent INTEGER DEFAULT 0,
                 webhook_failures INTEGER DEFAULT 0,
@@ -43,11 +43,11 @@ def upgrade():
     if 'webhook_logs' not in existing_tables:
         conn.execute(sa.text("""
             CREATE TABLE webhook_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 webhook_config_id INTEGER NOT NULL,
                 inquiry_id INTEGER NOT NULL,
                 status_code INTEGER,
-                success BOOLEAN DEFAULT 0,
+                success BOOLEAN DEFAULT FALSE,
                 error_message TEXT,
                 payload JSON,
                 sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
