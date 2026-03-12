@@ -16,6 +16,7 @@ from app.exceptions import AuthorizationException, ResourceNotFoundException, Va
 from app.security.auth import get_password_hash
 from app.utils.slug import create_slug
 from app.services.api_key_service import generate_api_key_for_dealer
+from app.models.misc import SiteSettings
 
 router = APIRouter()
 
@@ -30,6 +31,14 @@ TIER_PRICES = {
     "private_basic": 9.0,
     "private_plus": 19.0,
     "private_pro": 39.0,
+}
+
+
+_DEFAULT_BROKER_TIERS = {
+    "basic":    {"name": "Basic",    "price": 29,  "listings": 25,     "images_per_listing": 15,     "videos_per_listing": 1,      "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"],                                                              "trial_days": 14, "active": True},
+    "plus":     {"name": "Plus",     "price": 59,  "listings": 75,     "images_per_listing": 30,     "videos_per_listing": 3,      "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"],                                       "trial_days": 14, "active": True},
+    "pro":      {"name": "Pro",      "price": 99,  "listings": 999999, "images_per_listing": 50,     "videos_per_listing": 5,      "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"],            "trial_days": 30, "active": True},
+    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Branded micro-site", "Premium search placement", "Co-brokering network access"], "trial_days": 0, "active": True, "is_custom_pricing": True},
 }
 
 
@@ -516,3 +525,26 @@ def register_broker_for_sales_rep(
         "temp_password": temp_password,
         "slug": slug,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Broker Tiers (read-only for sales reps)
+# --------------------------------------------------------------------------- #
+
+@router.get("/broker-tiers")
+def get_broker_tiers(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get broker subscription tiers with features and pricing."""
+    if current_user.user_type not in ("salesman", "admin"):
+        raise AuthorizationException("Sales rep access required")
+
+    # Merge saved config (if admin has customised) with defaults
+    site = db.query(SiteSettings).first()
+    saved = {}
+    if site and site.subscription_config:
+        saved = site.subscription_config.get("broker_tiers", {})
+
+    merged = {**_DEFAULT_BROKER_TIERS, **saved}
+    return {"tiers": merged}
