@@ -307,7 +307,7 @@ function RegisterContent() {
                       >
                         Get Started
                       </button>
-                    )}}
+                    )}
                   </div>
                 );
               })}
