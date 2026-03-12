@@ -1307,7 +1307,9 @@ _DEFAULT_BROKER_TIERS = {
 }
 
 _DEFAULT_PRIVATE_TIERS = {
-    "private_basic": {"name": "Private Seller", "price": 9, "listings": 1, "images_per_listing": 20, "videos_per_listing": 1, "features": ["1 active listing", "20 photos per listing", "1 video per listing", "Standard search visibility", "Direct buyer messaging", "Email support"], "trial_days": 7, "active": True},
+    "private_basic": {"name": "Basic", "price": 9, "listings": 1, "images_per_listing": 20, "videos_per_listing": 1, "features": ["1 active listing", "20 photos per listing", "1 video per listing", "Standard search visibility", "Direct buyer messaging", "Email support"], "trial_days": 7, "active": True},
+    "private_plus": {"name": "Plus", "price": 19, "listings": 3, "images_per_listing": 35, "videos_per_listing": 1, "features": ["3 active listings", "35 photos per listing", "1 video per listing", "Priority search placement", "Direct buyer messaging", "Listing analytics", "Email support"], "trial_days": 7, "active": True},
+    "private_pro": {"name": "Pro", "price": 39, "listings": 10, "images_per_listing": 50, "videos_per_listing": 3, "features": ["10 active listings", "50 photos per listing", "3 videos per listing", "Top search placement", "Featured badge", "Priority support", "Social media promotion"], "trial_days": 14, "active": True},
 }
 
 

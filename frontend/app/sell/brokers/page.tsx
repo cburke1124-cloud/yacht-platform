@@ -5,15 +5,17 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Check, Globe, Users, Zap, BarChart2, Headphones, Award } from 'lucide-react';
+import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
 
-// ─── Tier display config ──────────────────────────────────────────────────────
-// Figma: Silver (outline CTA), Gold (filled navy CTA), Platinum (outline CTA)
+// ─── Tier display config ──────────────────────────────────────────────────────────────────────
+// Silver (outline CTA), Gold (filled navy CTA), Platinum (outline CTA), Ultimate (enterprise)
 
-const TIER_DISPLAY: Record<string, { badge: string; variant: 'outline' | 'filled' }> = {
-  basic:  { badge: 'Silver',   variant: 'outline' },
-  plus:   { badge: 'Gold',     variant: 'filled'  },
-  pro:    { badge: 'Platinum', variant: 'outline' },
+const TIER_DISPLAY: Record<string, { badge: string; variant: 'outline' | 'filled' | 'enterprise' }> = {
+  basic:    { badge: 'Silver',     variant: 'outline' },
+  plus:     { badge: 'Gold',       variant: 'filled'  },
+  pro:      { badge: 'Platinum',   variant: 'outline' },
+  ultimate: { badge: 'Ultimate',   variant: 'enterprise' },
 };
 
 type SubscriptionTier = {
@@ -25,6 +27,7 @@ type SubscriptionTier = {
   videos: number;
   features: string[];
   trial_days?: number;
+  is_custom_pricing?: boolean;
 };
 
 const FALLBACK_TIERS: SubscriptionTier[] = [
@@ -81,8 +84,26 @@ const FALLBACK_TIERS: SubscriptionTier[] = [
       'Advanced analytics',
       'AI scraper tools',
     ],
-  },
-];
+  },  {
+    key: 'ultimate',
+    name: 'Ultimate',
+    price: 0,
+    listings: 999999,
+    images_per_listing: 999999,
+    videos: 999999,
+    trial_days: 0,
+    is_custom_pricing: true,
+    features: [
+      'Unlimited listings',
+      'Unlimited images & video',
+      'White-glove onboarding',
+      'Dedicated account manager',
+      'Custom API integrations',
+      'Branded micro-site',
+      'Premium search placement',
+      'Co-brokering network access',
+    ],
+  },];
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -304,10 +325,10 @@ export default function SellBrokersPage() {
             </p>
           </div>
 
-          {/* ── PRICING CARDS — Figma: 3 cards, 416px each, tab badge on top ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 24 }}>
+          {/* ── PRICING CARDS — 4 cards matching register page, tab badge on top ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4" style={{ gap: 24 }}>
             {tiersLoading
-              ? [0, 1, 2].map((i) => (
+              ? [0, 1, 2, 3].map((i) => (
                   <div key={i} className="animate-pulse">
                     <div className="flex justify-center" style={{ marginBottom: -1 }}>
                       <div className="rounded-xl bg-gray-200" style={{ width: 118, height: 48 }} />
@@ -321,20 +342,20 @@ export default function SellBrokersPage() {
                 ))
               : tiers.map((tier) => {
                   const display = TIER_DISPLAY[tier.key] ?? { badge: tier.name, variant: 'outline' as const };
-                  const isFree = tier.price === 0;
-                  const priceLabel = isFree ? 'Free' : `$${tier.price}/month`;
+                  const isEnterprise = display.variant === 'enterprise';
+                  const isCustom = tier.is_custom_pricing || isEnterprise;
+                  const priceLabel = isCustom ? 'Custom Pricing' : `$${tier.price}/month`;
                   const trialDays = tier.trial_days ?? 0;
-                  const ctaLabel = 'Get Started';
 
                   return (
                     <div key={tier.key} className="relative flex flex-col" style={{ paddingTop: 24 }}>
-                      {/* Badge tab — Figma: centered, overlapping top border */}
+                      {/* Badge tab — centered, overlapping top border */}
                       <div
                         className="absolute left-1/2 flex items-center justify-center"
                         style={{
                           transform: 'translateX(-50%)',
                           top: 0,
-                          backgroundColor: '#01BBDC',
+                          backgroundColor: isEnterprise ? '#D4AF37' : '#01BBDC',
                           borderRadius: 12,
                           width: 118,
                           height: 48,
@@ -347,7 +368,7 @@ export default function SellBrokersPage() {
                             fontSize: 18,
                             lineHeight: '22px',
                             fontWeight: 600,
-                            color: '#FFFFFF',
+                            color: isEnterprise ? '#10214F' : '#FFFFFF',
                           }}
                         >
                           {tier.name}
@@ -358,26 +379,26 @@ export default function SellBrokersPage() {
                       <div
                         className="flex flex-col flex-1"
                         style={{
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid #01BBDC',
+                          backgroundColor: isEnterprise ? '#10214F' : '#FFFFFF',
+                          border: isEnterprise ? '2px solid #D4AF37' : '1px solid #01BBDC',
                           boxShadow: '0px 0px 4px rgba(0,0,0,0.25)',
                           borderRadius: 12,
                           minHeight: 403,
                           paddingTop: 40,
-                          paddingLeft: 32,
-                          paddingRight: 32,
+                          paddingLeft: 24,
+                          paddingRight: 24,
                           paddingBottom: 32,
                         }}
                       >
-                        {/* Price — Figma: Bahnschrift SemiBold 30/36, #10214F */}
+                        {/* Price */}
                         <p
                           className="text-center"
                           style={{
                             fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                            fontSize: 30,
+                            fontSize: isCustom ? 22 : 30,
                             lineHeight: '36px',
                             fontWeight: 600,
-                            color: '#10214F',
+                            color: isEnterprise ? '#FFFFFF' : '#10214F',
                             marginBottom: trialDays > 0 ? 4 : 24,
                           }}
                         >
@@ -399,29 +420,29 @@ export default function SellBrokersPage() {
                           </p>
                         )}
 
-                        {/* Stripe security badge */}
+                        {/* Stripe / enterprise subtitle */}
                         <p
                           className="text-center"
                           style={{
                             fontFamily: 'Poppins, sans-serif',
                             fontSize: 12,
-                            color: 'rgba(16,33,79,0.4)',
+                            color: isEnterprise ? 'rgba(255,255,255,0.5)' : 'rgba(16,33,79,0.4)',
                             marginBottom: 24,
                           }}
                         >
-                          🔒 Billed securely via Stripe
+                          {isCustom ? 'Tailored to your brokerage' : '🔒 Billed securely via Stripe'}
                         </p>
 
-                        {/* Features — Figma: Poppins 16/24, centered, #10214F */}
-                        <ul className="flex-1 flex flex-col items-center" style={{ gap: 20, marginBottom: 32 }}>
+                        {/* Features */}
+                        <ul className="flex-1 flex flex-col items-center" style={{ gap: 16, marginBottom: 32 }}>
                           {tier.features.map((f) => (
                             <li
                               key={f}
                               style={{
                                 fontFamily: 'Poppins, sans-serif',
-                                fontSize: 16,
-                                lineHeight: '24px',
-                                color: '#10214F',
+                                fontSize: 14,
+                                lineHeight: '22px',
+                                color: isEnterprise ? 'rgba(255,255,255,0.85)' : '#10214F',
                                 textAlign: 'center',
                               }}
                             >
@@ -430,8 +451,25 @@ export default function SellBrokersPage() {
                           ))}
                         </ul>
 
-                        {/* CTA — routes to /register with Stripe tier pre-selected */}
-                        {display.variant === 'filled' ? (
+                        {/* CTA */}
+                        {isEnterprise ? (
+                          <Link
+                            href="/contact?tier=ultimate"
+                            className="w-full flex items-center justify-center transition hover:opacity-90"
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              color: '#10214F',
+                              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                              fontSize: 18,
+                              lineHeight: '22px',
+                              fontWeight: 600,
+                              borderRadius: 12,
+                              height: 48,
+                            }}
+                          >
+                            Contact Us
+                          </Link>
+                        ) : display.variant === 'filled' ? (
                           <button
                             onClick={() => handleSelectTier(tier.key)}
                             className="w-full flex items-center justify-center transition hover:opacity-90"
@@ -446,7 +484,7 @@ export default function SellBrokersPage() {
                               height: 48,
                             }}
                           >
-                            {ctaLabel}
+                            Get Started
                           </button>
                         ) : (
                           <button
@@ -464,7 +502,7 @@ export default function SellBrokersPage() {
                               height: 48,
                             }}
                           >
-                            {ctaLabel}
+                            Get Started
                           </button>
                         )}
                       </div>

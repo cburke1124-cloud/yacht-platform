@@ -35,13 +35,25 @@ const BROKER_TIERS: Record<string, any> = {
   },
 };
 
-// --- Fallback private seller tier (single plan) ---
+// --- Fallback private seller tiers ---
 const PRIVATE_TIER: Record<string, any> = {
   private_basic: {
-    name: 'Private Seller',
+    name: 'Basic',
     price: 9,
     trial_days: 7,
     features: ['1 active listing', '20 photos per listing', '1 video per listing', 'Standard search visibility', 'Direct buyer messaging', 'Email support'],
+  },
+  private_plus: {
+    name: 'Plus',
+    price: 19,
+    trial_days: 7,
+    features: ['3 active listings', '35 photos per listing', '1 video per listing', 'Priority search placement', 'Direct buyer messaging', 'Listing analytics', 'Email support'],
+  },
+  private_pro: {
+    name: 'Pro',
+    price: 39,
+    trial_days: 14,
+    features: ['10 active listings', '50 photos per listing', '3 videos per listing', 'Top search placement', 'Featured badge', 'Priority support', 'Social media promotion'],
   },
 };
 
@@ -92,8 +104,7 @@ function RegisterContent() {
           const activePrivate = Object.fromEntries(
             Object.entries(data.private).filter(([, t]: [string, any]) => t.active !== false)
           );
-          const k = Object.keys(activePrivate)[0];
-          if (k) setLivePrivateTier({ private_basic: activePrivate[k] });
+          if (Object.keys(activePrivate).length > 0) setLivePrivateTier(activePrivate);
         }
       })
       .catch(() => {});
@@ -122,7 +133,8 @@ function RegisterContent() {
       setFormData((prev) => ({ ...prev, user_type: 'dealer', subscription_tier: tier }));
       setShowForm(true);
     } else if (userType === 'private') {
-      setFormData((prev) => ({ ...prev, user_type: 'private', subscription_tier: 'private_basic' }));
+      const privateTier = tier && tier.startsWith('private_') ? tier : 'private_basic';
+      setFormData((prev) => ({ ...prev, user_type: 'private', subscription_tier: privateTier }));
       setShowForm(true);
     }
   }, [searchParams]);
@@ -135,7 +147,7 @@ function RegisterContent() {
 
   const getSelectedTierInfo = () => {
     if (formData.user_type === 'dealer') return liveBrokerTiers[formData.subscription_tier] ?? Object.values(liveBrokerTiers)[0];
-    return livePrivateTier['private_basic'];
+    return livePrivateTier[formData.subscription_tier] ?? livePrivateTier['private_basic'] ?? Object.values(livePrivateTier)[0];
   };
 
   const getSubmitLabel = () => {
@@ -302,66 +314,50 @@ function RegisterContent() {
             </div>
           </div>
 
-          {/* Private Seller — full width */}
+          {/* Private Seller tiers */}
           <div className="mb-8">
             <div className="mb-5">
               <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
               <p className="text-sm text-dark/60">For individual yacht owners selling directly to buyers — no broker, no sales commission, no middleman</p>
             </div>
-            {Object.entries(livePrivateTier).map(([key, tier]) => (
-              <div key={key} className="bg-white p-8 rounded-2xl shadow-xl border-2 border-primary/20">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                  {/* Left: Description */}
-                  <div className="lg:col-span-1">
-                    <h4 className="text-xl font-bold text-secondary mb-3">{tier.name.toLowerCase() === 'basic' ? 'Owner' : tier.name}</h4>
-                    <p className="text-sm text-dark/70 mb-4">Perfect if you're selling your own yacht and want to keep 100% of the sale price. No commission. No broker involvement. You control all communications with buyers.</p>
-                    <p className="text-xs text-dark/50">Simple, transparent pricing with a dedicated support team to help you along the way.</p>
-                  </div>
-
-                  {/* Center: Pricing & Features */}
-                  <div className="lg:col-span-1">
-                    <div className="mb-6">
-                      <div className="flex items-baseline gap-1 mb-2">
-                        <span className="text-4xl font-bold text-secondary">${tier.price}</span>
-                        <span className="text-dark/70 text-sm">/month</span>
-                      </div>
-                      <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
-                      {tier.trial_days > 0 && (
-                        <span className="text-xs text-primary font-semibold bg-primary/10 px-2 py-1 rounded-full">
-                          {tier.trial_days}-day free trial
-                        </span>
-                      )}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Object.entries(livePrivateTier).map(([key, tier]) => (
+                <div key={key} className={`p-7 rounded-2xl shadow-xl relative ${
+                  key === 'private_plus'
+                    ? 'bg-white border-4 border-primary'
+                    : 'bg-white border border-gray-100'
+                }`}>
+                  {key === 'private_plus' && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                      <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">BEST VALUE</span>
                     </div>
-                    <ul className="space-y-2">
-                      {(tier.features as string[]).slice(0, 3).map((f: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-dark">
-                          <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+                  )}
+                  <h4 className="text-xl font-bold text-secondary mb-1">{tier.name}</h4>
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className="text-3xl font-bold text-primary">${tier.price}</span>
+                    <span className="text-dark/50 text-sm">/month</span>
                   </div>
-
-                  {/* Right: More Features & CTA */}
-                  <div className="lg:col-span-1">
-                    <ul className="space-y-2 mb-6">
-                      {(tier.features as string[]).slice(3).map((f: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-dark">
-                          <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <button
-                      onClick={() => selectPlan('private', key)}
-                      className="w-full py-3 text-center rounded-lg text-sm font-semibold text-white bg-primary transition-opacity hover:opacity-90"
-                    >
-                      Get Started
-                    </button>
-                  </div>
+                  {tier.trial_days > 0 && (
+                    <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
+                  )}
+                  <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
+                  <ul className="space-y-2 mb-6">
+                    {(tier.features as string[]).map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
+                        <Check size={14} className="text-primary mt-0.5 shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => selectPlan('private', key)}
+                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${key === 'private_plus' ? 'bg-primary' : 'bg-secondary'}`}
+                  >
+                    Get Started
+                  </button>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           <p className="text-center text-xs text-dark/40 mb-4">All plans include a free trial · Cancel anytime · No commission on sales</p>

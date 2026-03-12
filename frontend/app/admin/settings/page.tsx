@@ -58,16 +58,36 @@ const DEFAULT_DEALER_TIERS: TiersRecord = {
   },
 };
 
-// ─── Default private seller tier — one plan only ────────────────────────────
+// ─── Default private seller tiers ────────────────────────────────────────────
 const DEFAULT_PRIVATE_TIERS: TiersRecord = {
   private_basic: {
-    name: 'Private Seller',
+    name: 'Basic',
     price: 9,
     listings: 1,
     images_per_listing: 20,
     videos_per_listing: 1,
     features: ['1 active listing', '20 photos per listing', '1 video per listing', 'Standard search visibility', 'Direct buyer messaging', 'Email support'],
     trial_days: 7,
+    active: true,
+  },
+  private_plus: {
+    name: 'Plus',
+    price: 19,
+    listings: 3,
+    images_per_listing: 35,
+    videos_per_listing: 1,
+    features: ['3 active listings', '35 photos per listing', '1 video per listing', 'Priority search placement', 'Direct buyer messaging', 'Listing analytics', 'Email support'],
+    trial_days: 7,
+    active: true,
+  },
+  private_pro: {
+    name: 'Pro',
+    price: 39,
+    listings: 10,
+    images_per_listing: 50,
+    videos_per_listing: 3,
+    features: ['10 active listings', '50 photos per listing', '3 videos per listing', 'Top search placement', 'Featured badge', 'Priority support', 'Social media promotion'],
+    trial_days: 14,
     active: true,
   },
 };
@@ -78,6 +98,8 @@ const STRIPE_KEY_HINTS: Record<string, string> = {
   plus:          'STRIPE_PRICE_DEALER_PLUS env var',
   pro:           'STRIPE_PRICE_DEALER_PRO env var',
   private_basic: 'STRIPE_PRICE_PRIVATE_BASIC env var',
+  private_plus:  'STRIPE_PRICE_PRIVATE_PLUS env var',
+  private_pro:   'STRIPE_PRICE_PRIVATE_PRO env var',
 };
 
 // ─── Reusable Tier Editor component ──────────────────────────────────────────
@@ -599,10 +621,12 @@ export default function AdminSettingsPage() {
 
           <div className="border-t border-gray-200 pt-10">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">👤 Private Seller Tier</h2>
+              <h2 className="text-xl font-semibold text-gray-900">👤 Private Seller Tiers</h2>
               <p className="text-sm text-gray-500 mt-1">
-                Single tier for private sellers (one yacht listing).
-                Stripe env var: <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_BASIC</code>.
+                Tiers shown to private sellers on pricing and registration pages.
+                Stripe env vars: <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_BASIC</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_PLUS</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_PRIVATE_PRO</code>.
               </p>
             </div>
             <TierEditor
