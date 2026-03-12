@@ -450,7 +450,7 @@ export default function SellPrivatePage() {
                         {display.variant === 'filled' ? (
                           <button
                             onClick={() => handleSelectTier(tier.key)}
-                            className="w-full flex items-center justify-center transition hover:opacity-90"
+                            className="w-full flex items-center justify-center transition-all duration-200 hover:scale-105 hover:shadow-lg"
                             style={{
                               backgroundColor: '#10214F',
                               color: '#FFFFFF',
@@ -467,7 +467,7 @@ export default function SellPrivatePage() {
                         ) : (
                           <button
                             onClick={() => handleSelectTier(tier.key)}
-                            className="w-full flex items-center justify-center transition hover:bg-[#10214F] hover:text-white"
+                            className="w-full flex items-center justify-center transition-all duration-200 hover:scale-105 hover:shadow-lg hover:bg-[#10214F] hover:text-white"
                             style={{
                               border: '1px solid #10214F',
                               backgroundColor: 'transparent',

@@ -303,11 +303,11 @@ function RegisterContent() {
                     ) : (
                       <button
                         onClick={() => selectPlan('dealer', key)}
-                        className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${key === 'plus' ? 'bg-primary' : 'bg-secondary'}`}
+                        className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${key === 'plus' ? 'bg-primary' : 'bg-secondary'}`}
                       >
                         Get Started
                       </button>
-                    )}
+                    )}}
                   </div>
                 );
               })}
@@ -351,7 +351,7 @@ function RegisterContent() {
                   </ul>
                   <button
                     onClick={() => selectPlan('private', key)}
-                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${key === 'private_plus' ? 'bg-primary' : 'bg-secondary'}`}
+                    className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${key === 'private_plus' ? 'bg-primary' : 'bg-secondary'}`}
                   >
                     Get Started
                   </button>

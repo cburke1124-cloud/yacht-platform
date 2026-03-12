@@ -285,14 +285,14 @@ function SellerLoginContent() {
                       {isUltimate ? (
                         <Link
                           href="/contact?tier=ultimate"
-                          className="block w-full py-2.5 text-center rounded-lg text-sm font-semibold bg-white text-secondary transition-opacity hover:opacity-90"
+                          className="block w-full py-2.5 text-center rounded-lg text-sm font-semibold bg-white text-secondary transition-all duration-200 hover:scale-105 hover:shadow-lg"
                         >
                           Contact Us
                         </Link>
                       ) : (
                         <Link
                           href={`/register?user_type=dealer&subscription_tier=${key}`}
-                          className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${
+                          className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
                             key === 'plus' ? 'bg-primary' : 'bg-secondary'
                           }`}
                         >
@@ -342,7 +342,7 @@ function SellerLoginContent() {
                     </ul>
                     <Link
                       href={`/register?user_type=private&subscription_tier=${key}`}
-                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 ${
+                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
                         key === 'private_plus' ? 'bg-primary' : 'bg-secondary'
                       }`}
                     >
