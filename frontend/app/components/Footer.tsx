@@ -1,27 +1,24 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Facebook, Twitter, Instagram, Linkedin, Mail } from 'lucide-react';
+import { Facebook, Instagram, Linkedin, Mail } from 'lucide-react';
 
 export default function Footer() {
-  const quickLinks = [
+  const mainLinks = [
     { href: '/listings', label: 'Search Listings' },
-    { href: '/sell-list', label: 'List Your Yacht' },
-    { href: '/how-it-works', label: 'Buying Guide' },
-    { href: '/how-it-works', label: 'Selling Guide' },
+    { href: '/sell/brokers', label: 'Yacht Brokers' },
+    { href: '/sell/private', label: 'Private Sellers' },
   ];
 
   const resources = [
-    { href: '/about', label: 'About Us' },
-    { href: '/blog', label: 'Blog' },
-    { href: '/faq', label: 'FAQ' },
+    { href: '/resources/how-buying-works', label: 'How Buying Works' },
+    { href: '/resources/financing', label: 'Financing' },
     { href: '/contact', label: 'Contact' },
   ];
 
   const socialLinks = [
-    { href: 'https://facebook.com', icon: Facebook, label: 'Facebook' },
-    { href: 'https://instagram.com', icon: Instagram, label: 'Instagram' },
-    { href: 'https://twitter.com', icon: Twitter, label: 'Twitter' },
-    { href: 'https://linkedin.com', icon: Linkedin, label: 'LinkedIn' },
+    { href: 'https://www.facebook.com/profile.php?id=61579522401665', icon: Facebook, label: 'Facebook' },
+    { href: 'https://www.instagram.com/yachtversal/', icon: Instagram, label: 'Instagram' },
+    { href: 'https://www.linkedin.com/company/112766298/admin/dashboard/', icon: Linkedin, label: 'LinkedIn' },
   ];
 
   return (
@@ -37,7 +34,7 @@ export default function Footer() {
       </div>
 
       <div className="relative mx-auto max-w-[1296px] px-4 pb-8 pt-20 sm:px-6 lg:px-8">
-        <div className="mb-10 grid grid-cols-1 gap-12 md:grid-cols-4 md:gap-10">
+        <div className="mb-10 grid grid-cols-1 gap-12 md:grid-cols-3 md:gap-10">
           <div>
             <div className="mb-6">
               <Image
@@ -57,7 +54,7 @@ export default function Footer() {
           <div>
             <h3 className="mb-4 text-[22px] font-normal leading-7 text-primary">Quick Links</h3>
             <ul className="space-y-0 text-base leading-10">
-              {quickLinks.map((item) => (
+              {mainLinks.map((item) => (
                 <li key={item.label}>
                   <Link href={item.href} className="text-light transition-colors hover:text-primary">
                     {item.label}
@@ -79,9 +76,11 @@ export default function Footer() {
               ))}
             </ul>
           </div>
+        </div>
 
-          <div>
-            <h3 className="mb-4 text-[22px] font-normal leading-7 text-primary">Connect</h3>
+        <div className="mt-10 pt-8 border-t border-light/10">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[22px] font-normal leading-7 text-primary">Connect With Us</h3>
             <div className="mb-6 flex gap-3">
               {socialLinks.map((item) => {
                 const Icon = item.icon;
@@ -100,15 +99,15 @@ export default function Footer() {
                 );
               })}
             </div>
-
-            <a
-              href="mailto:support@yachtversal.com"
-              className="inline-flex items-center gap-2 text-base leading-6 text-light transition-colors hover:text-primary"
-            >
-              <Mail size={16} />
-              support@yachtversal.com
-            </a>
           </div>
+
+          <a
+            href="mailto:support@yachtversal.com"
+            className="inline-flex items-center gap-2 text-base leading-6 text-light transition-colors hover:text-primary"
+          >
+            <Mail size={16} />
+            support@yachtversal.com
+          </a>
         </div>
 
         <div className="border-t border-light/10 pt-8">
