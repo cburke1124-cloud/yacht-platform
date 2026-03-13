@@ -34,7 +34,7 @@ export default function Footer() {
       </div>
 
       <div className="relative mx-auto max-w-[1296px] px-4 pb-8 pt-20 sm:px-6 lg:px-8">
-        <div className="mb-10 grid grid-cols-1 gap-12 md:grid-cols-3 md:gap-10">
+        <div className="mb-10 grid grid-cols-1 gap-12 md:grid-cols-4 md:gap-10">
           <div>
             <div className="mb-6">
               <Image
@@ -76,11 +76,9 @@ export default function Footer() {
               ))}
             </ul>
           </div>
-        </div>
 
-        <div className="mt-10 pt-8 border-t border-light/10">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[22px] font-normal leading-7 text-primary">Connect With Us</h3>
+          <div>
+            <h3 className="mb-4 text-[22px] font-normal leading-7 text-primary">Connect</h3>
             <div className="mb-6 flex gap-3">
               {socialLinks.map((item) => {
                 const Icon = item.icon;
@@ -99,15 +97,15 @@ export default function Footer() {
                 );
               })}
             </div>
-          </div>
 
-          <a
-            href="mailto:support@yachtversal.com"
-            className="inline-flex items-center gap-2 text-base leading-6 text-light transition-colors hover:text-primary"
-          >
-            <Mail size={16} />
-            support@yachtversal.com
-          </a>
+            <a
+              href="mailto:info@yachtversal.com"
+              className="inline-flex items-center gap-2 text-base leading-6 text-light transition-colors hover:text-primary"
+            >
+              <Mail size={16} />
+              info@yachtversal.com
+            </a>
+          </div>
         </div>
 
         <div className="border-t border-light/10 pt-8">
