@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '@/app/lib/apiRoot';
 import { Plus, Trash2, RotateCcw, Eye, Copy, Check } from 'lucide-react';
 
 interface DemoAccount {
@@ -36,7 +37,7 @@ export default function AdminDemoAccountsTab() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/demo-accounts', {
+      const response = await fetch(apiUrl('/admin/demo-accounts'), {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
       if (response.ok) {
@@ -45,7 +46,7 @@ export default function AdminDemoAccountsTab() {
       }
 
       // Fetch sales reps
-      const repsResponse = await fetch('/api/admin/users?filter=salesman&limit=1000', {
+      const repsResponse = await fetch(apiUrl('/admin/users?user_type=salesman&limit=1000'), {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
       if (repsResponse.ok) {
@@ -75,7 +76,7 @@ export default function AdminDemoAccountsTab() {
     setSuccess(null);
 
     try {
-      const response = await fetch('/api/admin/demo-account/create', {
+      const response = await fetch(apiUrl('/admin/demo-account/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +111,7 @@ export default function AdminDemoAccountsTab() {
     if (!confirm('Are you sure? This will delete all current listings and restore the sample listings.')) return;
 
     try {
-      const response = await fetch(`/api/admin/demo-account/${demoAccountId}/reset`, {
+      const response = await fetch(apiUrl(`/admin/demo-account/${demoAccountId}/reset`), {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
@@ -131,7 +132,7 @@ export default function AdminDemoAccountsTab() {
     if (!confirm('Are you sure? This will permanently delete the demo account and all data.')) return;
 
     try {
-      const response = await fetch(`/api/admin/demo-account/${demoAccountId}`, {
+      const response = await fetch(apiUrl(`/admin/demo-account/${demoAccountId}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
