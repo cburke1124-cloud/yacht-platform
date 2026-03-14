@@ -374,7 +374,7 @@ export default function AdminDemoAccountsTab() {
                     <td className="px-6 py-3 text-sm font-mono text-gray-900">{account.email}</td>
                     <td className="px-6 py-3 text-sm text-gray-900">{account.company_name}</td>
                     <td className="px-6 py-3 text-sm text-gray-700">
-                      {account.sales_rep_name || getRepName(account.sales_rep_id)}
+                      {account.sales_rep_name || (account.sales_rep_id ? getRepName(account.sales_rep_id) : 'Admin')}
                     </td>
                     <td className="px-6 py-3 text-sm text-gray-700">{account.listings}</td>
                     <td className="px-6 py-3 text-sm text-gray-500">
