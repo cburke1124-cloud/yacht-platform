@@ -8,8 +8,9 @@ interface DemoAccount {
   id: number;
   email: string;
   company_name: string;
-  sales_rep_id: number;
-  sales_rep_name: string;
+  sales_rep_id?: number;
+  sales_rep_name?: string;
+  owner_id?: number;
   listings: number;
   created_at: string;
 }
@@ -21,11 +22,20 @@ interface SalesRep {
   email: string;
 }
 
+interface CurrentUser {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
 export default function AdminDemoAccountsTab() {
   const [demoAccounts, setDemoAccounts] = useState<DemoAccount[]>([]);
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedRepId, setSelectedRepId] = useState<string>('');
+  const [creatorType, setCreatorType] = useState<'sales_rep' | 'admin'>('sales_rep');
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [showCredentials, setShowCredentials] = useState<number | null>(null);
@@ -37,6 +47,7 @@ export default function AdminDemoAccountsTab() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Fetch demo accounts
       const response = await fetch(apiUrl('/admin/demo-accounts'), {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
@@ -53,6 +64,15 @@ export default function AdminDemoAccountsTab() {
         const repsData = await repsResponse.json();
         setSalesReps(repsData.users || []);
       }
+
+      // Fetch current user info
+      const userResponse = await fetch(apiUrl('/profile'), {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        setCurrentUser(userData);
+      }
     } catch (err) {
       setError(`Failed to fetch data: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -66,7 +86,7 @@ export default function AdminDemoAccountsTab() {
 
   // Create demo account
   const handleCreateDemo = async () => {
-    if (!selectedRepId) {
+    if (creatorType === 'sales_rep' && !selectedRepId) {
       setError('Please select a sales representative');
       return;
     }
@@ -76,13 +96,17 @@ export default function AdminDemoAccountsTab() {
     setSuccess(null);
 
     try {
+      const body = creatorType === 'sales_rep' 
+        ? { sales_rep_id: parseInt(selectedRepId) }
+        : {}; // Empty body for admin demo - backend uses current_user
+      
       const response = await fetch(apiUrl('/admin/demo-account/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({ sales_rep_id: parseInt(selectedRepId) }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -91,9 +115,10 @@ export default function AdminDemoAccountsTab() {
           email: data.demo_account.email,
           password: data.demo_account.password,
         });
-        setShowCredentials(parseInt(selectedRepId));
+        setShowCredentials(creatorType === 'admin' ? currentUser?.id || 0 : parseInt(selectedRepId));
         setSuccess(`Demo account created successfully! ${data.listings_created} listings created.`);
         setSelectedRepId('');
+        setCreatorType('sales_rep');
         await fetchData();
       } else {
         const errorData = await response.json();
@@ -166,7 +191,31 @@ export default function AdminDemoAccountsTab() {
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Demo Account Management</h2>
-        <p className="text-gray-600 mb-6">Create and manage demo accounts for sales representatives</p>
+        <p className="text-gray-600 mb-6">Create and manage demo accounts for sales representatives or yourself</p>
+
+        {/* Creator Type Tabs */}
+        <div className="flex gap-4 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setCreatorType('sales_rep')}
+            className={`pb-3 px-4 font-medium transition-colors ${
+              creatorType === 'sales_rep'
+                ? 'text-cyan-600 border-b-2 border-cyan-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            For Sales Rep
+          </button>
+          <button
+            onClick={() => setCreatorType('admin')}
+            className={`pb-3 px-4 font-medium transition-colors ${
+              creatorType === 'admin'
+                ? 'text-cyan-600 border-b-2 border-cyan-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            For Myself (Admin)
+          </button>
+        </div>
 
         {/* Create Demo Account Card */}
         <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-cyan-200 rounded-lg p-6">
@@ -176,36 +225,60 @@ export default function AdminDemoAccountsTab() {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Sales Representative</label>
-              <select
-                value={selectedRepId}
-                onChange={(e) => setSelectedRepId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-              >
-                <option value="">-- Select a sales rep --</option>
-                {salesReps.length > 0 ? (
-                  salesReps.map((rep) => (
-                    <option key={rep.id} value={rep.id}>
-                      {rep.first_name} {rep.last_name} ({rep.email})
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No sales representatives found</option>
-                )}
-              </select>
-            </div>
+            {creatorType === 'sales_rep' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Sales Representative</label>
+                  <select
+                    value={selectedRepId}
+                    onChange={(e) => setSelectedRepId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  >
+                    <option value="">-- Select a sales rep --</option>
+                    {salesReps.length > 0 ? (
+                      salesReps.map((rep) => (
+                        <option key={rep.id} value={rep.id}>
+                          {rep.first_name} {rep.last_name} ({rep.email})
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>No sales representatives found</option>
+                    )}
+                  </select>
+                </div>
 
-            <div className="flex items-end">
-              <button
-                onClick={handleCreateDemo}
-                disabled={creatingDemo || !selectedRepId}
-                className="w-full px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus size={18} />
-                {creatingDemo ? 'Creating...' : 'Create Demo Account'}
-              </button>
-            </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleCreateDemo}
+                    disabled={creatingDemo || !selectedRepId}
+                    className="w-full px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus size={18} />
+                    {creatingDemo ? 'Creating...' : 'Create Demo Account'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Admin Account</label>
+                  <div className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900">
+                    {currentUser ? `${currentUser.first_name} ${currentUser.last_name} (${currentUser.email})` : 'Loading...'}
+                  </div>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={handleCreateDemo}
+                    disabled={creatingDemo || !currentUser}
+                    className="w-full px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus size={18} />
+                    {creatingDemo ? 'Creating...' : 'Create Demo Account'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

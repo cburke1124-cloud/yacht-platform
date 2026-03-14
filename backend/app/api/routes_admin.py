@@ -2285,125 +2285,146 @@ def create_demo_account(
     db: Session = Depends(get_db),
 ):
     """
-    Create a demo account for a sales rep.
+    Create a demo account for a sales rep or admin.
     - Auto-populate with 8 sample yacht listings
     - Generate unique credentials
     """
-    sales_rep_id = data.get("sales_rep_id")
-    if not sales_rep_id:
-        raise ValidationException("sales_rep_id is required")
-    
-    # Verify sales rep exists
-    sales_rep = db.query(User).filter(
-        User.id == sales_rep_id,
-        User.user_type == "salesman",
-        User.deleted_at.is_(None)
-    ).first()
-    
-    if not sales_rep:
-        raise ResourceNotFoundException("Sales representative", sales_rep_id)
-    
-    # Check if demo already exists
-    existing_demo = db.query(User).filter(
-        User.demo_owner_sales_rep_id == sales_rep_id,
-        User.is_demo == True,
-        User.deleted_at.is_(None)
-    ).first()
-    
-    if existing_demo:
-        raise ValidationException(f"Sales rep {sales_rep_id} already has a demo account")
-    
-    # Generate credentials
-    demo_email = f"demo-{sales_rep_id}-{secrets.token_hex(4)}@yachtversal.demo"
-    temp_password = secrets.token_urlsafe(16)
-    hashed_password = get_password_hash(temp_password)
-    
-    # Create demo user account
-    demo_user = User(
-        email=demo_email,
-        password_hash=hashed_password,
-        first_name="Demo",
-        last_name=f"- {sales_rep.first_name or 'Sales Rep'}",
-        user_type="dealer",
-        company_name=f"[DEMO] {sales_rep.first_name or 'Demo'}'s Demo Dealership",
-        subscription_tier="premium",  # Unlimited features for demo
-        is_demo=True,
-        demo_owner_sales_rep_id=sales_rep_id,
-        active=True,
-        verified=True,
-        email_verified=True,
-    )
-    db.add(demo_user)
-    db.flush()
-    
-    # Create dealer profile
-    profile = DealerProfile(
-        user_id=demo_user.id,
-        name=demo_user.company_name,
-        company_name=demo_user.company_name,
-        slug=f"demo-{sales_rep_id}-{secrets.token_hex(3)}",
-        email=demo_email,
-    )
-    db.add(profile)
-    
-    # Create sample listings
-    demo_listings = get_demo_listing_data()
-    listings_created = 0
-    
-    for listing_data in demo_listings:
-        # Generate unique BIN
-        bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
+    try:
+        sales_rep_id = data.get("sales_rep_id")
+        owner_id = None
+        owner_type = "salesman"
         
-        listing = Listing(
-            user_id=demo_user.id,
-            created_by_user_id=current_user.id,
-            title=listing_data.get("title", "Sample Yacht"),
-            description=listing_data.get("description", ""),
-            make=listing_data.get("make_model", "").split()[0] if listing_data.get("make_model") else "",
-            model=listing_data.get("make_model", ""),
-            year=listing_data.get("year"),
-            price=listing_data.get("price", 0),
-            currency=listing_data.get("price_currency", "USD"),
-            bin=bin_id,
-            length_feet=listing_data.get("length_feet"),
-            beam_feet=listing_data.get("beam_feet"),
-            draft_feet=listing_data.get("draft_feet"),
-            boat_type=listing_data.get("boat_type", "motor_yacht"),
-            cabins=listing_data.get("num_cabins", 0),
-            berths=listing_data.get("num_cabins", 0) * 2,
-            heads=listing_data.get("num_heads", 0),
-            fuel_capacity_gallons=listing_data.get("fuel_capacity_gallons"),
-            water_capacity_gallons=listing_data.get("water_capacity_gallons"),
-            city=listing_data.get("location", "").split(",")[0],
-            state=listing_data.get("location", "").split(",")[1].strip() if "," in listing_data.get("location", "") else "",
-            country="USA",
-            fuel_type=listing_data.get("fuel_type", "diesel"),
-            condition=listing_data.get("condition", "Used"),
-            feature_bullets=listing_data.get("features", []),
-            status="active",
+        # Determine if this is for a sales rep or admin
+        if sales_rep_id:
+            owner_id = sales_rep_id
+            owner_type = "salesman"
+        else:
+            # Default to admin demo
+            owner_id = current_user.id
+            owner_type = "admin"
+        
+        # Verify owner exists and is correct type
+        owner = db.query(User).filter(
+            User.id == owner_id,
+            User.user_type == owner_type,
+            User.deleted_at.is_(None)
+        ).first()
+        
+        if not owner:
+            raise ResourceNotFoundException(f"{owner_type.title()} user", owner_id)
+        
+        # Check if demo already exists for this owner
+        existing_demo = db.query(User).filter(
+            User.demo_owner_sales_rep_id == owner_id,
+            User.is_demo == True,
+            User.deleted_at.is_(None)
+        ).first()
+        
+        if existing_demo:
+            raise ValidationException(f"This user already has a demo account (ID: {existing_demo.id})")
+        
+        # Generate credentials
+        demo_email = f"demo-{owner_id}-{secrets.token_hex(4)}@yachtversal.demo"
+        temp_password = secrets.token_urlsafe(16)
+        hashed_password = get_password_hash(temp_password)
+        
+        # Create demo user account
+        demo_user = User(
+            email=demo_email,
+            password_hash=hashed_password,
+            first_name="Demo",
+            last_name=f"- {owner.first_name or 'Account'}",
+            user_type="dealer",
+            company_name=f"[DEMO] {owner.first_name or 'Demo'}'s Demo Dealership",
+            subscription_tier="premium",
+            is_demo=True,
+            demo_owner_sales_rep_id=owner_id,
+            active=True,
+            verified=True,
+            email_verified=True,
         )
-        db.add(listing)
-        listings_created += 1
-    
-    db.commit()
-    db.refresh(demo_user)
-    
-    return {
-        "success": True,
-        "demo_account": {
-            "id": demo_user.id,
-            "email": demo_email,
-            "password": temp_password,
-            "first_name": demo_user.first_name,
-            "last_name": demo_user.last_name,
-            "company_name": demo_user.company_name,
-            "is_demo": demo_user.is_demo,
-        },
-        "sales_rep_id": sales_rep_id,
-        "listings_created": listings_created,
-        "message": "Demo account created with 8 sample listings. Share the email and password with the sales rep.",
-        "note": "This is a test account. Save the password securely as it is provided here.",
-    }
+        db.add(demo_user)
+        db.flush()
+        
+        # Create dealer profile
+        profile = DealerProfile(
+            user_id=demo_user.id,
+            name=demo_user.company_name,
+            company_name=demo_user.company_name,
+            slug=f"demo-{owner_id}-{secrets.token_hex(3)}",
+            email=demo_email,
+        )
+        db.add(profile)
+        db.flush()
+        
+        # Create sample listings
+        demo_listings = get_demo_listing_data()
+        listings_created = 0
+        
+        for listing_data in demo_listings:
+            try:
+                bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
+                location = listing_data.get("location", "Miami, Florida")
+                location_parts = location.split(",")
+                city = location_parts[0].strip() if location_parts else "Miami"
+                state = location_parts[1].strip() if len(location_parts) > 1 else "FL"
+                
+                listing = Listing(
+                    user_id=demo_user.id,
+                    created_by_user_id=current_user.id,
+                    title=listing_data.get("title", "Sample Yacht"),
+                    description=listing_data.get("description", ""),
+                    make=listing_data.get("make_model", "").split()[0] if listing_data.get("make_model") else "",
+                    model=listing_data.get("make_model", ""),
+                    year=listing_data.get("year", 2023),
+                    price=listing_data.get("price", 1000000),
+                    currency="USD",
+                    bin=bin_id,
+                    length_feet=listing_data.get("length_feet", 50),
+                    beam_feet=listing_data.get("beam_feet", 15),
+                    draft_feet=listing_data.get("draft_feet", 4),
+                    boat_type=listing_data.get("boat_type", "motor_yacht"),
+                    cabins=listing_data.get("num_cabins", 3),
+                    heads=listing_data.get("num_heads", 2),
+                    fuel_capacity_gallons=listing_data.get("fuel_capacity_gallons", 2000),
+                    water_capacity_gallons=listing_data.get("water_capacity_gallons", 1000),
+                    city=city,
+                    state=state,
+                    country="USA",
+                    fuel_type=listing_data.get("fuel_type", "diesel"),
+                    condition=listing_data.get("condition", "Excellent"),
+                    feature_bullets=listing_data.get("features", []),
+                    status="active",
+                )
+                db.add(listing)
+                listings_created += 1
+            except Exception as e:
+                # Log but continue creating other listings
+                print(f"Error creating listing: {str(e)}")
+                continue
+        
+        db.commit()
+        db.refresh(demo_user)
+        
+        return {
+            "success": True,
+            "demo_account": {
+                "id": demo_user.id,
+                "email": demo_email,
+                "password": temp_password,
+                "first_name": demo_user.first_name,
+                "last_name": demo_user.last_name,
+                "company_name": demo_user.company_name,
+                "is_demo": demo_user.is_demo,
+            },
+            owner_type: owner_id,
+            "listings_created": listings_created,
+            "message": f"Demo account created with {listings_created} sample listings.",
+            "note": "This is a test account. Save the password securely as it is provided here.",
+        }
+    except Exception as e:
+        db.rollback()
+        raise ValidationException(f"Failed to create demo account: {str(e)}")
 
 
 @router.get("/demo-accounts")
@@ -2445,21 +2466,21 @@ def list_all_demo_accounts(
     }
 
 
-@router.get("/demo-account/{sales_rep_id}")
-def get_demo_account_for_sales_rep(
-    sales_rep_id: int,
+@router.get("/demo-account/{user_id}")
+def get_demo_account_for_user(
+    user_id: int,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Get demo account info for a specific sales rep."""
+    """Get demo account info for a specific user (admin or sales rep)."""
     demo = db.query(User).filter(
-        User.demo_owner_sales_rep_id == sales_rep_id,
+        User.demo_owner_sales_rep_id == user_id,
         User.is_demo == True,
         User.deleted_at.is_(None)
     ).first()
     
     if not demo:
-        raise ResourceNotFoundException("Demo account for sales rep", sales_rep_id)
+        raise ResourceNotFoundException("Demo account for user", user_id)
     
     listing_count = db.query(func.count(Listing.id)).filter(
         Listing.user_id == demo.id
@@ -2469,7 +2490,7 @@ def get_demo_account_for_sales_rep(
         "id": demo.id,
         "email": demo.email,
         "company_name": demo.company_name,
-        "sales_rep_id": sales_rep_id,
+        "owner_id": user_id,
         "listings": listing_count,
         "created_at": demo.created_at.isoformat() if demo.created_at else None,
     }
@@ -2486,65 +2507,76 @@ def reset_demo_account(
     - Clear all messages and conversations
     - Restore original sample listings
     """
-    demo_user = db.query(User).filter(
-        User.id == demo_account_id,
-        User.is_demo == True,
-        User.deleted_at.is_(None)
-    ).first()
-    
-    if not demo_user:
-        raise ResourceNotFoundException("Demo account", demo_account_id)
-    
-    # Delete all existing listings
-    db.query(Listing).filter(Listing.user_id == demo_account_id).delete()
-    
-    # Recreate sample listings
-    demo_listing_data = get_demo_listing_data()
-    listings_restored = 0
-    
-    for listing_data in demo_listing_data:
-        bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
+    try:
+        demo_user = db.query(User).filter(
+            User.id == demo_account_id,
+            User.is_demo == True,
+            User.deleted_at.is_(None)
+        ).first()
         
-        listing = Listing(
-            user_id=demo_user.id,
-            created_by_user_id=current_user.id,
-            title=listing_data.get("title", "Sample Yacht"),
-            description=listing_data.get("description", ""),
-            make=listing_data.get("make_model", "").split()[0] if listing_data.get("make_model") else "",
-            model=listing_data.get("make_model", ""),
-            year=listing_data.get("year"),
-            price=listing_data.get("price", 0),
-            currency=listing_data.get("price_currency", "USD"),
-            bin=bin_id,
-            length_feet=listing_data.get("length_feet"),
-            beam_feet=listing_data.get("beam_feet"),
-            draft_feet=listing_data.get("draft_feet"),
-            boat_type=listing_data.get("boat_type", "motor_yacht"),
-            cabins=listing_data.get("num_cabins", 0),
-            berths=listing_data.get("num_cabins", 0) * 2,
-            heads=listing_data.get("num_heads", 0),
-            fuel_capacity_gallons=listing_data.get("fuel_capacity_gallons"),
-            water_capacity_gallons=listing_data.get("water_capacity_gallons"),
-            city=listing_data.get("location", "").split(",")[0],
-            state=listing_data.get("location", "").split(",")[1].strip() if "," in listing_data.get("location", "") else "",
-            country="USA",
-            fuel_type=listing_data.get("fuel_type", "diesel"),
-            condition=listing_data.get("condition", "Used"),
-            feature_bullets=listing_data.get("features", []),
-            status="active",
-        )
-        db.add(listing)
-        listings_restored += 1
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "demo_account_id": demo_account_id,
-        "email": demo_user.email,
-        "listings_restored": listings_restored,
-        "message": "Demo account reset to pristine state",
-    }
+        if not demo_user:
+            raise ResourceNotFoundException("Demo account", demo_account_id)
+        
+        # Delete all existing listings
+        db.query(Listing).filter(Listing.user_id == demo_account_id).delete()
+        
+        # Recreate sample listings
+        demo_listing_data = get_demo_listing_data()
+        listings_restored = 0
+        
+        for listing_data in demo_listing_data:
+            try:
+                bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
+                location = listing_data.get("location", "Miami, Florida")
+                location_parts = location.split(",")
+                city = location_parts[0].strip() if location_parts else "Miami"
+                state = location_parts[1].strip() if len(location_parts) > 1 else "FL"
+                
+                listing = Listing(
+                    user_id=demo_user.id,
+                    created_by_user_id=current_user.id,
+                    title=listing_data.get("title", "Sample Yacht"),
+                    description=listing_data.get("description", ""),
+                    make=listing_data.get("make_model", "").split()[0] if listing_data.get("make_model") else "",
+                    model=listing_data.get("make_model", ""),
+                    year=listing_data.get("year", 2023),
+                    price=listing_data.get("price", 1000000),
+                    currency="USD",
+                    bin=bin_id,
+                    length_feet=listing_data.get("length_feet", 50),
+                    beam_feet=listing_data.get("beam_feet", 15),
+                    draft_feet=listing_data.get("draft_feet", 4),
+                    boat_type=listing_data.get("boat_type", "motor_yacht"),
+                    cabins=listing_data.get("num_cabins", 3),
+                    heads=listing_data.get("num_heads", 2),
+                    fuel_capacity_gallons=listing_data.get("fuel_capacity_gallons", 2000),
+                    water_capacity_gallons=listing_data.get("water_capacity_gallons", 1000),
+                    city=city,
+                    state=state,
+                    country="USA",
+                    fuel_type=listing_data.get("fuel_type", "diesel"),
+                    condition=listing_data.get("condition", "Excellent"),
+                    feature_bullets=listing_data.get("features", []),
+                    status="active",
+                )
+                db.add(listing)
+                listings_restored += 1
+            except Exception as e:
+                print(f"Error creating listing during reset: {str(e)}")
+                continue
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "demo_account_id": demo_account_id,
+            "email": demo_user.email,
+            "listings_restored": listings_restored,
+            "message": "Demo account reset to pristine state",
+        }
+    except Exception as e:
+        db.rollback()
+        raise ValidationException(f"Failed to reset demo account: {str(e)}")
 
 
 @router.delete("/demo-account/{demo_account_id}")
