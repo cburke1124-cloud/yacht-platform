@@ -1540,10 +1540,11 @@ def system_health(
         "SECRET_KEY",
         "SENDGRID_API_KEY",
         "CLAUDE_API_KEY",
-        "CLOUDFLARE_R2_BUCKET",
-        "CLOUDFLARE_ACCOUNT_ID",
-        "CLOUDFLARE_R2_ACCESS_KEY",
-        "CLOUDFLARE_R2_SECRET_KEY",
+        "S3_BUCKET",
+        "S3_ENDPOINT_URL",
+        "S3_ACCESS_KEY_ID",
+        "S3_SECRET_ACCESS_KEY",
+        "MEDIA_STORAGE_BACKEND",
         "FRONTEND_URL",
         "AUTO_CREATE_TABLES",
     ]
@@ -1554,11 +1555,14 @@ def system_health(
 
     # Scheduler — check if APScheduler is running
     try:
-        from app.core.scheduler import scheduler as apscheduler
-        results["scheduler"] = {
-            "status": "ok" if apscheduler.running else "stopped",
-            "jobs": len(apscheduler.get_jobs()),
-        }
+        from app.scheduler import scheduler as apscheduler
+        if apscheduler is not None:
+            results["scheduler"] = {
+                "status": "ok" if apscheduler.running else "stopped",
+                "jobs": len(apscheduler.get_jobs()),
+            }
+        else:
+            results["scheduler"] = {"status": "stopped", "jobs": 0}
     except Exception as exc:
         results["scheduler"] = {"status": "error", "message": str(exc)}
 

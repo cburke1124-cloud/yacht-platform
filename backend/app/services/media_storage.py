@@ -106,12 +106,11 @@ def get_storage_health() -> dict:
 
     if backend == "local":
         return {
+            "status": "ok",
             "backend": "local",
             "ready": True,
-            "details": {
-                "upload_dir": UPLOAD_DIR,
-            },
-            "issues": [],
+            "upload_dir": UPLOAD_DIR,
+            "issues": None,
         }
 
     issues = []
@@ -127,16 +126,13 @@ def get_storage_health() -> dict:
     ready = _is_s3_ready() and len(issues) == 0
 
     return {
+        "status": "ok" if ready else "misconfigured",
         "backend": "s3",
         "ready": ready,
-        "details": {
-            "endpoint": S3_ENDPOINT_URL,
-            "bucket": S3_BUCKET,
-            "region": S3_REGION,
-            "prefix": S3_PREFIX,
-            "public_base_url": S3_PUBLIC_BASE_URL,
-        },
-        "issues": issues,
+        "bucket": S3_BUCKET or "(not set)",
+        "endpoint": S3_ENDPOINT_URL or "(not set)",
+        "region": S3_REGION,
+        "issues": ", ".join(issues) if issues else None,
     }
 
 

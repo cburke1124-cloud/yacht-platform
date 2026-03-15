@@ -373,8 +373,8 @@ function HealthTab() {
           {/* Storage */}
           {card('Storage', <>
             {row('Status', <StatusBadge status={health.storage?.status as string ?? 'unknown'} />)}
-            {Object.entries(health.storage ?? {}).filter(([k]) => k !== 'status').slice(0, 6).map(([k, v]) =>
-              row(k, String(v))
+            {Object.entries(health.storage ?? {}).filter(([k, v]) => k !== 'status' && v != null).slice(0, 6).map(([k, v]) =>
+              row(k, typeof v === 'object' ? JSON.stringify(v) : String(v))
             )}
           </>)}
 

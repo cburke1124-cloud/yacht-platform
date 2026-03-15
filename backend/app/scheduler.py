@@ -2,7 +2,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.api.routes_featured import expire_featured_listings_task
 from app.db.session import SessionLocal
 
+# Module-level reference so health checks can inspect it
+scheduler: BackgroundScheduler | None = None
+
 def setup_scheduler():
+    global scheduler
     scheduler = BackgroundScheduler()
     
     # Run every hour - expire featured listings
