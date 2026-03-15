@@ -3,6 +3,8 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from io import StringIO
 import csv
+import random
+import string
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
@@ -10,6 +12,15 @@ from app.models.listing import Listing, ListingImage
 from app.exceptions import AuthorizationException
 
 router = APIRouter()
+
+
+def _generate_bin(db: Session) -> str:
+    """Generate a unique BIN (Boat Identification Number) for the listing."""
+    while True:
+        bin_val = "YV-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        exists = db.query(Listing).filter(Listing.bin == bin_val).first()
+        if not exists:
+            return bin_val
 
 # -----------------------------
 # BULK IMPORT
@@ -69,7 +80,7 @@ async def import_listings(
                 "city": row.get("city"),
                 "state": row.get("state"),
                 "country": row.get("country") or "USA",
-                "status": row.get("status") or "active",
+                "status": row.get("status") or "draft",
                 "description": row.get("description"),
             }
 
@@ -90,6 +101,7 @@ async def import_listings(
                 listing = Listing(
                     user_id=current_user.id,
                     created_by_user_id=current_user.id,
+                    bin=_generate_bin(db),
                     **payload,
                 )
                 db.add(listing)
