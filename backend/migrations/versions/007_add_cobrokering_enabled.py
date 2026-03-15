@@ -3,8 +3,8 @@
 Revision ID: 003_add_cobrokering_enabled
 Revises: 002_inquiry_leads_expansion
 """
-revision = '003_add_cobrokering_enabled'
-down_revision = '002_inquiry_leads_expansion'
+revision = '007_add_cobrokering_enabled'
+down_revision = '006_documentation_system'
 
 from alembic import op
 import sqlalchemy as sa
