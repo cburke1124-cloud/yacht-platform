@@ -397,7 +397,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
                     if listing:
                         _apply_scraped_data(listing, raw, job)
-                        listing.status = "active"
+                        # Respect manual broker changes: only restore to active if the scraper
+                        # previously auto-archived it (disappeared from site), not if the broker
+                        # intentionally set it to "draft" to hide it.
+                        if listing.status != "draft":
+                            listing.status = "active"
                         existing_scraped.last_seen = datetime.utcnow()
                         existing_scraped.still_active = True
                         stats["updated"] += 1
