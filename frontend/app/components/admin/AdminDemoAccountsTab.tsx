@@ -27,6 +27,7 @@ interface CurrentUser {
   first_name: string;
   last_name: string;
   email: string;
+  user_type: string;
 }
 
 export default function AdminDemoAccountsTab() {
@@ -46,41 +47,57 @@ export default function AdminDemoAccountsTab() {
   // Fetch demo accounts and sales reps
   const fetchData = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
       // Fetch demo accounts
-      const response = await fetch(apiUrl('/admin/demo-accounts'), {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDemoAccounts(data.demo_accounts || []);
+      try {
+        const response = await fetch(apiUrl('/admin/demo-accounts'), {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setDemoAccounts(data.demo_accounts || []);
+        } else {
+          console.error('Failed to fetch demo accounts:', response.status, response.statusText);
+          setError(`Failed to load demo accounts (${response.status})`);
+        }
+      } catch (err) {
+        console.error('Error fetching demo accounts:', err);
+        setError(`Demo accounts endpoint error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
 
       // Fetch sales reps
-      const repsResponse = await fetch(apiUrl('/admin/users?user_type=salesman&limit=1000'), {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-      });
-      if (repsResponse.ok) {
-        const repsData = await repsResponse.json();
-        setSalesReps(repsData.users || []);
+      try {
+        const repsResponse = await fetch(apiUrl('/admin/users?user_type=salesman&limit=1000'), {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        });
+        if (repsResponse.ok) {
+          const repsData = await repsResponse.json();
+          setSalesReps(repsData.users || []);
+        } else {
+          console.error('Failed to fetch sales reps:', repsResponse.status, repsResponse.statusText);
+        }
+      } catch (err) {
+        console.error('Error fetching sales reps:', err);
       }
-
-      // Fetch current user info
-      const userResponse = await fetch(apiUrl('/profile'), {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-      });
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        setCurrentUser(userData);
-      }
-    } catch (err) {
-      setError(`Failed to fetch data: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // Get current user from localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const userData = JSON.parse(userStr);
+        setCurrentUser(userData);
+      } catch (e) {
+        console.error('Failed to parse user data:', e);
+      }
+    }
+    
     fetchData();
   }, []);
 
@@ -263,14 +280,16 @@ export default function AdminDemoAccountsTab() {
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Admin Account</label>
                   <div className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900">
-                    {currentUser ? `${currentUser.first_name} ${currentUser.last_name} (${currentUser.email})` : 'Loading...'}
+                    {currentUser 
+                      ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.email || 'Your Admin Account'
+                      : 'Your Admin Account'}
                   </div>
                 </div>
 
                 <div className="flex items-end">
                   <button
                     onClick={handleCreateDemo}
-                    disabled={creatingDemo || !currentUser}
+                    disabled={creatingDemo}
                     className="w-full px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
                     <Plus size={18} />
