@@ -2291,27 +2291,25 @@ def create_demo_account(
     """
     try:
         sales_rep_id = data.get("sales_rep_id")
-        owner_id = None
-        owner_type = "salesman"
         
         # Determine if this is for a sales rep or admin
         if sales_rep_id:
+            # Creating demo for a sales rep
             owner_id = sales_rep_id
-            owner_type = "salesman"
+            
+            # Verify sales rep exists
+            owner = db.query(User).filter(
+                User.id == owner_id,
+                User.user_type == "salesman",
+                User.deleted_at.is_(None)
+            ).first()
+            
+            if not owner:
+                raise ResourceNotFoundException("Sales representative", owner_id)
         else:
-            # Default to admin demo
+            # Creating demo for the admin themselves
             owner_id = current_user.id
-            owner_type = "admin"
-        
-        # Verify owner exists and is correct type
-        owner = db.query(User).filter(
-            User.id == owner_id,
-            User.user_type == owner_type,
-            User.deleted_at.is_(None)
-        ).first()
-        
-        if not owner:
-            raise ResourceNotFoundException(f"{owner_type.title()} user", owner_id)
+            owner = current_user
         
         # Check if demo already exists for this owner
         existing_demo = db.query(User).filter(
@@ -2417,7 +2415,8 @@ def create_demo_account(
                 "company_name": demo_user.company_name,
                 "is_demo": demo_user.is_demo,
             },
-            owner_type: owner_id,
+            "owner_id": owner_id,
+            "owner_type": "sales_rep" if sales_rep_id else "admin",
             "listings_created": listings_created,
             "message": f"Demo account created with {listings_created} sample listings.",
             "note": "This is a test account. Save the password securely as it is provided here.",
