@@ -1539,7 +1539,7 @@ def system_health(
         "DATABASE_URL",
         "SECRET_KEY",
         "SENDGRID_API_KEY",
-        "ANTHROPIC_API_KEY",
+        "CLAUDE_API_KEY",
         "CLOUDFLARE_R2_BUCKET",
         "CLOUDFLARE_ACCOUNT_ID",
         "CLOUDFLARE_R2_ACCESS_KEY",

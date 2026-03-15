@@ -9,6 +9,9 @@ from app.core.limiter import limiter
 from sqlalchemy.orm import Session
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from app.core.logging import setup_logging
 from app.db.base import Base

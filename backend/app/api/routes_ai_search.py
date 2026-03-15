@@ -77,7 +77,7 @@ Key conversions:
 
 Return ONLY valid JSON, no markdown or explanations."""
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
         return SearchCriteria(features=[query.lower()])
 

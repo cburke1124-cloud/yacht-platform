@@ -163,7 +163,7 @@ def _fallback_parse(text: str) -> dict:
 
 
 def _claude_extract_if_available(text: str) -> Optional[dict]:
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
     if not api_key:
         return None
     prompt = f"""Extract yacht listing fields from this text and return JSON only.
@@ -235,7 +235,7 @@ def test_scrape_single(
     if not data.url:
         raise ValidationException("URL is required")
     from app.services.scraper import OptimizedYachtScraper
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
     result = scraper.scrape_single_listing(data.url)
     if "error" in result:
@@ -257,7 +257,7 @@ def test_broker_inventory(
     if not data.url:
         raise ValidationException("URL is required")
     from app.services.scraper import OptimizedYachtScraper
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
     urls = scraper.find_listing_urls(data.url)
     previews = []

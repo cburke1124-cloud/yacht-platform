@@ -364,7 +364,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
     job.last_error = None
     db.commit()
 
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
 
     stats = {"found": 0, "created": 0, "updated": 0, "archived": 0, "errors": 0}
