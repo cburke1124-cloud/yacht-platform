@@ -1,238 +1,513 @@
 'use client';
 
-import { useState } from 'react';
-import { Globe, AlertCircle, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ScraperJob {
+  id: number;
+  dealer_id: number;
+  salesman_id?: number;
+  site_name?: string;
+  broker_url: string;
+  enabled: boolean;
+  status: 'idle' | 'running' | 'completed' | 'failed';
+  schedule_hours: number;
+  next_run_at?: string;
+  last_run_at?: string;
+  listings_found: number;
+  listings_created: number;
+  listings_updated: number;
+  listings_removed: number;
+  total_runs: number;
+  last_error?: string;
+  notes?: string;
+  created_at?: string;
+}
+
+interface Dealer {
+  id: number;
+  company_name?: string;
+  name: string;
+  email: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('token')}`,
+});
+
+function StatusBadge({ status }: { status: ScraperJob['status'] }) {
+  const styles: Record<string, string> = {
+    idle: 'bg-gray-100 text-gray-700',
+    running: 'bg-blue-100 text-blue-700 animate-pulse',
+    completed: 'bg-green-100 text-green-700',
+    failed: 'bg-red-100 text-red-700',
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || styles.idle}`}>
+      {status}
+    </span>
+  );
+}
+
+function fmtDate(iso?: string) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function AdminScraperTab() {
-  const [scraperTab, setScraperTab] = useState<'single' | 'broker'>('single');
-  
-  // Single URL scraping
+  const [section, setSection] = useState<'jobs' | 'test'>('jobs');
+
+  // ── Jobs state ──
+  const [jobs, setJobs] = useState<ScraperJob[]>([]);
+  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState('');
+  const [expandedJob, setExpandedJob] = useState<number | null>(null);
+  const [runningJob, setRunningJob] = useState<number | null>(null);
+  const [actionMsg, setActionMsg] = useState('');
+
+  // ── Add job form ──
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [form, setForm] = useState({ dealer_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '' });
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // ── Test tools state ──
+  const [testTab, setTestTab] = useState<'single' | 'broker'>('single');
   const [singleUrl, setSingleUrl] = useState('');
   const [singleLoading, setSingleLoading] = useState(false);
   const [singleResult, setSingleResult] = useState<any>(null);
   const [singleError, setSingleError] = useState('');
-  
-  // Broker scraping
   const [brokerUrl, setBrokerUrl] = useState('');
   const [brokerLoading, setBrokerLoading] = useState(false);
   const [brokerResult, setBrokerResult] = useState<any>(null);
   const [brokerError, setBrokerError] = useState('');
 
-  const handleScrapeSingle = async () => {
-    if (!singleUrl) {
-      setSingleError('Please enter a URL');
-      return;
-    }
-
-    setSingleLoading(true);
-    setSingleError('');
-    setSingleResult(null);
-
+  // ── Data loading ──
+  const loadJobs = useCallback(async () => {
+    setJobsLoading(true);
+    setJobsError('');
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(apiUrl('/scraper/single'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ url: singleUrl, user_id: 1 })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSingleResult(data.data);
-      } else {
-        setSingleError(data.error || data.message || 'Failed to scrape listing');
-      }
-    } catch (error: any) {
-      setSingleError(error.message || 'Network error');
+      const res = await fetch(apiUrl('/scraper/jobs'), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) setJobs(data.jobs);
+      else setJobsError(data.detail || 'Failed to load jobs');
+    } catch {
+      setJobsError('Network error loading jobs');
     } finally {
-      setSingleLoading(false);
+      setJobsLoading(false);
     }
-  };
+  }, []);
 
-  const handleScrapeBroker = async () => {
-    if (!brokerUrl) {
-      setBrokerError('Please enter a broker URL');
-      return;
-    }
-
-    setBrokerLoading(true);
-    setBrokerError('');
-    setBrokerResult(null);
-
+  const loadDealers = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(apiUrl('/scraper/broker'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ broker_url: brokerUrl, user_id: 1 })
-      });
+      const res = await fetch(apiUrl('/admin/dealers'), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.dealers) setDealers(data.dealers);
+    } catch { /* non-critical */ }
+  }, []);
 
-      const data = await response.json();
+  useEffect(() => { loadJobs(); loadDealers(); }, [loadJobs, loadDealers]);
 
+  function flash(msg: string) {
+    setActionMsg(msg);
+    setTimeout(() => setActionMsg(''), 3500);
+  }
+
+  // ── Job actions ──
+  async function handleRunNow(job: ScraperJob) {
+    setRunningJob(job.id);
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/run`), { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      flash(data.message || `Job "${job.site_name}" started`);
+      setTimeout(loadJobs, 2000);
+    } catch { flash('Failed to start job'); }
+    finally { setRunningJob(null); }
+  }
+
+  async function handleToggle(job: ScraperJob) {
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/toggle`), { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
       if (data.success) {
-        setBrokerResult(data);
-      } else {
-        setBrokerError(data.message || 'Failed to scrape broker listings');
+        setJobs(prev => prev.map(j => j.id === job.id ? { ...j, enabled: data.enabled } : j));
+        flash(`Job ${data.enabled ? 'enabled' : 'paused'}`);
       }
-    } catch (error: any) {
-      setBrokerError(error.message || 'Network error');
-    } finally {
-      setBrokerLoading(false);
-    }
-  };
+    } catch { flash('Failed to toggle job'); }
+  }
+
+  async function handleDelete(job: ScraperJob) {
+    if (!confirm(`Delete scraper job for "${job.site_name || job.broker_url}"?\nThis will also remove all scraped listing records.`)) return;
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${job.id}`), { method: 'DELETE', headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) { setJobs(prev => prev.filter(j => j.id !== job.id)); flash('Job deleted'); }
+    } catch { flash('Failed to delete job'); }
+  }
+
+  async function handleCreateJob(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
+    if (!form.broker_url) { setFormError('Broker URL is required'); return; }
+    setFormSaving(true); setFormError('');
+    try {
+      const res = await fetch(apiUrl('/scraper/jobs'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          dealer_id: parseInt(form.dealer_id),
+          site_name: form.site_name || form.broker_url,
+          broker_url: form.broker_url,
+          schedule_hours: parseInt(form.schedule_hours) || 24,
+          notes: form.notes || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setJobs(prev => [data.job, ...prev]);
+        setShowAddForm(false);
+        setForm({ dealer_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '' });
+        flash('Scraper job created');
+      } else { setFormError(data.detail || 'Failed to create job'); }
+    } catch { setFormError('Network error'); }
+    finally { setFormSaving(false); }
+  }
+
+  // ── Test tools ──
+  async function handleScrapeSingle() {
+    if (!singleUrl) { setSingleError('Please enter a URL'); return; }
+    setSingleLoading(true); setSingleError(''); setSingleResult(null);
+    try {
+      const res = await fetch(apiUrl('/scraper/single'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: singleUrl }) });
+      const data = await res.json();
+      if (data.success) setSingleResult(data.data);
+      else setSingleError(data.error || 'Failed to scrape');
+    } catch (err: any) { setSingleError(err.message || 'Network error'); }
+    finally { setSingleLoading(false); }
+  }
+
+  async function handleScrapeBroker() {
+    if (!brokerUrl) { setBrokerError('Please enter a broker URL'); return; }
+    setBrokerLoading(true); setBrokerError(''); setBrokerResult(null);
+    try {
+      const res = await fetch(apiUrl('/scraper/broker'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: brokerUrl, preview_count: 3 }) });
+      const data = await res.json();
+      if (data.success) setBrokerResult(data);
+      else setBrokerError(data.message || 'Failed to scrape');
+    } catch (err: any) { setBrokerError(err.message || 'Network error'); }
+    finally { setBrokerLoading(false); }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="bg-white rounded-lg shadow">
       {/* Header */}
-      <div className="p-6 border-b">
+      <div className="p-6 border-b flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-            <Globe className="text-primary" size={32} />
+          <Globe className="text-primary" size={28} />
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Broker Listing Importer</h2>
-            <p className="text-gray-600 text-sm">Import listings from partner broker websites (with permission)</p>
+            <h2 className="text-2xl font-bold text-gray-900">Broker Listing Sync</h2>
+            <p className="text-gray-500 text-sm">Automatically import and sync listings from enrolled broker websites</p>
           </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setSection('jobs')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'jobs' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Sync Jobs
+          </button>
+          <button onClick={() => setSection('test')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'test' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Test Tools
+          </button>
         </div>
       </div>
 
-      <div className="p-6">
-        {/* Warning */}
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-900 font-medium">⚠️ Use Responsibly</p>
-          <p className="text-xs text-yellow-800 mt-1">
-            Only scrape from brokers who have given explicit permission in their contract.
-          </p>
+      {/* Flash message */}
+      {actionMsg && (
+        <div className="mx-6 mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800 flex items-center gap-2">
+          <CheckCircle size={16} /> {actionMsg}
         </div>
+      )}
 
-        {/* Sub-tabs for Single vs Broker */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setScraperTab('single')}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-              scraperTab === 'single'
-                ? 'bg-primary text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Single Listing
-          </button>
-          <button
-            onClick={() => setScraperTab('broker')}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-              scraperTab === 'broker'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Broker Inventory
-          </button>
-        </div>
-
-        {/* Single Listing Tab */}
-        {scraperTab === 'single' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Listing URL
-            </label>
-            <input
-              type="url"
-              value={singleUrl}
-              onChange={(e) => setSingleUrl(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-              placeholder="https://broker-website.com/listings/yacht-123"
-            />
-
-            {singleError && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                <p className="text-sm text-red-800">{singleError}</p>
-              </div>
-            )}
-
-            {singleResult && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-start gap-2 mb-2">
-                  <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
-                  <p className="text-sm text-green-800 font-medium">Successfully scraped!</p>
-                </div>
-                <div className="text-sm text-green-800 space-y-1">
-                  <p><strong>Title:</strong> {singleResult.title}</p>
-                  <p><strong>Make/Model:</strong> {singleResult.make} {singleResult.model}</p>
-                  <p><strong>Price:</strong> ${singleResult.price?.toLocaleString()}</p>
-                  <p><strong>Location:</strong> {singleResult.city}, {singleResult.state}</p>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={handleScrapeSingle}
-              disabled={singleLoading || !singleUrl}
-                className="mt-6 w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-            >
-              {singleLoading ? 'Scraping...' : '🔍 Scrape Single Listing'}
-            </button>
-          </div>
-        )}
-
-        {/* Broker Inventory Tab */}
-        {scraperTab === 'broker' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Broker Inventory Page URL
-            </label>
-            <input
-              type="url"
-              value={brokerUrl}
-              onChange={(e) => setBrokerUrl(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-              placeholder="https://broker-website.com/inventory"
-            />
-            <p className="text-sm text-gray-600 mt-2">
-              📦 This will find all listing URLs and import them as drafts
+      {/* ══ SYNC JOBS ══════════════════════════════════════════════════════ */}
+      {section === 'jobs' && (
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-5 gap-4">
+            <p className="text-sm text-gray-600 max-w-xl">
+              Each job monitors a broker's inventory page and automatically creates, updates, or archives listings as their site changes. Jobs run on the scheduler every 30 minutes and execute if they're past their due time.
             </p>
-
-            {brokerError && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                <p className="text-sm text-red-800">{brokerError}</p>
-              </div>
-            )}
-
-            {brokerResult && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-start gap-2 mb-2">
-                  <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
-                  <p className="text-sm text-green-800 font-medium">Scraping started!</p>
-                </div>
-                <p className="text-sm text-green-800">{brokerResult.message}</p>
-              </div>
-            )}
-
-            <button
-              onClick={handleScrapeBroker}
-              disabled={brokerLoading || !brokerUrl}
-              className="mt-6 w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
-            >
-              {brokerLoading ? 'Scraping...' : '🚀 Import Broker Inventory'}
-            </button>
-
-              <div className="mt-4 p-4 bg-primary/10 border border-primary/20 rounded-lg">
-                <p className="text-sm text-secondary">
-                <strong>Note:</strong> Background process. Check listings tab in a few minutes.
-              </p>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={loadJobs} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg" title="Refresh">
+                <RefreshCw size={16} />
+              </button>
+              <button onClick={() => setShowAddForm(v => !v)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
+                <Plus size={16} /> Add Job
+              </button>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Add Job Form */}
+          {showAddForm && (
+            <form onSubmit={handleCreateJob} className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl">
+              <h3 className="font-semibold text-gray-900 mb-4">New Scraper Job</h3>
+              {formError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-center gap-2">
+                  <AlertCircle size={16} /> {formError}
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Broker / Dealer *</label>
+                  <select value={form.dealer_id} onChange={e => setForm(f => ({ ...f, dealer_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
+                    <option value="">— Select a dealer —</option>
+                    {dealers.map(d => (
+                      <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Site Label</label>
+                  <input type="text" value={form.site_name} onChange={e => setForm(f => ({ ...f, site_name: e.target.value }))}
+                    placeholder="e.g. Suntex Marina Fleet"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Broker Inventory URL *</label>
+                  <input type="url" value={form.broker_url} onChange={e => setForm(f => ({ ...f, broker_url: e.target.value }))}
+                    placeholder="https://broker-website.com/inventory"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
+                  <p className="text-xs text-gray-500 mt-1">The broker's main listings/inventory page. The scraper crawls it to discover all individual listing URLs.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Sync Frequency</label>
+                  <select value={form.schedule_hours} onChange={e => setForm(f => ({ ...f, schedule_hours: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
+                    <option value="6">Every 6 hours</option>
+                    <option value="12">Every 12 hours</option>
+                    <option value="24">Daily (every 24 hours)</option>
+                    <option value="48">Every 2 days</option>
+                    <option value="168">Weekly</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Admin Notes</label>
+                  <input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="e.g. Permission on file, contact: John"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <button type="submit" disabled={formSaving}
+                  className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
+                  {formSaving ? 'Creating...' : 'Create Job'}
+                </button>
+                <button type="button" onClick={() => { setShowAddForm(false); setFormError(''); }}
+                  className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Jobs List */}
+          {jobsLoading ? (
+            <div className="text-center py-12 text-gray-500 text-sm">Loading sync jobs...</div>
+          ) : jobsError ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{jobsError}</div>
+          ) : jobs.length === 0 ? (
+            <div className="text-center py-14 border-2 border-dashed border-gray-200 rounded-xl">
+              <Globe className="mx-auto mb-3 text-gray-300" size={40} />
+              <p className="text-gray-600 font-medium">No sync jobs configured</p>
+              <p className="text-sm text-gray-400 mt-1">Add a job to start automatically syncing a broker's listings</p>
+              <button onClick={() => setShowAddForm(true)} className="mt-4 px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
+                + Add First Job
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {jobs.map(job => {
+                const dealer = dealers.find(d => d.id === job.dealer_id);
+                const isExpanded = expandedJob === job.id;
+                return (
+                  <div key={job.id} className={`border rounded-xl overflow-hidden ${job.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+                    <div className="p-4">
+                      <div className="flex items-start gap-3">
+                        <button onClick={() => setExpandedJob(isExpanded ? null : job.id)} className="mt-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0">
+                          {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900">{job.site_name || job.broker_url}</span>
+                            <StatusBadge status={job.status} />
+                            {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                            <span>Dealer: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
+                            <span>Every {job.schedule_hours}h</span>
+                            <span>Runs: {job.total_runs}</span>
+                            {job.last_run_at && <span>Last: {fmtDate(job.last_run_at)}</span>}
+                            {job.next_run_at && job.enabled && <span>Next: {fmtDate(job.next_run_at)}</span>}
+                          </div>
+                          {job.total_runs > 0 && (
+                            <div className="mt-2 flex gap-3 text-xs">
+                              <span className="text-blue-600">Found: {job.listings_found}</span>
+                              <span className="text-green-600">Created: {job.listings_created}</span>
+                              <span className="text-yellow-600">Updated: {job.listings_updated}</span>
+                              <span className="text-gray-500">Archived: {job.listings_removed}</span>
+                            </div>
+                          )}
+                          {job.last_error && (
+                            <p className="mt-1 text-xs text-red-600 truncate">⚠ {job.last_error}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => handleRunNow(job)}
+                            disabled={job.status === 'running' || runningJob === job.id}
+                            title="Run now"
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                            <RefreshCw size={16} className={job.status === 'running' ? 'animate-spin' : ''} />
+                          </button>
+                          <button onClick={() => handleToggle(job)}
+                            title={job.enabled ? 'Pause job' : 'Enable job'}
+                            className={`p-2 rounded-lg ${job.enabled ? 'text-yellow-600 hover:bg-yellow-50' : 'text-green-600 hover:bg-green-50'}`}>
+                            {job.enabled ? <Pause size={16} /> : <Play size={16} />}
+                          </button>
+                          <button onClick={() => handleDelete(job)} title="Delete job"
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <div className="px-5 pb-4 pt-2 bg-gray-50 border-t border-gray-100">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-2">
+                          <div>
+                            <p className="text-gray-500 mb-0.5">Inventory URL</p>
+                            <a href={job.broker_url} target="_blank" rel="noopener noreferrer"
+                              className="text-primary hover:underline break-all">{job.broker_url}</a>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-0.5">Last run</p>
+                            <p className="text-gray-800">{fmtDate(job.last_run_at)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-0.5">Frequency</p>
+                            <p className="text-gray-800">Every {job.schedule_hours} hours</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 mb-0.5">Job created</p>
+                            <p className="text-gray-800">{fmtDate(job.created_at)}</p>
+                          </div>
+                        </div>
+                        {job.notes && <p className="text-xs text-gray-600 italic">Notes: {job.notes}</p>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
+      {section === 'test' && (
+        <div className="p-6">
+          <div className="mb-5 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm font-medium text-yellow-900">⚠ For Testing Only</p>
+            <p className="text-xs text-yellow-800 mt-1">Use these to validate a broker's site before creating a sync job. Only test sites where the broker has given explicit permission.</p>
+          </div>
+          <div className="flex gap-3 mb-6">
+            <button onClick={() => setTestTab('single')}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${testTab === 'single' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+              Single Listing
+            </button>
+            <button onClick={() => setTestTab('broker')}
+              className={`flex-1 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${testTab === 'broker' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+              Broker Inventory Preview
+            </button>
+          </div>
+
+          {testTab === 'single' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Listing URL</label>
+              <input type="url" value={singleUrl} onChange={e => setSingleUrl(e.target.value)}
+                placeholder="https://broker-website.com/listings/yacht-123"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm" />
+              {singleError && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-center gap-2">
+                  <AlertCircle size={16} /> {singleError}
+                </div>
+              )}
+              {singleResult && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle className="text-green-600" size={16} />
+                    <span className="font-medium text-green-800">Successfully extracted!</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-green-900 text-xs">
+                    {[['Title', singleResult.title], ['Make/Model', `${singleResult.make || ''} ${singleResult.model || ''}`],
+                      ['Year', singleResult.year], ['Price', singleResult.price ? `$${singleResult.price.toLocaleString()}` : ''],
+                      ['Length', singleResult.length_feet ? `${singleResult.length_feet} ft` : ''],
+                      ['Location', [singleResult.city, singleResult.state].filter(Boolean).join(', ')]
+                    ].map(([k, v]) => v ? <p key={k as string}><strong>{k}:</strong> {v}</p> : null)}
+                  </div>
+                </div>
+              )}
+              <button onClick={handleScrapeSingle} disabled={singleLoading || !singleUrl}
+                className="mt-4 w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+                {singleLoading ? 'Scraping...' : '🔍 Scrape Listing'}
+              </button>
+            </div>
+          )}
+
+          {testTab === 'broker' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Broker Inventory Page URL</label>
+              <input type="url" value={brokerUrl} onChange={e => setBrokerUrl(e.target.value)}
+                placeholder="https://broker-website.com/inventory"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm" />
+              <p className="text-xs text-gray-500 mt-1">Discovers all listing URLs and previews the first 3 results</p>
+              {brokerError && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-center gap-2">
+                  <AlertCircle size={16} /> {brokerError}
+                </div>
+              )}
+              {brokerResult && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="text-green-600" size={16} />
+                    <span className="font-medium text-green-800">Found {brokerResult.total_found} listing URLs</span>
+                  </div>
+                  {brokerResult.previews?.map((p: any, i: number) => (
+                    <div key={i} className="mt-2 p-2 bg-white border border-green-200 rounded text-xs">
+                      <p className="text-gray-500 truncate">{p.url}</p>
+                      {p.data ? (
+                        <p className="text-gray-800 mt-0.5">{p.data.title || `${p.data.make} ${p.data.model}`} — {p.data.price ? `$${p.data.price.toLocaleString()}` : 'price unknown'}</p>
+                      ) : <p className="text-red-600">{p.error}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={handleScrapeBroker} disabled={brokerLoading || !brokerUrl}
+                className="mt-4 w-full px-6 py-3 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                {brokerLoading ? 'Scanning...' : '🚀 Preview Broker Inventory'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
