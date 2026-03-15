@@ -7,7 +7,7 @@ python-dotenv==1.0.0
 Pillow>=12.1.1
 
 # Scraper dependencies
-anthropic==0.21.0
+anthropic>=0.40.0
 beautifulsoup4==4.12.0
 html5lib==1.1
 requests==2.31.0
