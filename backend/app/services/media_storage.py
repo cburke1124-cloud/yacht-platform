@@ -18,7 +18,9 @@ S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "").strip()
 S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "").strip()
 S3_PREFIX = os.getenv("S3_PREFIX", "uploads").strip("/")
 S3_PUBLIC_BASE_URL = os.getenv("S3_PUBLIC_BASE_URL", "").strip().rstrip("/")
-S3_OBJECT_ACL = os.getenv("S3_OBJECT_ACL", "public-read").strip()
+# Cloudflare R2 does not support ACLs — default to empty (no ACL header sent)
+# Set S3_OBJECT_ACL=public-read only if using AWS S3, not R2
+S3_OBJECT_ACL = os.getenv("S3_OBJECT_ACL", "").strip()
 
 
 def _is_s3_ready() -> bool:
