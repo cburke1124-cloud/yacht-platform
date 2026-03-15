@@ -2290,11 +2290,16 @@ def create_demo_account(
     - Generate unique credentials
     """
     try:
+        print(f"[DEBUG] Create demo account called by user {current_user.id}")
+        print(f"[DEBUG] Request data: {data}")
+        
         sales_rep_id = data.get("sales_rep_id")
+        print(f"[DEBUG] sales_rep_id from request: {sales_rep_id}")
         
         # Determine if this is for a sales rep or admin
         if sales_rep_id:
             # Creating demo for a sales rep
+            print(f"[DEBUG] Creating demo for sales rep ID: {sales_rep_id}")
             owner_id = sales_rep_id
             
             # Verify sales rep exists
@@ -2308,6 +2313,7 @@ def create_demo_account(
                 raise ResourceNotFoundException("Sales representative", owner_id)
         else:
             # Creating demo for the admin themselves
+            print(f"[DEBUG] Creating demo for admin user ID: {current_user.id}")
             owner_id = current_user.id
             owner = current_user
         

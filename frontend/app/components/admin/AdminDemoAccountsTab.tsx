@@ -139,7 +139,8 @@ export default function AdminDemoAccountsTab() {
         await fetchData();
       } else {
         const errorData = await response.json();
-        setError(errorData.detail || 'Failed to create demo account');
+        console.error('Demo creation failed:', response.status, errorData);
+        setError(errorData.detail || `Failed to create demo account (Status: ${response.status})`);
       }
     } catch (err) {
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
