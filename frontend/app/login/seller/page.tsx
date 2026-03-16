@@ -32,7 +32,7 @@ const BROKER_TIERS: Record<string, any> = {
     name: 'Ultimate',
     price: null,
     trial_days: 0,
-    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Branded micro-site', 'Premium search placement', 'Co-brokering network access'],
+    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Premium search placement', 'Co-brokering network access'],
   },
 };
 

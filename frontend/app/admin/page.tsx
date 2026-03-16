@@ -13,6 +13,7 @@ import AdminSalesRepTab from '@/app/components/admin/AdminSalesRepTab';
 import AdminMediaDashboard from '@/app/components/admin/AdminMediaDashboard';
 import AdminSystemTab from '@/app/components/admin/AdminSystemTab';
 import AdminDemoAccountsTab from '@/app/components/admin/AdminDemoAccountsTab';
+import AdminSalesToolsTab from '@/app/components/admin/AdminSalesToolsTab';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3 } from 'lucide-react';
 
@@ -32,6 +33,7 @@ function AdminPageContent() {
     { id: 'demo-accounts', label: 'Demo Accounts', icon: '🎮' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
     { id: 'sales-reps', label: 'Sales Reps', icon: '💼' },
+    { id: 'sales-tools', label: 'Sales Tools', icon: '🏷️' },
     { id: 'system', label: 'System', icon: '🛠️' }
   ];
 
@@ -67,6 +69,7 @@ function AdminPageContent() {
           {activeTab === 'dashboard' && <AdminDashboardOverview />}
           {activeTab === 'users' && <AdminUsersTab />}
           {activeTab === 'sales-reps' && <AdminSalesRepTabWrapper />}
+          {activeTab === 'sales-tools' && <AdminSalesToolsTab />}
           {activeTab === 'listings' && <AdminListingsTab />}
           {activeTab === 'bulk-tools' && <BulkImportExportTools />}
           {activeTab === 'dealers' && <AdminDealersTab />}

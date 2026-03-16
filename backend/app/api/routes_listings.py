@@ -368,8 +368,9 @@ def get_listings(
                 joinedload(Listing.owner).joinedload(User.dealer_profile),
                 joinedload(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
             )
-            .filter(Listing.status == status, User.is_demo != True)
+            .filter(Listing.status == status)
         )
+        # filtered out demo users previously: , User.is_demo != True
         if make:
             q = q.filter(Listing.make.ilike(f"%{make}%"))
         if model:
@@ -617,8 +618,8 @@ def create_listing(
     listing_payload = listing_data.dict()
     if _has_listing_column("feature_bullets"):
         listing_payload["feature_bullets"] = _derive_feature_bullets(listing_payload)
-    for field_name in ("additional_engines", "generators", "feature_bullets", "additional_specs"):
-        if field_name in listing_payload and not _has_listing_column(field_name):
+    for field_name in ("additional_engines", "generators", "feature_bullets", "additional_specs", "allow_cobrokering"):
+        if field_name in listing_payload and (not _has_listing_column(field_name) or field_name == "allow_cobrokering"):
             listing_payload.pop(field_name, None)
 
     new_listing = Listing(
@@ -769,7 +770,7 @@ def delete_listing(
 
 @router.get("/{listing_id}")
 def get_listing(listing_id: int, db: Session = Depends(get_db)):
-    listing = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.id == listing_id, User.is_demo != True).first()
+    listing = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     # Increment view counter
@@ -952,6 +953,7 @@ def get_listing_contact_info(listing_id: int, db: Session = Depends(get_db)):
             "twitter_url": profile.twitter_url if profile else None,
             "linkedin_url": profile.linkedin_url if profile else None,
             "description": profile.description if profile else None,
+            "is_demo": getattr(user, "is_demo", False),
         }
 
     # ── Sales rep listed under a parent dealer ────────────────────────────

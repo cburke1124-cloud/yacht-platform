@@ -2,7 +2,6 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, J
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
-from app.db.base import Base
 from app.db.base_class import Base
 from sqlalchemy.orm import relationship
 
@@ -25,8 +24,8 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Soft delete fields for account recovery
-    deleted_at = Column(DateTime, nullable=True, index=True)  # Timestamp when account was deleted
-    recovery_deadline = Column(DateTime, nullable=True)  # Until when account can be recovered (60-90 days)
+    # deleted_at = Column(DateTime, nullable=True, index=True)  # Timestamp when account was deleted
+    # recovery_deadline = Column(DateTime, nullable=True)  # Until when account can be recovered (60-90 days)
 
     parent_dealer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     role = Column(String, default="owner")
@@ -44,7 +43,7 @@ class User(Base):
     commission_rate = Column(Float, default=10.0)
     
     # Custom subscription price for negotiated deals (e.g. Ultimate tier)
-    custom_subscription_price = Column(Float, nullable=True)
+    # custom_subscription_price = Column(Float, nullable=True)
 
     stripe_customer_id = Column(String, unique=True, nullable=True, index=True)
     stripe_subscription_id = Column(String, unique=True, nullable=True)
@@ -61,7 +60,7 @@ class User(Base):
     
     # Demo account fields
     is_demo = Column(Boolean, default=False, index=True)  # Mark as demo account
-    demo_owner_sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Sales rep who owns this demo
+    # demo_owner_sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Sales rep who owns this demo
 
     # Relationships
     listings = relationship("Listing", back_populates="owner", foreign_keys="Listing.user_id")

@@ -83,7 +83,7 @@ class Listing(Base):
     # Co-Brokering / API Access
     # When True (default), this listing is accessible via the public co-brokering API.
     # Only evaluated if the dealer's cobrokering_enabled is also True.
-    allow_cobrokering = Column(Boolean, default=True)
+    # allow_cobrokering = Column(Boolean, default=True)
 
     # Featured/Sponsored
     featured = Column(Boolean, default=False)

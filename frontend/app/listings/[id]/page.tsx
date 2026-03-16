@@ -80,6 +80,7 @@ interface ContactInfo {
     logo_url?: string; slug?: string; address?: string; city?: string; state?: string;
     country?: string; website?: string; description?: string;
     facebook_url?: string; instagram_url?: string; twitter_url?: string; linkedin_url?: string;
+    is_demo?: boolean;
   };
   sales_contact?: {
     id?: number; name?: string; title?: string; email?: string;
@@ -586,6 +587,14 @@ export default function ListingDetailPage() {
                 <div className="absolute top-5 left-5 px-4 py-2 rounded-2xl text-sm font-bold text-white backdrop-blur-sm shadow-lg bg-[#01BBDC]">
                   ⭐ Featured
                 </div>
+              )}
+              {contact?.dealer?.is_demo && (
+                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-transparent z-10">
+                    <div className="bg-[#10214F]/80 backdrop-blur-md text-white px-8 py-4 rounded-xl shadow-2xl transform text-center border-2 border-[#01BBDC]">
+                        <p className="text-3xl font-black uppercase tracking-widest mb-1 text-[#01BBDC]">Sample Listing</p>
+                        <p className="text-sm font-medium opacity-80">Demonstration Purposes Only</p>
+                    </div>
+                  </div>
               )}
             </div>
 

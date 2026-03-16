@@ -144,6 +144,7 @@ export default function SalesRepDashboard() {
   const [brokerForm, setBrokerForm] = useState({
     email: '', first_name: '', last_name: '', phone: '',
     company_name: '', subscription_tier: 'basic',
+    custom_price: '',
   });
   const [brokerResult, setBrokerResult]       = useState<any>(null);
   const [brokerSubmitting, setBrokerSubmitting] = useState(false);
@@ -690,6 +691,29 @@ export default function SalesRepDashboard() {
               <input type="tel" placeholder="+1 (555) 123-4567" value={brokerForm.phone} onChange={(e) => setBrokerForm({ ...brokerForm, phone: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
             </div>
+            
+            {brokerForm.subscription_tier === 'ultimate' && (
+              <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Crown size={16} className="text-amber-600" />
+                  <h4 className="font-bold text-amber-800 text-sm">Custom Ultimate Bundle</h4>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Negotiated Monthly Price ($)</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    value={brokerForm.custom_price || ''}
+                    onChange={(e) => setBrokerForm({ ...brokerForm, custom_price: e.target.value })}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/30 outline-none text-sm bg-white text-amber-900"
+                  />
+                  <p className="text-xs text-amber-700/70 mt-1">Set the recurring monthly price for this custom deal.</p>
+                </div>
+              </div>
+            )}
+
             {/* Tier shown as read-only from cards above */}
             <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
               <div>
@@ -697,9 +721,11 @@ export default function SalesRepDashboard() {
                 <p className="font-semibold text-secondary capitalize">{tiers[brokerForm.subscription_tier]?.name || brokerForm.subscription_tier}</p>
               </div>
               <p className="font-bold text-primary">
-                {tiers[brokerForm.subscription_tier]?.is_custom_pricing
-                  ? 'Custom'
-                  : `$${tiers[brokerForm.subscription_tier]?.price ?? 29}/mo`}
+                {brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price
+                  ? `$${Number(brokerForm.custom_price).toFixed(2)}/mo`
+                  : tiers[brokerForm.subscription_tier]?.is_custom_pricing
+                    ? 'Custom'
+                    : `$${tiers[brokerForm.subscription_tier]?.price ?? 29}/mo`}
               </p>
             </div>
             <button onClick={registerBroker} disabled={brokerSubmitting}
@@ -729,7 +755,7 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-green-600 mt-2">Share these credentials with the broker.</p>
               </div>
             </div>
-            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic' }); }}
+            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '' }); }}
               className="mt-4 text-sm text-green-700 font-medium hover:text-green-900">Register another &rarr;</button>
           </div>
         )}

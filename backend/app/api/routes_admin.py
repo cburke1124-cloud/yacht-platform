@@ -2328,3 +2328,318 @@ def delete_demo_account(
         "message": "Demo account deleted",
         "demo_account_id": demo_account_id,
     }
+
+
+# ============= DEAL MANAGEMENT =============
+
+@router.get("/deals")
+def get_all_deals_admin(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get all partner/sales deals."""
+    deals = db.query(PartnerDeal).order_by(PartnerDeal.created_at.desc()).all()
+    
+    # Get usage counts
+    usage_counts = {}
+    usage_results = db.query(
+        ReferralSignup.deal_id,
+        func.count(ReferralSignup.id)
+    ).group_by(ReferralSignup.deal_id).all()
+    
+    for deal_id, count in usage_results:
+        if deal_id:
+            usage_counts[deal_id] = count
+
+    return [
+        {
+            "id": deal.id,
+            "name": deal.name,
+            "code": deal.code,
+            "target_email": deal.target_email,
+            "free_days": deal.free_days,
+            "discount_type": deal.discount_type,
+            "discount_value": deal.discount_value,
+            "fixed_monthly_price": deal.fixed_monthly_price,
+            "term_months": deal.term_months,
+            "lifetime": deal.lifetime,
+            "active": deal.active,
+            "owner_sales_rep_id": deal.owner_sales_rep_id,
+            "affiliate_account_id": deal.affiliate_account_id,
+            "start_date": deal.start_date.isoformat() if deal.start_date else None,
+            "end_date": deal.end_date.isoformat() if deal.end_date else None,
+            "created_at": deal.created_at.isoformat() if deal.created_at else None,
+            "notes": deal.notes,
+            "usage_count": usage_counts.get(deal.id, 0)
+        }
+        for deal in deals
+    ]
+
+
+@router.post("/deals")
+def create_deal_admin(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Create a new promotional deal."""
+    
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise ValidationException("Deal name is required")
+        
+    # Validation for owner (sales rep or affiliate)
+    owner_sales_rep_id = data.get("owner_sales_rep_id")
+    affiliate_account_id = data.get("affiliate_account_id")
+    
+    if owner_sales_rep_id and affiliate_account_id:
+        raise ValidationException("Cannot assign both sales rep and affiliate account")
+    
+    if owner_sales_rep_id:
+        # Check sales rep exists
+        rep = db.query(User).filter(User.id == owner_sales_rep_id, User.user_type == "salesman").first()
+        if not rep:
+            raise ValidationException(f"Sales rep {owner_sales_rep_id} not found")
+            
+    if affiliate_account_id:
+        # Check affiliate exists
+        aff = db.query(AffiliateAccount).filter(AffiliateAccount.id == affiliate_account_id).first()
+        if not aff:
+            raise ValidationException(f"Affiliate account {affiliate_account_id} not found")
+
+    # Generate unique code if not provided
+    created_code = (data.get("code") or "").strip().upper()
+    if not created_code:
+        created_code = f"DEAL{secrets.token_hex(3).upper()}"
+    else:
+        # Ensure code uniqueness
+        existing = db.query(PartnerDeal).filter(PartnerDeal.code == created_code).first()
+        if existing:
+             # Retry generation once if auto-generated, else fail
+             if not data.get("code"):
+                 created_code = f"DEAL{secrets.token_hex(3).upper()}"
+             else:
+                 raise ValidationException(f"Deal code '{created_code}' already exists")
+    
+    end_date = None
+    if data.get("end_date"):
+        try:
+            end_date = datetime.fromisoformat(data["end_date"].replace('Z', '+00:00'))
+        except ValueError:
+            pass
+
+    deal = PartnerDeal(
+        name=name,
+        code=created_code,
+        created_by=current_user.id,
+        owner_sales_rep_id=owner_sales_rep_id,
+        affiliate_account_id=affiliate_account_id,
+        target_email=(data.get("target_email") or None),
+        free_days=int(data.get("free_days") or 0),
+        discount_type=(data.get("discount_type") or None),
+        discount_value=float(data["discount_value"]) if data.get("discount_value") not in [None, ""] else None,
+        fixed_monthly_price=float(data["fixed_monthly_price"]) if data.get("fixed_monthly_price") not in [None, ""] else None,
+        term_months=int(data["term_months"]) if data.get("term_months") not in [None, ""] else None,
+        lifetime=bool(data.get("lifetime", False)),
+        notes=data.get("notes"),
+        active=bool(data.get("active", True)),
+        end_date=end_date
+    )
+    
+    db.add(deal)
+    db.commit()
+    db.refresh(deal)
+    
+    return {
+        "success": True,
+        "id": deal.id,
+        "code": deal.code,
+        "message": "Deal created successfully"
+    }
+
+
+@router.put("/deals/{deal_id}")
+def update_deal_admin(
+    deal_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update an existing deal."""
+    deal = db.query(PartnerDeal).filter(PartnerDeal.id == deal_id).first()
+    if not deal:
+        raise ResourceNotFoundException("Deal", deal_id)
+        
+    # Valid fields to update
+    fields = [
+        "name", "target_email", "free_days", "discount_type", "discount_value",
+        "fixed_monthly_price", "term_months", "lifetime", "notes", "active",
+        "owner_sales_rep_id", "affiliate_account_id"
+    ]
+    
+    for field in fields:
+        if field in data:
+            val = data[field]
+            # Type conversion where needed
+            if field in ["free_days", "term_months"] and val is not None:
+                try:
+                    val = int(val)
+                except (ValueError, TypeError):
+                    pass
+            elif field in ["discount_value", "fixed_monthly_price"] and val is not None:
+                try:
+                    val = float(val)
+                except (ValueError, TypeError):
+                    pass
+            setattr(deal, field, val)
+            
+    if "end_date" in data:
+        if data["end_date"]:
+            try:
+                deal.end_date = datetime.fromisoformat(data["end_date"].replace('Z', '+00:00'))
+            except ValueError:
+                pass
+        else:
+            deal.end_date = None
+
+    db.commit()
+    db.refresh(deal)
+    
+    return {"success": True, "deal_id": deal.id, "message": "Deal updated"}
+
+
+@router.post("/register-broker")
+def register_broker_admin(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Manually register a broker/dealer account (Admin).
+    Optional: Assign to sales rep or set custom pricing.
+    """
+    from app.utils.slug import create_slug
+    from app.services.api_key_service import generate_api_key_for_dealer
+    from app.security.auth import get_password_hash
+    
+    # 1. Basic validation
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise ValidationException("Email is required")
+
+    # Check existence
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        raise ValidationException("A user with this email already exists")
+
+    # 2. Extract fields
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
+    company_name = (data.get("company_name") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    tier = (data.get("subscription_tier") or "basic").strip().lower()
+    sales_rep_id = data.get("sales_rep_id")
+    
+    # Custom pricing (Admin Power)
+    # Allows setting a custom fixed price for ANY tier, but primarily for "Ultimate" or special deals
+    custom_price = None
+    if data.get("custom_price") is not None:
+        try:
+            val = float(data["custom_price"])
+            if val >= 0:
+                custom_price = val
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Create User
+    temp_password = secrets.token_urlsafe(12)
+    hashed_pw = get_password_hash(temp_password)
+    
+    # Only assign sales rep if valid ID provided
+    assigned_rep_id = None
+    commission_pct = 10.0 # Default
+    aff_account = None
+    
+    if sales_rep_id:
+        rep = db.query(User).filter(User.id == sales_rep_id, User.user_type == "salesman").first()
+        if rep:
+            assigned_rep_id = rep.id
+            commission_pct = float(rep.commission_rate or 10.0)
+            
+            # Find rep's affiliate code
+            aff_account = db.query(AffiliateAccount).filter(
+                AffiliateAccount.user_id == assigned_rep_id,
+                AffiliateAccount.account_type == "sales_rep"
+            ).first()
+
+    new_user = User(
+        email=email,
+        password_hash=hashed_pw,
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+        company_name=company_name,
+        user_type="dealer",
+        subscription_tier=tier,
+        custom_subscription_price=custom_price,
+        assigned_sales_rep_id=assigned_rep_id,
+        active=True,
+        verified=True,  # Admins auto-verify
+        email_verified=True, # Admins auto-verify
+    )
+    
+    db.add(new_user)
+    db.flush()
+    
+    # 4. Create Profile
+    slug_base = company_name or f"{first_name} {last_name}".strip() or email.split("@")[0]
+    slug = create_slug(slug_base, db)
+    
+    profile = DealerProfile(
+        user_id=new_user.id,
+        name=slug_base,
+        company_name=company_name or None,
+        email=email,
+        phone=phone or None,
+        slug=slug
+    )
+    db.add(profile)
+    
+    # 5. Generate API Key
+    try:
+        generate_api_key_for_dealer(new_user, db)
+    except Exception:
+        pass
+
+    # 6. Create Referral Record if Rep Assigned
+    if assigned_rep_id:
+        # Determine effective price for commission calculation
+        # If custom price is set, use that. Else standard tier price.
+        tier_price = 0.0
+        if tier == "basic": tier_price = 29.0
+        elif tier == "plus": tier_price = 59.0
+        elif tier == "premium" or tier == "pro": tier_price = 99.0
+        
+        eff_price = custom_price if custom_price is not None else tier_price
+        
+        referral = ReferralSignup(
+            dealer_user_id=new_user.id,
+            source_type="admin_manual",
+            sales_rep_id=assigned_rep_id,
+            affiliate_account_id=aff_account.id if aff_account else None,
+            referral_code_used=aff_account.code if aff_account else "ADMIN_ASSIGN",
+            effective_monthly_price=eff_price,
+            commission_rate=commission_pct
+        )
+        db.add(referral)
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Broker registered successfully",
+        "user_id": new_user.id,
+        "email": new_user.email,
+        "password": temp_password,
+        "login_url": "/login"
+    }
