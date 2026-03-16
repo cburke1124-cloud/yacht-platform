@@ -48,7 +48,7 @@ def _generate_ref_code() -> str:
 
 
 def _ensure_sales_rep_affiliate_account(sales_rep: User, db: Session, created_by: int | None = None) -> AffiliateAccount:
-    """Ensure the sales rep has an affiliate account (used for referrals)."""
+    """Ensure the sales rep has an affiliate account (used for referrals). Does not commit."""
     account = db.query(AffiliateAccount).filter(
         AffiliateAccount.user_id == sales_rep.id,
         AffiliateAccount.account_type == "sales_rep",
@@ -72,8 +72,6 @@ def _ensure_sales_rep_affiliate_account(sales_rep: User, db: Session, created_by
         created_by=created_by or sales_rep.id,
     )
     db.add(account)
-    db.commit()
-    db.refresh(account)
     return account
 
 
