@@ -12,19 +12,19 @@ import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
 const BROKER_TIERS: Record<string, any> = {
   basic: {
     name: 'Basic',
-    price: 29,
+    price: 199,
     trial_days: 14,
     features: ['25 active listings', '15 images per listing', '1 video per listing', 'Enhanced search visibility', 'Priority email support', 'Analytics dashboard'],
   },
   plus: {
     name: 'Plus',
-    price: 59,
+    price: 299,
     trial_days: 14,
     features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured broker badge', 'Priority support', 'Advanced analytics'],
   },
   pro: {
     name: 'Pro',
-    price: 99,
+    price: 499,
     trial_days: 30,
     features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured broker badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
   },
@@ -32,7 +32,7 @@ const BROKER_TIERS: Record<string, any> = {
     name: 'Ultimate',
     price: null,
     trial_days: 0,
-    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Premium search placement', 'Co-brokering network access'],
+    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Premium search placement'],
   },
 };
 
