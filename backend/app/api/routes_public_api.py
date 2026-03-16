@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+
 from typing import List, Optional
 
 from app.db.session import get_db
@@ -11,9 +11,6 @@ from app.models.api_keys import APIKey, ListingAPIBlock
 from app.middleware.api_auth import verify_api_key
 
 router = APIRouter()
-
-ALLOWED_DEMO_EMAILS = {"broker@yachtversal.test"}
-
 
 @router.get("/api/public/listings")
 def get_listings_api(
@@ -49,7 +46,7 @@ def get_listings_api(
     # Build query for active listings
     query = db.query(Listing).join(User, Listing.user_id == User.id).filter(
         Listing.status == "active",
-        or_(User.is_demo != True, User.email.in_(ALLOWED_DEMO_EMAILS)),
+        User.is_demo != True,
     )
 
     # Exclude listings opted out at the listing level

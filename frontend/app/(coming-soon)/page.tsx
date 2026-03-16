@@ -29,6 +29,10 @@ export default function ComingSoonPage() {
       {/* Content */}
       <div className="relative z-20 min-h-screen flex items-center justify-start">
         <div className="max-w-3xl px-6 sm:px-8 md:px-10 lg:px-12 py-12">
+          <div className="mb-6">
+            <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
+          </div>
+
           {/* Main heading */}
           <h1
             className="font-bold text-4xl sm:text-5xl lg:text-6xl leading-tight mb-8"

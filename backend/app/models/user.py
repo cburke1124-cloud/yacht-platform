@@ -49,6 +49,9 @@ class User(Base):
     stripe_customer_id = Column(String, unique=True, nullable=True, index=True)
     stripe_subscription_id = Column(String, unique=True, nullable=True)
 
+    # Flag to make an account permanently free (bypass billing)
+    always_free = Column(Boolean, default=False, index=True)
+
     permissions = Column(JSON, default={})
 
     public_profile = Column(Boolean, default=False)

@@ -246,6 +246,9 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
                 )
 
         effective_monthly_price = float(TIER_PRICES.get(user.subscription_tier or "free", 0.0))
+        if getattr(user, "always_free", False):
+            effective_monthly_price = 0.0
+            user.custom_subscription_price = 0.0
 
         try:
             prefs = UserPreferences(user_id=user.id)
@@ -392,6 +395,15 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
             except Exception:
                 logger.exception("Verification email send failed for user %s", user.id)
 
+        try:
+            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+            email_service.send_welcome_email(
+                to_email=user.email,
+                user_name=user_name,
+            )
+        except Exception:
+            logger.exception("Welcome email send failed for user %s", user.id)
+
         access_token = create_access_token(
             data={"sub": user.email},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -500,6 +512,7 @@ def get_me(current_user: User = Depends(get_current_user)):
         "company_name": current_user.company_name,
         "phone": current_user.phone,
         "subscription_tier": current_user.subscription_tier,
+        "always_free": getattr(current_user, "always_free", False),
         "trial_active": current_user.trial_active,
         "trial_end_date": current_user.trial_end_date.isoformat() if current_user.trial_end_date else None,
         "parent_dealer_id": current_user.parent_dealer_id,
@@ -556,6 +569,25 @@ async def start_trial(data: TrialStart, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Email verification for trial accounts
+    verification_token = None
+    try:
+        verification_token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+
+        verification = EmailVerification(
+            user_id=user.id,
+            token=verification_token,
+            expires_at=expires_at
+        )
+
+        db.add(verification)
+        db.commit()
+    except Exception:
+        db.rollback()
+        verification_token = None
+        logger.exception("Failed to create verification token for trial user %s", user.id)
     
     # ✅ GENERATE API KEY FOR TRIAL DEALERS
     try:
@@ -576,6 +608,27 @@ async def start_trial(data: TrialStart, db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Failed to generate/send API key for trial dealer {user.id}: {e}")
+
+    # Send verification and welcome emails
+    try:
+        if verification_token:
+            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+            email_service.send_verification_email(
+                to_email=user.email,
+                token=verification_token,
+                user_name=user_name,
+            )
+    except Exception:
+        logger.exception("Verification email send failed for trial user %s", user.id)
+
+    try:
+        user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+        email_service.send_welcome_email(
+            to_email=user.email,
+            user_name=user_name,
+        )
+    except Exception:
+        logger.exception("Welcome email send failed for trial user %s", user.id)
 
     token = create_access_token(data={"sub": user.email})
 
@@ -629,6 +682,57 @@ def convert_trial(
         "message": f"Upgraded to {payment_data.tier} plan!",
         "subscription_tier": payment_data.tier
     }
+
+
+@router.post("/trials/send-expiring-notices")
+def send_trial_expiring_notices(
+    days_before: int = 3,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Send trial-ending reminder emails (admin-triggered)."""
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin access required")
+
+    now = datetime.utcnow()
+    window_end = now + timedelta(days=max(days_before, 1))
+
+    candidates = db.query(User).filter(
+        User.trial_active == True,
+        User.trial_end_date != None,  # noqa: E711
+        User.trial_end_date > now,
+        User.trial_end_date <= window_end,
+    ).all()
+
+    sent = 0
+    for user in candidates:
+        perms = user.permissions or {}
+        last_notified = perms.get("trial_last_notified_at")
+        try:
+            if last_notified and (now - datetime.fromisoformat(last_notified)).total_seconds() < 12 * 3600:
+                # Skip if we notified in last 12h
+                continue
+        except Exception:
+            pass
+
+        days_left = max(1, (user.trial_end_date - now).days + (1 if (user.trial_end_date - now).seconds > 0 else 0))
+        try:
+            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+            email_service.send_trial_expiring_email(
+                to_email=user.email,
+                days_left=days_left,
+                trial_end_date=user.trial_end_date.date().isoformat(),
+                user_name=user_name,
+            )
+            perms["trial_last_notified_at"] = now.isoformat()
+            user.permissions = perms
+            sent += 1
+        except Exception:
+            logger.exception("Failed to send trial expiring email for user %s", user.id)
+
+    db.commit()
+
+    return {"success": True, "sent": sent, "total_candidates": len(candidates)}
 
 
 # ============= DEMO ACCOUNT ACCESS FOR SALES REPS =============

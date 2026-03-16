@@ -250,6 +250,66 @@ class EmailService:
         """
         
         return self.send_email(to_email, "Verify Your YachtVersal Account", html_content)
+
+    def send_welcome_email(self, to_email: str, user_name: str | None = None):
+        """Send a welcome/onboarding email with sign-in link."""
+        dashboard_url = f"{self.base_url}/dashboard"
+        signin_url = f"{self.base_url}/login"
+
+        greeting = f"Hi {user_name}," if user_name else "Hi there,"  # keep copy short
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(to right, #2563eb, #1e40af); padding: 30px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Welcome to YachtVersal</h1>
+                </div>
+                <div style="padding: 30px; background: #f9fafb;">
+                    <p style="color: #4b5563; line-height: 1.6;">{greeting}</p>
+                    <p style="color: #4b5563; line-height: 1.6;">Your account is ready. Sign in to manage billing, listings, and team access.</p>
+                    <div style="text-align: center; margin: 24px 0;">
+                        <a href="{signin_url}" style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Sign In</a>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px;">Once signed in, go to <strong>Billing</strong> under your profile to add payment details.</p>
+                    <p style="color: #6b7280; font-size: 14px;">Need help? Reply to this email or open the dashboard: <a href="{dashboard_url}" style="color: #2563eb;">{dashboard_url}</a></p>
+                </div>
+                <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return self.send_email(to_email, "Welcome to YachtVersal", html_content)
+
+    def send_trial_expiring_email(self, to_email: str, days_left: int, trial_end_date: str, user_name: str | None = None):
+        """Notify a user that their trial is nearing its end."""
+        billing_url = f"{self.base_url}/dashboard/billing"
+        signin_url = f"{self.base_url}/login"
+        greeting = f"Hi {user_name}," if user_name else "Hi there,"  # short copy
+
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(to right, #f59e0b, #d97706); padding: 30px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Your Trial Ends Soon</h1>
+                </div>
+                <div style="padding: 30px; background: #fffaf0;">
+                    <p style="color: #4b5563; line-height: 1.6;">{greeting}</p>
+                    <p style="color: #4b5563; line-height: 1.6;">Your YachtVersal trial ends in <strong>{days_left} day{'s' if days_left != 1 else ''}</strong> on {trial_end_date}.</p>
+                    <p style="color: #4b5563; line-height: 1.6;">Add billing now to keep listings, leads, and integrations active.</p>
+                    <div style="text-align: center; margin: 24px 0;">
+                        <a href="{billing_url}" style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Update Billing</a>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px;">You can also sign in and manage your plan here: <a href="{signin_url}" style="color: #2563eb;">{signin_url}</a></p>
+                </div>
+                <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return self.send_email(to_email, "Your YachtVersal trial is ending soon", html_content)
     
     def send_dealer_invitation(self, to_email: str, token: str, sales_rep_name: str, company_name: str = None):
         """Send dealer invitation from sales rep"""

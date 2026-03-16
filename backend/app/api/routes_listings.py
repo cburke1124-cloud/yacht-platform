@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from typing import Optional, Any
 from functools import lru_cache
-from sqlalchemy import inspect, text, func, or_
+from sqlalchemy import inspect, text, func
 import logging
 
 from app.db.session import get_db
@@ -20,10 +20,6 @@ from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# Allow specific demo accounts to surface listings (all others stay hidden)
-ALLOWED_DEMO_EMAILS = {"broker@yachtversal.test"}
-
 
 @lru_cache(maxsize=1)
 def _listing_columns() -> set[str]:
@@ -373,7 +369,7 @@ def get_listings(
             )
             .filter(
                 Listing.status == status,
-                or_(User.is_demo != True, User.email.in_(ALLOWED_DEMO_EMAILS)),
+                User.is_demo != True,
             )
         )
         if make:
