@@ -11,6 +11,9 @@ from app.db.session import SessionLocal
 from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.models.listing import Listing
+from app.models.wordpress_site import WordPressSite # Needed for User relationship
+from app.models.media import MediaFile # Needed for User relationship
+from app.models.blog import BlogPost # Needed for User relationship
 from app.security.auth import get_password_hash
 
 db = SessionLocal()
@@ -21,7 +24,7 @@ try:
     if not broker:
         broker = User(
             email='broker@yachtversal.test',
-            password_hash=get_password_hash('demo123'),
+            password_hash=get_password_hash('DemoPlatform2025!'),
             first_name='National',
             last_name='Yacht Brokers',
             company_name='National Yacht Brokers',
@@ -30,7 +33,7 @@ try:
             active=True,
             verified=True,
             email_verified=True,
-            is_demo=False,
+            is_demo=True,
         )
         db.add(broker)
         db.flush()
@@ -43,13 +46,13 @@ try:
     if not profile:
         profile = DealerProfile(
             user_id=broker.id,
+            name='National Yacht Brokers',
             company_name='National Yacht Brokers',
             slug='national-yacht-brokers',
             email='broker@yachtversal.test',
             city='Miami',
             state='FL',
             country='USA',
-            cobrokering_enabled=True,
         )
         db.add(profile)
         print('✓ Created dealer profile')
@@ -59,7 +62,7 @@ try:
     if not salesman:
         salesman = User(
             email='salesman@yachtversal.test',
-            password_hash=get_password_hash('demo123'),
+            password_hash=get_password_hash('DemoPlatform2025!'),
             first_name='John',
             last_name='Davidson',
             user_type='salesman',
@@ -67,7 +70,7 @@ try:
             active=True,
             verified=True,
             email_verified=True,
-            is_demo=False,
+            is_demo=True,
         )
         db.add(salesman)
         db.flush()
@@ -176,11 +179,11 @@ try:
     print('\n✅ SUCCESS!')
     print('\nPublic Broker Account:')
     print('  Email: broker@yachtversal.test')
-    print('  Password: demo123')
+    print('  Password: DemoPlatform2025!')
     print('  Company: National Yacht Brokers')
     print('\nSalesman Account:')
     print('  Email: salesman@yachtversal.test')
-    print('  Password: demo123')
+    print('  Password: DemoPlatform2025!')
     print('\n✓ 3 active listings created (visible on live site)')
 
 except Exception as e:

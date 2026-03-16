@@ -527,6 +527,7 @@ def get_listings(
                 "company_name": company_name,
                 "slug": profile.slug if profile else None,
                 "logo_url": profile.logo_url if profile else None,
+                "is_demo": dealer_user.is_demo if dealer_user else False,
             }
         except Exception:
             return None
