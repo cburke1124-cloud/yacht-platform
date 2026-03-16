@@ -155,6 +155,8 @@ export default function SalesRepDashboard() {
 
   useEffect(() => { checkAuth(); }, []);
 
+  const disableDiscounts = brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price !== '';
+
   /* --- data fetchers -------------------------------------------- */
 
   const fetchAnalytics = async (token: string) => {
@@ -470,9 +472,6 @@ export default function SalesRepDashboard() {
         <h2 className="text-2xl font-bold text-secondary">Deals &amp; Referral Links</h2>
         <p className="text-dark/70 mt-1">Share your link or create custom deals for prospects.</p>
       </div>
-      <button onClick={() => setShowDealModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
-        <Plus size={16} /> New Deal
-      </button>
     </div>
 
     {/* Affiliate Link */}
@@ -509,7 +508,6 @@ export default function SalesRepDashboard() {
                 <td colSpan={5} className="px-5 py-12 text-center text-dark/50">
                   <Handshake size={40} className="mx-auto mb-3 text-gray-300" />
                   <p className="mb-2">No deals created yet</p>
-                  <button onClick={() => setShowDealModal(true)} className="text-primary font-medium text-sm hover:text-primary/80">Create your first deal</button>
                 </td>
               </tr>
             ) : deals.map((deal) => (
@@ -724,12 +722,12 @@ export default function SalesRepDashboard() {
                         free_days: selected.free_days != null ? String(selected.free_days) : '',
                         discount_type: selected.discount_type || 'percentage',
                         discount_value: selected.discount_value != null ? String(selected.discount_value) : '',
-                        custom_price: selected.fixed_monthly_price != null
-                          ? String(selected.fixed_monthly_price)
-                          : brokerForm.custom_price,
+                        // Avoid conflicting with custom Ultimate price; deals govern pricing/discounts
+                        custom_price: brokerForm.subscription_tier === 'ultimate' ? '' : brokerForm.custom_price,
                       });
                     }}
                     className="px-3 py-2 text-sm border border-blue-200 rounded-md bg-white shadow-sm"
+                    disabled={disableDiscounts}
                   >
                     <option value="">None</option>
                     {deals.map(d => (
@@ -757,6 +755,7 @@ export default function SalesRepDashboard() {
                     value={brokerForm.discount_type}
                     onChange={(e) => setBrokerForm({ ...brokerForm, discount_type: e.target.value })}
                     className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
+                    disabled={disableDiscounts}
                   >
                     <option value="percentage">Percentage</option>
                     <option value="amount">Amount</option>
@@ -771,6 +770,7 @@ export default function SalesRepDashboard() {
                     value={brokerForm.discount_value}
                     onChange={(e) => setBrokerForm({ ...brokerForm, discount_value: e.target.value })}
                     className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
+                    disabled={disableDiscounts}
                     placeholder="0"
                   />
                 </div>
@@ -792,7 +792,13 @@ export default function SalesRepDashboard() {
                     min="0"
                     step="0.01"
                     value={brokerForm.custom_price || ''}
-                    onChange={(e) => setBrokerForm({ ...brokerForm, custom_price: e.target.value })}
+                    onChange={(e) => setBrokerForm({
+                      ...brokerForm,
+                      custom_price: e.target.value,
+                      // clear conflicting deal/discount when custom price is set
+                      applied_deal_id: brokerForm.subscription_tier === 'ultimate' ? null : brokerForm.applied_deal_id,
+                      discount_value: brokerForm.subscription_tier === 'ultimate' ? '' : brokerForm.discount_value,
+                    })}
                     className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/30 outline-none text-sm bg-white text-amber-900"
                   />
                   <p className="text-xs text-amber-700/70 mt-1">Set the recurring monthly price for this custom deal.</p>

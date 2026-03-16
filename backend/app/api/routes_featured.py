@@ -20,6 +20,9 @@ from app.constants import FEATURED_PLANS
 
 router = APIRouter()
 
+# Allowlist of demo accounts whose listings should remain visible publicly
+ALLOWED_DEMO_EMAILS = {"broker@yachtversal.test"}
+
 
 DEFAULT_FEATURED_CONFIG = {
     "plans": FEATURED_PLANS,
@@ -165,7 +168,7 @@ def get_public_featured_listings(db: Session = Depends(get_db)):
         FeaturedListing.active == True,
         FeaturedListing.expires_at > datetime.utcnow(),
         Listing.status == "active",
-        User.is_demo != True
+        or_(User.is_demo != True, User.email.in_(ALLOWED_DEMO_EMAILS)),
     ).order_by(
         Listing.featured_priority.desc(),
         FeaturedListing.expires_at.desc(),
