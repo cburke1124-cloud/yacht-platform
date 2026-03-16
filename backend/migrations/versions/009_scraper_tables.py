@@ -1,10 +1,10 @@
 """Create scraper_jobs and scraped_listings tables
 
 Revision ID: 009_scraper_tables
-Revises: 008_add_listings_cobrokering
+Revises: 007_add_cobrokering_enabled
 """
 revision = '009_scraper_tables'
-down_revision = '008_add_listings_cobrokering'
+down_revision = '007_add_cobrokering_enabled'
 
 from alembic import op
 import sqlalchemy as sa
