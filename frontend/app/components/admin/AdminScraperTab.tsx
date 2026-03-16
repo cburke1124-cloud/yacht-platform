@@ -97,11 +97,17 @@ export default function AdminScraperTab() {
     setJobsError('');
     try {
       const res = await fetch(apiUrl('/scraper/jobs'), { headers: authHeaders() });
+      if (!res.ok) {
+        const text = await res.text();
+        setJobsError(`Server error ${res.status}: ${text.slice(0, 300)}`);
+        return;
+      }
       const data = await res.json();
       if (data.success) setJobs(data.jobs);
       else setJobsError(data.detail || 'Failed to load jobs');
-    } catch {
-      setJobsError('Network error loading jobs');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setJobsError(`Request failed: ${msg}`);
     } finally {
       setJobsLoading(false);
     }

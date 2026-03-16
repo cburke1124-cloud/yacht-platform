@@ -162,7 +162,7 @@ def run_storage_test() -> dict:
             "success": False,
             "backend": "s3",
             "message": "S3 configuration is incomplete",
-            "issues": health.get("issues", []),
+            "issues": health.get("issues"),
         }
 
     object_key = _build_key(f"healthcheck/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex}.txt")

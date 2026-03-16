@@ -39,17 +39,20 @@ type StorageStats = {
 };
 
 type StorageHealth = {
+  status: string;
   backend: 'local' | 's3';
   ready: boolean;
-  details?: Record<string, string>;
-  issues?: string[];
+  bucket?: string;
+  endpoint?: string;
+  region?: string;
+  issues?: string | null;
 };
 
 type StorageTestResult = {
   success: boolean;
   backend: 'local' | 's3';
   message: string;
-  issues?: string[];
+  issues?: string | null;
 };
 
 export default function AdminMediaDashboard() {
@@ -371,18 +374,14 @@ export default function AdminMediaDashboard() {
               </div>
               <div className="rounded-lg border p-4">
                 <p className="text-xs uppercase text-gray-500 mb-1">Issues</p>
-                <p className="text-lg font-semibold text-gray-900">{storageHealth?.issues?.length || 0}</p>
+                <p className="text-lg font-semibold text-gray-900">{storageHealth?.issues ? 1 : 0}</p>
               </div>
             </div>
 
-            {storageHealth?.issues && storageHealth.issues.length > 0 && (
+            {storageHealth?.issues && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="text-sm font-medium text-red-800 mb-1">Configuration Issues</p>
-                <ul className="text-sm text-red-700 list-disc pl-5">
-                  {storageHealth.issues.map((issue) => (
-                    <li key={issue}>{issue}</li>
-                  ))}
-                </ul>
+                <p className="text-sm text-red-700">{storageHealth.issues}</p>
               </div>
             )}
 
@@ -391,12 +390,10 @@ export default function AdminMediaDashboard() {
                 <p className={`text-sm font-medium ${storageTestResult.success ? 'text-green-800' : 'text-red-800'}`}>
                   {storageTestResult.message}
                 </p>
-                {storageTestResult.issues && storageTestResult.issues.length > 0 && (
-                  <ul className={`mt-1 text-sm list-disc pl-5 ${storageTestResult.success ? 'text-green-700' : 'text-red-700'}`}>
-                    {storageTestResult.issues.map((issue) => (
-                      <li key={issue}>{issue}</li>
-                    ))}
-                  </ul>
+                {storageTestResult.issues && (
+                  <p className={`mt-1 text-sm ${storageTestResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                    {storageTestResult.issues}
+                  </p>
                 )}
               </div>
             )}

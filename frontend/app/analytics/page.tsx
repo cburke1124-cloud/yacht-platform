@@ -62,8 +62,14 @@ export default function AnalyticsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setListings(data);
-        calculateAnalytics(data);
+        const days = parseInt(dateRange);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        const filtered = (data as Listing[]).filter(
+          (l) => new Date(l.created_at) >= cutoff
+        );
+        setListings(filtered);
+        calculateAnalytics(filtered);
       }
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
