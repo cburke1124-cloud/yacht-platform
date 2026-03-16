@@ -47,9 +47,10 @@ def _generate_ref_code() -> str:
     return f"YV{secrets.token_hex(4).upper()}"
 
 
-def _ensure_sales_rep_affiliate_account(current_user: User, db: Session) -> AffiliateAccount:
+def _ensure_sales_rep_affiliate_account(sales_rep: User, db: Session, created_by: int | None = None) -> AffiliateAccount:
+    """Ensure the sales rep has an affiliate account (used for referrals)."""
     account = db.query(AffiliateAccount).filter(
-        AffiliateAccount.user_id == current_user.id,
+        AffiliateAccount.user_id == sales_rep.id,
         AffiliateAccount.account_type == "sales_rep",
     ).first()
 
@@ -61,14 +62,14 @@ def _ensure_sales_rep_affiliate_account(current_user: User, db: Session) -> Affi
         code = _generate_ref_code()
 
     account = AffiliateAccount(
-        name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.email,
-        email=current_user.email,
+        name=f"{sales_rep.first_name or ''} {sales_rep.last_name or ''}".strip() or sales_rep.email,
+        email=sales_rep.email,
         code=code,
         account_type="sales_rep",
-        user_id=current_user.id,
-        commission_rate=current_user.commission_rate or 10.0,
+        user_id=sales_rep.id,
+        commission_rate=sales_rep.commission_rate or 10.0,
         active=True,
-        created_by=current_user.id,
+        created_by=created_by or sales_rep.id,
     )
     db.add(account)
     db.commit()
@@ -194,14 +195,27 @@ def get_referral_info(
 
 @router.get("/deals")
 def list_sales_rep_deals(
+    sales_rep_id: int | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.user_type != "salesman":
+    """List deals for a sales rep. Admins must specify sales_rep_id; reps use their own."""
+    if current_user.user_type == "salesman":
+        target_rep = current_user
+    elif current_user.user_type == "admin":
+        if not sales_rep_id:
+            raise ValidationException("sales_rep_id is required for admin access")
+        target_rep = db.query(User).filter(
+            User.id == sales_rep_id,
+            User.user_type == "salesman",
+        ).first()
+        if not target_rep:
+            raise ResourceNotFoundException("Sales rep", sales_rep_id)
+    else:
         raise AuthorizationException("Sales rep access required")
 
     deals = db.query(PartnerDeal).filter(
-        PartnerDeal.owner_sales_rep_id == current_user.id
+        PartnerDeal.owner_sales_rep_id == target_rep.id
     ).order_by(PartnerDeal.created_at.desc()).all()
 
     usage_counts = {
@@ -210,7 +224,7 @@ def list_sales_rep_deals(
             ReferralSignup.deal_id,
             func.count(ReferralSignup.id),
         ).filter(
-            ReferralSignup.sales_rep_id == current_user.id,
+            ReferralSignup.sales_rep_id == target_rep.id,
             ReferralSignup.deal_id.isnot(None),
         ).group_by(ReferralSignup.deal_id).all()
     }
@@ -241,7 +255,20 @@ def create_sales_rep_deal(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if current_user.user_type != "salesman":
+    """Create a deal for a sales rep. Admins must supply sales_rep_id."""
+    if current_user.user_type == "salesman":
+        target_rep = current_user
+    elif current_user.user_type == "admin":
+        sales_rep_id = data.get("sales_rep_id")
+        if not sales_rep_id:
+            raise ValidationException("sales_rep_id is required for admin access")
+        target_rep = db.query(User).filter(
+            User.id == int(sales_rep_id),
+            User.user_type == "salesman",
+        ).first()
+        if not target_rep:
+            raise ResourceNotFoundException("Sales rep", sales_rep_id)
+    else:
         raise AuthorizationException("Sales rep access required")
 
     name = (data.get("name") or "").strip()
@@ -260,7 +287,7 @@ def create_sales_rep_deal(
         name=name,
         code=code,
         created_by=current_user.id,
-        owner_sales_rep_id=current_user.id,
+        owner_sales_rep_id=target_rep.id,
         target_email=(data.get("target_email") or None),
         free_days=int(data.get("free_days") or 0),
         discount_type=(data.get("discount_type") or None),
@@ -434,8 +461,22 @@ def register_broker_for_sales_rep(
     db: Session = Depends(get_db),
 ):
     """Allow a sales rep to manually register a new broker/dealer account."""
-    if current_user.user_type != "salesman":
+    if current_user.user_type not in ("salesman", "admin"):
         raise AuthorizationException("Sales rep access required")
+
+    # Admins can target a specific sales rep; sales reps default to self
+    target_sales_rep: User | None = None
+    if current_user.user_type == "salesman":
+        target_sales_rep = current_user
+    else:
+        sales_rep_id = data.get("sales_rep_id")
+        if sales_rep_id:
+            target_sales_rep = db.query(User).filter(
+                User.id == int(sales_rep_id),
+                User.user_type == "salesman",
+            ).first()
+            if not target_sales_rep:
+                raise ResourceNotFoundException("Sales rep", sales_rep_id)
 
     # --- validate required fields ---------------------------------------- #
     email = (data.get("email") or "").strip().lower()
@@ -447,6 +488,7 @@ def register_broker_for_sales_rep(
     company_name = (data.get("company_name") or "").strip()
     phone = (data.get("phone") or "").strip()
     tier = (data.get("subscription_tier") or "basic").strip().lower()
+    always_free = bool(data.get("always_free", False))
 
     if tier not in TIER_PRICES:
         raise ValidationException(f"Invalid subscription tier: {tier}")
@@ -466,8 +508,8 @@ def register_broker_for_sales_rep(
 
     # Calculate custom/effective price (allow on any tier; required for Ultimate)
     custom_price = None
-    effective_price = float(TIER_PRICES.get(tier, 0.0))
-    if data.get("custom_price") is not None:
+    effective_price = 0.0 if always_free else float(TIER_PRICES.get(tier, 0.0))
+    if data.get("custom_price") is not None and not always_free:
         try:
             val = float(data["custom_price"])
             if val >= 0:
@@ -476,7 +518,7 @@ def register_broker_for_sales_rep(
         except (ValueError, TypeError):
             pass
 
-    if tier == "ultimate" and custom_price is None:
+    if tier == "ultimate" and custom_price is None and not always_free:
         raise ValidationException("Ultimate tier requires a custom price")
 
     new_user = User(
@@ -488,8 +530,9 @@ def register_broker_for_sales_rep(
         user_type="dealer",
         company_name=company_name or None,
         subscription_tier=tier,
-        custom_subscription_price=custom_price,
-        assigned_sales_rep_id=current_user.id,
+        custom_subscription_price=None if always_free else custom_price,
+        always_free=always_free,
+        assigned_sales_rep_id=target_sales_rep.id if target_sales_rep else None,
         active=True,
         verified=False,
     )
@@ -515,19 +558,23 @@ def register_broker_for_sales_rep(
         pass  # non-critical
 
     # --- create referral signup ------------------------------------------ #
-    affiliate_account = _ensure_sales_rep_affiliate_account(current_user, db)
-    commission_rate = float(current_user.commission_rate or 10.0)
+    affiliate_account = None
+    if target_sales_rep:
+        affiliate_account = _ensure_sales_rep_affiliate_account(
+            target_sales_rep, db, created_by=current_user.id
+        )
+        commission_rate = float(target_sales_rep.commission_rate or 10.0)
 
-    referral = ReferralSignup(
-        dealer_user_id=new_user.id,
-        source_type="sales_rep_manual",
-        sales_rep_id=current_user.id,
-        affiliate_account_id=affiliate_account.id,
-        referral_code_used=affiliate_account.code,
-        effective_monthly_price=effective_price,
-        commission_rate=commission_rate,
-    )
-    db.add(referral)
+        referral = ReferralSignup(
+            dealer_user_id=new_user.id,
+            source_type="sales_rep_manual",
+            sales_rep_id=target_sales_rep.id,
+            affiliate_account_id=affiliate_account.id,
+            referral_code_used=affiliate_account.code,
+            effective_monthly_price=effective_price,
+            commission_rate=commission_rate,
+        )
+        db.add(referral)
 
     # Optional deal/trial settings -> create promotional offer for this dealer
     free_days = None
@@ -543,7 +590,7 @@ def register_broker_for_sales_rep(
     except (ValueError, TypeError):
         discount_value = None
 
-    has_deal = (free_days and free_days > 0) or discount_value not in [None, ""]
+    has_deal = False if always_free else ((free_days and free_days > 0) or discount_value not in [None, ""])
     if has_deal:
         offer = PromotionalOffer(
             dealer_id=new_user.id,
@@ -574,6 +621,8 @@ def register_broker_for_sales_rep(
         "subscription_tier": new_user.subscription_tier,
         "temp_password": temp_password,
         "slug": slug,
+        "always_free": new_user.always_free,
+        "assigned_sales_rep_id": new_user.assigned_sales_rep_id,
     }
 
 

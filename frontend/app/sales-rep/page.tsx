@@ -149,6 +149,7 @@ export default function SalesRepDashboard() {
     discount_type: 'percentage',
     discount_value: '',
     applied_deal_id: null as number | null,
+    always_free: false,
   });
   const [brokerResult, setBrokerResult]       = useState<any>(null);
   const [brokerSubmitting, setBrokerSubmitting] = useState(false);
@@ -156,6 +157,7 @@ export default function SalesRepDashboard() {
   useEffect(() => { checkAuth(); }, []);
 
   const disableDiscounts = brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price !== '';
+  const disablePricingFields = disableDiscounts || brokerForm.always_free;
 
   /* --- data fetchers -------------------------------------------- */
 
@@ -727,7 +729,7 @@ export default function SalesRepDashboard() {
                       });
                     }}
                     className="px-3 py-2 text-sm border border-blue-200 rounded-md bg-white shadow-sm"
-                    disabled={disableDiscounts}
+                    disabled={disablePricingFields}
                   >
                     <option value="">None</option>
                     {deals.map(d => (
@@ -746,6 +748,7 @@ export default function SalesRepDashboard() {
                     value={brokerForm.free_days}
                     onChange={(e) => setBrokerForm({ ...brokerForm, free_days: e.target.value })}
                     className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
+                    disabled={disablePricingFields}
                     placeholder="0"
                   />
                 </div>
@@ -755,7 +758,7 @@ export default function SalesRepDashboard() {
                     value={brokerForm.discount_type}
                     onChange={(e) => setBrokerForm({ ...brokerForm, discount_type: e.target.value })}
                     className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
-                    disabled={disableDiscounts}
+                    disabled={disablePricingFields}
                   >
                     <option value="percentage">Percentage</option>
                     <option value="amount">Amount</option>
@@ -770,12 +773,36 @@ export default function SalesRepDashboard() {
                     value={brokerForm.discount_value}
                     onChange={(e) => setBrokerForm({ ...brokerForm, discount_value: e.target.value })}
                     className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
-                    disabled={disableDiscounts}
+                    disabled={disablePricingFields}
                     placeholder="0"
                   />
                 </div>
               </div>
               <p className="text-xs text-blue-800">For fixed-price deals, set the negotiated monthly price below.</p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+              <input
+                id="always-free"
+                type="checkbox"
+                checked={brokerForm.always_free}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setBrokerForm({
+                    ...brokerForm,
+                    always_free: checked,
+                    applied_deal_id: checked ? null : brokerForm.applied_deal_id,
+                    free_days: checked ? '' : brokerForm.free_days,
+                    discount_value: checked ? '' : brokerForm.discount_value,
+                    custom_price: checked ? '' : brokerForm.custom_price,
+                  });
+                }}
+                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+              />
+              <div className="space-y-1">
+                <label htmlFor="always-free" className="text-sm font-semibold text-secondary block">Mark account as always free</label>
+                <p className="text-xs text-dark/60">Bypass billing for this broker. No charges will be applied and pricing/discount fields are disabled.</p>
+              </div>
             </div>
             
             {brokerForm.subscription_tier === 'ultimate' && (
@@ -800,6 +827,7 @@ export default function SalesRepDashboard() {
                       discount_value: brokerForm.subscription_tier === 'ultimate' ? '' : brokerForm.discount_value,
                     })}
                     className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/30 outline-none text-sm bg-white text-amber-900"
+                    disabled={brokerForm.always_free}
                   />
                   <p className="text-xs text-amber-700/70 mt-1">Set the recurring monthly price for this custom deal.</p>
                 </div>
@@ -813,7 +841,9 @@ export default function SalesRepDashboard() {
                 <p className="font-semibold text-secondary capitalize">{tiers[brokerForm.subscription_tier]?.name || brokerForm.subscription_tier}</p>
               </div>
               <p className="font-bold text-primary">
-                {brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price
+                {brokerForm.always_free
+                  ? 'Always free'
+                  : brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price
                   ? `$${Number(brokerForm.custom_price).toFixed(2)}/mo`
                   : tiers[brokerForm.subscription_tier]?.is_custom_pricing
                     ? 'Custom'

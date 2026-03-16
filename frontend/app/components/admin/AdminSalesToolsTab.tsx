@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Tag, UserPlus, DollarSign, Percent, Calendar, Check, X, Copy, RefreshCw, Briefcase, Plus } from 'lucide-react';
+import { apiUrl } from '@/app/lib/apiRoot';
 
 interface SalesRep {
   id: number;
@@ -37,12 +38,14 @@ interface BrokerForm {
   subscription_tier: string;
   sales_rep_id: string; // string for select, convert to number or null
   custom_price: string; // string for input
+  always_free: boolean;
 }
 
 export default function AdminSalesToolsTab() {
   const [activeTab, setActiveTab] = useState<'marketing' | 'registration'>('marketing');
   const [loading, setLoading] = useState(true);
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
+  const [activeDealsSalesRepId, setActiveDealsSalesRepId] = useState<string>('');
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
   
@@ -55,7 +58,8 @@ export default function AdminSalesToolsTab() {
     phone: '',
     subscription_tier: 'basic',
     sales_rep_id: '',
-    custom_price: ''
+    custom_price: '',
+    always_free: false
   });
   const [regLoading, setRegLoading] = useState(false);
   const [regSuccess, setRegSuccess] = useState<any>(null);
@@ -81,18 +85,42 @@ export default function AdminSalesToolsTab() {
     fetchInitialData();
   }, []);
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchDeals(token, activeDealsSalesRepId || regForm.sales_rep_id);
+    }
+  }, [activeDealsSalesRepId]);
+
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      // Fetch Sales Reps
-      const repRes = await fetch('/api/admin/sales-reps');
-      if (repRes.ok) {
-        const reps = await repRes.json();
-        setSalesReps(reps);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
       }
 
-      // Fetch Deals
-      await fetchDeals();
+      // Fetch Sales Reps (admin user filter)
+      const repRes = await fetch(apiUrl('/admin/users?user_type=salesman&limit=200'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (repRes.ok) {
+        const repData = await repRes.json();
+        const reps = (repData?.users || []).map((u: any) => ({
+          id: u.id,
+          name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
+          email: u.email,
+        }));
+        setSalesReps(reps);
+
+        const defaultRepId = reps[0]?.id ? String(reps[0].id) : '';
+        setActiveDealsSalesRepId((current) => current || defaultRepId);
+        setRegForm((prev) => ({ ...prev, sales_rep_id: prev.sales_rep_id || defaultRepId }));
+        await fetchDeals(token, defaultRepId);
+      } else {
+        setSalesReps([]);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -100,13 +128,24 @@ export default function AdminSalesToolsTab() {
     }
   };
 
-  const fetchDeals = async () => {
+  const fetchDeals = async (token?: string, repId?: string) => {
     setLoadingDeals(true);
     try {
-      const res = await fetch('/api/admin/deals');
+      const authToken = token || localStorage.getItem('token');
+      const targetRep = repId || activeDealsSalesRepId || regForm.sales_rep_id;
+      if (!authToken || !targetRep) {
+        setDeals([]);
+        return;
+      }
+
+      const res = await fetch(apiUrl(`/sales-rep/deals?sales_rep_id=${targetRep}`), {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setDeals(data);
+      } else {
+        setDeals([]);
       }
     } catch (err) {
       console.error(err);
@@ -122,6 +161,9 @@ export default function AdminSalesToolsTab() {
     setRegSuccess(null);
 
     try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Authentication required');
+
       const payload: any = { ...regForm };
       
       // Handle conversions
@@ -134,9 +176,13 @@ export default function AdminSalesToolsTab() {
         delete payload.custom_price;
       }
 
-      const res = await fetch('/api/admin/register-broker', {
+      if (payload.always_free) {
+        payload.custom_price = null;
+      }
+
+      const res = await fetch(apiUrl('/sales-rep/register-broker'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
 
@@ -152,7 +198,8 @@ export default function AdminSalesToolsTab() {
         phone: '',
         subscription_tier: 'basic',
         sales_rep_id: '',
-        custom_price: ''
+        custom_price: '',
+        always_free: false
       });
     } catch (err: any) {
       setRegError(err.message);
@@ -165,6 +212,9 @@ export default function AdminSalesToolsTab() {
     e.preventDefault();
     setDealLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Authentication required');
+
       const payload: any = {
         name: dealForm.name,
         code: dealForm.code,
@@ -181,20 +231,22 @@ export default function AdminSalesToolsTab() {
       // Handle Discount/Pricing Strategy
       if (dealForm.strategy === 'pcent') {
         payload.discount_type = 'percentage';
-        payload.discount_value = parseFloat(dealForm.discount_value);
+        if (dealForm.discount_value) payload.discount_value = parseFloat(dealForm.discount_value);
       } else if (dealForm.strategy === 'fixed_price') {
          if (dealForm.fixed_monthly_price) {
              payload.fixed_monthly_price = parseFloat(dealForm.fixed_monthly_price);
          }
       }
 
-      if (dealForm.owner_sales_rep_id) {
-        payload.owner_sales_rep_id = parseInt(dealForm.owner_sales_rep_id);
+      const ownerId = dealForm.owner_sales_rep_id || activeDealsSalesRepId || regForm.sales_rep_id;
+      if (!ownerId) throw new Error('Please select a sales rep for this deal');
+      if (ownerId) {
+        payload.sales_rep_id = parseInt(ownerId);
       }
 
-      const res = await fetch('/api/admin/deals', {
+      const res = await fetch(apiUrl('/sales-rep/deals'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
 
@@ -204,7 +256,7 @@ export default function AdminSalesToolsTab() {
       }
       
       setShowDealModal(false);
-      fetchDeals(); // Refresh list
+      fetchDeals(token, ownerId);
       
       // Reset form
       setDealForm({
@@ -265,13 +317,29 @@ export default function AdminSalesToolsTab() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-medium text-gray-900">Active Deals & Coupons</h2>
-            <button
-              onClick={() => setShowDealModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Create New Deal
-            </button>
+            <div className="flex items-center gap-3">
+              <select
+                value={activeDealsSalesRepId}
+                onChange={(e) => {
+                  setActiveDealsSalesRepId(e.target.value);
+                  setDealForm({ ...dealForm, owner_sales_rep_id: e.target.value });
+                }}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+              >
+                <option value="">Select sales rep</option>
+                {salesReps.map(rep => (
+                  <option key={rep.id} value={rep.id}>{rep.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setShowDealModal(true)}
+                disabled={!activeDealsSalesRepId}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Deal
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -399,7 +467,7 @@ export default function AdminSalesToolsTab() {
                 </div>
                 <div className="space-y-1 text-sm text-green-800">
                   <p>Account created for <span className="font-semibold">{regSuccess.email}</span></p>
-                  <p>Temporary Password: <code className="bg-white px-2 py-0.5 rounded border border-green-200 font-mono select-all font-bold">{regSuccess.password}</code></p>
+                  <p>Temporary Password: <code className="bg-white px-2 py-0.5 rounded border border-green-200 font-mono select-all font-bold">{regSuccess.temp_password || regSuccess.password}</code></p>
                   <p className="text-xs mt-2 text-green-600">Please share these credentials securely with the broker.</p>
                 </div>
                 <button 
@@ -493,7 +561,10 @@ export default function AdminSalesToolsTab() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Sales Rep</label>
                     <select
                       value={regForm.sales_rep_id}
-                      onChange={e => setRegForm({...regForm, sales_rep_id: e.target.value})}
+                      onChange={e => {
+                        setRegForm({...regForm, sales_rep_id: e.target.value});
+                        if (e.target.value) setActiveDealsSalesRepId(e.target.value);
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     >
                       <option value="">-- No Assignment --</option>
@@ -519,11 +590,29 @@ export default function AdminSalesToolsTab() {
                           placeholder="e.g. 500.00"
                           value={regForm.custom_price}
                           onChange={e => setRegForm({...regForm, custom_price: e.target.value})}
-                          className="w-full pl-9 pr-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                         className="w-full pl-9 pr-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 disabled:opacity-50"
+                         disabled={regForm.always_free}
                         />
                      </div>
                   </div>
                 )}
+                  <div className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <input
+                      id="admin-always-free"
+                      type="checkbox"
+                      checked={regForm.always_free}
+                      onChange={(e) => setRegForm({
+                        ...regForm,
+                        always_free: e.target.checked,
+                        custom_price: e.target.checked ? '' : regForm.custom_price,
+                      })}
+                      className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <div className="space-y-1">
+                      <label htmlFor="admin-always-free" className="text-sm font-semibold text-gray-800">Mark account as always free</label>
+                      <p className="text-xs text-gray-600">Bypass billing entirely for this broker. Custom pricing and deals will be ignored.</p>
+                    </div>
+                  </div>
                 
                 <div className="pt-2">
                   <button
