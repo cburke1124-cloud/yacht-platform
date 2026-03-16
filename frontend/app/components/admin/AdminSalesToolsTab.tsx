@@ -44,6 +44,7 @@ interface BrokerForm {
 export default function AdminSalesToolsTab() {
   const [activeTab, setActiveTab] = useState<'marketing' | 'registration'>('marketing');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
   const [activeDealsSalesRepId, setActiveDealsSalesRepId] = useState<string>('');
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -94,9 +95,11 @@ export default function AdminSalesToolsTab() {
 
   const fetchInitialData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const token = localStorage.getItem('token');
       if (!token) {
+        setLoadError('No authentication token found');
         setLoading(false);
         return;
       }
@@ -119,9 +122,14 @@ export default function AdminSalesToolsTab() {
         setRegForm((prev) => ({ ...prev, sales_rep_id: prev.sales_rep_id || defaultRepId }));
         await fetchDeals(token, defaultRepId);
       } else {
+        const errorData = await repRes.json().catch(() => ({}));
+        const errorMsg = errorData?.error || errorData?.detail || `Failed to fetch sales reps (${repRes.status})`;
+        setLoadError(errorMsg);
         setSalesReps([]);
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      setLoadError(`Failed to fetch data: ${message}`);
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
@@ -284,6 +292,16 @@ export default function AdminSalesToolsTab() {
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-red-700">
+          <X className="w-5 h-5" />
+          <div>
+            <div className="font-medium">Failed to load admin data</div>
+            <div className="text-sm text-red-600">{loadError}</div>
+          </div>
+        </div>
+      )}
+
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('marketing')}
