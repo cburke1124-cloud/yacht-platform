@@ -496,7 +496,7 @@ def register_broker_for_sales_rep(
     # Check duplicate email
     existing = (
         db.query(User)
-        .filter(User.email == email, User.deleted_at.is_(None))
+        .filter(User.email == email)
         .first()
     )
     if existing:
