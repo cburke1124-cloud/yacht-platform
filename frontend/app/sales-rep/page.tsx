@@ -724,7 +724,9 @@ export default function SalesRepDashboard() {
                         free_days: selected.free_days != null ? String(selected.free_days) : '',
                         discount_type: selected.discount_type || 'percentage',
                         discount_value: selected.discount_value != null ? String(selected.discount_value) : '',
-                        custom_price: selected.fixed_monthly_price ?? brokerForm.custom_price,
+                        custom_price: selected.fixed_monthly_price != null
+                          ? String(selected.fixed_monthly_price)
+                          : brokerForm.custom_price,
                       });
                     }}
                     className="px-3 py-2 text-sm border border-blue-200 rounded-md bg-white shadow-sm"
