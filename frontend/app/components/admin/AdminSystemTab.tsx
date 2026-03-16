@@ -526,6 +526,14 @@ const ENV_VARS_LIST = [
   { key: 'S3_SECRET_ACCESS_KEY', description: 'R2 secret key', required: true },
   { key: 'MEDIA_STORAGE_BACKEND', description: 'Storage backend (s3 or local)', required: true },
   { key: 'FRONTEND_URL', description: 'Frontend base URL (CORS)', required: true },
+  { key: 'STRIPE_SECRET_KEY', description: 'Stripe payments', required: true },
+  { key: 'STRIPE_PUBLISHABLE_KEY', description: 'Stripe frontend key', required: true },
+  { key: 'STRIPE_WEBHOOK_SECRET', description: 'Stripe webhook signing', required: true },
+  { key: 'STRIPE_PRICE_BASIC', description: 'Stripe price ID — Basic plan', required: true },
+  { key: 'STRIPE_PRICE_PREMIUM', description: 'Stripe price ID — Premium plan', required: true },
+  { key: 'GOOGLE_MAPS_API_KEY', description: 'Google Maps embed', required: false },
+  { key: 'HCAPTCHA_SECRET', description: 'hCaptcha server secret', required: false },
+  { key: 'HCAPTCHA_SITEKEY', description: 'hCaptcha site key', required: false },
   { key: 'AUTO_CREATE_TABLES', description: 'Auto-migrate on startup', required: false },
 ];
 

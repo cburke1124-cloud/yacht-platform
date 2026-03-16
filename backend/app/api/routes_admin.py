@@ -1546,6 +1546,14 @@ def system_health(
         "S3_SECRET_ACCESS_KEY",
         "MEDIA_STORAGE_BACKEND",
         "FRONTEND_URL",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "STRIPE_PRICE_BASIC",
+        "STRIPE_PRICE_PREMIUM",
+        "GOOGLE_MAPS_API_KEY",
+        "HCAPTCHA_SECRET",
+        "HCAPTCHA_SITEKEY",
         "AUTO_CREATE_TABLES",
     ]
     env_status = {
