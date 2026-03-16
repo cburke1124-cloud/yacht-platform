@@ -10,6 +10,7 @@ import os
 import time
 import logging
 import uuid
+import time
 
 from app.core.logging import memory_log_handler
 
@@ -35,6 +36,7 @@ from app.models.documentation import Documentation
 from app.services.default_documentation import get_default_doc_by_slug
 
 router = APIRouter()
+ps_start_time = time.time()
 
 
 def _generate_ref_code() -> str:
@@ -74,6 +76,103 @@ def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.user_type != "admin":
         raise AuthorizationException("Admin access required")
     return current_user
+
+
+# --------------------------------------------------------------------------- #
+# System health & info (used by admin dashboard)
+# --------------------------------------------------------------------------- #
+
+_ENV_KEYS = [
+    "DATABASE_URL",
+    "SECRET_KEY",
+    "SENDGRID_API_KEY",
+    "CLAUDE_API_KEY",
+    "S3_BUCKET",
+    "S3_ENDPOINT_URL",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+    "MEDIA_STORAGE_BACKEND",
+    "FRONTEND_URL",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PUBLISHABLE_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PRICE_BASIC",
+    "STRIPE_PRICE_PREMIUM",
+    "GOOGLE_MAPS_API_KEY",
+    "HCAPTCHA_SECRET",
+    "HCAPTCHA_SITEKEY",
+    "AUTO_CREATE_TABLES",
+]
+
+
+@router.get("/system/health")
+def system_health(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    # Environment variable presence
+    env_vars = {k: ("set" if os.getenv(k) else "missing") for k in _ENV_KEYS}
+
+    # Database connectivity + lightweight counts
+    db_status = {"status": "ok"}
+    table_counts = {"status": "ok", "counts": {}}
+    try:
+        db.execute(text("SELECT 1"))
+        table_counts["counts"] = {
+            "users": db.query(User).count(),
+            "listings": db.query(Listing).count(),
+            "dealer_profiles": db.query(DealerProfile).count(),
+        }
+    except Exception as e:
+        db.rollback()
+        db_status = {"status": "error", "message": str(e)}
+        table_counts = {"status": "error"}
+
+    # Storage health (best-effort)
+    storage = {"status": "unknown"}
+    try:
+        storage = get_storage_health()
+    except Exception:
+        pass
+
+    # Scheduler / email metadata (minimal)
+    scheduler = {"status": "unknown", "jobs": None}
+    email_status = {
+        "status": "set" if os.getenv("SENDGRID_API_KEY") else "missing",
+        "provider": "sendgrid",
+    }
+
+    return {
+        "database": db_status,
+        "table_counts": table_counts,
+        "storage": storage,
+        "scheduler": scheduler,
+        "email": email_status,
+        "env_vars": env_vars,
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@router.get("/system/info")
+def system_info(current_user: User = Depends(require_admin)):
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    log_file_path = os.path.join(base_dir, "logs", "yachtversal.log")
+    log_file = {
+        "path": log_file_path,
+        "exists": os.path.isfile(log_file_path),
+    }
+    if log_file["exists"]:
+        log_file["size_bytes"] = os.path.getsize(log_file_path)
+
+    return {
+        "pid": os.getpid(),
+        "platform": platform.platform(),
+        "python_version": sys.version,
+        "uptime_seconds": time.time() - ps_start_time,
+        "uptime_human": f"{round((time.time() - ps_start_time)/3600, 2)}h",
+        "log_buffer_entries": getattr(memory_log_handler, "buffer_size", len(getattr(memory_log_handler, "records", []))),
+        "log_file": log_file,
+    }
 
 
 @router.get("/storage/health")

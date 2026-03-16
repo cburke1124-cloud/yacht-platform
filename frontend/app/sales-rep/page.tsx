@@ -145,6 +145,10 @@ export default function SalesRepDashboard() {
     email: '', first_name: '', last_name: '', phone: '',
     company_name: '', subscription_tier: 'basic',
     custom_price: '',
+    free_days: '',
+    discount_type: 'percentage',
+    discount_value: '',
+    applied_deal_id: null as number | null,
   });
   const [brokerResult, setBrokerResult]       = useState<any>(null);
   const [brokerSubmitting, setBrokerSubmitting] = useState(false);
@@ -249,7 +253,12 @@ export default function SalesRepDashboard() {
       const r = await fetch(apiUrl('/sales-rep/register-broker'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(brokerForm),
+        body: JSON.stringify({
+          ...brokerForm,
+          custom_price: brokerForm.custom_price === '' ? null : Number(brokerForm.custom_price),
+          free_days: brokerForm.free_days === '' ? null : Number(brokerForm.free_days),
+          discount_value: brokerForm.discount_value === '' ? null : Number(brokerForm.discount_value),
+        }),
       });
       const result = await r.json();
       if (r.ok) {
@@ -691,6 +700,81 @@ export default function SalesRepDashboard() {
               <input type="tel" placeholder="+1 (555) 123-4567" value={brokerForm.phone} onChange={(e) => setBrokerForm({ ...brokerForm, phone: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
             </div>
+
+            {/* Deal / Discount options */}
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">Deals & Discounts</p>
+                  <p className="text-xs text-blue-800/80">Apply a sales deal or set a custom trial/discount.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-blue-900">Apply deal</label>
+                  <select
+                    value={brokerForm.applied_deal_id ?? ''}
+                    onChange={(e) => {
+                      const selected = deals.find(d => d.id === Number(e.target.value));
+                      if (!selected) {
+                        setBrokerForm({ ...brokerForm, applied_deal_id: null });
+                        return;
+                      }
+                      setBrokerForm({
+                        ...brokerForm,
+                        applied_deal_id: selected.id,
+                        free_days: selected.free_days ?? '',
+                        discount_type: selected.discount_type || 'percentage',
+                        discount_value: selected.discount_value ?? '',
+                        custom_price: selected.fixed_monthly_price ?? brokerForm.custom_price,
+                      });
+                    }}
+                    className="px-3 py-2 text-sm border border-blue-200 rounded-md bg-white shadow-sm"
+                  >
+                    <option value="">None</option>
+                    {deals.map(d => (
+                      <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-blue-900 mb-1">Free Trial Days</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={brokerForm.free_days}
+                    onChange={(e) => setBrokerForm({ ...brokerForm, free_days: e.target.value })}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-blue-900 mb-1">Discount Type</label>
+                  <select
+                    value={brokerForm.discount_type}
+                    onChange={(e) => setBrokerForm({ ...brokerForm, discount_type: e.target.value })}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
+                  >
+                    <option value="percentage">Percentage</option>
+                    <option value="amount">Amount</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-blue-900 mb-1">Discount Value</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={brokerForm.discount_value}
+                    onChange={(e) => setBrokerForm({ ...brokerForm, discount_value: e.target.value })}
+                    className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-primary/30 text-sm"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-blue-800">For fixed-price deals, set the negotiated monthly price below.</p>
+            </div>
             
             {brokerForm.subscription_tier === 'ultimate' && (
               <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
@@ -755,7 +839,7 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-green-600 mt-2">Share these credentials with the broker.</p>
               </div>
             </div>
-            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '' }); }}
+            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null }); }}
               className="mt-4 text-sm text-green-700 font-medium hover:text-green-900">Register another &rarr;</button>
           </div>
         )}
