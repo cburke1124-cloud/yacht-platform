@@ -721,9 +721,9 @@ export default function SalesRepDashboard() {
                       setBrokerForm({
                         ...brokerForm,
                         applied_deal_id: selected.id,
-                        free_days: selected.free_days ?? '',
+                        free_days: selected.free_days != null ? String(selected.free_days) : '',
                         discount_type: selected.discount_type || 'percentage',
-                        discount_value: selected.discount_value ?? '',
+                        discount_value: selected.discount_value != null ? String(selected.discount_value) : '',
                         custom_price: selected.fixed_monthly_price ?? brokerForm.custom_price,
                       });
                     }}
