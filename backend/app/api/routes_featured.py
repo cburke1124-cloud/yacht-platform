@@ -150,18 +150,22 @@ def get_public_featured_listings(db: Session = Depends(get_db)):
     """
     PUBLIC ENDPOINT: Get currently active featured listings for homepage carousel.
     No authentication required.
+    Excludes listings from demo accounts.
     """
     
-    # Get active featured listings
+    # Get active featured listings, excluding demo accounts
     featured_items = db.query(
         FeaturedListing,
         Listing
     ).join(
         Listing, FeaturedListing.listing_id == Listing.id
+    ).join(
+        User, Listing.user_id == User.id
     ).filter(
         FeaturedListing.active == True,
         FeaturedListing.expires_at > datetime.utcnow(),
-        Listing.status == "active"
+        Listing.status == "active",
+        User.is_demo != True
     ).order_by(
         Listing.featured_priority.desc(),
         FeaturedListing.expires_at.desc(),

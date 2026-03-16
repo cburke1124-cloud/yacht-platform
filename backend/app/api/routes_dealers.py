@@ -29,7 +29,8 @@ def get_all_dealers(
         User.id == DealerProfile.user_id
     ).filter(
         User.user_type == "dealer",
-        User.active == True
+        User.active == True,
+        User.is_demo != True
     )
     
     # Apply filters

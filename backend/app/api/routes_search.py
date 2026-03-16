@@ -18,7 +18,7 @@ router = APIRouter()
 @router.post("/advanced")
 def advanced_search(search, db: Session = Depends(get_db)):
     try:
-        query = db.query(Listing).filter(Listing.status == search.status)
+        query = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.status == search.status, User.is_demo != True)
 
         if search.query:
             sanitized = sanitize_search_query(search.query)

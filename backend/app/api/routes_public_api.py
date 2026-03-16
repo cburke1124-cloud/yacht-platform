@@ -44,7 +44,7 @@ def get_listings_api(
     opted_out_user_ids = [row.user_id for row in opted_out_dealer_ids]
 
     # Build query for active listings
-    query = db.query(Listing).filter(Listing.status == "active")
+    query = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.status == "active", User.is_demo != True)
 
     # Exclude listings opted out at the listing level
     query = query.filter(Listing.allow_cobrokering != False)  # noqa: E712

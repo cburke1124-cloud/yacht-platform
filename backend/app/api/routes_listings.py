@@ -363,11 +363,12 @@ def get_listings(
     try:
         q = (
             db.query(Listing)
+            .join(User, Listing.user_id == User.id)
             .options(
                 joinedload(Listing.owner).joinedload(User.dealer_profile),
                 joinedload(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
             )
-            .filter(Listing.status == status)
+            .filter(Listing.status == status, User.is_demo != True)
         )
         if make:
             q = q.filter(Listing.make.ilike(f"%{make}%"))
@@ -768,7 +769,7 @@ def delete_listing(
 
 @router.get("/{listing_id}")
 def get_listing(listing_id: int, db: Session = Depends(get_db)):
-    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    listing = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.id == listing_id, User.is_demo != True).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     # Increment view counter
