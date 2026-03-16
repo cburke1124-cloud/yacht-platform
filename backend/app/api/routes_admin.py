@@ -2742,3 +2742,57 @@ def register_broker_admin(
         "password": temp_password,
         "login_url": "/login"
     }
+
+
+# ============= SUBSCRIPTION TIER CONFIGURATION =============
+
+@router.get("/subscription-config")
+def get_subscription_config(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Get current subscription tier configuration."""
+    site = db.query(SiteSettings).first()
+    if not site or not site.subscription_config:
+        # Return merged defaults
+        return {
+            "broker_tiers": _DEFAULT_BROKER_TIERS,
+        }
+    
+    config = site.subscription_config
+    broker_tiers = {**_DEFAULT_BROKER_TIERS, **config.get("broker_tiers", {})}
+    
+    return {
+        "broker_tiers": broker_tiers,
+    }
+
+
+@router.put("/subscription-config")
+def update_subscription_config(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Update subscription tier configuration."""
+    site = db.query(SiteSettings).first()
+    if not site:
+        site = SiteSettings()
+        db.add(site)
+    
+    if not site.subscription_config:
+        site.subscription_config = {}
+    
+    # Update broker tiers if provided
+    if "broker_tiers" in data:
+        site.subscription_config["broker_tiers"] = data["broker_tiers"]
+    
+    db.commit()
+    db.refresh(site)
+    
+    broker_tiers = {**_DEFAULT_BROKER_TIERS, **site.subscription_config.get("broker_tiers", {})}
+    
+    return {
+        "success": True,
+        "message": "Subscription configuration updated",
+        "broker_tiers": broker_tiers,
+    }

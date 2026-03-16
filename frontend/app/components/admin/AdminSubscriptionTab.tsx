@@ -28,7 +28,7 @@ const DEFAULT_TIERS: Record<string, TierConfig> = {
   },
   basic: {
     name: 'Basic',
-    price: 29,
+    price: 199,
     listings: 25,
     images_per_listing: 15,
     videos_per_listing: 1,
@@ -36,13 +36,23 @@ const DEFAULT_TIERS: Record<string, TierConfig> = {
     trial_days: 14,
     active: true
   },
-  premium: {
-    name: 'Premium',
-    price: 99,
+  plus: {
+    name: 'Plus',
+    price: 299,
+    listings: 75,
+    images_per_listing: 30,
+    videos_per_listing: 3,
+    features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured broker badge', 'Priority support', 'Advanced analytics'],
+    trial_days: 14,
+    active: true
+  },
+  pro: {
+    name: 'Pro',
+    price: 499,
     listings: 999999,
     images_per_listing: 50,
     videos_per_listing: 5,
-    features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured dealer badge', 'Priority support', 'Advanced analytics', 'AI scraper tools'],
+    features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured broker badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
     trial_days: 30,
     active: true
   },
@@ -52,7 +62,7 @@ const DEFAULT_TIERS: Record<string, TierConfig> = {
     listings: 999999,
     images_per_listing: 999999,
     videos_per_listing: 999999,
-    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Branded micro-site', 'Premium search placement', 'Co-brokering network access'],
+    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Premium search placement'],
     trial_days: 0,
     active: true,
     is_custom_pricing: true,
