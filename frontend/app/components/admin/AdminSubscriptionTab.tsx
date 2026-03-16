@@ -87,11 +87,11 @@ export default function AdminSubscriptionTab() {
 
       if (response.ok) {
         const data = await response.json();
-        setTiers(data.tiers || DEFAULT_TIERS);
+        setTiers(data.broker_tiers || DEFAULT_TIERS);
       }
     } catch (error) {
       console.error('Failed to load tier config:', error);
-      // Use defaults if backend doesn't have endpoint yet
+      // Use defaults if backend doesn't respond
     }
   };
 
@@ -105,6 +105,8 @@ export default function AdminSubscriptionTab() {
 
     try {
       const token = localStorage.getItem('token');
+      const newTiers = { ...tiers, [editingTier]: formData };
+      
       const response = await fetch(apiUrl('/admin/subscription-config'), {
         method: 'PUT',
         headers: {
@@ -112,18 +114,18 @@ export default function AdminSubscriptionTab() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          tier_id: editingTier,
-          config: formData
+          broker_tiers: newTiers
         })
       });
 
       if (response.ok) {
-        setTiers({ ...tiers, [editingTier]: formData });
+        const data = await response.json();
+        setTiers(data.broker_tiers || newTiers);
         setEditingTier(null);
         setFormData(null);
         alert('Subscription tier updated successfully!');
       } else {
-        alert('Failed to update tier. Make sure backend endpoint exists.');
+        alert('Failed to update tier.');
       }
     } catch (error) {
       console.error('Failed to save tier:', error);
