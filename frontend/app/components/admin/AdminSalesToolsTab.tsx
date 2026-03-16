@@ -49,6 +49,7 @@ export default function AdminSalesToolsTab() {
   const [activeDealsSalesRepId, setActiveDealsSalesRepId] = useState<string>('');
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
+  const [tiers, setTiers] = useState<Record<string, any>>({});
   
   // Registration Form State
   const [regForm, setRegForm] = useState<BrokerForm>({
@@ -102,6 +103,21 @@ export default function AdminSalesToolsTab() {
         setLoadError('No authentication token found');
         setLoading(false);
         return;
+      }
+
+      // Fetch Broker Tiers
+      try {
+        const tiersRes = await fetch(apiUrl('/sales-rep/broker-tiers'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (tiersRes.ok) {
+          const tiersData = await tiersRes.json();
+          setTiers(tiersData?.tiers || {});
+        } else {
+          console.warn('Failed to fetch tiers, using defaults');
+        }
+      } catch (tierError) {
+        console.warn('Error fetching tiers:', tierError);
       }
 
       // Fetch Sales Reps (admin user filter)
@@ -568,11 +584,21 @@ export default function AdminSalesToolsTab() {
                       onChange={e => setRegForm({...regForm, subscription_tier: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     >
-                      <option value="basic">Basic ($199/mo)</option>
-                      <option value="plus">Plus ($299/mo)</option>
-                      <option value="pro">Pro ($499/mo)</option>
-                      <option value="ultimate">Ultimate (Custom)</option>
-                      <option value="free">Free</option>
+                      {Object.entries(tiers).map(([key, tier]: [string, any]) => (
+                        <option key={key} value={key}>
+                          {tier.name || key.charAt(0).toUpperCase() + key.slice(1)} 
+                          {tier.price ? ` ($${tier.price}/mo)` : (key === 'ultimate' ? ' (Custom)' : '')}
+                        </option>
+                      ))}
+                      {Object.keys(tiers).length === 0 && (
+                        <>
+                          <option value="basic">Basic ($199/mo)</option>
+                          <option value="plus">Plus ($299/mo)</option>
+                          <option value="pro">Pro ($499/mo)</option>
+                          <option value="ultimate">Ultimate (Custom)</option>
+                          <option value="free">Free</option>
+                        </>
+                      )}
                     </select>
                   </div>
                   <div>
