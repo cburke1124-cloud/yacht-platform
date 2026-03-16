@@ -2715,9 +2715,9 @@ def register_broker_admin(
         # Determine effective price for commission calculation
         # If custom price is set, use that. Else standard tier price.
         tier_price = 0.0
-        if tier == "basic": tier_price = 29.0
-        elif tier == "plus": tier_price = 59.0
-        elif tier == "premium" or tier == "pro": tier_price = 99.0
+        if tier == "basic": tier_price = 199.0
+        elif tier == "plus": tier_price = 299.0
+        elif tier == "premium" or tier == "pro": tier_price = 499.0
         
         eff_price = custom_price if custom_price is not None else tier_price
         

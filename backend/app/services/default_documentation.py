@@ -243,7 +243,7 @@ YachtVersal replaces the chaos with a single platform:
 - No API or webhook access
 - Best for: Private sellers or brokers evaluating the platform
 
-### Basic — $29/month
+### Basic — $199/month
 - Up to 25 active listings
 - Full search visibility and messaging
 - Inquiry dashboard with lead stages
@@ -251,7 +251,7 @@ YachtVersal replaces the chaos with a single platform:
 - Basic analytics
 - Best for: Independent brokers and small dealerships
 
-### Plus — $59/month
+### Plus — $299/month
 - Up to 75 active listings
 - Everything in Basic, plus:
 - Webhook delivery to CRM systems
@@ -261,7 +261,7 @@ YachtVersal replaces the chaos with a single platform:
 - Priority support
 - Best for: Growing dealerships with 25-75 boats
 
-### Pro — $99/month
+### Pro — $499/month
 - Unlimited active listings
 - Everything in Plus, plus:
 - Full read/write API access
@@ -287,9 +287,9 @@ YachtVersal replaces the chaos with a single platform:
 You earn 10% recurring commission on every dealer subscription for as long as they remain active.
 
 Examples:
-- Basic dealer ($29/mo) = $2.90/month to you, recurring
-- Plus dealer ($59/mo) = $5.90/month to you, recurring
-- Pro dealer ($99/mo) = $9.90/month to you, recurring
+- Basic dealer ($199/mo) = $19.90/month to you, recurring
+- Plus dealer ($299/mo) = $29.90/month to you, recurring
+- Pro dealer ($499/mo) = $49.90/month to you, recurring
 - Ultimate dealer = Custom commission negotiated per deal
 
 This is RECURRING revenue. A Pro dealer pays you $9.90 every single month. Ten Pro dealers = $99/month passive income, growing over time.
@@ -332,7 +332,7 @@ Use this framework when you have limited time:
 "And you should absolutely keep using them — we're not asking you to leave those platforms. YachtVersal adds another channel of qualified buyers while also giving you the CRM and analytics layer that those platforms don't. Think of us as the hub that ties everything together."
 
 ### "We don't have budget for another subscription"
-"Totally understand. Let me frame it this way: at $29/month for Basic, you need ONE extra qualified lead per month to more than pay for the platform. Most dealers see 5-10 extra inquiries in the first month. And unlike per-listing sites, our pricing stays flat no matter how many boats you list."
+"Totally understand. Let me frame it this way: at $199/month for Basic, you need just a few extra qualified leads per month to more than pay for the platform. Most dealers see 5-10 extra inquiries in the first month. And unlike per-listing sites, our pricing stays flat no matter how many boats you list."
 
 ### "We don't have time to set up another platform"
 "Great news — setup takes less than 30 minutes. If you have your inventory in a spreadsheet or another system, we can bulk import it. After that, each new listing takes about 5 minutes. And with AI text import, you can paste an existing listing description and we extract all the specs automatically."
@@ -701,7 +701,7 @@ Selling strategy:
 - "Start free, see real results, then we'll talk about upgrading"
 - Once they have listings getting views, upgrading is a natural conversation
 
-### BASIC ($29/month) — Your Commission: $2.90/month
+### BASIC ($199/month) — Your Commission: $19.90/month
 
 Who it's for: Independent brokers, small shops with 10-25 boats, yacht brokers who work alone or with a small team.
 
@@ -724,7 +724,7 @@ Upgrade trigger (Basic → Plus):
 - They're growing their team past 3 people
 - They want featured listings
 
-### PLUS ($59/month) — Your Commission: $5.90/month
+### PLUS ($299/month) — Your Commission: $29.90/month
 
 Who it's for: Growing dealerships with 25-75 boats, tech-savvy operations that use CRM systems.
 
@@ -749,7 +749,7 @@ Upgrade trigger (Plus → Pro):
 - They want a dedicated account manager
 - They have complex multi-location operations
 
-### PRO ($99/month) — Your Commission: $9.90/month
+### PRO ($499/month) — Your Commission: $49.90/month
 
 Who it's for: Large dealer groups, multi-location Marina operations, professionally managed brokerages with 75+ boats.
 
@@ -792,14 +792,14 @@ Selling strategy:
 
 ## Price-to-Value Talking Points
 
-### Basic ($29/month)
-"That's less than a single classified ad on most platforms. And you get 25 listings plus a CRM."
+### Basic ($199/month)
+"That's less than most specialized business software. And you get 25 listings plus a CRM."
 
-### Plus ($59/month)
-"If one extra qualified lead per month turns into a sale, you've paid for 10 years of YachtVersal in one day."
+### Plus ($299/month)
+"If a couple extra qualified leads per month turn into sales, you've paid for a year of YachtVersal in a single deal."
 
-### Pro ($99/month)
-"For less than what you'd pay a part-time admin assistant per day, you get unlimited listings, full API, and a dedicated account manager."
+### Pro ($499/month)
+"For less than what you'd pay a dedicated account manager, you get unlimited listings, full API, and professional support."
 
 ---
 
@@ -826,8 +826,8 @@ Getting dealers to upgrade is where your commission really grows. Here are natur
 | Current Tier | Trigger Event | Recommended Action |
 |---|---|---|
 | Free | First inquiry received | "See? Buyers are finding you. Basic gives you a proper CRM to track these leads." |
-| Free | Hit 5-listing limit | "You need more room. Basic gives you 25 listings for $29/month." |
-| Basic | Hit 25-listing limit | "Your inventory outgrew Basic. Plus gives you 75 listings and CRM integration for $30 more." |
+| Free | Hit 5-listing limit | "You need more room. Basic gives you 25 listings for $199/month." |
+| Basic | Hit 25-listing limit | "Your inventory outgrew Basic. Plus gives you 75 listings and CRM integration for $100 more." |
 | Basic | Team growing past 3 | "Plus has unlimited team members — scale your team without restrictions." |
 | Plus | Asking about API | "Pro gives you full read/write API access for automated inventory sync." |
 | Plus | Hit 75-listing limit | "Time for Pro — unlimited listings and a dedicated account manager." |
@@ -853,9 +853,9 @@ QUICK_REFERENCE_CARD = {
 | Tier | Price | Listings | Key Feature | Your Commission |
 |------|-------|----------|-------------|----------------|
 | Free | $0/mo | 5 | Basic visibility | $0 |
-| Basic | $29/mo | 25 | Inquiry dashboard + team (3) | $2.90/mo |
-| Plus | $59/mo | 75 | CRM webhooks + unlimited team | $5.90/mo |
-| Pro | $99/mo | Unlimited | Full API + dedicated support | $9.90/mo |
+| Basic | $199/mo | 25 | Inquiry dashboard + team (3) | $19.90/mo |
+| Plus | $299/mo | 75 | CRM webhooks + unlimited team | $29.90/mo |
+| Pro | $499/mo | Unlimited | Full API + dedicated support | $49.90/mo |
 | Ultimate | Custom | Unlimited | Custom SLA | Custom |
 
 ---
