@@ -11,7 +11,6 @@ from app.models.user import User
 from app.models.listing import Listing
 from app.models.dealer import DealerProfile
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
-from app.models.api_keys import PromotionalOffer
 from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 from app.security.auth import get_password_hash
@@ -589,24 +588,10 @@ def register_broker_for_sales_rep(
         discount_value = None
 
     has_deal = False if always_free else ((free_days and free_days > 0) or discount_value not in [None, ""])
-    if has_deal:
-        offer = PromotionalOffer(
-            dealer_id=new_user.id,
-            created_by=current_user.id,
-            offer_type="custom",
-            discount_type=discount_type,
-            discount_value=discount_value,
-            trial_days=free_days or 0,
-            trial_tier=tier,
-            start_date=datetime.utcnow(),
-            end_date=datetime.utcnow() + timedelta(days=90),
-            original_tier=tier,
-            original_price=float(TIER_PRICES.get(tier, 0.0)),
-            discounted_price=effective_price if discount_value is not None or custom_price is not None else None,
-            active=True,
-            applied=False,
-        )
-        db.add(offer)
+    # TODO: Create promotional offer model if needed
+    # if has_deal:
+    #     offer = PromotionalOffer(...)
+    #     db.add(offer)
 
     db.commit()
     db.refresh(new_user)
