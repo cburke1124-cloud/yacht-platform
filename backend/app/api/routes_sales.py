@@ -23,10 +23,10 @@ router = APIRouter()
 TIER_PRICES = {
     "free": 0.0,
     "trial": 0.0,
-    "basic": 29.0,
-    "plus": 59.0,
-    "premium": 99.0,
-    "pro": 99.0,
+    "basic": 199.0,
+    "plus": 299.0,
+    "premium": 499.0,
+    "pro": 499.0,
     "ultimate": 0.0,  # Custom/enterprise pricing — managed manually
     "private_basic": 9.0,
     "private_plus": 19.0,
@@ -35,10 +35,10 @@ TIER_PRICES = {
 
 
 _DEFAULT_BROKER_TIERS = {
-    "basic":    {"name": "Basic",    "price": 29,  "listings": 25,     "images_per_listing": 15,     "videos_per_listing": 1,      "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"],                                                              "trial_days": 14, "active": True},
-    "plus":     {"name": "Plus",     "price": 59,  "listings": 75,     "images_per_listing": 30,     "videos_per_listing": 3,      "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"],                                       "trial_days": 14, "active": True},
-    "pro":      {"name": "Pro",      "price": 99,  "listings": 999999, "images_per_listing": 50,     "videos_per_listing": 5,      "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"],            "trial_days": 30, "active": True},
-    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Premium search placement", "Co-brokering network access"], "trial_days": 0, "active": True, "is_custom_pricing": True},
+    "basic":    {"name": "Basic",    "price": 199,  "listings": 25,     "images_per_listing": 15,     "videos_per_listing": 1,      "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"],                                                              "trial_days": 14, "active": True},
+    "plus":     {"name": "Plus",     "price": 299,  "listings": 75,     "images_per_listing": 30,     "videos_per_listing": 3,      "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"],                                       "trial_days": 14, "active": True},
+    "pro":      {"name": "Pro",      "price": 499,  "listings": 999999, "images_per_listing": 50,     "videos_per_listing": 5,      "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"],            "trial_days": 30, "active": True},
+    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Premium search placement"], "trial_days": 0, "active": True, "is_custom_pricing": True},
 }
 
 
