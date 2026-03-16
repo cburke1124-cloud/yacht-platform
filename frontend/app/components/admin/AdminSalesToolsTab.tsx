@@ -550,9 +550,9 @@ export default function AdminSalesToolsTab() {
                       onChange={e => setRegForm({...regForm, subscription_tier: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     >
-                      <option value="basic">Basic ($29/mo)</option>
-                      <option value="plus">Plus ($59/mo)</option>
-                      <option value="pro">Pro ($99/mo)</option>
+                      <option value="basic">Basic ($199/mo)</option>
+                      <option value="plus">Plus ($299/mo)</option>
+                      <option value="pro">Pro ($499/mo)</option>
                       <option value="ultimate">Ultimate (Custom)</option>
                       <option value="free">Free</option>
                     </select>
