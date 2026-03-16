@@ -38,7 +38,7 @@ _DEFAULT_BROKER_TIERS = {
     "basic":    {"name": "Basic",    "price": 29,  "listings": 25,     "images_per_listing": 15,     "videos_per_listing": 1,      "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"],                                                              "trial_days": 14, "active": True},
     "plus":     {"name": "Plus",     "price": 59,  "listings": 75,     "images_per_listing": 30,     "videos_per_listing": 3,      "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"],                                       "trial_days": 14, "active": True},
     "pro":      {"name": "Pro",      "price": 99,  "listings": 999999, "images_per_listing": 50,     "videos_per_listing": 5,      "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"],            "trial_days": 30, "active": True},
-    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Branded micro-site", "Premium search placement", "Co-brokering network access"], "trial_days": 0, "active": True, "is_custom_pricing": True},
+    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Premium search placement", "Co-brokering network access"], "trial_days": 0, "active": True, "is_custom_pricing": True},
 }
 
 
@@ -459,9 +459,21 @@ def register_broker_for_sales_rep(
     if existing:
         raise ValidationException("A user with this email already exists")
 
-    # --- create user ----------------------------------------------------- #
+    # --- user data ------------------------------------------------------- #
     temp_password = secrets.token_urlsafe(12)
     hashed = get_password_hash(temp_password)
+
+    # Calculate custom/effective price if this is Ultimate tier
+    custom_price = None
+    effective_price = float(TIER_PRICES.get(tier, 0.0))
+    if tier == "ultimate" and data.get("custom_price") is not None:
+        try:
+            val = float(data["custom_price"])
+            if val >= 0:
+                custom_price = val
+                effective_price = val
+        except (ValueError, TypeError):
+            pass
 
     new_user = User(
         email=email,
@@ -472,6 +484,7 @@ def register_broker_for_sales_rep(
         user_type="dealer",
         company_name=company_name or None,
         subscription_tier=tier,
+        custom_subscription_price=custom_price,
         assigned_sales_rep_id=current_user.id,
         active=True,
         verified=False,
@@ -500,7 +513,6 @@ def register_broker_for_sales_rep(
     # --- create referral signup ------------------------------------------ #
     affiliate_account = _ensure_sales_rep_affiliate_account(current_user, db)
     commission_rate = float(current_user.commission_rate or 10.0)
-    effective_price = float(TIER_PRICES.get(tier, 0.0))
 
     referral = ReferralSignup(
         dealer_user_id=new_user.id,

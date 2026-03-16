@@ -856,7 +856,7 @@ QUICK_REFERENCE_CARD = {
 | Basic | $29/mo | 25 | Inquiry dashboard + team (3) | $2.90/mo |
 | Plus | $59/mo | 75 | CRM webhooks + unlimited team | $5.90/mo |
 | Pro | $99/mo | Unlimited | Full API + dedicated support | $9.90/mo |
-| Ultimate | Custom | Unlimited | White-label + SLA | Custom |
+| Ultimate | Custom | Unlimited | Custom SLA | Custom |
 
 ---
 

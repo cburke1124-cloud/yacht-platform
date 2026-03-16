@@ -42,6 +42,9 @@ class User(Base):
 
     assigned_sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     commission_rate = Column(Float, default=10.0)
+    
+    # Custom subscription price for negotiated deals (e.g. Ultimate tier)
+    custom_subscription_price = Column(Float, nullable=True)
 
     stripe_customer_id = Column(String, unique=True, nullable=True, index=True)
     stripe_subscription_id = Column(String, unique=True, nullable=True)

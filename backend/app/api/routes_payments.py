@@ -29,9 +29,9 @@ async def create_subscription(
     db: Session = Depends(get_db)
 ):
     """Create a new subscription for user"""
-    tier = data.get("tier")  # basic, premium
+    tier = data.get("tier")  # basic, premium, ultimate
     
-    if tier not in ["basic", "premium"]:
+    if tier not in ["basic", "premium", "ultimate"]:
         raise ValidationException("Invalid subscription tier")
     
     # Get or create Stripe customer
@@ -47,7 +47,32 @@ async def create_subscription(
         customer_id = current_user.stripe_customer_id
     
     # Get price ID for tier
-    price_id = STRIPE_PRICES.get(tier)
+    price_id = None
+    
+    # Priority: Custom price > Ultimate tier > Standard tier config
+    if current_user.custom_subscription_price is not None and current_user.custom_subscription_price >= 0:
+        try:
+             price_name = f"{tier.title()} Plan"
+             if tier == "ultimate":
+                 price_name = f"Ultimate Plan Link - {current_user.company_name or current_user.email}"
+             else:
+                 price_name = f"{tier.title()} Plan (Special Offer)"
+
+             price = stripe_service.create_custom_price(
+                 amount=int(current_user.custom_subscription_price * 100),
+                 currency="usd",
+                 product_name=price_name
+             )
+             price_id = price.id
+        except Exception as e:
+             raise ValidationException(f"Failed to create custom price: {str(e)}")
+    
+    # Fallback to standard pricing
+    if not price_id:
+        if tier == "ultimate":
+             raise ValidationException("Custom price not set for Ultimate tier. Contact support.")
+        price_id = STRIPE_PRICES.get(tier)
+        
     if not price_id:
         raise ValidationException(f"Price not configured for tier: {tier}")
     
@@ -131,11 +156,36 @@ async def update_subscription(
     if not current_user.stripe_subscription_id:
         raise ValidationException("No active subscription found")
     
-    if new_tier not in ["basic", "premium"]:
+    if new_tier not in ["basic", "premium", "ultimate"]:
         raise ValidationException("Invalid subscription tier")
     
     # Get new price ID
-    new_price_id = STRIPE_PRICES.get(new_tier)
+    new_price_id = None
+    
+    # If switching to Ultimate, require custom price
+    if new_tier == "ultimate":
+        if not current_user.custom_subscription_price or current_user.custom_subscription_price <= 0:
+             raise ValidationException("Custom price not set. Please contact sales to upgrade to Ultimate.")
+        
+        price = stripe_service.create_custom_price(
+             amount=int(current_user.custom_subscription_price * 100),
+             currency="usd",
+             product_name=f"Ultimate Plan Link - {current_user.company_name}"
+        )
+        new_price_id = price.id
+        
+    # If staying on same tier (e.g. reactivating or changing period?), check for custom price
+    elif new_tier == current_user.subscription_tier and current_user.custom_subscription_price and current_user.custom_subscription_price > 0:
+        price = stripe_service.create_custom_price(
+             amount=int(current_user.custom_subscription_price * 100),
+             currency="usd",
+             product_name=f"{new_tier.title()} Plan (Special Offer)"
+        )
+        new_price_id = price.id
+        
+    else:
+        # Switching tiers (non-Ultimate) -> Use standard price (lose custom deal)
+        new_price_id = STRIPE_PRICES.get(new_tier)
     
     # Update subscription
     result = stripe_service.update_subscription(

@@ -265,6 +265,11 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
 
             if partner_deal:
                 effective_monthly_price = _apply_deal_price(base_monthly_price, partner_deal)
+                # If price is different from standard tier price, set custom_subscription_price
+                if abs(effective_monthly_price - base_monthly_price) > 0.01:
+                    user.custom_subscription_price = effective_monthly_price
+                    db.add(user)
+
                 if partner_deal.free_days and partner_deal.free_days > 0:
                     free_access_until = (datetime.utcnow() + timedelta(days=int(partner_deal.free_days))).isoformat()
 

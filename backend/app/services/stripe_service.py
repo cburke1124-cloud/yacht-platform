@@ -337,6 +337,22 @@ class StripeService:
             logger.error(f"Failed to create subscription schedule: {e}")
             raise Exception(f"Failed to create subscription schedule: {str(e)}")
 
+    @staticmethod
+    def create_custom_price(amount: int, currency: str, product_name: str, interval: str = "month") -> Any:
+        # Create a price directly (Stripe will create a product implicitly if product_data is used)
+        try:
+            price = stripe.Price.create(
+                unit_amount=amount,
+                currency=currency,
+                recurring={"interval": interval},
+                product_data={"name": product_name},
+            )
+            return price
+        except stripe.error.StripeError as e:
+            logger.error(f"Failed to create custom price: {e}")
+            raise Exception(f"Failed to create custom price: {str(e)}")
+
+
 
 # Singleton instance
 stripe_service = StripeService()
