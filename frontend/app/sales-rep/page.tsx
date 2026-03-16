@@ -877,7 +877,7 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-green-600 mt-2">Share these credentials with the broker.</p>
               </div>
             </div>
-            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null }); }}
+            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}
               className="mt-4 text-sm text-green-700 font-medium hover:text-green-900">Register another &rarr;</button>
           </div>
         )}
