@@ -19,6 +19,7 @@ class User(Base):
     user_type = Column(String, default="admin")
     company_name = Column(String)
     subscription_tier = Column(String, default="free")
+    custom_subscription_price = Column(Float, nullable=True)
     verified = Column(Boolean, default=False)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CookieConsentBanner from "./components/CookieConsentBanner";
+import LayoutShell from "./components/LayoutShell";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,11 +27,11 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <Navbar />
-        <main id="main-content">
-          {children}
-        </main>
-        <Footer />
+        <LayoutShell navbar={<Navbar />} footer={<Footer />}>
+          <main id="main-content">
+            {children}
+          </main>
+        </LayoutShell>
         <CookieConsentBanner />
       </body>
     </html>

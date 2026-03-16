@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 
 from app.db.session import get_db
@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.listing import Listing
 from app.models.dealer import DealerProfile
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
+from app.models.api_keys import PromotionalOffer
 from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 from app.security.auth import get_password_hash
@@ -463,10 +464,10 @@ def register_broker_for_sales_rep(
     temp_password = secrets.token_urlsafe(12)
     hashed = get_password_hash(temp_password)
 
-    # Calculate custom/effective price if this is Ultimate tier
+    # Calculate custom/effective price (allow on any tier; required for Ultimate)
     custom_price = None
     effective_price = float(TIER_PRICES.get(tier, 0.0))
-    if tier == "ultimate" and data.get("custom_price") is not None:
+    if data.get("custom_price") is not None:
         try:
             val = float(data["custom_price"])
             if val >= 0:
@@ -474,6 +475,9 @@ def register_broker_for_sales_rep(
                 effective_price = val
         except (ValueError, TypeError):
             pass
+
+    if tier == "ultimate" and custom_price is None:
+        raise ValidationException("Ultimate tier requires a custom price")
 
     new_user = User(
         email=email,
@@ -524,6 +528,40 @@ def register_broker_for_sales_rep(
         commission_rate=commission_rate,
     )
     db.add(referral)
+
+    # Optional deal/trial settings -> create promotional offer for this dealer
+    free_days = None
+    try:
+        free_days = int(data.get("free_days")) if data.get("free_days") not in [None, ""] else None
+    except (ValueError, TypeError):
+        free_days = None
+
+    discount_type = (data.get("discount_type") or None)
+    discount_value = None
+    try:
+        discount_value = float(data.get("discount_value")) if data.get("discount_value") not in [None, ""] else None
+    except (ValueError, TypeError):
+        discount_value = None
+
+    has_deal = (free_days and free_days > 0) or discount_value not in [None, ""]
+    if has_deal:
+        offer = PromotionalOffer(
+            dealer_id=new_user.id,
+            created_by=current_user.id,
+            offer_type="custom",
+            discount_type=discount_type,
+            discount_value=discount_value,
+            trial_days=free_days or 0,
+            trial_tier=tier,
+            start_date=datetime.utcnow(),
+            end_date=datetime.utcnow() + timedelta(days=90),
+            original_tier=tier,
+            original_price=float(TIER_PRICES.get(tier, 0.0)),
+            discounted_price=effective_price if discount_value is not None or custom_price is not None else None,
+            active=True,
+            applied=False,
+        )
+        db.add(offer)
 
     db.commit()
     db.refresh(new_user)
