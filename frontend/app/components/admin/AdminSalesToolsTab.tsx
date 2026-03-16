@@ -107,25 +107,31 @@ export default function AdminSalesToolsTab() {
 
       // Fetch Broker Tiers
       try {
+        console.log('Fetching broker tiers...');
         const tiersRes = await fetch(apiUrl('/sales-rep/broker-tiers'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (tiersRes.ok) {
           const tiersData = await tiersRes.json();
+          console.log('Tiers fetched:', tiersData);
           setTiers(tiersData?.tiers || {});
         } else {
-          console.warn('Failed to fetch tiers, using defaults');
+          console.warn(`Failed to fetch tiers (${tiersRes.status}):`, tiersRes.statusText);
         }
       } catch (tierError) {
         console.warn('Error fetching tiers:', tierError);
       }
 
       // Fetch Sales Reps (admin user filter)
+      console.log('Fetching sales reps...');
       const repRes = await fetch(apiUrl('/admin/users?user_type=salesman&limit=200'), {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log('Sales reps response status:', repRes.status, repRes.statusText);
+      
       if (repRes.ok) {
         const repData = await repRes.json();
+        console.log('Sales reps fetched:', repData);
         const reps = (repData?.users || []).map((u: any) => ({
           id: u.id,
           name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email,
@@ -139,8 +145,9 @@ export default function AdminSalesToolsTab() {
         await fetchDeals(token, defaultRepId);
       } else {
         const errorData = await repRes.json().catch(() => ({}));
-        const errorMsg = errorData?.error || errorData?.detail || `Failed to fetch sales reps (${repRes.status})`;
-        setLoadError(errorMsg);
+        const errorMsg = errorData?.error || errorData?.detail || `Failed to fetch sales reps`;
+        console.error('Sales reps error:', errorMsg);
+        setLoadError(`Sales reps fetch failed (${repRes.status}): ${errorMsg}`);
         setSalesReps([]);
       }
     } catch (error) {
