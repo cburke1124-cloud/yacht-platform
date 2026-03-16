@@ -41,6 +41,16 @@ export default function ComingSoonPage() {
             <span style={{ color: '#01BBDC' }}>Buy and Sell</span> Your Yacht
           </h1>
 
+          <p
+            className="text-xl sm:text-2xl font-semibold mb-6"
+            style={{
+              color: '#10214F',
+              fontFamily: 'Poppins, sans-serif',
+            }}
+          >
+            Coming Soon!
+          </p>
+
           {/* Description */}
           <p
             className="text-base sm:text-lg max-w-2xl"
