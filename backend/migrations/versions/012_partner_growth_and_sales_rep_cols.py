@@ -11,7 +11,7 @@ run on a database that was bootstrapped with create_all() and already
 has some or all of these objects.
 """
 
-revision = "012_partner_growth_and_sales_rep_cols"
+revision = "012_partner_growth"
 down_revision = "011_always_free_flag"
 branch_labels = None
 depends_on = None
