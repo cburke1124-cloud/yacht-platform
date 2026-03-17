@@ -292,8 +292,8 @@ export default function AdminUsersTab() {
                     <tr key={`msg-${user.id}`}>
                       <td colSpan={6} className="px-4 pb-2 pt-0">
                         <div className={`text-xs px-3 py-1.5 rounded-md ${
-                          actionMsg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                        }`}>{actionMsg.text}</div>
+                          actionMsg?.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                        }`}>{actionMsg?.text}</div>
                       </td>
                     </tr>
                   )}
