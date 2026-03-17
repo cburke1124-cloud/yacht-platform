@@ -375,7 +375,7 @@ export default function AdvancedSearchPage() {
                   <div key={listing.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow">
                     <div className="relative h-48 bg-gray-200">
                       <img
-                        src={listing.images[0]?.url || '/placeholder-yacht.jpg'}
+                        src={listing.images[0]?.url || '/images/listing-fallback.png'}
                         alt={listing.title}
                         className="w-full h-full object-cover"
                       />

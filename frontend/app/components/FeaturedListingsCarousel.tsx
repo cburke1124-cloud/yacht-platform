@@ -113,7 +113,7 @@ export default function FeaturedListingsCarousel() {
   const currentListing = featuredListings[currentIndex];
 
   // Safely get image URL with fallback
-  const imageUrl = currentListing?.images?.[0]?.url || '/placeholder-yacht.jpg';
+  const imageUrl = currentListing?.images?.[0]?.url || '/images/listing-fallback.png';
 
   return (
     <section className="py-12 bg-gradient-to-r bg-secondary">
@@ -137,7 +137,7 @@ export default function FeaturedListingsCarousel() {
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     // Fallback if image fails to load
-                    e.currentTarget.src = '/placeholder-yacht.jpg';
+                    e.currentTarget.src = '/images/listing-fallback.png';
                   }}
                 />
                 

@@ -1,10 +1,12 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, Trash2, Bell, ExternalLink } from 'lucide-react';
+import { Heart, Trash2, Bell, ExternalLink, MapPin, Ruler, CalendarDays } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+
+const FALLBACK = '/images/listing-fallback.png';
 
 type SavedListing = {
   id: number;
@@ -28,225 +30,152 @@ export default function SavedListingsPage() {
   const [saved, setSaved] = useState<SavedListing[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkAuthAndFetch();
-  }, []);
+  useEffect(() => { checkAuthAndFetch(); }, []);
 
   const checkAuthAndFetch = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await fetch(apiUrl('/saved-listings'), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSaved(data);
-      } else if (response.status === 401) {
-        router.push('/login');
-      }
-    } catch (error) {
-      console.error('Failed to fetch saved listings:', error);
-    } finally {
-      setLoading(false);
-    }
+      if (!token) { router.push('/login'); return; }
+      const res = await fetch(apiUrl('/saved-listings'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setSaved(await res.json());
+      else if (res.status === 401) router.push('/login');
+    } catch (err) { console.error('Failed to fetch saved listings:', err); }
+    finally { setLoading(false); }
   };
 
   const handleRemove = async (savedId: number) => {
     if (!confirm('Remove this yacht from your saved list?')) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/saved-listings/${savedId}`), {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        setSaved(saved.filter(s => s.id !== savedId));
-      }
-    } catch (error) {
-      console.error('Failed to remove:', error);
-    }
+    const token = localStorage.getItem('token');
+    const res = await fetch(apiUrl(`/saved-listings/${savedId}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) setSaved(prev => prev.filter(s => s.id !== savedId));
   };
 
   const handleCreateAlert = async (listingId: number, currentPrice: number) => {
-    const targetPrice = prompt(`Set price alert (current price: $${currentPrice.toLocaleString()})`);
-    if (!targetPrice) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/price-alerts'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          listing_id: listingId,
-          target_price: parseFloat(targetPrice),
-          original_price: currentPrice
-        })
-      });
-
-      if (response.ok) {
-        alert('✅ Price alert created! You\'ll be notified when the price drops.');
-      }
-    } catch (error) {
-      console.error('Failed to create alert:', error);
-      alert('Failed to create alert');
-    }
+    const raw = prompt(`Set price alert (current: $${currentPrice.toLocaleString()})\nEnter your target price:`);
+    if (!raw) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(apiUrl('/price-alerts'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listing_id: listingId, target_price: parseFloat(raw), original_price: currentPrice }),
+    });
+    alert(res.ok ? "Price alert set! You'll be notified when the price drops." : 'Failed to create alert.');
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen section-light flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#01BBDC]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen section-light">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
-            <Link href="/account" className="text-primary hover:text-primary/90">
-              ← Back to Account
-            </Link>
+    <div className="min-h-screen bg-[#F5F7FA]">
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Link href="/listings" className="text-sm text-[#01BBDC] hover:underline mb-4 inline-block font-medium">
+            Browse Yachts
+          </Link>
+          <div className="flex items-center gap-4 mt-2">
+            <div className="w-14 h-14 rounded-2xl bg-[#01BBDC]/10 flex items-center justify-center flex-shrink-0">
+              <Heart size={28} className="text-[#01BBDC]" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-[#10214F]">Saved Yachts</h1>
+              <p className="text-gray-500 mt-0.5">{saved.length} yacht{saved.length !== 1 ? 's' : ''} saved</p>
+            </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-secondary mb-2">
-            Saved Yachts
-          </h1>
-          <p className="text-dark/70">
-            {saved.length} yacht{saved.length !== 1 ? 's' : ''} saved
-          </p>
-        </div>
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {saved.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <Heart size={64} className="mx-auto mb-4 text-gray-300" />
-            <h3 className="text-2xl font-bold text-secondary mb-2">
-              No saved yachts yet
-            </h3>
-            <p className="text-dark/70 mb-6">
-              Start saving yachts you're interested in to keep track of them here
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-16 text-center">
+            <Heart size={64} className="mx-auto mb-5 text-gray-200" />
+            <h3 className="text-2xl font-bold text-[#10214F] mb-2">No saved yachts yet</h3>
+            <p className="text-gray-500 mb-8 max-w-sm mx-auto">
+              Save yachts you are interested in and they will appear here for easy access.
             </p>
-            <Link
-              href="/listings"
-              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-            >
+            <Link href="/listings" className="inline-block px-8 py-3 bg-[#01BBDC] text-white rounded-2xl font-semibold hover:opacity-90 transition-opacity shadow-md">
               Browse Yachts
             </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {saved.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
-                <div className="flex flex-col md:flex-row">
-                  {/* Image */}
-                  <div className="md:w-80 h-64 bg-gray-200">
-                    {item.listing?.images?.[0] ? (
+            {saved.map((item) => {
+              const img = item.listing?.images?.[0] || FALLBACK;
+              return (
+                <div key={item.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="flex flex-col md:flex-row">
+                    <Link href={`/listings/${item.listing_id}`} className="md:w-72 lg:w-80 flex-shrink-0 block">
                       <img
-                        src={item.listing.images[0]}
-                        alt={item.listing.title}
-                        className="w-full h-full object-cover"
+                        src={img}
+                        alt={item.listing?.title || 'Yacht'}
+                        className="w-full h-56 md:h-full object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }}
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        No image
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 p-6">
-                    <div className="flex items-start justify-between mb-4">
+                    </Link>
+                    <div className="flex-1 p-6 flex flex-col justify-between">
                       <div>
-                        <h3 className="text-2xl font-bold text-secondary mb-2">
-                          {item.listing?.title || 'Unknown Yacht'}
-                        </h3>
-                        <div className="flex items-center gap-4 text-dark/70 text-sm">
-                          <span>{item.listing?.year}</span>
-                          <span>•</span>
-                          <span>{item.listing?.length_feet} ft</span>
-                          <span>•</span>
-                          <span>{item.listing?.city}, {item.listing?.state}</span>
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <Link href={`/listings/${item.listing_id}`} className="text-xl font-bold text-[#10214F] hover:text-[#01BBDC] transition-colors leading-tight">
+                            {item.listing?.title || 'Unknown Yacht'}
+                          </Link>
+                          <p className="text-2xl font-bold text-[#01BBDC] flex-shrink-0">
+                            {item.listing?.price ? `$${item.listing.price.toLocaleString()}` : 'Price N/A'}
+                          </p>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-3xl font-bold text-primary">
-                          ${item.listing?.price?.toLocaleString() || 'N/A'}
+                        <div className="flex flex-wrap gap-3 mb-4 text-sm text-gray-600">
+                          {item.listing?.year && <span className="flex items-center gap-1"><CalendarDays size={14} className="text-[#01BBDC]" />{item.listing.year}</span>}
+                          {item.listing?.length_feet && <span className="flex items-center gap-1"><Ruler size={14} className="text-[#01BBDC]" />{item.listing.length_feet} ft</span>}
+                          {(item.listing?.city || item.listing?.state) && (
+                            <span className="flex items-center gap-1"><MapPin size={14} className="text-[#01BBDC]" />{[item.listing.city, item.listing.state].filter(Boolean).join(', ')}</span>
+                          )}
+                        </div>
+                        {item.notes && (
+                          <div className="mb-4 px-4 py-3 bg-[#01BBDC]/5 border border-[#01BBDC]/20 rounded-2xl text-sm text-gray-700">
+                            <span className="font-semibold text-[#10214F]">Notes: </span>{item.notes}
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-400 mb-5">
+                          Saved {new Date(item.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </p>
                       </div>
-                    </div>
-
-                    {item.notes && (
-                      <div className="mb-4 p-3 bg-accent/5 border border-accent/20 rounded-lg">
-                        <p className="text-sm text-dark">
-                          <strong>Notes:</strong> {item.notes}
-                        </p>
+                      <div className="flex flex-wrap gap-3">
+                        <Link href={`/listings/${item.listing_id}`} className="flex items-center gap-2 px-5 py-2.5 bg-[#01BBDC] text-white rounded-2xl font-semibold hover:opacity-90 transition-opacity shadow-sm text-sm">
+                          <ExternalLink size={15} /> View Listing
+                        </Link>
+                        {item.listing?.price && (
+                          <button onClick={() => handleCreateAlert(item.listing_id, item.listing.price)} className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#01BBDC] text-[#01BBDC] rounded-2xl font-semibold hover:bg-[#01BBDC] hover:text-white transition-all text-sm">
+                            <Bell size={15} /> Price Alert
+                          </button>
+                        )}
+                        <button onClick={() => handleRemove(item.id)} className="flex items-center gap-2 px-5 py-2.5 border-2 border-red-200 text-red-500 rounded-2xl font-semibold hover:bg-red-50 transition-colors ml-auto text-sm">
+                          <Trash2 size={15} /> Remove
+                        </button>
                       </div>
-                    )}
-
-                    <div className="flex items-center gap-3 text-sm text-dark/70 mb-4">
-                      <span>Saved {new Date(item.created_at).toLocaleDateString()}</span>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3">
-                      <Link
-                        href={`/listings/${item.listing_id}`}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <ExternalLink size={16} />
-                        View Listing
-                      </Link>
-
-                      <button
-                        onClick={() => handleCreateAlert(item.listing_id, item.listing.price)}
-                        className="flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 transition-colors"
-                      >
-                        <Bell size={16} />
-                        Create Price Alert
-                      </button>
-
-                      <button
-                        onClick={() => handleRemove(item.id)}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-800 rounded-lg hover:bg-red-200 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                        Remove
-                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
-
-        {/* Tips */}
-        <div className="mt-8 bg-primary/5 border border-primary/20 rounded-lg p-6">
-          <h4 className="font-semibold text-secondary mb-3">💡 Pro Tips</h4>
-          <ul className="text-sm text-dark space-y-2">
-            <li>• Set price alerts to get notified when a yacht's price drops</li>
-            <li>• Add notes to remember why you saved each yacht</li>
-            <li>• Compare saved yachts side-by-side</li>
-            <li>• Contact dealers directly from your saved list</li>
-          </ul>
+        <div className="mt-10 bg-white rounded-3xl border border-[#01BBDC]/20 p-6 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-[#01BBDC]/10 flex items-center justify-center flex-shrink-0">
+              <Bell size={20} className="text-[#01BBDC]" />
+            </div>
+            <div>
+              <h4 className="font-bold text-[#10214F] mb-2">Stay on top of your shortlist</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>Set price alerts to be notified when a yacht drops in price</li>
+                <li>Add notes to remember what you liked about each listing</li>
+                <li>Use Compare on any listing page to compare yachts side-by-side</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </main>
     </div>

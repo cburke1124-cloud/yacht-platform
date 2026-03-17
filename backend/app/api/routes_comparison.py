@@ -63,6 +63,39 @@ def add_to_comparison(
     
     return {"success": True}
 
+@router.get("/comparisons")
+def list_comparisons(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all comparisons for the current user."""
+    comparisons = db.query(Comparison).filter(
+        Comparison.user_id == current_user.id
+    ).order_by(Comparison.created_at.desc()).all()
+
+    result = []
+    for comp in comparisons:
+        items = db.query(ComparisonItem, Listing).join(
+            Listing, ComparisonItem.listing_id == Listing.id
+        ).filter(ComparisonItem.comparison_id == comp.id).all()
+
+        result.append({
+            "id": comp.id,
+            "name": comp.name,
+            "created_at": comp.created_at.isoformat(),
+            "listings": [
+                {
+                    "id": listing.id,
+                    "title": listing.title,
+                    "images": [img.url for img in listing.images[:1]]
+                }
+                for _, listing in items
+            ]
+        })
+
+    return result
+
+
 @router.get("/comparisons/{comparison_id}")
 def get_comparison(
     comparison_id: int,
@@ -114,3 +147,29 @@ def get_comparison(
         "listings": listings,
         "created_at": comparison.created_at.isoformat()
     }
+
+
+@router.delete("/comparisons/{comparison_id}")
+def delete_comparison(
+    comparison_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a comparison."""
+    comparison = db.query(Comparison).filter(
+        Comparison.id == comparison_id,
+        Comparison.user_id == current_user.id
+    ).first()
+
+    if not comparison:
+        raise ResourceNotFoundException("Comparison", comparison_id)
+
+    # Delete all items first
+    db.query(ComparisonItem).filter(
+        ComparisonItem.comparison_id == comparison_id
+    ).delete()
+
+    db.delete(comparison)
+    db.commit()
+
+    return {"success": True}

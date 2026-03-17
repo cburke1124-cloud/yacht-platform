@@ -366,7 +366,7 @@ export default function AdminAPIKeyManagement() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={setting.listing_image || '/placeholder-yacht.jpg'}
+                            src={setting.listing_image || '/images/listing-fallback.png'}
                             alt={setting.listing_title}
                             className="w-16 h-16 rounded-lg object-cover"
                           />

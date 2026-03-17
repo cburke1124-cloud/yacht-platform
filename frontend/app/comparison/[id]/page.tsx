@@ -305,7 +305,7 @@ export default function ComparisonPage({
                       >
                         <div className="relative mb-3 rounded-xl overflow-hidden">
                           <img
-                            src={listing.images?.[0]?.url || listing.images?.[0] || '/placeholder-yacht.jpg'}
+                            src={listing.images?.[0]?.url || listing.images?.[0] || '/images/listing-fallback.png'}
                             className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
                             alt={listing.title}
                           />

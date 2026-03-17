@@ -102,7 +102,7 @@ interface CurrencyRates {
 
 const fmt    = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-const FALLBACK_LISTING_IMAGE = '/images/listing-fallback1.png';
+const FALLBACK_LISTING_IMAGE = '/images/listing-fallback.png';
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -225,12 +225,16 @@ export default function ListingDetailPage() {
   async function addToComp(compId?: number) {
     const token = localStorage.getItem('token'); if (!token) return alert('Please log in');
     if (compId) {
-      await fetch(`${API_ROOT}/comparisons/${compId}/listings`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ listing_id: Number(id) }) });
+      await fetch(`${API_ROOT}/comparisons/${compId}/add/${id}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
       setInComp(true); setShowComp(false); loadComps();
     } else {
       const name = prompt('Name your comparison:') || 'My Comparison';
-      const r = await fetch(`${API_ROOT}/comparisons`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, listing_ids: [Number(id)] }) });
-      if (r.ok) { const d = await r.json(); router.push(`/comparisons/${d.id}`); }
+      const r = await fetch(`${API_ROOT}/comparisons`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      if (r.ok) {
+        const d = await r.json();
+        await fetch(`${API_ROOT}/comparisons/${d.id}/add/${id}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        router.push(`/comparison/${d.id}`);
+      }
     }
   }
 
@@ -625,7 +629,7 @@ export default function ListingDetailPage() {
                       {item.file_type === 'video' ? (
                         <>
                           <img
-                            src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                            src={item.thumbnail_url || '/images/listing-fallback.png'}
                             alt={item.alt_text || item.caption || `${listing.title} video ${slot + 2}`}
                             className="w-full h-full object-cover"
                           />
@@ -759,7 +763,7 @@ export default function ListingDetailPage() {
                     {primaryPhone && (
                       <a href={`tel:${primaryPhone}`}
                         className="w-full py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all border-2 border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white">
-                        <Phone size={18} /> Call {sc ? 'Agent' : 'Dealer'}
+                        <Phone size={18} /> Call {sc ? 'Agent' : 'Broker'}
                       </a>
                     )}
                   </div>

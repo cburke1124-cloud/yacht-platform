@@ -332,7 +332,7 @@ export default function DealerFeaturedTab() {
                     {/* Image */}
                     <div className="relative w-48 h-32 rounded-lg overflow-hidden flex-shrink-0">
                       <img
-                        src={featured.listing_image || '/placeholder-yacht.jpg'}
+                        src={featured.listing_image || '/images/listing-fallback.png'}
                         alt={featured.listing_title}
                         className="w-full h-full object-cover"
                       />
@@ -517,7 +517,7 @@ export default function DealerFeaturedTab() {
               <div key={listing.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden">
                 <div className="relative h-48">
                   <img
-                    src={listing.images[0] || '/placeholder-yacht.jpg'}
+                    src={listing.images[0] || '/images/listing-fallback.png'}
                     alt={listing.title}
                     className="w-full h-full object-cover"
                   />

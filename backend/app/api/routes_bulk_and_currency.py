@@ -362,6 +362,44 @@ def get_saved_listings(
     ]
 
 
+@router.post("/saved-listings")
+def save_listing(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save a listing for the current user."""
+    from app.models.listing import SavedListing
+
+    listing_id = data.get("listing_id")
+    if not listing_id:
+        raise ValidationException("Missing required field: listing_id")
+
+    # Verify listing exists
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+
+    # Idempotent: return existing if already saved
+    existing = db.query(SavedListing).filter(
+        SavedListing.user_id == current_user.id,
+        SavedListing.listing_id == listing_id
+    ).first()
+    if existing:
+        return {"success": True, "saved_id": existing.id, "already_saved": True}
+
+    saved = SavedListing(
+        user_id=current_user.id,
+        listing_id=listing_id,
+        notes=data.get("notes"),
+    )
+    db.add(saved)
+    db.commit()
+    db.refresh(saved)
+
+    return {"success": True, "saved_id": saved.id}
+
+
 @router.delete("/saved-listings/{saved_id}")
 def remove_saved_listing(
     saved_id: int,
@@ -497,6 +535,61 @@ def get_search_alerts(
         }
         for a in alerts
     ]
+
+
+@router.post("/search-alerts")
+def create_search_alert(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a saved search alert."""
+    from app.models.listing import SearchAlert
+
+    name = data.get("name") or "My Search Alert"
+    # Frontend sends { name, filters }, store filters as search_criteria
+    search_criteria = data.get("filters") or data.get("search_criteria") or {}
+    frequency = data.get("frequency", "daily")
+
+    alert = SearchAlert(
+        user_id=current_user.id,
+        name=name,
+        search_criteria=search_criteria,
+        frequency=frequency,
+        active=True,
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+
+    return {"success": True, "alert_id": alert.id}
+
+
+@router.patch("/search-alerts/{alert_id}")
+def update_search_alert(
+    alert_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update (e.g. toggle active) a search alert."""
+    from app.models.listing import SearchAlert
+
+    alert = db.query(SearchAlert).filter(
+        SearchAlert.id == alert_id,
+        SearchAlert.user_id == current_user.id
+    ).first()
+
+    if not alert:
+        raise ResourceNotFoundException("Search alert", alert_id)
+
+    if "active" in data:
+        alert.active = data["active"]
+    if "frequency" in data:
+        alert.frequency = data["frequency"]
+
+    db.commit()
+    return {"success": True}
 
 
 @router.delete("/search-alerts/{alert_id}")

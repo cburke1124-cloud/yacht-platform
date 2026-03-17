@@ -295,7 +295,7 @@ export default function BuyerDashboard() {
                       >
                         <div className="w-24 h-24 bg-gray-200 rounded-lg flex-shrink-0">
                           <img
-                            src="/placeholder-yacht.jpg"
+                            src="/images/listing-fallback.png"
                             alt={listing.title}
                             className="w-full h-full object-cover rounded-lg"
                           />
