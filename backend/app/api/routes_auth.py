@@ -329,25 +329,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
 
                 profile = DealerProfile(**profile_data)
                 db.add(profile)
-
-                try:
-                    api_key = generate_api_key_for_dealer(
-                        db=db,
-                        dealer_id=user.id,
-                        tier=user.subscription_tier
-                    )
-
-                    dealer_name = user.company_name or f"{user.first_name} {user.last_name}"
-                    email_service.send_api_key_email(
-                        to_email=user.email,
-                        dealer_name=dealer_name,
-                        api_key=api_key.raw_key,
-                        tier=user.subscription_tier
-                    )
-                    logger.info(f"Generated and emailed API key for dealer {user.id}")
-
-                except Exception as e:
-                    logger.error(f"Failed to generate/send API key for dealer {user.id}: {e}")
+                # API key is no longer generated or emailed on registration. Brokers can create API keys from the dashboard only.
 
             if affiliate_account:
                 signup = ReferralSignup(
@@ -384,25 +366,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
             token = None
             logger.exception("Email verification token creation failed for user %s", user.id)
 
-        if token:
-            try:
-                user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
-                email_service.send_verification_email(
-                    to_email=user.email,
-                    token=token,
-                    user_name=user_name
-                )
-            except Exception:
-                logger.exception("Verification email send failed for user %s", user.id)
-
-        try:
-            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
-            email_service.send_welcome_email(
-                to_email=user.email,
-                user_name=user_name,
-            )
-        except Exception:
-            logger.exception("Welcome email send failed for user %s", user.id)
+        # Do not send verification or welcome emails here. These will be sent after payment confirmation via Stripe webhook.
 
         access_token = create_access_token(
             data={"sub": user.email},

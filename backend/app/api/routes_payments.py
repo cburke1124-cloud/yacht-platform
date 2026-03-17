@@ -620,11 +620,43 @@ async def handle_subscription_created(subscription, db: Session, background_task
     """Handle new subscription"""
     customer_id = subscription["customer"]
     subscription_id = subscription["id"]
-    
+
     user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
     if user:
         user.stripe_subscription_id = subscription_id
         db.commit()
+
+        # Only send welcome/verification if not already verified
+        if not user.email_verified:
+            # Find or create verification token
+            from app.models.dealer import EmailVerification
+            verification = db.query(EmailVerification).filter(EmailVerification.user_id == user.id, EmailVerification.verified == False).first()
+            if not verification:
+                import secrets
+                from datetime import datetime, timedelta
+                token = secrets.token_urlsafe(32)
+                expires_at = datetime.utcnow() + timedelta(hours=24)
+                verification = EmailVerification(user_id=user.id, token=token, expires_at=expires_at)
+                db.add(verification)
+                db.commit()
+            else:
+                token = verification.token
+
+            user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+            background_tasks.add_task(
+                email_service.send_verification_email,
+                user.email,
+                token,
+                user_name
+            )
+
+        # Always send welcome email after payment
+        user_name = f"{user.first_name} {user.last_name}" if user.first_name else None
+        background_tasks.add_task(
+            email_service.send_welcome_email,
+            user.email,
+            user_name
+        )
 
 
 async def handle_subscription_updated(subscription, db: Session, background_tasks: BackgroundTasks):
