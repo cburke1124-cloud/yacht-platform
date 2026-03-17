@@ -210,8 +210,7 @@ export default function ListingDetailPage() {
       {/* LIGHTBOX, MESSAGE MODAL, and PAGE CONTENT remain unchanged below */}
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ...existing code... */}
-      </div>
-// ...existing code...
+    	  </div>
 
       {/* ══ LIGHTBOX ════════════════════════════════════════════════════════ */}
       {lightbox !== null && imageLightboxItems.length > 0 && (
