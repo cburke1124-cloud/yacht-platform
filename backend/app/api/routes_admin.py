@@ -29,6 +29,7 @@ from app.exceptions import (
     ResourceNotFoundException
 )
 from app.services.media_storage import get_storage_health, run_storage_test
+from app.services.clamav_service import health_check as clamav_health_check
 from app.security.auth import get_password_hash
 from app.services.email_service import email_service
 from app.services.demo_fixtures import get_demo_listing_data
@@ -102,6 +103,7 @@ _ENV_KEYS = [
     "HCAPTCHA_SECRET",
     "HCAPTCHA_SITEKEY",
     "AUTO_CREATE_TABLES",
+    "ENABLE_CLAMAV",
 ]
 
 
@@ -142,12 +144,20 @@ def system_health(
         "provider": "sendgrid",
     }
 
+    # ClamAV (best-effort)
+    clamav = {"status": "unknown"}
+    try:
+        clamav = clamav_health_check()
+    except Exception:
+        pass
+
     return {
         "database": db_status,
         "table_counts": table_counts,
         "storage": storage,
         "scheduler": scheduler,
         "email": email_status,
+        "clamav": clamav,
         "env_vars": env_vars,
         "generated_at": datetime.utcnow().isoformat(),
     }

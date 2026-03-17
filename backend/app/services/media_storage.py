@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import boto3
 
+from app.services.clamav_service import scan_bytes as _clamav_scan
+
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 STORAGE_BACKEND = os.getenv("MEDIA_STORAGE_BACKEND", "local").strip().lower()
@@ -49,6 +51,15 @@ def _build_key(filename: str) -> str:
 
 
 def store_media_bytes(filename: str, content: bytes, content_type: str | None = None) -> str:
+    # -- Virus scan ----------------------------------------------------------
+    result = _clamav_scan(content, filename)
+    if not result.clean:
+        raise ValueError(
+            f"File rejected: virus/malware detected ({result.threat}). "
+            "Upload blocked by security policy."
+        )
+    # ------------------------------------------------------------------------
+
     if _is_s3_ready():
         object_key = _build_key(filename)
         upload_kwargs = {
