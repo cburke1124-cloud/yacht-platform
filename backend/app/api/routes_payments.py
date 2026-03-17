@@ -18,6 +18,122 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Canonical plan definitions — single source of truth
+DEALER_PLANS = [
+    {
+        "id": "basic",
+        "name": "Basic",
+        "price": 199,
+        "interval": "month",
+        "features": [
+            "25 active listings",
+            "Featured-listing eligibility",
+            "Basic analytics dashboard",
+            "Lead & inquiry management",
+            "Email support",
+        ],
+    },
+    {
+        "id": "plus",
+        "name": "Plus",
+        "price": 299,
+        "popular": True,
+        "interval": "month",
+        "features": [
+            "75 active listings",
+            "Priority featured placement",
+            "Advanced analytics",
+            "CRM integration",
+            "Team management (up to 3)",
+            "Phone & email support",
+        ],
+    },
+    {
+        "id": "pro",
+        "name": "Pro",
+        "price": 499,
+        "interval": "month",
+        "features": [
+            "Unlimited listings",
+            "Priority featured placement",
+            "Advanced analytics & API access",
+            "Full CRM integration",
+            "Unlimited team members",
+            "Dedicated account manager",
+            "Priority support",
+        ],
+    },
+]
+
+PRIVATE_SELLER_PLANS = [
+    {
+        "id": "private_basic",
+        "name": "Basic",
+        "price": 9,
+        "interval": "month",
+        "features": [
+            "1 active listing",
+            "Basic analytics",
+            "Email support",
+        ],
+    },
+    {
+        "id": "private_plus",
+        "name": "Plus",
+        "price": 19,
+        "popular": True,
+        "interval": "month",
+        "features": [
+            "3 active listings",
+            "Featured-listing eligibility",
+            "Analytics dashboard",
+            "Email support",
+        ],
+    },
+    {
+        "id": "private_pro",
+        "name": "Pro",
+        "price": 39,
+        "interval": "month",
+        "features": [
+            "5 active listings",
+            "Priority featured placement",
+            "Advanced analytics",
+            "Priority support",
+        ],
+    },
+]
+
+
+# ==================== PLAN DISCOVERY ====================
+
+@router.get("/payments/plans")
+async def get_plans(
+    current_user: User = Depends(get_current_user),
+):
+    """Return available plans with prices (respects per-user custom pricing)."""
+    user_type = (current_user.user_type or "").lower()
+
+    plans = list(PRIVATE_SELLER_PLANS) if user_type == "private" else list(DEALER_PLANS)
+
+    # If admin set a custom price for this user, override displayed price
+    if current_user.custom_subscription_price is not None and current_user.custom_subscription_price >= 0:
+        for plan in plans:
+            plan = dict(plan)  # shallow copy
+        # Custom price applies to whatever tier they subscribe to;
+        # show it on their current tier or the next tier up
+        plans = [dict(p) for p in plans]
+        for p in plans:
+            if p["id"] == (current_user.subscription_tier or "").lower():
+                p["price"] = current_user.custom_subscription_price
+                p["custom_price"] = True
+
+    return {
+        "plans": plans,
+        "current_tier": current_user.subscription_tier or "free",
+        "custom_subscription_price": current_user.custom_subscription_price,
+    }
+
 
 # ==================== SUBSCRIPTION MANAGEMENT ====================
 
