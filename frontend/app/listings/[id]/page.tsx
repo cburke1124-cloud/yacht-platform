@@ -515,7 +515,10 @@ export default function ListingDetailPage() {
                   {locationString}
                 </span>
               )}
-              <span>Stock #{listing.bin || listing.id}</span>
+              <span>Stock #{listing.id}</span>
+              {listing.bin && (
+                <span className="text-gray-400">BIN: {listing.bin}</span>
+              )}
               {listing.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
                   ⭐ Featured
@@ -1051,7 +1054,8 @@ export default function ListingDetailPage() {
             <div className="space-y-1">
               <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide">General</h4>
               <SpecRow label="Name"           value={listing.title} />
-              <SpecRow label="Stock #"        value={listing.bin || String(listing.id)} />
+              <SpecRow label="Stock #"        value={String(listing.id)} />
+              {listing.bin && <SpecRow label="BIN"          value={listing.bin} />}
               <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
               <SpecRow label="Make"           value={listing.make} />
               <SpecRow label="Model"          value={listing.model} />
@@ -1155,7 +1159,12 @@ export default function ListingDetailPage() {
         )}
 
         {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
-        {listing.features && (
+        {/* Only show when features text has named sections (ALL-CAPS headers);
+            a flat list of bullets is already shown in the Key Features box above */}
+        {listing.features && listing.features.split('\n').some(line => {
+          const t = line.trim();
+          return t.length > 2 && t.length < 60 && t === t.toUpperCase() && /[A-Z]/.test(t);
+        }) && (
           <div className="mb-16">
             <SectionHeading>Equipment & Features</SectionHeading>
             <div className="text-base leading-relaxed text-gray-700">

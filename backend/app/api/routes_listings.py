@@ -635,11 +635,6 @@ def create_listing(
     db.add(new_listing)
     db.commit()
     db.refresh(new_listing)
-    # Auto-assign BIN from listing ID if none was provided
-    if not new_listing.bin:
-        new_listing.bin = f"US-{new_listing.id:07d}"
-        db.commit()
-        db.refresh(new_listing)
     return {
         "id": new_listing.id,
         "title": new_listing.title,
