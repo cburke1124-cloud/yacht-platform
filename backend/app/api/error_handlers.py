@@ -35,10 +35,17 @@ async def pydantic_validation_exception_handler(request: Request, exc: RequestVa
 
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
-    return JSONResponse(
+    origin = request.headers.get("origin", "")
+    response = JSONResponse(
         status_code=500,
-        content={"error": "An unexpected error occurred"},
+        content={"error": "An unexpected error occurred", "detail": str(exc)},
     )
+    # Manually attach CORS headers so the browser can read the 500 body even
+    # when ServerErrorMiddleware short-circuits the outer middleware stack.
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 
 def register_exception_handlers(app: FastAPI):
