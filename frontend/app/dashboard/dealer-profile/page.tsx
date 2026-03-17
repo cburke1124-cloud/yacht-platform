@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import {
   Building2, 
   Upload, 
@@ -228,7 +228,7 @@ export default function DealerProfileEditPage() {
             <div className="p-6">
               <div className="relative h-64 bg-soft rounded-lg overflow-hidden border-2 border-dashed border-primary/20">
                 {profile.banner_url ? (
-                  <img src={mediaUrl(profile.banner_url)} alt={`${profile.company_name || 'Company'} banner`} className="w-full h-full object-cover" />
+                  <img src={mediaUrl(profile.banner_url)} alt={`${profile.company_name || 'Company'} banner`} className="w-full h-full object-cover" onError={onImgError} />
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
@@ -261,7 +261,7 @@ export default function DealerProfileEditPage() {
                 </label>
                 <div className="relative w-32 h-32 bg-soft rounded-lg overflow-hidden border-2 border-dashed border-primary/20">
                   {profile.logo_url ? (
-                    <img src={mediaUrl(profile.logo_url)} alt={`${profile.company_name || 'Company'} logo`} className="w-full h-full object-cover" />
+                    <img src={mediaUrl(profile.logo_url)} alt={`${profile.company_name || 'Company'} logo`} className="w-full h-full object-cover" onError={onImgError} />
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <Building2 className="text-gray-400" size={48} />

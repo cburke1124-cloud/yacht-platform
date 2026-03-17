@@ -13,7 +13,7 @@ import {
   Bed, Gauge, Fuel, Waves, Ruler, Navigation, Droplet,
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
-import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
+import { API_ROOT, mediaUrl, onImgError, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
 
 const ListingDetailMap = dynamic(() => import('../../components/ListingDetailMap'), { ssr: false });
 
@@ -102,7 +102,7 @@ interface CurrencyRates {
 
 const fmt    = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-const FALLBACK_LISTING_IMAGE = '/images/listing-fallback.png';
+const FALLBACK_LISTING_IMAGE = FALLBACK_IMAGE;
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -393,7 +393,7 @@ export default function ListingDetailPage() {
             className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronLeft size={28} className="text-white" />
           </button>
-          <img src={mediaUrl(imageLightboxItems[lightbox]?.url) || FALLBACK_LISTING_IMAGE} className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-transform duration-200"
+          <img src={mediaUrl(imageLightboxItems[lightbox]?.url)} onError={onImgError} className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-transform duration-200"
             style={{ transform: `scale(${lightboxZoom})` }}
             alt={imageLightboxItems[lightbox]?.alt_text || imageLightboxItems[lightbox]?.caption || `${listing.title} photo ${(lightbox ?? 0) + 1}`}
             onClick={e => e.stopPropagation()} />
@@ -414,6 +414,7 @@ export default function ListingDetailPage() {
                   className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition ${idx === lightbox ? 'border-[#01BBDC]' : 'border-white/20'}`}>
                   <img
                     src={mediaUrl(item.thumbnail_url || item.url)}
+                    onError={onImgError}
                     alt={item.alt_text || item.caption || `${listing.title} thumbnail ${idx + 1}`}
                     className="w-full h-full object-cover"
                   />
@@ -583,7 +584,8 @@ export default function ListingDetailPage() {
                 </div>
               ) : (
                 <img
-                  src={mediaUrl(featuredMedia?.url) || FALLBACK_LISTING_IMAGE}
+                  src={mediaUrl(featuredMedia?.url)}
+                  onError={onImgError}
                   alt={`${listing.title} - ${listing.year ? listing.year + ' ' : ''}${listing.make || ''} ${listing.model || ''}`.trim()}
                   className="w-full h-full object-cover"
                 />
@@ -629,7 +631,8 @@ export default function ListingDetailPage() {
                       {item.file_type === 'video' ? (
                         <>
                           <img
-                            src={mediaUrl(item.thumbnail_url) || '/images/listing-fallback.png'}
+                            src={mediaUrl(item.thumbnail_url)}
+                            onError={onImgError}
                             alt={item.alt_text || item.caption || `${listing.title} video ${slot + 2}`}
                             className="w-full h-full object-cover"
                           />
@@ -640,6 +643,7 @@ export default function ListingDetailPage() {
                       ) : (
                         <img
                           src={mediaUrl(item.thumbnail_url || item.url)}
+                          onError={onImgError}
                           alt={item.alt_text || item.caption || `${listing.title} gallery photo ${slot + 2}`}
                           className="w-full h-full object-cover"
                         />

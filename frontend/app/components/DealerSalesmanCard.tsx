@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import { Award, Building2, Mail, MapPin, MessageSquare, Phone, User } from 'lucide-react';
 
 interface DealerSalesmanCardProps {
@@ -75,6 +75,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
               src={mediaUrl(dealer.logo_url)}
               alt={dealer.company_name}
               className="w-16 h-16 rounded-lg object-cover bg-white p-2"
+              onError={onImgError}
             />
           ) : (
             <div className="w-16 h-16 rounded-lg bg-light/20 flex items-center justify-center">
@@ -103,6 +104,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
                   src={mediaUrl(salesman.photo_url)}
                   alt={`${salesman.first_name} ${salesman.last_name}`}
                   className="w-16 h-16 rounded-full object-cover border-2 border-primary/30"
+                  onError={onImgError}
                 />
               ) : (
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br bg-primary/20 flex items-center justify-center border-2 border-primary/40">

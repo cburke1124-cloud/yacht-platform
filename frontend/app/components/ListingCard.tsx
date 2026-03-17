@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Heart, Share2, Mail, Printer, Facebook, Twitter, Linkedin, MapPin, Ruler } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 type ListingCardProps = {
   id: number;
@@ -287,6 +287,7 @@ export default function ListingCard({
                   src={mediaUrl(dealerInfo.logoUrl)}
                   alt={`${dealerInfo.company} logo`}
                   className="w-12 h-12 rounded object-contain bg-white border border-gray-200 p-1"
+                  onError={onImgError}
                 />
               </div>
             )}
@@ -367,12 +368,14 @@ export default function ListingCard({
                     src={mediaUrl(dealerInfo.logoUrl)}
                     alt={`${dealerInfo.company} logo`}
                     className="w-10 h-10 rounded-md object-contain bg-white border border-gray-200 p-1"
+                    onError={onImgError}
                   />
                 ) : dealerInfo.photo ? (
                   <img
                     src={mediaUrl(dealerInfo.photo)}
                     alt={`${dealerInfo.name} profile photo`}
                     className="w-10 h-10 rounded-full object-cover"
+                    onError={onImgError}
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center" aria-hidden="true">

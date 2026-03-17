@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import { Upload, Folder, FolderPlus, Image, Video, Trash2, X, Check, Search, Grid3x3, List, Move, FolderOpen, ChevronRight, MoreVertical, Edit2, Download, Star } from 'lucide-react';
 
 // Type definitions
@@ -543,6 +543,7 @@ export default function DealerMediaGallery({
                           src={mediaUrl(item.thumbnail_url || item.url)}
                           alt={item.alt_text || item.filename}
                           className="w-full h-full object-cover"
+                          onError={onImgError}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -598,7 +599,7 @@ export default function DealerMediaGallery({
                         <td className="px-4 py-3">
                           <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
                             {item.file_type === 'image' ? (
-                              <img src={mediaUrl(item.thumbnail_url || item.url)} alt={item.alt_text || item.filename || 'Media item'} className="w-full h-full object-cover" />
+                              <img src={mediaUrl(item.thumbnail_url || item.url)} alt={item.alt_text || item.filename || 'Media item'} className="w-full h-full object-cover" onError={onImgError} />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Video size={24} className="text-gray-400" />

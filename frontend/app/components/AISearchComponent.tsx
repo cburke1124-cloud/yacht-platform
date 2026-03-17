@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, Mic, MicOff, Sparkles, X, Volume2, Star, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface MatchReason {
   text: string;
@@ -412,6 +412,7 @@ export default function AISearchComponent() {
                                 src={mediaUrl(result.listing.images[0].url)}
                                 alt={result.listing.title}
                                 className="w-full h-48 object-cover rounded-lg"
+                                onError={onImgError}
                               />
                             ) : (
                               <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">

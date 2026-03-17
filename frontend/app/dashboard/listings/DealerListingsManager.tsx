@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye } from 'lucide-react';
 import Link from 'next/link';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ListingPreviewModal from '@/app/components/ListingPreviewModal';
 
 interface Listing {
@@ -369,9 +369,10 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                       <div className="flex items-center">
                         <div className="h-16 w-16 flex-shrink-0 mr-4">
                           <img
-                            src={mediaUrl(listing.images[0]?.url) || '/images/listing-fallback.png'}
+                            src={mediaUrl(listing.images[0]?.url)}
                             alt={listing.title}
                             className="h-16 w-16 rounded-lg object-cover"
+                            onError={onImgError}
                           />
                         </div>
                         <div>

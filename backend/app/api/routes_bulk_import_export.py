@@ -110,7 +110,7 @@ async def import_listings(
 
                 placeholder = ListingImage(
                     listing_id=listing.id,
-                    url="/placeholder.jpg",
+                    url="",
                     is_primary=True
                 )
                 db.add(placeholder)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, 
@@ -763,6 +763,7 @@ export default function EnhancedDealerDashboard() {
                                 src={mediaUrl(listing.images[0].url)} 
                                 alt={listing.title}
                                 className="w-12 h-12 object-cover rounded-lg"
+                                onError={onImgError}
                               />
                             ) : (
                               <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">

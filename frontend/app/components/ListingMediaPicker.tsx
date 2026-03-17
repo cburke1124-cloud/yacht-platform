@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Upload, Image, Video, Folder, Check, X, Star, Trash2, Search, Grid3x3, AlertCircle, ChevronRight, FolderOpen } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 // Type definitions
 type MediaItem = {
@@ -492,6 +492,7 @@ export default function ListingMediaPicker({
                           src={mediaUrl(item.thumbnail_url || item.url)}
                           alt={item.filename}
                           className="w-full h-full object-cover"
+                          onError={onImgError}
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-900 flex items-center justify-center">
@@ -562,6 +563,7 @@ export default function ListingMediaPicker({
                           src={mediaUrl(item.thumbnail_url || item.url)}
                           alt={item.alt_text || item.caption || item.filename || 'Listing media'}
                           className="w-full h-full object-cover"
+                          onError={onImgError}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gray-900">

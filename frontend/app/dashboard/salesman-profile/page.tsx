@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Upload, Mail, Phone, Save, ArrowLeft, Briefcase } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 export default function SalesmanProfileEditPage() {
   const router = useRouter();
@@ -152,7 +152,7 @@ export default function SalesmanProfileEditPage() {
                 </label>
                 <div className="relative w-32 h-32 bg-gray-100 rounded-full overflow-hidden border-4 border-gray-200">
                   {profile.photo_url ? (
-                    <img src={mediaUrl(profile.photo_url)} alt={`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Profile photo'} className="w-full h-full object-cover" />
+                    <img src={mediaUrl(profile.photo_url)} alt={`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Profile photo'} className="w-full h-full object-cover" onError={onImgError} />
                   ) : (
                     <div className="flex items-center justify-center h-full bg-gradient-to-br from-blue-100 to-blue-200">
                       <User className="text-blue-600" size={48} />

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, Download, Share2 } from 'lucide-react';
-import { mediaUrl } from '@/app/lib/apiRoot';
+import { mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface ImageGalleryModalProps {
   images: Array<{ id: number; url: string; caption?: string }>;
@@ -266,6 +266,7 @@ export default function ImageGalleryModal({
             transition: isDragging ? 'none' : 'transform 0.2s ease-out'
           }}
           draggable={false}
+          onError={onImgError}
         />
       </div>
 
@@ -308,6 +309,7 @@ export default function ImageGalleryModal({
                   src={mediaUrl(image.url)}
                   alt={`Thumbnail ${index + 1}`}
                   className="w-full h-full object-cover"
+                  onError={onImgError}
                 />
               </button>
             ))}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface FeaturedListing {
   id: number;
@@ -113,7 +113,7 @@ export default function FeaturedListingsCarousel() {
   const currentListing = featuredListings[currentIndex];
 
   // Safely get image URL with fallback
-  const imageUrl = mediaUrl(currentListing?.images?.[0]?.url) || '/images/listing-fallback.png';
+  const imageUrl = mediaUrl(currentListing?.images?.[0]?.url);
 
   return (
     <section className="py-12 bg-gradient-to-r bg-secondary">
@@ -135,10 +135,7 @@ export default function FeaturedListingsCarousel() {
                   src={imageUrl}
                   alt={currentListing?.title || 'Featured Yacht'}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback if image fails to load
-                    e.currentTarget.src = '/images/listing-fallback.png';
-                  }}
+                  onError={onImgError}
                 />
                 
                 {/* SPONSORED Badge */}

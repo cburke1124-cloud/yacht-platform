@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Upload, X, Video, FileText, Folder, Trash2, Search, Image } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 // Type definitions
 type MediaFile = {
@@ -312,9 +312,9 @@ export default function MediaGallery() {
             >
               <div className="aspect-square bg-gray-100 flex items-center justify-center">
                 {file.file_type === 'image' ? (
-                  <img src={mediaUrl(file.thumbnail_url || file.url)} alt={file.filename} className="w-full h-full object-cover" />
+                  <img src={mediaUrl(file.thumbnail_url || file.url)} alt={file.filename} className="w-full h-full object-cover" onError={onImgError} />
                 ) : file.file_type === 'video' && file.thumbnail_url ? (
-                  <img src={mediaUrl(file.thumbnail_url)} alt={file.filename} className="w-full h-full object-cover" />
+                  <img src={mediaUrl(file.thumbnail_url)} alt={file.filename} className="w-full h-full object-cover" onError={onImgError} />
                 ) : (
                   getFileIcon(file.file_type)
                 )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, MapPin, Eye, Heart, Share2, Phone, Mail, MessageSquare, CheckCircle, Anchor, Fuel, BedDouble, Ruler } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface PreviewListing {
   id: number;
@@ -59,6 +59,7 @@ function ImageCarousel({ images, title }: { images: Array<{ url: string }>; titl
         src={mediaUrl(images[idx]?.url)}
         alt={`${title} — image ${idx + 1}`}
         className="w-full h-full object-cover"
+        onError={onImgError}
       />
 
       {/* Navigation arrows */}
@@ -104,7 +105,7 @@ function ImageCarousel({ images, title }: { images: Array<{ url: string }>; titl
               onClick={() => setIdx(i)}
               className={`w-12 h-9 rounded overflow-hidden flex-shrink-0 transition-all ${i === idx ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-90'}`}
             >
-              <img src={mediaUrl(img.url)} alt="" className="w-full h-full object-cover" />
+              <img src={mediaUrl(img.url)} alt="" className="w-full h-full object-cover" onError={onImgError} />
             </button>
           ))}
         </div>
@@ -314,7 +315,7 @@ export default function ListingPreviewModal({ listing, onClose }: ListingPreview
                 {/* Dealer info */}
                 <div className="pt-4 border-t border-gray-100">
                   {d.dealer_logo_url ? (
-                    <img src={mediaUrl(d.dealer_logo_url)} alt="Dealer logo" className="h-10 object-contain mb-3" />
+                    <img src={mediaUrl(d.dealer_logo_url)} alt="Dealer logo" className="h-10 object-contain mb-3" onError={onImgError} />
                   ) : (
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-10 h-10 rounded-full bg-[#10214F] text-white flex items-center justify-center font-bold text-base flex-shrink-0">

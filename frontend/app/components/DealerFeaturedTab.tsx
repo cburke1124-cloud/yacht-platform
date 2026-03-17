@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Star, TrendingUp, Eye, MousePointer, DollarSign, Calendar, AlertCircle, Award, BarChart3, Clock } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 type FeaturedListing = {
   id: number;
@@ -332,9 +332,10 @@ export default function DealerFeaturedTab() {
                     {/* Image */}
                     <div className="relative w-48 h-32 rounded-lg overflow-hidden flex-shrink-0">
                       <img
-                        src={mediaUrl(featured.listing_image) || '/images/listing-fallback.png'}
+                        src={mediaUrl(featured.listing_image)}
                         alt={featured.listing_title}
                         className="w-full h-full object-cover"
+                        onError={onImgError}
                       />
                       <div className="absolute top-2 left-2 bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
                         <Star size={12} className="fill-white" />
@@ -517,9 +518,10 @@ export default function DealerFeaturedTab() {
               <div key={listing.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden">
                 <div className="relative h-48">
                   <img
-                    src={mediaUrl(listing.images[0]) || '/images/listing-fallback.png'}
+                    src={mediaUrl(listing.images[0])}
                     alt={listing.title}
                     className="w-full h-full object-cover"
+                    onError={onImgError}
                   />
                 </div>
                 <div className="p-4">

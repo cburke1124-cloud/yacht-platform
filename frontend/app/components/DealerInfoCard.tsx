@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, ExternalLink, User, Building2, Award } from 'lucide-react';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface DealerInfo {
   id: number;
@@ -78,6 +78,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
               src={mediaUrl(dealer.logo_url)}
               alt={dealer.company_name || dealer.name}
               className="w-16 h-16 rounded-lg object-cover bg-white p-1"
+              onError={onImgError}
             />
           ) : (
             <div className="w-16 h-16 rounded-lg bg-primary flex items-center justify-center">
@@ -104,6 +105,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
                   src={mediaUrl(salesman.photo_url)}
                   alt={`${salesman.first_name} ${salesman.last_name}`}
                   className="w-12 h-12 rounded-full object-cover"
+                  onError={onImgError}
                 />
               ) : (
                 <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">

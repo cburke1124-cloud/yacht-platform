@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, MapPin, Phone, Mail, Globe, Ship, Building2, CheckCircle, Star, Filter } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface Dealer {
   id: number;
@@ -167,6 +167,7 @@ export default function DealersPage() {
                           src={mediaUrl(dealer.logo_url)}
                           alt={dealer.company_name}
                           className="max-h-24 w-auto object-contain bg-white p-3 rounded-xl shadow-md"
+                          onError={onImgError}
                         />
                       ) : (
                         <div className="bg-white rounded-2xl p-6 shadow-md">
