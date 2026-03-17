@@ -2620,7 +2620,8 @@ def register_broker_admin(
     from app.utils.slug import create_slug
     from app.services.api_key_service import generate_api_key_for_dealer
     from app.security.auth import get_password_hash
-    
+    from app.security.auth import pwd_context
+    from app.services.email_service import email_service
     # 1. Basic validation
     email = (data.get("email") or "").strip().lower()
     if not email:
@@ -2650,9 +2651,10 @@ def register_broker_admin(
         except (ValueError, TypeError):
             pass
 
-    # 3. Create User
-    temp_password = secrets.token_urlsafe(12)
-    hashed_pw = get_password_hash(temp_password)
+    # 3. Create User — password set by broker via emailed setup link
+    _placeholder = secrets.token_urlsafe(64)
+    hashed_pw = pwd_context.hash(_placeholder)
+    set_pw_token = secrets.token_urlsafe(32)
     
     # Only assign sales rep if valid ID provided
     assigned_rep_id = None
@@ -2682,6 +2684,7 @@ def register_broker_admin(
         subscription_tier=tier,
         custom_subscription_price=custom_price,
         assigned_sales_rep_id=assigned_rep_id,
+        verification_token=set_pw_token,
         active=True,
         verified=True,  # Admins auto-verify
         email_verified=True, # Admins auto-verify
@@ -2734,12 +2737,23 @@ def register_broker_admin(
     
     db.commit()
     
+    # Send password-setup email
+    import logging as _logging
+    display_name = first_name or company_name or email.split("@")[0]
+    set_pw_url = f"{email_service.base_url}/set-password?token={set_pw_token}"
+    try:
+        email_service.send_password_set_email(email, display_name, set_pw_url)
+        email_sent = True
+    except Exception as _exc:
+        _logging.warning(f"Failed to send password setup email to {email}: {_exc}")
+        email_sent = False
+
     return {
         "success": True,
         "message": "Broker registered successfully",
         "user_id": new_user.id,
         "email": new_user.email,
-        "password": temp_password,
+        "password_setup_email_sent": email_sent,
         "login_url": "/login"
     }
 

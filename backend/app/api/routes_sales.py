@@ -13,7 +13,8 @@ from app.models.dealer import DealerProfile
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
 from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
-from app.security.auth import get_password_hash
+from app.security.auth import get_password_hash, pwd_context
+from app.services.email_service import email_service
 from app.utils.slug import create_slug
 from app.services.api_key_service import generate_api_key_for_dealer
 from app.models.misc import SiteSettings
@@ -500,8 +501,12 @@ def register_broker_for_sales_rep(
         raise ValidationException("A user with this email already exists")
 
     # --- user data ------------------------------------------------------- #
-    temp_password = secrets.token_urlsafe(12)
-    hashed = get_password_hash(temp_password)
+    # Generate a locked placeholder hash — the broker sets their real password
+    # via the emailed setup link.  We bypass the strength validator because
+    # this value is never exposed to anyone.
+    _placeholder = secrets.token_urlsafe(64)
+    hashed = pwd_context.hash(_placeholder)
+    set_pw_token = secrets.token_urlsafe(32)
 
     # Calculate custom/effective price (allow on any tier; required for Ultimate)
     custom_price = None
@@ -529,6 +534,7 @@ def register_broker_for_sales_rep(
         subscription_tier=tier,
         custom_subscription_price=None if always_free else custom_price,
         always_free=always_free,
+        verification_token=set_pw_token,
         assigned_sales_rep_id=target_sales_rep.id if target_sales_rep else None,
         active=True,
         verified=False,
@@ -596,13 +602,24 @@ def register_broker_for_sales_rep(
     db.commit()
     db.refresh(new_user)
 
+    # Send password-setup email so the broker can log in
+    import logging as _logging
+    display_name = first_name or company_name or email.split("@")[0]
+    set_pw_url = f"{email_service.base_url}/set-password?token={set_pw_token}"
+    try:
+        email_service.send_password_set_email(email, display_name, set_pw_url)
+        email_sent = True
+    except Exception as _exc:
+        _logging.warning(f"Failed to send password setup email to {email}: {_exc}")
+        email_sent = False
+
     return {
         "message": "Broker registered successfully",
         "dealer_id": new_user.id,
         "email": new_user.email,
         "company_name": new_user.company_name,
         "subscription_tier": new_user.subscription_tier,
-        "temp_password": temp_password,
+        "password_setup_email_sent": email_sent,
         "slug": slug,
         "always_free": new_user.always_free,
         "assigned_sales_rep_id": new_user.assigned_sales_rep_id,

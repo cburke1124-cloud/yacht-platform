@@ -451,6 +451,60 @@ class EmailService:
         
         return self.send_email(to_email, "🎉 You've Received a Special Offer!", html_content)
 
+    def send_password_set_email(self, to_email: str, name: str, set_password_url: str):
+        """Send an email to a newly-created broker so they can set their own password."""
+        greeting = f"Hi {name}," if name else "Hi there,"
+
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(to right, #2563eb, #1e40af); padding: 30px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">Welcome to YachtVersal</h1>
+                </div>
+
+                <div style="padding: 30px; background: #f9fafb;">
+                    <p style="color: #4b5563; line-height: 1.6;">{greeting}</p>
+
+                    <p style="color: #4b5563; line-height: 1.6;">
+                        Your YachtVersal broker account has been created. To get started, please set your password
+                        by clicking the button below. This link is valid for <strong>48 hours</strong>.
+                    </p>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{set_password_url}"
+                           style="background: #2563eb; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
+                            Set Your Password
+                        </a>
+                    </div>
+
+                    <p style="color: #6b7280; font-size: 14px;">
+                        Or copy and paste this link into your browser:<br>
+                        <a href="{set_password_url}" style="color: #2563eb; word-break: break-all;">{set_password_url}</a>
+                    </p>
+
+                    <div style="background: #fef3c7; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 24px 0;">
+                        <p style="margin: 0; color: #92400e; font-size: 14px;">
+                            <strong>⚠ Security note:</strong> If you did not expect this email, you can safely ignore it.
+                            No account changes will take effect until you click the link above.
+                        </p>
+                    </div>
+
+                    <p style="color: #6b7280; font-size: 14px;">
+                        Once you've set your password, you'll be able to log in at
+                        <a href="{self.base_url}/login/seller" style="color: #2563eb;">{self.base_url}/login/seller</a>
+                        and start managing your listings.
+                    </p>
+                </div>
+
+                <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+                    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+                </div>
+            </body>
+        </html>
+        """
+
+        return self.send_email(to_email, "Set Your YachtVersal Password", html_content)
+
 
 # Singleton instance
 email_service = EmailService()

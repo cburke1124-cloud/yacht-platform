@@ -869,12 +869,11 @@ export default function SalesRepDashboard() {
               {brokerResult.company_name && <div><span className="text-green-700 font-medium">Company:</span> <span className="text-green-900">{brokerResult.company_name}</span></div>}
               <div><span className="text-green-700 font-medium">Tier:</span> <span className="text-green-900 capitalize">{brokerResult.subscription_tier}</span></div>
               <div className="pt-2 border-t border-green-200 mt-2">
-                <span className="text-green-700 font-medium">Temporary Password:</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <code className="text-sm bg-white px-2 py-1 rounded border border-green-200 text-green-900 font-mono">{brokerResult.temp_password}</code>
-                  <button onClick={() => copyToClipboard(brokerResult.temp_password, 'pw')} className="p-1 text-green-600 hover:text-green-800"><Copy size={14} /></button>
-                </div>
-                <p className="text-xs text-green-600 mt-2">Share these credentials with the broker.</p>
+                {brokerResult.password_setup_email_sent
+                  ? <p className="text-green-700">✓ A password setup email has been sent to the broker at <strong>{brokerResult.email}</strong>.</p>
+                  : <p className="text-amber-700 font-medium">⚠ Could not send setup email — please notify the broker manually to contact support.</p>
+                }
+                <p className="text-xs text-green-600 mt-2">The broker will use the link in their email to set their own password.</p>
               </div>
             </div>
             <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}

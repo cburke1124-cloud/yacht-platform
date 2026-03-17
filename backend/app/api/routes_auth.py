@@ -41,10 +41,10 @@ logger = logging.getLogger(__name__)
 TIER_PRICES = {
     "free": 0.0,
     "trial": 0.0,
-    "basic": 29.0,
-    "plus": 59.0,
-    "premium": 99.0,
-    "pro": 99.0,
+    "basic": 199.0,
+    "plus": 299.0,
+    "premium": 499.0,
+    "pro": 499.0,
     "ultimate": 0.0,  # Custom/enterprise pricing — managed manually by admin
     "private_basic": 9.0,
     "private_plus": 19.0,

@@ -508,8 +508,11 @@ export default function AdminSalesToolsTab() {
                 </div>
                 <div className="space-y-1 text-sm text-green-800">
                   <p>Account created for <span className="font-semibold">{regSuccess.email}</span></p>
-                  <p>Temporary Password: <code className="bg-white px-2 py-0.5 rounded border border-green-200 font-mono select-all font-bold">{regSuccess.temp_password || regSuccess.password}</code></p>
-                  <p className="text-xs mt-2 text-green-600">Please share these credentials securely with the broker.</p>
+                  {regSuccess.password_setup_email_sent
+                    ? <p className="text-green-700">✓ A password setup email has been sent to the broker.</p>
+                    : <p className="text-amber-700 font-medium">⚠ Could not send setup email — please notify the broker manually.</p>
+                  }
+                  <p className="text-xs mt-2 text-green-600">The broker will use the link in their email to set their own password.</p>
                 </div>
                 <button 
                   onClick={() => setRegSuccess(null)}
