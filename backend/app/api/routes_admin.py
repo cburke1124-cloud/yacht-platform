@@ -453,6 +453,36 @@ def update_user(
     }}
 
 
+@router.patch("/users/{user_id}/email")
+def change_user_email(
+    user_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin: change a user's email address."""
+    new_email = (data.get("email") or "").strip().lower()
+    if not new_email or "@" not in new_email:
+        raise ValidationException("A valid email address is required")
+
+    # Check uniqueness
+    existing = db.query(User).filter(User.email == new_email, User.id != user_id).first()
+    if existing:
+        raise ValidationException("That email address is already in use")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+
+    old_email = user.email
+    user.email = new_email
+    user.updated_at = datetime.utcnow()
+    db.commit()
+
+    logging.info("Admin %s changed user %s email: %s → %s", current_user.email, user_id, old_email, new_email)
+    return {"success": True, "email": new_email}
+
+
 @router.delete("/users/{user_id}")
 def delete_user(
     user_id: int,

@@ -312,7 +312,7 @@ function ResetPasswordContent() {
 
             <button
               type="submit"
-              disabled={loading || password !== confirmPassword || !(passwordStrength?.valid ?? false)}
+              disabled={loading || password !== confirmPassword || password.length < 8}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:bg-gray-400 disabled:cursor-not-allowed transition"
             >
               {loading ? (

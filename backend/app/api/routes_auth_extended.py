@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -417,6 +418,41 @@ async def register_with_invitation(
         "token_type": "bearer",
         "message": "Account created successfully!"
     }
+
+
+# ==================== PASSWORD STRENGTH CHECK ====================
+
+@router.post("/check-password-strength")
+def check_password_strength(data: dict):
+    """
+    Returns a strength score + list of unmet requirements for a given password.
+    No authentication required — called client-side as the user types.
+    """
+    password = data.get("password", "")
+    errors: list[str] = []
+    if len(password) < 8:
+        errors.append("At least 8 characters required")
+    if not re.search(r"[A-Z]", password):
+        errors.append("At least one uppercase letter required")
+    if not re.search(r"[a-z]", password):
+        errors.append("At least one lowercase letter required")
+    if not re.search(r"\d", password):
+        errors.append("At least one number required")
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\/;~`]', password):
+        errors.append("At least one special character required")
+
+    checks_passed = 5 - len(errors)
+    score = min(100, checks_passed * 20)
+    if score <= 20:
+        strength = "Weak"
+    elif score <= 40:
+        strength = "Fair"
+    elif score <= 80:
+        strength = "Good"
+    else:
+        strength = "Strong"
+
+    return {"score": score, "strength": strength, "errors": errors, "valid": len(errors) == 0}
 
 
 # ==================== PASSWORD SETUP (admin-created accounts) ====================
