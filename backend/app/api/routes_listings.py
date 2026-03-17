@@ -1233,3 +1233,40 @@ def get_share_metadata(listing_id: int, db: Session = Depends(get_db)):
         "price": listing.price,
         "currency": listing.currency or "USD",
     }
+
+# --- Reorder listing media attachments ---
+from pydantic import BaseModel
+
+class ListingMediaReorderRequest(BaseModel):
+    attachments: list[dict]
+
+@router.post("/{listing_id}/media/reorder")
+def reorder_listing_media(
+    listing_id: int,
+    payload: ListingMediaReorderRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Update display_order and is_primary for listing media attachments.
+    """
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        raise AuthorizationException("Not authorized to reorder listing media")
+
+    ids = [a["id"] for a in payload.attachments if "id" in a]
+    attachments = db.query(ListingMediaAttachment).filter(
+        ListingMediaAttachment.listing_id == listing_id,
+        ListingMediaAttachment.id.in_(ids)
+    ).all()
+    att_by_id = {a.id: a for a in attachments}
+
+    for idx, att in enumerate(payload.attachments):
+        obj = att_by_id.get(att["id"])
+        if obj:
+            obj.display_order = att.get("display_order", idx)
+            obj.is_primary = bool(att.get("is_primary", False))
+    db.commit()
+    return {"success": True, "updated": len(attachments)}
