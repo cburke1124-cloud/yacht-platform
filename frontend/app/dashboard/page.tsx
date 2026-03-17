@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, 
@@ -560,7 +560,7 @@ export default function EnhancedDealerDashboard() {
         {/* Quick Action Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <button
-            onClick={() => setActiveTab('media')}
+            onClick={() => window.location.href = '/dashboard/media'}
             className="glass-card p-4 text-left hover-lift"
           >
             <div className="flex items-center gap-3">
@@ -760,7 +760,7 @@ export default function EnhancedDealerDashboard() {
                           <div className="flex items-center gap-3">
                             {listing.images && listing.images.length > 0 ? (
                               <img 
-                                src={listing.images[0].url} 
+                                src={mediaUrl(listing.images[0].url)} 
                                 alt={listing.title}
                                 className="w-12 h-12 object-cover rounded-lg"
                               />

@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { MapPin, Phone, Mail, Globe, Facebook, Instagram, CheckCircle, Star, Building2 } from 'lucide-react';
 import ListingCard from '@/app/components/ListingCard';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 
 export default function DealerProfilePage() {
   const params = useParams();
@@ -58,7 +58,7 @@ export default function DealerProfilePage() {
       <div className="relative h-64 bg-gradient-to-br from-primary/20 to-primary/10 overflow-hidden">
         {dealer.cover_image_url && (
           <img 
-            src={dealer.cover_image_url}
+            src={mediaUrl(dealer.cover_image_url)}
             alt="Cover"
             className="w-full h-full object-cover opacity-50"
           />
@@ -74,7 +74,7 @@ export default function DealerProfilePage() {
             <div className="flex-shrink-0">
               {dealer.logo_url ? (
                 <img 
-                  src={dealer.logo_url} 
+                  src={mediaUrl(dealer.logo_url)} 
                   alt={dealer.business_name}
                   className="w-32 h-32 rounded-2xl object-cover border-4 border-white shadow-lg"
                 />

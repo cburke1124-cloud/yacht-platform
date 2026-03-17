@@ -119,30 +119,30 @@ export default function SearchAlertsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen section-light flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-[#F5F7FA] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#01BBDC]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen section-light">
+    <div className="min-h-screen bg-[#F5F7FA]">
       {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <Search size={32} className="text-primary" />
-                <h1 className="text-3xl font-bold text-secondary">Saved Searches</h1>
+                <Search size={32} className="text-[#01BBDC]" />
+                <h1 className="text-3xl font-bold text-[#10214F]">Saved Searches</h1>
               </div>
-              <p className="text-dark/70">
+              <p className="text-gray-600">
                 Get notified about new yachts matching your criteria
               </p>
             </div>
             <a
-              href="/advanced-search"
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              href="/search/advanced"
+              className="px-6 py-3 bg-[#01BBDC] text-white rounded-lg hover:bg-[#00a5c4] transition-colors"
             >
               Create New Alert
             </a>
@@ -154,13 +154,13 @@ export default function SearchAlertsPage() {
         {alerts.length === 0 ? (
           <div className="bg-white rounded-xl shadow-md p-12 text-center">
             <Search size={64} className="text-gray-300 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-secondary mb-2">No saved searches yet</h2>
-            <p className="text-dark/70 mb-6">
+            <h2 className="text-2xl font-bold text-[#10214F] mb-2">No saved searches yet</h2>
+            <p className="text-gray-600 mb-6">
               Save your searches to get notified about new listings that match your criteria
             </p>
             <a
-              href="/advanced-search"
-              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              href="/search/advanced"
+              className="inline-block px-6 py-3 bg-[#01BBDC] text-white rounded-lg hover:bg-[#00a5c4] transition-colors"
             >
               Create Search Alert
             </a>
@@ -179,9 +179,9 @@ export default function SearchAlertsPage() {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-xl font-bold text-secondary">{alert.name}</h3>
+                      <h3 className="text-xl font-bold text-[#10214F]">{alert.name}</h3>
                       {alert.active ? (
-                        <Bell className="text-primary" size={18} />
+                        <Bell className="text-[#01BBDC]" size={18} />
                         ) : (
                           <BellOff className="text-gray-400" size={18} />
                         )}
@@ -208,14 +208,14 @@ export default function SearchAlertsPage() {
                   </div>
 
                   {/* Search Criteria */}
-                  <div className="mb-4 p-4 bg-section-light rounded-lg">
-                    <p className="text-sm font-medium text-dark mb-2">Search Criteria:</p>
-                    <p className="text-sm text-dark/70">{formatCriteria(alert.search_criteria)}</p>
+                  <div className="mb-4 p-4 bg-[#F5F7FA] rounded-lg">
+                    <p className="text-sm font-medium text-[#10214F] mb-2">Search Criteria:</p>
+                    <p className="text-sm text-gray-600">{formatCriteria(alert.search_criteria)}</p>
                   </div>
 
                   {/* Last Sent */}
                   {alert.last_sent && (
-                    <div className="mb-4 flex items-center gap-2 text-sm text-dark/70">
+                    <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
                       <Mail size={16} />
                       <span>
                         Last notification: {new Date(alert.last_sent).toLocaleDateString()}
@@ -239,9 +239,9 @@ export default function SearchAlertsPage() {
                       onClick={() => {
                         // Navigate to advanced search with these criteria pre-filled
                         const params = new URLSearchParams(alert.search_criteria);
-                        router.push(`/advanced-search?${params.toString()}`);
+                        router.push(`/search/advanced?${params.toString()}`);
                       }}
-                      className="flex-1 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium hover:bg-blue-100 border border-blue-300 transition-colors"
+                      className="flex-1 px-4 py-2 bg-[#01BBDC]/10 text-[#01BBDC] rounded-lg font-medium hover:bg-[#01BBDC]/20 border border-[#01BBDC]/30 transition-colors"
                     >
                       Run Search
                     </button>
@@ -258,17 +258,17 @@ export default function SearchAlertsPage() {
         )}
 
         {/* Info Box */}
-        <div className="mt-8 bg-primary/5 border border-primary/20 rounded-xl p-6">
+        <div className="mt-8 bg-[#01BBDC]/5 border border-[#01BBDC]/20 rounded-xl p-6">
           <div className="flex items-start gap-3">
-            <Bell className="text-primary flex-shrink-0 mt-1" size={24} />
+            <Bell className="text-[#01BBDC] flex-shrink-0 mt-1" size={24} />
             <div>
-              <h3 className="font-bold text-secondary mb-2">How Search Alerts Work</h3>
-              <ul className="space-y-1 text-sm text-dark">
+              <h3 className="font-bold text-[#10214F] mb-2">How Search Alerts Work</h3>
+              <ul className="space-y-1 text-sm text-[#10214F]">
                 <li>• <strong>Instant:</strong> Get notified immediately when a matching yacht is listed</li>
                 <li>• <strong>Daily:</strong> Receive a daily summary of new matching listings</li>
                 <li>• <strong>Weekly:</strong> Get a weekly roundup of all new matching yachts</li>
               </ul>
-              <p className="mt-3 text-sm text-dark">
+              <p className="mt-3 text-sm text-[#10214F]">
                 You can pause or delete alerts at any time. Create multiple alerts with different criteria!
               </p>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Filter, MapPin, DollarSign, Ruler, Ship, Calendar, Save, X } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 
 interface SearchFilters {
   boat_type?: string;
@@ -375,7 +375,7 @@ export default function AdvancedSearchPage() {
                   <div key={listing.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow">
                     <div className="relative h-48 bg-gray-200">
                       <img
-                        src={listing.images[0]?.url || '/images/listing-fallback.png'}
+                        src={mediaUrl(listing.images[0]?.url) || '/images/listing-fallback.png'}
                         alt={listing.title}
                         className="w-full h-full object-cover"
                       />

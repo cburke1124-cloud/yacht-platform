@@ -22,3 +22,16 @@ export function apiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_ROOT}${normalizedPath}`;
 }
+
+/**
+ * Resolve a media/image URL returned by the backend.
+ * Full URLs (http/https) pass through unchanged.
+ * Relative paths like /uploads/... get the backend base prepended.
+ */
+export function mediaUrl(url: string | undefined | null): string {
+  if (!url) return '/images/listing-fallback.png';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  // Strip trailing /api from API_ROOT to get the bare backend origin
+  const base = API_ROOT.replace(/\/api$/, '');
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}

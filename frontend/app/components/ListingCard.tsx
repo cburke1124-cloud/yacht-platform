@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Heart, Share2, Mail, Printer, Facebook, Twitter, Linkedin, MapPin, Ruler } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 
 type ListingCardProps = {
   id: number;
@@ -55,7 +55,7 @@ export default function ListingCard({
 
   // Updated to use the new fallback image
   const imageUrl = images && images.length > 0 
-    ? images[0] 
+    ? mediaUrl(images[0]) 
     : '/images/listing-fallback.png';
     
   const listingUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/listings/${id}`;
@@ -284,7 +284,7 @@ export default function ListingCard({
             {dealerInfo?.logoUrl && (
               <div className="flex-shrink-0">
                 <img
-                  src={dealerInfo.logoUrl}
+                  src={mediaUrl(dealerInfo.logoUrl)}
                   alt={`${dealerInfo.company} logo`}
                   className="w-12 h-12 rounded object-contain bg-white border border-gray-200 p-1"
                 />
@@ -364,13 +364,13 @@ export default function ListingCard({
               >
                 {dealerInfo.logoUrl ? (
                   <img
-                    src={dealerInfo.logoUrl}
+                    src={mediaUrl(dealerInfo.logoUrl)}
                     alt={`${dealerInfo.company} logo`}
                     className="w-10 h-10 rounded-md object-contain bg-white border border-gray-200 p-1"
                   />
                 ) : dealerInfo.photo ? (
                   <img
-                    src={dealerInfo.photo}
+                    src={mediaUrl(dealerInfo.photo)}
                     alt={`${dealerInfo.name} profile photo`}
                     className="w-10 h-10 rounded-full object-cover"
                   />

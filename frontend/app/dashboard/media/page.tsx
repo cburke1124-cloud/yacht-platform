@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Upload, X, Video, FileText, Folder, Trash2, Search, Image } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 
 // Type definitions
 type MediaFile = {
@@ -188,7 +188,7 @@ export default function MediaGallery() {
 
   const getFileIcon = (type: string) => {
     switch (type) {
-      case 'image': return <Image size={40} className="text-blue-500" />;
+      case 'image': return <Image size={40} className="text-[#01BBDC]" />;
       case 'video': return <Video size={40} className="text-purple-500" />;
       case 'pdf': return <FileText size={40} className="text-red-500" />;
       default: return <FileText size={40} className="text-gray-500" />;
@@ -216,7 +216,7 @@ export default function MediaGallery() {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         className={`border-2 border-dashed rounded-lg p-8 mb-6 text-center transition-colors ${
-          isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+          isDragging ? 'border-[#01BBDC] bg-[#01BBDC]/10' : 'border-gray-300 hover:border-gray-400'
         }`}
       >
         <input
@@ -230,7 +230,7 @@ export default function MediaGallery() {
         
         {uploading ? (
           <div className="py-8">
-            <Upload size={48} className="mx-auto mb-4 text-blue-600 animate-pulse" />
+            <Upload size={48} className="mx-auto mb-4 text-[#01BBDC] animate-pulse" />
             <p className="text-lg font-medium text-gray-900">{uploadProgress || 'Uploading files...'}</p>
           </div>
         ) : (
@@ -238,7 +238,7 @@ export default function MediaGallery() {
             <Upload size={48} className="mx-auto mb-4 text-gray-400" />
             <p className="text-lg font-medium text-gray-900 mb-2">Drag & drop files here</p>
             <p className="text-sm text-gray-600 mb-4">Or click to browse (images, videos, PDFs up to 100MB)</p>
-            <button onClick={() => fileInputRef.current?.click()} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button onClick={() => fileInputRef.current?.click()} className="px-6 py-2 bg-[#01BBDC] text-white rounded-lg hover:bg-[#00a5c4]">
               Browse Files
             </button>
           </div>
@@ -252,7 +252,7 @@ export default function MediaGallery() {
               key={type}
               onClick={() => setFilter(type)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-colors text-left ${
-                filter === type ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                filter === type ? 'bg-[#01BBDC] text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
             >
               <span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
@@ -267,14 +267,14 @@ export default function MediaGallery() {
             placeholder="Search files..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent"
           />
         </div>
       </div>
 
       {selectedFiles.size > 0 && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-          <span className="font-medium text-blue-900">{selectedFiles.size} file(s) selected</span>
+        <div className="mb-4 p-4 bg-[#01BBDC]/10 border border-[#01BBDC]/30 rounded-lg flex items-center justify-between">
+          <span className="font-medium text-[#10214F]">{selectedFiles.size} file(s) selected</span>
           <div className="flex gap-2">
             <button onClick={() => setSelectedFiles(new Set())} className="px-4 py-2 text-gray-700 hover:bg-white rounded-lg">
               Clear Selection
@@ -292,7 +292,7 @@ export default function MediaGallery() {
 
       {loading ? (
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#01BBDC] mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading media...</p>
         </div>
       ) : filteredMedia.length === 0 ? (
@@ -307,14 +307,14 @@ export default function MediaGallery() {
               key={file.id}
               onClick={() => toggleSelect(file.id)}
               className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                selectedFiles.has(file.id) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 hover:border-gray-300'
+                selectedFiles.has(file.id) ? 'border-[#01BBDC] ring-2 ring-[#01BBDC]/30' : 'border-gray-200 hover:border-gray-300'
               }`}
             >
               <div className="aspect-square bg-gray-100 flex items-center justify-center">
                 {file.file_type === 'image' ? (
-                  <img src={file.thumbnail_url || file.url} alt={file.filename} className="w-full h-full object-cover" />
+                  <img src={mediaUrl(file.thumbnail_url || file.url)} alt={file.filename} className="w-full h-full object-cover" />
                 ) : file.file_type === 'video' && file.thumbnail_url ? (
-                  <img src={file.thumbnail_url} alt={file.filename} className="w-full h-full object-cover" />
+                  <img src={mediaUrl(file.thumbnail_url)} alt={file.filename} className="w-full h-full object-cover" />
                 ) : (
                   getFileIcon(file.file_type)
                 )}
@@ -330,7 +330,7 @@ export default function MediaGallery() {
               </div>
 
               {selectedFiles.has(file.id) && (
-                <div className="absolute top-2 right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                <div className="absolute top-2 right-2 w-6 h-6 bg-[#01BBDC] rounded-full flex items-center justify-center">
                   <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                   </svg>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, MapPin, Phone, Mail, Globe, Ship, Building2, CheckCircle, Star, Filter } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 
 interface Dealer {
   id: number;
@@ -164,7 +164,7 @@ export default function DealersPage() {
                     <div className="bg-gradient-to-br from-primary/10 to-primary/5 h-40 flex items-center justify-center relative p-6">
                       {dealer.logo_url ? (
                         <img
-                          src={dealer.logo_url}
+                          src={mediaUrl(dealer.logo_url)}
                           alt={dealer.company_name}
                           className="max-h-24 w-auto object-contain bg-white p-3 rounded-xl shadow-md"
                         />

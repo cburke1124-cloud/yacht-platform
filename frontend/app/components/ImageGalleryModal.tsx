@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, Download, Share2 } from 'lucide-react';
+import { mediaUrl } from '@/app/lib/apiRoot';
 
 interface ImageGalleryModalProps {
   images: Array<{ id: number; url: string; caption?: string }>;
@@ -257,7 +258,7 @@ export default function ImageGalleryModal({
         style={{ cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
       >
         <img
-          src={currentImage.url}
+          src={mediaUrl(currentImage.url)}
           alt={currentImage.caption || `Image ${currentIndex + 1}`}
           className="max-w-full max-h-full object-contain select-none"
           style={{
@@ -304,7 +305,7 @@ export default function ImageGalleryModal({
                 }`}
               >
                 <img
-                  src={image.url}
+                  src={mediaUrl(image.url)}
                   alt={`Thumbnail ${index + 1}`}
                   className="w-full h-full object-cover"
                 />

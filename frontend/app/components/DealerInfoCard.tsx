@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, ExternalLink, User, Building2, Award } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 
 interface DealerInfo {
   id: number;
@@ -75,7 +75,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
         <div className="flex items-center gap-4">
           {dealer.logo_url ? (
             <img
-              src={dealer.logo_url}
+              src={mediaUrl(dealer.logo_url)}
               alt={dealer.company_name || dealer.name}
               className="w-16 h-16 rounded-lg object-cover bg-white p-1"
             />
@@ -101,7 +101,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
             <div className="flex items-center gap-3 mb-3">
               {salesman.photo_url ? (
                 <img
-                  src={salesman.photo_url}
+                  src={mediaUrl(salesman.photo_url)}
                   alt={`${salesman.first_name} ${salesman.last_name}`}
                   className="w-12 h-12 rounded-full object-cover"
                 />
