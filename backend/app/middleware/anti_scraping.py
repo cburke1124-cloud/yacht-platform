@@ -1,5 +1,6 @@
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from collections import defaultdict
 from datetime import datetime, timedelta
 import re
@@ -54,12 +55,12 @@ class AntiScrapingMiddleware(BaseHTTPMiddleware):
         
         # Check if IP is blocked
         if client_ip in self.blocked_ips:
-            raise HTTPException(status_code=403, detail="Access denied")
+            return JSONResponse(status_code=403, content={"detail": "Access denied"})
         
         # Rate limiting check
         if self._is_rate_limited(client_ip):
             self._add_suspicious_activity(client_ip)
-            raise HTTPException(status_code=429, detail="Too many requests")
+            return JSONResponse(status_code=429, content={"detail": "Too many requests"})
         
         # Bot detection
         user_agent = request.headers.get('user-agent', '').lower()
@@ -71,7 +72,7 @@ class AntiScrapingMiddleware(BaseHTTPMiddleware):
                 # Block after too many suspicious activities
                 if self.suspicious_ips[client_ip] >= 10:
                     self.blocked_ips.add(client_ip)
-                    raise HTTPException(status_code=403, detail="Bot detected")
+                    return JSONResponse(status_code=403, content={"detail": "Bot detected"})
         
         # Check for suspicious patterns
         if self._has_suspicious_pattern(request):

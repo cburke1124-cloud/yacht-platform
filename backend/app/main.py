@@ -184,16 +184,10 @@ async def starlette_http_exception_handler(request, exc):
     )
 
 # Add middleware in correct order (last added = first executed)
+# IMPORTANT: CORSMiddleware must be outermost (added last) so it adds
+# Access-Control-Allow-Origin headers to ALL responses, including those
+# rejected by AntiScrapingMiddleware — otherwise browser CORS errors occur.
 app.add_middleware(RequestLoggingMiddleware)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_resolve_cors_origins(),
-    allow_origin_regex=r"https://(yacht-platform[^/]*\.vercel\.app|yachtversal\.com|[^/]+\.yachtversal\.com)",
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=True,
-)
 
 if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
     logging.getLogger(__name__).warning("AUTO_CREATE_TABLES enabled; running Base.metadata.create_all()")
@@ -237,8 +231,19 @@ app.include_router(contact_router, prefix="/api", tags=["contact"])
 app.include_router(catalog_router, prefix="/api/catalog", tags=["catalog"])
 
 
-# Add anti-scraping middleware LAST so it runs FIRST (middleware runs in reverse order)
+# AntiScrapingMiddleware runs inside CORS so blocked responses still get CORS headers
 app.add_middleware(AntiScrapingMiddleware)
+
+# CORSMiddleware is added LAST → it is the outermost wrapper → every response
+# (including 403/429 from AntiScrapingMiddleware) gets Access-Control-Allow-Origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_resolve_cors_origins(),
+    allow_origin_regex=r"https://(yacht-platform[^/]*\.vercel\.app|yachtversal\.com|[^/]+\.yachtversal\.com)",
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
 
 @app.get("/api/health")
