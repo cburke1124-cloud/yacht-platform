@@ -119,7 +119,7 @@ function SpecRow({ label, value }: { label: string; value: string | null | undef
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-5">
-      <h3 className="text-2xl font-bold text-[#10214F] mb-2">
+      <h3 className="text-2xl font-bold text-[#01BBDC] mb-2">
         {children}
       </h3>
       <div className="h-[1px] bg-gradient-to-r from-[#01BBDC] to-transparent" />
@@ -515,9 +515,7 @@ export default function ListingDetailPage() {
                   {locationString}
                 </span>
               )}
-              {listing.bin && (
-                <span>Stock #{listing.bin}</span>
-              )}
+              <span>Stock #{listing.bin || listing.id}</span>
               {listing.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
                   ⭐ Featured
@@ -674,7 +672,7 @@ export default function ListingDetailPage() {
           </div>
 
           <div className="lg:col-span-4">
-            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-lg">
+            <div className="rounded-3xl border border-gray-200 bg-white shadow-lg">
 
               {/* Sales contact or dealer info */}
               {(sc || dealer) ? (
@@ -833,7 +831,7 @@ export default function ListingDetailPage() {
                     Compare
                   </button>
                   {showComp && (
-                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
+                    <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 max-h-52 overflow-y-auto">
                       <div className="p-2">
                         <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
                         {comparisons.map(c => (
@@ -851,7 +849,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-200 z-20">
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
@@ -923,8 +921,8 @@ export default function ListingDetailPage() {
               </div>
             </div>
 
-            {/* KEY FEATURES */}
-            {keyFeatures.length > 0 && (
+            {/* KEY FEATURES — only shown when explicit feature_bullets exist, avoiding duplication with Equipment & Features */}
+            {(listing.feature_bullets?.length ?? 0) > 0 && (
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-3xl border border-gray-200 p-6">
                 <h3 className="text-xl font-bold text-[#10214F] mb-4">Key Features</h3>
                 <ul className="space-y-2">
@@ -1053,7 +1051,7 @@ export default function ListingDetailPage() {
             <div className="space-y-1">
               <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide">General</h4>
               <SpecRow label="Name"           value={listing.title} />
-              <SpecRow label="Stock #"        value={listing.bin} />
+              <SpecRow label="Stock #"        value={listing.bin || String(listing.id)} />
               <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
               <SpecRow label="Make"           value={listing.make} />
               <SpecRow label="Model"          value={listing.model} />

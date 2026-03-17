@@ -613,9 +613,10 @@ def create_listing(
     if not (is_admin or has_create_permission or is_paid_dealer or is_paid_private):
         raise AuthorizationException("Listing creation requires a paid dealer or private seller account")
 
-    existing = db.query(Listing).filter(Listing.bin == listing_data.bin).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="A listing with this BIN already exists")
+    if listing_data.bin:
+        existing = db.query(Listing).filter(Listing.bin == listing_data.bin).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="A listing with this BIN already exists")
 
     listing_payload = listing_data.dict()
     if _has_listing_column("feature_bullets"):
@@ -634,6 +635,11 @@ def create_listing(
     db.add(new_listing)
     db.commit()
     db.refresh(new_listing)
+    # Auto-assign BIN from listing ID if none was provided
+    if not new_listing.bin:
+        new_listing.bin = f"US-{new_listing.id:07d}"
+        db.commit()
+        db.refresh(new_listing)
     return {
         "id": new_listing.id,
         "title": new_listing.title,
