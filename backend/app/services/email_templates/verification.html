@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+
+  <!-- Header -->
+  <div style="background: linear-gradient(to right, #2563eb, #1e40af); padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0;">YachtVersal</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 30px; background: #f9fafb;">
+    <h2 style="color: #1f2937;">Verify Your Email</h2>
+
+    {% if user_name %}
+    <p style="color: #4b5563; line-height: 1.6;">Hi {{ user_name }},</p>
+    {% endif %}
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Thank you for signing up with YachtVersal! Please verify your email address
+      to activate your account and access all features.
+    </p>
+
+    <!-- CTA -->
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{ verification_url }}"
+         style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+        Verify Email Address
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px;">
+      Or copy and paste this link into your browser:<br>
+      <a href="{{ verification_url }}" style="color: #2563eb;">{{ verification_url }}</a>
+    </p>
+
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+      This link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+  </div>
+
+</body>
+</html>

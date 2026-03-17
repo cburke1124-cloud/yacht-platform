@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+
+  <!-- Header -->
+  <div style="background: linear-gradient(to right, #2563eb, #1e40af); padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0;">YachtVersal</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 30px; background: #f9fafb;">
+    <h2 style="color: #1f2937;">You're Invited to Join YachtVersal!</h2>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      {{ sales_rep_name }} has invited {{ invitee }} to join YachtVersal,
+      the premier yacht marketplace platform.
+    </p>
+
+    <!-- Why join -->
+    <div style="background: white; border-left: 4px solid #2563eb; padding: 20px; margin: 20px 0;">
+      <h3 style="margin-top: 0; color: #1f2937;">Why Join YachtVersal?</h3>
+      <ul style="color: #4b5563; line-height: 1.8;">
+        <li>List unlimited yachts with our AI-powered tools</li>
+        <li>Reach thousands of qualified buyers</li>
+        <li>Advanced analytics and insights</li>
+        <li>Dedicated sales rep support</li>
+      </ul>
+    </div>
+
+    <!-- CTA -->
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{ invitation_url }}"
+         style="background: #2563eb; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
+        Accept Invitation
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px;">
+      Or copy and paste this link:<br>
+      <a href="{{ invitation_url }}" style="color: #2563eb;">{{ invitation_url }}</a>
+    </p>
+
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+      This invitation expires in 7 days. Questions? Contact {{ sales_rep_name }} directly.
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+  </div>
+
+</body>
+</html>

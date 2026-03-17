@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+
+  <!-- Header -->
+  <div style="background: linear-gradient(to right, #2563eb, #1e40af); padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0;">Your YachtVersal API Key</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 30px; background: #f9fafb;">
+    <h2 style="color: #1f2937;">Welcome, {{ dealer_name }}!</h2>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Your API key has been generated. This key allows you to access the YachtVersal API programmatically.
+    </p>
+
+    <!-- API Key box -->
+    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <h3 style="color: #2563eb; margin-top: 0;">Your API Key</h3>
+      <code style="background: #f1f5f9; padding: 12px; display: block; font-size: 13px; word-break: break-all; border-radius: 4px; border-left: 4px solid #2563eb;">
+        {{ api_key }}
+      </code>
+    </div>
+
+    <!-- Warning -->
+    <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+      <p style="margin: 0; color: #92400e;">
+        <strong>⚠ Important:</strong> Save this key securely! It will not be shown again for security reasons.
+      </p>
+    </div>
+
+    <!-- Plan limits -->
+    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <h3 style="color: #2563eb; margin-top: 0;">Your {{ tier_title }} Plan Limits</h3>
+      <ul style="color: #4b5563; line-height: 1.8;">
+        <li><strong>API Requests:</strong> {{ requests_limit }}</li>
+        <li><strong>Listings:</strong> {{ listings_limit }}</li>
+      </ul>
+    </div>
+
+    <!-- CTA -->
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{ dashboard_url }}"
+         style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+        View Dashboard
+      </a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+  </div>
+
+</body>
+</html>

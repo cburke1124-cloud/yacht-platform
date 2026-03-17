@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+
+  <!-- Header -->
+  <div style="background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%); padding: 40px; text-align: center;">
+    <h1 style="color: white; margin: 0;">🚤 Your YachtVersal Site is Ready!</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 40px; background: #f8fafc;">
+    <h2 style="color: #0066cc;">Welcome, {{ dealer_name }}!</h2>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Your professional yacht dealer website is now live and ready to showcase your inventory!
+    </p>
+
+    <!-- Site URL -->
+    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <h3 style="color: #0066cc; margin-top: 0;">Your Website</h3>
+      <p style="margin: 10px 0;">
+        <strong>URL:</strong>
+        <a href="https://{{ site_domain }}" style="color: #0066cc;">https://{{ site_domain }}</a>
+      </p>
+    </div>
+
+    <!-- WP credentials -->
+    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <h3 style="color: #0066cc; margin-top: 0;">WordPress Admin Access</h3>
+      <p style="margin: 10px 0;">
+        <strong>Admin URL:</strong> <a href="{{ wp_admin_url }}" style="color: #0066cc;">{{ wp_admin_url }}</a><br>
+        <strong>Username:</strong> {{ wp_username }}<br>
+        <strong>Password:</strong> <code style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">{{ wp_password }}</code>
+      </p>
+    </div>
+
+    <!-- API Key -->
+    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <h3 style="color: #0066cc; margin-top: 0;">YachtVersal API Key</h3>
+      <p style="color: #4b5563; font-size: 14px; margin-bottom: 10px;">
+        Your inventory syncs automatically. This key is pre-configured in your site.
+      </p>
+      <code style="background: #f1f5f9; padding: 12px; display: block; font-size: 12px; word-break: break-all; border-radius: 4px; border-left: 4px solid #0066cc;">
+        {{ api_key }}
+      </code>
+    </div>
+
+    <!-- Warning -->
+    <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 30px 0;">
+      <p style="margin: 0; color: #92400e;">
+        <strong>⚠ Important:</strong> Save these credentials securely! Change your WordPress password after first login.
+      </p>
+    </div>
+
+    <!-- Next steps -->
+    <h3 style="color: #0066cc; margin-top: 40px;">What's Next?</h3>
+    <ol style="color: #4b5563; line-height: 1.8;">
+      <li>Visit your new website at <a href="https://{{ site_domain }}" style="color: #0066cc;">{{ site_domain }}</a></li>
+      <li>Log in to WordPress admin to customize your branding</li>
+      <li>Your yacht inventory syncs automatically every 24 hours</li>
+      <li>Check out the YachtVersal dashboard in your admin panel</li>
+    </ol>
+
+    <!-- CTAs -->
+    <div style="margin-top: 40px; text-align: center;">
+      <a href="{{ wp_admin_url }}"
+         style="background: #0066cc; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; margin-right: 10px;">
+        Go to WordPress Admin
+      </a>
+      <a href="https://sites.yachtversal.com/help"
+         style="background: white; color: #0066cc; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; border: 2px solid #0066cc;">
+        View Help Docs
+      </a>
+    </div>
+
+    <p style="margin-top: 40px; color: #6b7280; font-size: 14px;">
+      Need help? Reply to this email or visit our
+      <a href="https://sites.yachtversal.com/help" style="color: #0066cc;">help center</a>.
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div style="background: #1e293b; padding: 20px; text-align: center; color: white;">
+    <p style="margin: 0; font-size: 14px;">© 2026 YachtVersal. All rights reserved.</p>
+  </div>
+
+</body>
+</html>

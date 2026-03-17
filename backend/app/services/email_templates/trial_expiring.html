@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+
+  <!-- Header -->
+  <div style="background: linear-gradient(to right, #f59e0b, #d97706); padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0;">Your Trial Ends Soon</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 30px; background: #fffaf0;">
+    <p style="color: #4b5563; line-height: 1.6;">{{ greeting }}</p>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Your YachtVersal trial ends in
+      <strong>{{ days_left }} day{% if days_left != 1 %}s{% endif %}</strong>
+      on {{ trial_end_date }}.
+    </p>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Add billing now to keep listings, leads, and integrations active.
+    </p>
+
+    <!-- CTA -->
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="{{ billing_url }}"
+         style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+        Update Billing
+      </a>
+    </div>
+
+    <p style="color: #6b7280; font-size: 14px;">
+      You can also sign in and manage your plan here:
+      <a href="{{ signin_url }}" style="color: #2563eb;">{{ signin_url }}</a>
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+  </div>
+
+</body>
+</html>

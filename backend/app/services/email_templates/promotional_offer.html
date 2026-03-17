@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+
+  <!-- Header -->
+  <div style="background: linear-gradient(to right, #f59e0b, #d97706); padding: 30px; text-align: center;">
+    <h1 style="color: white; margin: 0;">🎉 Special Offer!</h1>
+  </div>
+
+  <!-- Body -->
+  <div style="padding: 30px; background: #f9fafb;">
+    <h2 style="color: #1f2937;">You've Received a Special Offer</h2>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Great news! Your account has been upgraded with a special promotional offer:
+    </p>
+
+    <!-- Offer details -->
+    <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0;">
+      <h3 style="margin-top: 0; color: #92400e;">Offer Details</h3>
+      <ul style="color: #78350f; line-height: 1.8;">
+        {% if discount %}
+        <li><strong>Discount:</strong> {{ discount }} off</li>
+        {% endif %}
+        {% if trial_days %}
+        <li><strong>Trial Period:</strong> {{ trial_days }} days free</li>
+        {% endif %}
+        {% if end_date %}
+        <li><strong>Valid Until:</strong> {{ end_date }}</li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <p style="color: #4b5563; line-height: 1.6;">
+      Log in to your account to start using your benefits immediately!
+    </p>
+
+    <!-- CTA -->
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{ login_url }}"
+         style="background: #2563eb; color: white; padding: 14px 40px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+        Access Your Account
+      </a>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
+  </div>
+
+</body>
+</html>
