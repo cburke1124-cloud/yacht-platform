@@ -190,6 +190,16 @@ class EmailService:
         )
         return self.send_email(to_email, "Set Your YachtVersal Password", html)
 
+    def send_password_reset_email(self, to_email: str, token: str, user_name: str = None):
+        """Send a password-reset link to the user."""
+        reset_url = f"{self.base_url}/reset-password?token={token}"
+        html = self._render(
+            "password_reset.html",
+            greeting=f"Hi {user_name}," if user_name else "Hi there,",
+            reset_url=reset_url,
+        )
+        return self.send_email(to_email, "Reset Your YachtVersal Password", html)
+
 
 # Singleton instance
 email_service = EmailService()

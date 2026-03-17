@@ -7,7 +7,7 @@ import pyotp
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.dealer import EmailVerification, TwoFactorAuth, TwoFactorCode
+from app.models.dealer import EmailVerification, TwoFactorAuth, TwoFactorCode, PasswordReset
 from app.models.partner_growth import ReferralSignup, AffiliateAccount
 from app.services.email_service import email_service
 from app.exceptions import ValidationException, AuthenticationException
@@ -448,3 +448,76 @@ def set_password(
     db.commit()
 
     return {"success": True, "message": "Password set successfully. You can now log in."}
+
+
+# ==================== FORGOT / RESET PASSWORD ====================
+
+@router.post("/forgot-password")
+def forgot_password(data: dict, db: Session = Depends(get_db)):
+    """
+    Request a password reset email.  Always returns success to prevent
+    email enumeration — check Render logs or SendGrid activity for errors.
+    """
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return {"success": True, "message": "If that email exists, a reset link has been sent"}
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return {"success": True, "message": "If that email exists, a reset link has been sent"}
+
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+
+    # Invalidate old unused tokens
+    db.query(PasswordReset).filter(
+        PasswordReset.user_id == user.id,
+        PasswordReset.used.is_(False),
+    ).delete()
+
+    db.add(PasswordReset(user_id=user.id, token=token, expires_at=expires_at))
+    db.commit()
+
+    user_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+    reset_url = f"{email_service.base_url}/reset-password?token={token}"
+    try:
+        email_service.send_password_reset_email(user.email, token, user_name)
+    except Exception as exc:
+        import logging as _log
+        _log.warning("forgot_password: email failed for %s: %s", email, exc)
+
+    return {"success": True, "message": "If that email exists, a reset link has been sent"}
+
+
+@router.post("/reset-password")
+def reset_password(data: dict, db: Session = Depends(get_db)):
+    """Confirm a password reset using the token from the email link."""
+    token = (data.get("token") or "").strip()
+    new_password = (data.get("new_password") or data.get("password") or "").strip()
+
+    if not token:
+        raise ValidationException("Reset token is required")
+    if len(new_password) < 8:
+        raise ValidationException("Password must be at least 8 characters")
+
+    reset = (
+        db.query(PasswordReset)
+        .filter(
+            PasswordReset.token == token,
+            PasswordReset.used.is_(False),
+            PasswordReset.expires_at > datetime.utcnow(),
+        )
+        .first()
+    )
+    if not reset:
+        raise ValidationException("Invalid or expired reset link. Please request a new one.")
+
+    user = db.query(User).filter(User.id == reset.user_id).first()
+    if not user:
+        raise ValidationException("Account not found")
+
+    user.password_hash = get_password_hash(new_password)
+    reset.used = True
+    db.commit()
+
+    return {"success": True, "message": "Password reset successfully. You can now log in."}
