@@ -72,8 +72,8 @@ export default function ListingDetailPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <header className="relative h-[115px] w-full bg-gradient-to-r from-white via-white/90 to-transparent flex items-center px-10 shadow-sm z-20">
+      {/* HERO / HEADER */}
+      <header className="relative h-[115px] w-full bg-gradient-to-r from-white via-white/90 to-transparent flex items-center px-10 shadow-sm z-30">
         <div className="flex items-center h-full" style={{ width: 240 }}>
           <img src="/logo.svg" alt="YachtVersal" className="h-12 w-auto" />
         </div>
@@ -93,18 +93,30 @@ export default function ListingDetailPage() {
         </div>
       </header>
 
+      {/* HERO BACKGROUND + TITLE */}
       <section className="relative h-[400px] w-full">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${backgroundImage})` }}
         />
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#10214F]/80 via-[#10214F]/40 to-transparent" />
+
         <div className="relative z-10 max-w-[1296px] mx-auto px-6 py-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
-            {listing.title}
-          </h1>
-          <p className="mt-3 text-lg text-white/90">{location}</p>
-          <p className="mt-6 text-3xl font-semibold text-white">{price}</p>
+          <div className="max-w-2xl">
+            <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
+              {listing.title}
+            </h1>
+            <p className="mt-3 text-lg text-white/80">{location}</p>
+            <p className="mt-6 text-3xl font-semibold text-white">{price}</p>
+          </div>
+        </div>
+
+        {/* Decorative right-side image block (Figma rectangle) */}
+        <div className="hidden lg:block absolute top-[134px] right-0 h-[679px] w-[926px] overflow-hidden rounded-l-[50px]">
+          <div
+            className="h-full w-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${backgroundImage})`, transform: 'scaleX(-1)' }}
+          />
         </div>
       </section>
 
