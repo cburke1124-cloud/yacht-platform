@@ -1,22 +1,23 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  Heart, Download, MapPin, Calendar, ArrowLeft, Mail, Ship, Share2, 
-  Facebook, Twitter, Linkedin, MessageCircle, Link2, Printer, Plus, 
-  Check, Phone, X, ChevronLeft, ChevronRight, Building2, User,
-  ExternalLink, Globe, Users, Wrench, Anchor, Youtube, Bed, Gauge, 
-  Fuel, Waves, Ruler, Navigation, Droplet, Zap, Wind, ZoomIn, ZoomOut, 
-  FileText, PlayCircle, Instagram, Send
+  Heart, Download, MapPin, Calendar, ArrowLeft, Mail,
+  Ship, Share2, Facebook, Twitter, Linkedin,
+  MessageCircle, Link2, Printer, Plus, Check, Phone,
+  X, ChevronLeft, ChevronRight, Building2, User,
+  ExternalLink, Globe, Users, Wrench, Anchor, Youtube,
+  Bed, Gauge, Fuel, Waves, Ruler, Navigation, Droplet,
+  Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
-import { API_ROOT, mediaUrl, onImgError, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
+import { API_ROOT } from '@/app/lib/apiRoot';
 
 const ListingDetailMap = dynamic(() => import('../../components/ListingDetailMap'), { ssr: false });
 
-// ═══ Types ═══════════════════════════════════════════════════════════
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ListingImage {
   id: number; url: string; thumbnail_url?: string;
@@ -38,21 +39,31 @@ interface Listing {
   description?: string; features?: string;
   feature_bullets?: string[];
   additional_specs?: {
-    displacement_lbs?: number; dry_weight_lbs?: number;
-    bridge_clearance_feet?: number; deadrise_degrees?: number;
-    cruising_range_nm?: number; fuel_burn_gph?: number;
+    displacement_lbs?: number;
+    dry_weight_lbs?: number;
+    bridge_clearance_feet?: number;
+    deadrise_degrees?: number;
+    cruising_range_nm?: number;
+    fuel_burn_gph?: number;
     holding_tank_gallons?: number;
   };
   youtube_video_url?: string; vimeo_video_url?: string; video_tour_url?: string;
   has_video?: boolean; featured?: boolean; published_at?: string;
   previous_owners?: number;
   additional_engines?: Array<{
-    make?: string; model?: string; type?: string; hours?: number;
-    horsepower?: number; notes?: string;
+    make?: string;
+    model?: string;
+    type?: string;
+    hours?: number;
+    horsepower?: number;
+    notes?: string;
   }>;
   generators?: Array<{
-    brand?: string; model?: string; hours?: number;
-    kw?: number; notes?: string;
+    brand?: string;
+    model?: string;
+    hours?: number;
+    kw?: number;
+    notes?: string;
   }>;
   images?: ListingImage[];
   latitude?: number; longitude?: number;
@@ -60,8 +71,7 @@ interface Listing {
 
 interface MediaItem {
   id: number; url: string; file_type: 'image' | 'video' | 'pdf';
-  thumbnail_url?: string; is_primary?: boolean; display_order?: number; 
-  caption?: string; alt_text?: string;
+  thumbnail_url?: string; is_primary?: boolean; display_order?: number; caption?: string; alt_text?: string;
 }
 
 interface ContactInfo {
@@ -69,8 +79,8 @@ interface ContactInfo {
     id?: number; name?: string; company_name?: string; email?: string; phone?: string;
     logo_url?: string; slug?: string; address?: string; city?: string; state?: string;
     country?: string; website?: string; description?: string;
-    facebook_url?: string; instagram_url?: string; twitter_url?: string; 
-    linkedin_url?: string; is_demo?: boolean;
+    facebook_url?: string; instagram_url?: string; twitter_url?: string; linkedin_url?: string;
+    is_demo?: boolean;
   };
   sales_contact?: {
     id?: number; name?: string; title?: string; email?: string;
@@ -83,37 +93,70 @@ interface FinResult {
   total_interest: number; total_cost: number;
 }
 
-// ═══ Helpers ═════════════════════════════════════════════════════════
+interface CurrencyRates {
+  base: string;
+  rates: Record<string, number>;
+}
 
-const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// ═══ Main Component ══════════════════════════════════════════════════
+const fmt    = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+const FALLBACK_LISTING_IMAGE = '/images/listing-fallback1.png';
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div className="flex justify-between items-baseline py-2.5 border-b border-gray-100">
+      <span className="text-sm text-gray-600 font-medium">{label}</span>
+      <span className="text-sm text-[#10214F] text-right font-semibold">{value}</span>
+    </div>
+  );
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-5">
+      <h3 className="text-2xl font-bold text-[#10214F] mb-2">
+        {children}
+      </h3>
+      <div className="h-[1px] bg-gradient-to-r from-[#01BBDC] to-transparent" />
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const id = params?.id as string;
+  const id     = params?.id as string;
 
-  const [listing, setListing] = useState<Listing | null>(null);
-  const [media, setMedia] = useState<MediaItem[]>([]);
-  const [contact, setContact] = useState<ContactInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [listing,      setListing]      = useState<Listing | null>(null);
+  const [media,        setMedia]        = useState<MediaItem[]>([]);
+  const [contact,      setContact]      = useState<ContactInfo | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [currencies,   setCurrencies]   = useState<CurrencyRates | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState('USD');
 
   // gallery lightbox
-  const [lightbox, setLightbox] = useState<number | null>(null);
+  const [lightbox,     setLightbox]     = useState<number | null>(null);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
 
   // actions
-  const [saved, setSaved] = useState(false);
-  const [showShare, setShowShare] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [inComp,       setInComp]       = useState(false);
+  const [comparisons,  setComparisons]  = useState<any[]>([]);
+  const [showComp,     setShowComp]     = useState(false);
+  const [showShare,    setShowShare]    = useState(false);
+  const [copied,       setCopied]       = useState(false);
 
   // finance
-  const [finIn, setFinIn] = useState({ 
-    down_payment_percent: 20, 
-    interest_rate: 6.49, 
-    term_years: 20 
-  });
+  const [finIn,  setFinIn]  = useState({ down_payment_percent: 20, interest_rate: 6.49, term_years: 20 });
   const [finOut, setFinOut] = useState<FinResult | null>(null);
+  const [finBusy,setFinBusy]= useState(false);
 
   // message modal
   const [showMsg, setShowMsg] = useState(false);
@@ -121,129 +164,101 @@ export default function ListingDetailPage() {
   const [msgBusy, setMsgBusy] = useState(false);
   const [msgDone, setMsgDone] = useState(false);
 
-  // ══ fetch ════════════════════════════════════════════════════════════
+  // ── fetch ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!id || id === 'undefined') return;
     setLoading(true);
-    Promise.all([
-      fetchListing(), 
-      fetchMedia(), 
-      fetchContact(), 
-      checkSaved()
-    ]).finally(() => setLoading(false));
+    Promise.all([fetchListing(), fetchMedia(), fetchContact(), checkSaved(), loadComps(), fetchCurrencies()])
+      .finally(() => setLoading(false));
   }, [id]);
 
   async function fetchListing() {
-    try { 
-      const r = await fetch(`${API_ROOT}/listings/${id}`); 
-      if (r.ok) setListing(await r.json()); 
-    } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}`); if (r.ok) setListing(await r.json()); } catch {}
   }
-  
   async function fetchMedia() {
-    try { 
-      const r = await fetch(`${API_ROOT}/listings/${id}/media`); 
-      if (r.ok) { 
-        const d = await r.json(); 
-        setMedia(d.media || []); 
-      } 
-    } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/media`); if (r.ok) { const d = await r.json(); setMedia(d.media || []); } } catch {}
   }
-  
   async function fetchContact() {
-    try { 
-      const r = await fetch(`${API_ROOT}/listings/${id}/contact-info`); 
-      if (r.ok) setContact(await r.json()); 
-    } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/contact-info`); if (r.ok) setContact(await r.json()); } catch {}
   }
-  
   async function checkSaved() {
-    const token = localStorage.getItem('token'); 
-    if (!token) return;
-    try { 
-      const r = await fetch(`${API_ROOT}/saved-listings`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      }); 
-      if (r.ok) { 
-        const d = await r.json(); 
-        setSaved(d.some((i: any) => i.listing_id === Number(id))); 
-      } 
-    } catch {}
+    const token = localStorage.getItem('token'); if (!token) return;
+    try { const r = await fetch(`${API_ROOT}/saved-listings`, { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setSaved(d.some((i: any) => i.listing_id === Number(id))); } } catch {}
+  }
+  async function loadComps() {
+    const token = localStorage.getItem('token'); if (!token) return;
+    try { const r = await fetch(`${API_ROOT}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setComparisons(d); setInComp(d.some((c: any) => c.listings?.some((l: any) => l.id === Number(id)))); } } catch {}
+  }
+  async function fetchCurrencies() {
+    try { const r = await fetch(`${API_ROOT}/currencies/rates`); if (r.ok) { const d = await r.json(); setCurrencies(d); } } catch {}
   }
 
-  // ══ actions ══════════════════════════════════════════════════════════
+  // ── currency conversion ────────────────────────────────────────────────────
+
+  function convertPrice(amount: number | undefined, fromCurrency: string): number {
+    if (!amount || !currencies || fromCurrency === displayCurrency) return amount || 0;
+    
+    const fromRate = fromCurrency === 'USD' ? 1 : (currencies.rates[fromCurrency] || 1);
+    const toRate = displayCurrency === 'USD' ? 1 : (currencies.rates[displayCurrency] || 1);
+    
+    const usdAmount = amount / fromRate;
+    return usdAmount * toRate;
+  }
+
+  const displayPrice = listing?.price ? convertPrice(listing.price, listing.currency || 'USD') : null;
+
+  // ── actions ────────────────────────────────────────────────────────────────
 
   async function toggleSave() {
-    const token = localStorage.getItem('token'); 
-    if (!token) return alert('Please log in to save listings');
-    
+    const token = localStorage.getItem('token'); if (!token) return alert('Please log in to save listings');
     if (saved) {
-      const r = await fetch(`${API_ROOT}/saved-listings`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      const d = await r.json(); 
-      const item = d.find((i: any) => i.listing_id === Number(id));
-      if (item) { 
-        await fetch(`${API_ROOT}/saved-listings/${item.id}`, { 
-          method: 'DELETE', 
-          headers: { Authorization: `Bearer ${token}` } 
-        }); 
-        setSaved(false); 
-      }
+      const r = await fetch(`${API_ROOT}/saved-listings`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json(); const item = d.find((i: any) => i.listing_id === Number(id));
+      if (item) { await fetch(`${API_ROOT}/saved-listings/${item.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); setSaved(false); }
     } else {
-      await fetch(`${API_ROOT}/saved-listings`, { 
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json', 
-          Authorization: `Bearer ${token}` 
-        }, 
-        body: JSON.stringify({ listing_id: Number(id) }) 
-      });
+      await fetch(`${API_ROOT}/saved-listings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ listing_id: Number(id) }) });
       setSaved(true);
+    }
+  }
+
+  async function addToComp(compId?: number) {
+    const token = localStorage.getItem('token'); if (!token) return alert('Please log in');
+    if (compId) {
+      await fetch(`${API_ROOT}/comparisons/${compId}/listings`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ listing_id: Number(id) }) });
+      setInComp(true); setShowComp(false); loadComps();
+    } else {
+      const name = prompt('Name your comparison:') || 'My Comparison';
+      const r = await fetch(`${API_ROOT}/comparisons`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, listing_ids: [Number(id)] }) });
+      if (r.ok) { const d = await r.json(); router.push(`/comparisons/${d.id}`); }
     }
   }
 
   async function doShare(platform: string) {
     const url = `${window.location.origin}/listings/${id}`;
     const text = listing ? `${listing.title}${listing.price ? ` — $${fmt(listing.price)}` : ''}` : '';
-    
-    try { 
-      await fetch(`${API_ROOT}/listings/${id}/track-share`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ platform }) 
-      }); 
-    } catch {}
-    
+    try { await fetch(`${API_ROOT}/listings/${id}/track-share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform }) }); } catch {}
     const map: Record<string, string> = {
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
-      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      twitter:  `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
       linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
-      email: `mailto:?subject=${encodeURIComponent(listing?.title || 'Yacht')}&body=${encodeURIComponent(`${text}\n\n${url}`)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`,
+      email:    `mailto:?subject=${encodeURIComponent(listing?.title || 'Yacht')}&body=${encodeURIComponent(`${text}\n\n${url}`)}`,
     };
-    
+    if (platform === 'print') { window.print(); setShowShare(false); return; }
     if (map[platform]) window.open(map[platform], '_blank', 'width=600,height=400');
     setShowShare(false);
   }
 
   async function copyLink() {
     await navigator.clipboard.writeText(`${window.location.origin}/listings/${id}`);
-    setCopied(true); 
-    setTimeout(() => { setCopied(false); setShowShare(false); }, 2000);
+    setCopied(true); setTimeout(() => { setCopied(false); setShowShare(false); }, 2000);
   }
 
   async function calcFinance() {
-    if (!listing?.price) return;
-    
-    try { 
-      const r = await fetch(`${API_ROOT}/listings/${id}/calculate-financing`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(finIn) 
-      }); 
-      if (r.ok) setFinOut(await r.json()); 
-    } catch {}
+    if (!listing?.price) return; setFinBusy(true);
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/calculate-financing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(finIn) }); if (r.ok) setFinOut(await r.json()); } catch {}
+    setFinBusy(false);
   }
 
   useEffect(() => {
@@ -251,63 +266,33 @@ export default function ListingDetailPage() {
   }, [listing?.price, finIn.down_payment_percent, finIn.interest_rate, finIn.term_years]);
 
   async function sendMessage(e: React.FormEvent) {
-    e.preventDefault(); 
-    setMsgBusy(true);
-    
+    e.preventDefault(); setMsgBusy(true);
     try {
-      const token = localStorage.getItem('token');
-      const sc = contact?.sales_contact;
-      const dealer = contact?.dealer;
+      const token   = localStorage.getItem('token');
+      const sc      = contact?.sales_contact;
+      const dealer  = contact?.dealer;
       const recipId = sc?.id ?? dealer?.id ?? listing?.created_by_user_id ?? listing?.user_id;
-      
       if (token && recipId) {
-        await fetch(`${API_ROOT}/messages`, { 
-          method: 'POST', 
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            'Content-Type': 'application/json' 
-          }, 
-          body: JSON.stringify({ 
-            subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, 
-            body: msgForm.message, 
-            message_type: 'inquiry', 
-            recipient_id: recipId, 
-            listing_id: Number(id) 
-          }) 
-        });
+        // Logged-in users: create a message
+        await fetch(`${API_ROOT}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
       } else {
-        await fetch(`${API_ROOT}/inquiries`, { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            sender_name: msgForm.name, 
-            sender_email: msgForm.email, 
-            sender_phone: msgForm.phone || undefined, 
-            message: msgForm.message, 
-            listing_id: Number(id) 
-          }) 
-        });
+        // Anonymous users: create an inquiry (triggers webhook delivery)
+        await fetch(`${API_ROOT}/inquiries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message, listing_id: Number(id) }) });
       }
-      
-      setMsgDone(true); 
-      setMsgForm({ name: '', email: '', phone: '', message: '' });
+      setMsgDone(true); setMsgForm({ name: '', email: '', phone: '', message: '' });
     } catch {}
-    
     setMsgBusy(false);
   }
 
-  // ══ assemble media ═══════════════════════════════════════════════════
+  // ── assemble media ─────────────────────────────────────────────────────────
 
   const visualItems: MediaItem[] = media.length > 0
     ? media.filter(m => m.file_type === 'image' || m.file_type === 'video')
-    : (listing?.images || []).map(img => ({ 
-        id: img.id, 
-        url: img.url, 
-        thumbnail_url: img.thumbnail_url, 
-        file_type: 'image' as const, 
-        is_primary: img.is_primary, 
-        display_order: img.display_order 
-      }));
+    : (listing?.images || []).map(img => ({ id: img.id, url: img.url, thumbnail_url: img.thumbnail_url, file_type: 'image' as const, is_primary: img.is_primary, display_order: img.display_order }));
+
+  const pdfItems: MediaItem[] = media.length > 0
+    ? media.filter(m => m.file_type === 'pdf')
+    : [];
 
   const galleryItems: MediaItem[] = [...visualItems].sort((a, b) => {
     const aPrimary = a.is_primary ? 0 : 1;
@@ -317,56 +302,96 @@ export default function ListingDetailPage() {
     const bOrder = b.display_order ?? Number.MAX_SAFE_INTEGER;
     return aOrder - bOrder;
   });
-  
   const imageLightboxItems: MediaItem[] = galleryItems.filter(i => i.file_type === 'image');
+  const featuredMedia = galleryItems[0] || null;
+  const galleryMedia = galleryItems.slice(1);
+  const extraGalleryCount = Math.max(galleryMedia.length - 4, 0);
+  const showGallery = galleryItems.length > 1;
 
-  const sc = contact?.sales_contact;
+  const sc     = contact?.sales_contact;
   const dealer = contact?.dealer;
   const primaryPhone = sc?.phone || dealer?.phone;
   const recipientName = sc?.name || dealer?.company_name || dealer?.name || 'Seller';
 
+  // Construct location string
   const locationParts = [listing?.city, listing?.state, listing?.country].filter(Boolean);
   const locationString = locationParts.join(', ');
 
-  // ══ loading / not found ══════════════════════════════════════════════
+  // Parse key features from features text (first 5-6 bullet points)
+  const keyFeatures = listing?.feature_bullets?.length
+    ? listing.feature_bullets.filter(Boolean).slice(0, 8)
+    : (listing?.features
+      ? listing.features
+          .replace(/<[^>]*>/g, '\n')
+          .split('\n')
+          .map(line => line.replace(/^[-•\s]+/, '').trim())
+          .filter(line => line && !line.match(/^[A-Z\s]+$/))
+          .slice(0, 8)
+      : []);
+
+  const descriptionHtml = listing?.description
+    ? (/<\/?[a-z][\s\S]*>/i.test(listing.description)
+        ? listing.description
+        : listing.description.replace(/\n/g, '<br />'))
+    : '';
+
+  useEffect(() => {
+    if (lightbox !== null) setLightboxZoom(1);
+  }, [lightbox]);
+
+  // ── loading / not found ────────────────────────────────────────────────────
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="w-14 h-14 rounded-full border-4 border-t-[#01BBDC] border-[#01BBDC]/20 animate-spin" />
     </div>
   );
-  
   if (!listing) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="text-center">
         <h2 className="text-3xl font-bold mb-4 text-[#10214F]">Listing not found</h2>
-        <button onClick={() => router.back()} 
-          className="text-[#01BBDC] hover:underline font-medium">
+        <button onClick={() => router.back()} className="text-[#01BBDC] hover:underline font-medium">
           ← Back to listings
         </button>
       </div>
     </div>
   );
 
-  // ══ render ═══════════════════════════════════════════════════════════
+  // ── render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-white">
-      
-      {/* LIGHTBOX */}
+
+      {/* ══ LIGHTBOX ════════════════════════════════════════════════════════ */}
       {lightbox !== null && imageLightboxItems.length > 0 && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
           onClick={() => setLightbox(null)}>
-          <button className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+          <button className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all" aria-label="Close">
             <X size={22} className="text-white" />
           </button>
+          <div className="absolute top-6 right-20 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setLightboxZoom(z => Math.max(1, z - 0.25)); }}
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all"
+              aria-label="Zoom out">
+              <ZoomOut size={18} className="text-white" />
+            </button>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setLightboxZoom(z => Math.min(3, z + 0.25)); }}
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all"
+              aria-label="Zoom in">
+              <ZoomIn size={18} className="text-white" />
+            </button>
+          </div>
           <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) - 1 + imageLightboxItems.length) % imageLightboxItems.length); }}
             className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronLeft size={28} className="text-white" />
           </button>
-          <img src={mediaUrl(imageLightboxItems[lightbox]?.url)} onError={onImgError} 
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl"
-            alt={`${listing.title} photo ${(lightbox ?? 0) + 1}`}
+          <img src={imageLightboxItems[lightbox]?.url || FALLBACK_LISTING_IMAGE} className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-transform duration-200"
+            style={{ transform: `scale(${lightboxZoom})` }}
+            alt={imageLightboxItems[lightbox]?.alt_text || imageLightboxItems[lightbox]?.caption || `${listing.title} photo ${(lightbox ?? 0) + 1}`}
             onClick={e => e.stopPropagation()} />
           <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) + 1) % imageLightboxItems.length); }}
             className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
@@ -375,26 +400,46 @@ export default function ListingDetailPage() {
           <div className="absolute bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
             {(lightbox ?? 0) + 1} / {imageLightboxItems.length}
           </div>
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
+            <div className="flex gap-2 justify-center">
+              {imageLightboxItems.map((item, idx) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setLightbox(idx); }}
+                  className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition ${idx === lightbox ? 'border-[#01BBDC]' : 'border-white/20'}`}>
+                  <img
+                    src={item.thumbnail_url || item.url}
+                    alt={item.alt_text || item.caption || `${listing.title} thumbnail ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* MESSAGE MODAL */}
+      {/* ══ MESSAGE MODAL ════════════════════════════════════════════════════ */}
       {showMsg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm"
           onClick={() => setShowMsg(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg" 
-            onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div>
-                <h3 className="text-xl font-bold text-[#10214F]">Contact {recipientName}</h3>
+                <h3 className="text-xl font-bold text-[#10214F]">
+                  Contact {recipientName}
+                </h3>
                 {sc?.title && <p className="text-sm text-gray-500 mt-1">{sc.title}</p>}
               </div>
-              <button onClick={() => setShowMsg(false)} 
-                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition">
+              <button onClick={() => setShowMsg(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition">
                 <X size={18} className="text-gray-400" />
               </button>
             </div>
             <div className="px-6 py-6">
+              <div className="mb-5 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
+                <p className="text-sm text-gray-600">Re: <span className="font-semibold text-[#10214F]">{listing.title}</span></p>
+              </div>
               {msgDone ? (
                 <div className="text-center py-10">
                   <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 bg-green-50">
@@ -403,7 +448,7 @@ export default function ListingDetailPage() {
                   <p className="font-bold text-xl mb-2 text-[#10214F]">Message sent!</p>
                   <p className="text-sm text-gray-600 mb-6">{recipientName} will be in touch shortly.</p>
                   <button onClick={() => { setMsgDone(false); setShowMsg(false); }}
-                    className="px-8 py-3 rounded-xl text-white font-semibold bg-[#01BBDC] hover:opacity-90 transition-all">
+                    className="px-8 py-3 rounded-xl text-white font-semibold hover:opacity-90 bg-[#01BBDC] transition-all">
                     Close
                   </button>
                 </div>
@@ -411,34 +456,33 @@ export default function ListingDetailPage() {
                 <form onSubmit={sendMessage} className="space-y-4">
                   {!localStorage.getItem('token') && (
                     <>
-                      <div>
-                        <label className="text-sm font-semibold block mb-2 text-gray-700">Name *</label>
-                        <input required value={msgForm.name} 
-                          onChange={e => setMsgForm(p => ({ ...p, name: e.target.value }))}
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-semibold block mb-2 text-gray-700">Name *</label>
+                          <input required value={msgForm.name} onChange={e => setMsgForm(p => ({ ...p, name: e.target.value }))}
+                            placeholder="Jane Smith" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent transition-all" />
+                        </div>
+                        <div>
+                          <label className="text-sm font-semibold block mb-2 text-gray-700">Phone</label>
+                          <input value={msgForm.phone} onChange={e => setMsgForm(p => ({ ...p, phone: e.target.value }))}
+                            placeholder="+1 555 000 0000" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent transition-all" />
+                        </div>
                       </div>
                       <div>
                         <label className="text-sm font-semibold block mb-2 text-gray-700">Email *</label>
-                        <input required type="email" value={msgForm.email} 
-                          onChange={e => setMsgForm(p => ({ ...p, email: e.target.value }))}
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                      </div>
-                      <div>
-                        <label className="text-sm font-semibold block mb-2 text-gray-700">Phone</label>
-                        <input value={msgForm.phone} 
-                          onChange={e => setMsgForm(p => ({ ...p, phone: e.target.value }))}
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                        <input required type="email" value={msgForm.email} onChange={e => setMsgForm(p => ({ ...p, email: e.target.value }))}
+                          placeholder="you@email.com" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent transition-all" />
                       </div>
                     </>
                   )}
                   <div>
                     <label className="text-sm font-semibold block mb-2 text-gray-700">Message *</label>
-                    <textarea required rows={5} value={msgForm.message} 
-                      onChange={e => setMsgForm(p => ({ ...p, message: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
+                    <textarea required rows={5} value={msgForm.message} onChange={e => setMsgForm(p => ({ ...p, message: e.target.value }))}
+                      placeholder="I'm interested in this listing. Could we arrange a viewing?"
+                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent resize-none transition-all" />
                   </div>
                   <button type="submit" disabled={msgBusy}
-                    className="w-full py-3.5 rounded-xl text-white font-semibold bg-[#01BBDC] hover:opacity-90 disabled:opacity-60 transition-all">
+                    className="w-full py-3.5 rounded-xl text-white font-semibold hover:opacity-90 disabled:opacity-60 transition-all bg-[#01BBDC]">
                     {msgBusy ? 'Sending…' : 'Send Message'}
                   </button>
                 </form>
@@ -448,553 +492,691 @@ export default function ListingDetailPage() {
         </div>
       )}
 
-      {/* HERO SECTION WITH IMAGE BACKGROUND */}
-      <div className="relative h-[400px] bg-cover bg-center" 
-        style={{ 
-          backgroundImage: galleryItems[0] ? `url(${mediaUrl(galleryItems[0].url)})` : 'none',
-          backgroundColor: '#10214F'
-        }}>
-        
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black/50" />
-        
-        {/* Gradient overlay from left */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-transparent" 
-          style={{ width: '40%' }} />
-        
-        {/* Content */}
-        <div className="relative h-full max-w-[1296px] mx-auto px-8 flex items-center">
+      {/* ══ PAGE ════════════════════════════════════════════════════════════ */}
+      <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Back button */}
+        <button onClick={() => router.back()}
+          className="flex items-center gap-2 text-sm mb-6 text-[#10214F] hover:text-[#01BBDC] transition-colors group">
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to listings
+        </button>
+
+        {/* ══ TITLE + PRICE ══════════════════════════════════════════════════ */}
+        <div className="flex flex-wrap items-baseline justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-[56px] font-bold text-[#10214F] leading-none mb-4" 
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#10214F] tracking-tight mb-2">
               {listing.title}
             </h1>
+            {/* Location + Stock */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-600">
+              {locationString && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={15} className="text-[#01BBDC]" />
+                  {locationString}
+                </span>
+              )}
+              {listing.bin && (
+                <span>Stock #{listing.bin}</span>
+              )}
+              {listing.featured && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
+                  ⭐ Featured
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div className="max-w-[1296px] mx-auto px-8 py-12">
-        
-        {/* Title + Price Row */}
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <h2 className="text-[30px] font-semibold text-[#10214F] mb-2"
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-              {listing.title}
-            </h2>
-            <p className="text-[16px] text-[#10214F]" 
-              style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-              {listing.length_feet}ft - {listing.fuel_type} - {listing.boat_type}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-[30px] font-bold text-[#01BBDC]"
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-              ${listing.price ? fmt(listing.price) : 'Contact'}
-            </p>
-          </div>
-        </div>
-
-        {/* Image Gallery + Seller Info */}
-        <div className="grid grid-cols-12 gap-8 mb-12">
-          
-          {/* Left: Image Gallery (8 cols) */}
-          <div className="col-span-8">
-            {/* Main image */}
-            {galleryItems[0] && (
-              <div className="relative rounded-[50px] overflow-hidden mb-3 cursor-pointer"
-                style={{ height: '500px' }}
-                onClick={() => setLightbox(0)}>
-                <img src={mediaUrl(galleryItems[0].url)} onError={onImgError}
-                  alt={listing.title}
-                  className="w-full h-full object-cover" />
+          <div className="flex flex-col items-end gap-2">
+            {displayPrice != null && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl md:text-5xl font-bold text-[#01BBDC]">
+                  {displayCurrency === 'USD' ? '$' : ''}{fmt(displayPrice)}{displayCurrency !== 'USD' ? ` ${displayCurrency}` : ''}
+                </span>
               </div>
             )}
+            {currencies && (
+              <select 
+                value={displayCurrency}
+                onChange={e => setDisplayCurrency(e.target.value)}
+                className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="AUD">AUD</option>
+                <option value="CAD">CAD</option>
+              </select>
+            )}
+          </div>
+        </div>
+
+        {/* ══ FEATURED IMAGE + CONTACT ═══════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
+          <div className="lg:col-span-8">
+            <div className="relative w-full rounded-3xl overflow-hidden shadow-xl border border-gray-200 bg-gray-50"
+              style={{ height: 520 }}
+              onClick={() => {
+                if (!featuredMedia) return;
+                if (featuredMedia.file_type === 'image') {
+                  const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
+                  if (idx >= 0) setLightbox(idx);
+                } else if (featuredMedia.file_type === 'video') {
+                  window.open(featuredMedia.url, '_blank');
+                }
+              }}>
+              {featuredMedia?.file_type === 'video' ? (
+                <div className="relative w-full h-full bg-black">
+                  {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
+                    <iframe
+                      src={featuredMedia.url}
+                      title={listing.title}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video src={featuredMedia.url} controls className="w-full h-full object-cover" />
+                  )}
+                </div>
+              ) : (
+                <img
+                  src={featuredMedia?.url || FALLBACK_LISTING_IMAGE}
+                  alt={`${listing.title} - ${listing.year ? listing.year + ' ' : ''}${listing.make || ''} ${listing.model || ''}`.trim()}
+                  className="w-full h-full object-cover"
+                />
+              )}
+              {listing.featured && (
+                <div className="absolute top-5 left-5 px-4 py-2 rounded-2xl text-sm font-bold text-white backdrop-blur-sm shadow-lg bg-[#01BBDC]">
+                  ⭐ Featured
+                </div>
+              )}
+              {contact?.dealer?.is_demo && (
+                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-transparent z-10">
+                    <div className="bg-[#10214F]/80 backdrop-blur-md text-white px-8 py-4 rounded-xl shadow-2xl transform text-center border-2 border-[#01BBDC]">
+                        <p className="text-3xl font-black uppercase tracking-widest mb-1 text-[#01BBDC]">Sample Listing</p>
+                        <p className="text-sm font-medium opacity-80">Demonstration Purposes Only</p>
+                    </div>
+                  </div>
+              )}
+            </div>
+
+            {showGallery && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                {[0, 1, 2, 3].map(slot => {
+                  const item = galleryMedia[slot];
+                  const isLastSlot = slot === 3;
+
+                  if (!item) {
+                    return <div key={slot} className="h-32 rounded-2xl border border-gray-200 bg-gray-50" />;
+                  }
+
+                  return (
+                    <button
+                      key={`${slot}-${item.id}`}
+                      type="button"
+                      className="relative h-32 rounded-2xl overflow-hidden border border-gray-200"
+                      onClick={() => {
+                        if (item.file_type === 'image') {
+                          const idx = imageLightboxItems.findIndex(i => i.id === item.id);
+                          if (idx >= 0) setLightbox(idx);
+                        } else if (item.file_type === 'video') {
+                          window.open(item.url, '_blank');
+                        }
+                      }}>
+                      {item.file_type === 'video' ? (
+                        <>
+                          <img
+                            src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                            alt={item.alt_text || item.caption || `${listing.title} video ${slot + 2}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <PlayCircle size={30} className="text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <img
+                          src={item.thumbnail_url || item.url}
+                          alt={item.alt_text || item.caption || `${listing.title} gallery photo ${slot + 2}`}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                      {isLastSlot && extraGalleryCount > 0 && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="text-white text-2xl font-bold">+{extraGalleryCount}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {pdfItems.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
+                <h4 className="text-sm font-bold text-[#10214F] mb-3 uppercase tracking-wide">Documents</h4>
+                <div className="space-y-2">
+                  {pdfItems.map((doc, idx) => (
+                    <a
+                      key={doc.id}
+                      href={doc.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
+                      <span className="flex items-center gap-2 text-sm text-[#10214F]">
+                        <FileText size={16} className="text-[#01BBDC]" />
+                        {doc.caption || doc.alt_text || `Document ${idx + 1}`}
+                      </span>
+                      <ExternalLink size={14} className="text-gray-500" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-4">
+            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-lg">
+
+              {/* Sales contact or dealer info */}
+              {(sc || dealer) ? (
+                <div className="p-6">
+
+                  {/* Sales contact */}
+                  {sc ? (
+                    <div className="flex gap-4 mb-5">
+                      {sc.photo_url ? (
+                        <img src={sc.photo_url} alt={sc.name || 'Sales contact photo'}
+                          className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 shadow-md"
+                          onError={e => { (e.target as HTMLImageElement).src = '/images/user-placeholder.png'; }} />
+                      ) : (
+                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
+                          <User size={36} className="text-gray-400" />
+                        </div>
+                      )}
+                      <div className="min-w-0 pt-1">
+                        <p className="font-bold text-lg text-[#01BBDC] mb-0.5">
+                          {sc.name}
+                        </p>
+                        {sc.title && (
+                          <p className="text-sm text-gray-600 mb-1">{sc.title}</p>
+                        )}
+                        {sc.phone && (
+                          <a href={`tel:${sc.phone}`}
+                            className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors flex items-center gap-1">
+                            <Phone size={12} /> {sc.phone}
+                          </a>
+                        )}
+                        {sc.email && (
+                          <a href={`mailto:${sc.email}`}
+                            className="text-xs text-gray-500 hover:text-[#01BBDC] transition-colors block mt-1">
+                            {sc.email}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    dealer && (dealer.company_name || dealer.name) && (
+                      <div className="flex gap-4 mb-5">
+                        {dealer.logo_url ? (
+                          <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`}
+                            className="w-16 h-16 rounded-2xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100 shadow-sm"
+                            onError={e => { (e.target as HTMLImageElement).src = '/images/company-placeholder.png'; }} />
+                        ) : (
+                          <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
+                            <Building2 size={28} className="text-gray-400" />
+                          </div>
+                        )}
+                        <div className="min-w-0 pt-1">
+                          <p className="font-bold text-lg text-[#01BBDC] mb-1">
+                            {dealer.company_name || dealer.name}
+                          </p>
+                          {(dealer.city || dealer.state) && (
+                            <p className="text-sm text-gray-600 flex items-center gap-1">
+                              <MapPin size={12} />
+                              {[dealer.city, dealer.state].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+                          {dealer.phone && (
+                            <a href={`tel:${dealer.phone}`}
+                              className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors mt-1 block">
+                              {dealer.phone}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* Divider */}
+                  <div className="h-px bg-gray-200 mb-5" />
+
+                  {/* CTA buttons - NO GRADIENTS */}
+                  <div className="flex flex-col gap-3">
+                    <button onClick={() => setShowMsg(true)}
+                      className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg bg-[#01BBDC] hover:opacity-90">
+                      <Mail size={18} /> Contact Seller
+                    </button>
+                    {primaryPhone && (
+                      <a href={`tel:${primaryPhone}`}
+                        className="w-full py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all border-2 border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white">
+                        <Phone size={18} /> Call {sc ? 'Agent' : 'Dealer'}
+                      </a>
+                    )}
+                  </div>
+
+                </div>
+              ) : (
+                <div className="p-6 flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                    <Building2 size={36} className="text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">Contact information not available</p>
+                  <button onClick={() => setShowMsg(true)}
+                    className="w-full py-3 rounded-2xl text-white font-semibold bg-[#01BBDC] hover:opacity-90 transition-all">
+                    Send Inquiry
+                  </button>
+                </div>
+              )}
+
+              {/* Brokerage info (when sales contact has parent dealer) */}
+              {sc && dealer && (dealer.company_name || dealer.name) && (
+                <div className="px-6 py-5 border-t border-gray-200 bg-gray-50">
+                  <div className="flex gap-3 items-start">
+                    {dealer.logo_url ? (
+                      <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`} className="w-14 h-14 rounded-xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100 shadow-sm"
+                        onError={e => { (e.target as HTMLImageElement).src = '/images/company-placeholder.png'; }} />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border border-gray-100">
+                        <Building2 size={24} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-[#10214F] truncate text-sm">
+                        {dealer.company_name || dealer.name}
+                      </p>
+                      {(dealer.city || dealer.state) && (
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                          <MapPin size={10} /> {[dealer.city, dealer.state].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                      {dealer.website && (
+                        <a href={dealer.website.startsWith('http') ? dealer.website : `https://${dealer.website}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 mt-1.5 text-xs hover:underline text-[#01BBDC]">
+                          <Globe size={11} />
+                          {dealer.website.replace(/^https?:\/\//, '')}
+                        </a>
+                      )}
+                    </div>
+                    {dealer.slug && (
+                      <Link href={`/dealers/${dealer.slug}`}
+                        className="text-xs font-semibold hover:underline flex items-center gap-1 flex-shrink-0 text-[#01BBDC]">
+                        View all <ExternalLink size={10} />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons row */}
+              <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50">
+                <button onClick={toggleSave}
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
+                  style={{ color: saved ? '#01BBDC' : '#10214F' }}>
+                  <Heart size={18} fill={saved ? 'currentColor' : 'none'} strokeWidth={2} />
+                  {saved ? 'Saved' : 'Save'}
+                </button>
+                <div className="relative">
+                  <button onClick={() => setShowComp(!showComp)}
+                    className="w-full flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
+                    style={{ color: inComp ? '#01BBDC' : '#10214F' }}>
+                    {inComp ? <Check size={18} strokeWidth={2} /> : <Plus size={18} strokeWidth={2} />}
+                    Compare
+                  </button>
+                  {showComp && (
+                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
+                      <div className="p-2">
+                        <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
+                        {comparisons.map(c => (
+                          <button key={c.id} onClick={() => addToComp(c.id)} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm text-gray-700">
+                            {c.name} ({c.listings?.length || 0})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <button onClick={() => setShowShare(!showShare)}
+                    className="w-full flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors text-[#10214F]">
+                    <Share2 size={18} strokeWidth={2} /> Share
+                  </button>
+                  {showShare && (
+                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-200 z-20">
+                      <div className="p-2 space-y-1">
+                        {[
+                          { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
+                          { icon: <Twitter size={16} className="text-[#1DA1F2]" />,       label: 'Twitter',   p: 'twitter'  },
+                          { icon: <Linkedin size={16} className="text-[#0A66C2]" />,      label: 'LinkedIn',  p: 'linkedin' },
+                          { icon: <MessageCircle size={16} className="text-[#25D366]" />, label: 'WhatsApp',  p: 'whatsapp' },
+                          { icon: <Mail size={16} className="text-gray-500" />,           label: 'Email',     p: 'email'    },
+                        ].map(s => (
+                          <button key={s.p} onClick={() => doShare(s.p)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                            {s.icon} {s.label}
+                          </button>
+                        ))}
+                        <div className="border-t border-gray-100 my-1" />
+                        <button onClick={() => { window.open(`${API_ROOT}/pdf/listings/${id}/pdf`, '_blank'); setShowShare(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                          <Download size={16} className="text-gray-500" /> PDF Brochure
+                        </button>
+                        <button onClick={() => { window.print(); setShowShare(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                          <Printer size={16} className="text-gray-500" /> Print
+                        </button>
+                        <button onClick={copyLink}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                          <Link2 size={16} className="text-gray-500" /> {copied ? '✓ Copied!' : 'Copy Link'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ══ KEY SPECS & KEY FEATURES (2 columns) + SIDEBAR (right) ═════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
+          
+          {/* Left side: Key Specs + Key Features — 8 cols */}
+          <div className="lg:col-span-8 space-y-6">
             
-            {/* Thumbnail grid */}
-            {galleryItems.length > 1 && (
-              <div className="grid grid-cols-5 gap-3">
-                {galleryItems.slice(1, 6).map((item, idx) => (
-                  <div key={item.id} 
-                    className="relative rounded-xl overflow-hidden cursor-pointer"
-                    style={{ height: '120px' }}
-                    onClick={() => setLightbox(idx + 1)}>
-                    <img src={mediaUrl(item.thumbnail_url || item.url)} onError={onImgError}
-                      alt={`${listing.title} ${idx + 2}`}
-                      className="w-full h-full object-cover" />
+            {/* KEY SPECIFICATIONS */}
+            <div className="bg-gradient-to-br from-gray-50 to-white rounded-3xl border border-gray-200 p-6">
+              <h3 className="text-xl font-bold text-[#10214F] mb-5">Key Specifications</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                {[
+                  { icon: <Ruler size={32} className="text-[#01BBDC]" />, label: 'Length', value: listing.length_feet ? `${listing.length_feet}'` : null },
+                  { icon: <Waves size={32} className="text-[#01BBDC]" />, label: 'Cruise Speed', value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
+                  { icon: <Gauge size={32} className="text-[#01BBDC]" />, label: 'Max Speed', value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
+                  { icon: <Anchor size={32} className="text-[#01BBDC]" />, label: 'Range', value: listing.additional_specs?.cruising_range_nm ? `${fmt(listing.additional_specs.cruising_range_nm)} nm` : null },
+                  { icon: <Fuel size={32} className="text-[#01BBDC]" />, label: 'Fuel Tank', value: listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null },
+                  { icon: <Droplet size={32} className="text-[#01BBDC]" />, label: 'Fresh Water', value: listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null },
+                  { icon: <Ship size={32} className="text-[#01BBDC]" />, label: 'Engines', value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
+                  { icon: <Gauge size={32} className="text-[#01BBDC]" />, label: 'Year', value: listing.year ? String(listing.year) : null },
+                  { icon: <Fuel size={32} className="text-[#01BBDC]" />, label: 'Fuel Type', value: listing.fuel_type },
+                  { icon: <Bed size={32} className="text-[#01BBDC]" />, label: 'Cabins', value: listing.cabins ? String(listing.cabins) : null },
+                  { icon: <Users size={32} className="text-[#01BBDC]" />, label: 'Guests', value: listing.berths ? String(listing.berths) : null },
+                  { icon: <Wrench size={32} className="text-[#01BBDC]" />, label: 'Make', value: listing.make },
+                  { icon: <Ship size={32} className="text-[#01BBDC]" />, label: 'Type', value: listing.boat_type },
+                  { icon: <Navigation size={32} className="text-[#01BBDC]" />, label: 'Condition', value: listing.condition ? (listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)) : null },
+                ].filter(s => s.value).map(s => (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className="flex-shrink-0">{s.icon}</div>
+                    <div>
+                      <p className="text-sm text-gray-600">{s.label}</p>
+                      <p className="font-bold text-[#10214F]">{s.value}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Right: Seller Info + Actions (4 cols) */}
-          <div className="col-span-4">
-            <div className="bg-white border border-gray-200 rounded-xl p-6 mb-4">
-              
-              {/* Location */}
-              {locationString && (
-                <div className="flex items-center gap-2 text-[#10214F] mb-3"
-                  style={{ fontFamily: 'Poppins, Arial, sans-serif', fontSize: '16px' }}>
-                  <MapPin size={24} className="text-[#01BBDC]" />
-                  <span>{locationString}</span>
-                </div>
-              )}
-              
-              {/* Stock number */}
-              <p className="text-[16px] text-[#10214F] mb-6"
-                style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                In Stock #{listing.id}
-              </p>
-              
-              <div className="border-t border-gray-200 pt-6 mb-6" />
-              
-              {/* Seller profile */}
-              {(sc || dealer) && (
-                <div className="mb-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    {(sc?.photo_url || dealer?.logo_url) ? (
-                      <img src={mediaUrl(sc?.photo_url || dealer?.logo_url || '')} 
-                        alt={sc?.name || dealer?.company_name || ''}
-                        className="w-[133px] h-[133px] rounded-full object-cover"
-                        onError={onImgError} />
-                    ) : (
-                      <div className="w-[133px] h-[133px] rounded-full bg-gray-100 flex items-center justify-center">
-                        <User size={48} className="text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <p className="text-[16px] font-medium text-[#01BBDC]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      {sc?.name || dealer?.company_name || dealer?.name}
-                    </p>
-                    {(dealer?.company_name || dealer?.address) && (
-                      <p className="text-[16px] text-[#10214F]"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        {dealer?.company_name || dealer?.address}
-                      </p>
-                    )}
-                    {dealer?.address && (
-                      <p className="text-[16px] text-[#10214F]"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        {dealer.address}
-                      </p>
-                    )}
-                    {primaryPhone && (
-                      <p className="text-[16px] text-[#10214F]"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        {primaryPhone}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {/* CTA Buttons */}
-              <div className="space-y-3">
-                <button onClick={() => setShowMsg(true)}
-                  className="w-full py-3.5 rounded-xl text-white font-medium text-[16px] bg-[#01BBDC] hover:opacity-90 transition-all"
-                  style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                  Contact Seller
-                </button>
-                {primaryPhone && (
-                  <button onClick={() => window.location.href = `tel:${primaryPhone}`}
-                    className="w-full py-3.5 rounded-xl font-medium text-[16px] border border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white transition-all"
-                    style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                    Call Seller
-                  </button>
-                )}
+            {/* KEY FEATURES */}
+            {keyFeatures.length > 0 && (
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-3xl border border-gray-200 p-6">
+                <h3 className="text-xl font-bold text-[#10214F] mb-4">Key Features</h3>
+                <ul className="space-y-2">
+                  {keyFeatures.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3 text-gray-700">
+                      <span className="text-[#01BBDC] mt-1 flex-shrink-0">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              
-              {/* Social Media */}
-              {(dealer?.facebook_url || dealer?.instagram_url || dealer?.twitter_url || dealer?.linkedin_url) && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <p className="text-[16px] text-[#10214F] mb-3"
-                    style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                    Social Media:
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {dealer?.facebook_url && (
-                      <a href={dealer.facebook_url} target="_blank" rel="noopener noreferrer"
-                        className="text-[#01BBDC] hover:opacity-70 transition-opacity">
-                        <Facebook size={24} />
-                      </a>
-                    )}
-                    {dealer?.instagram_url && (
-                      <a href={dealer.instagram_url} target="_blank" rel="noopener noreferrer"
-                        className="text-[#01BBDC] hover:opacity-70 transition-opacity">
-                        <Instagram size={24} />
-                      </a>
-                    )}
-                    {dealer?.twitter_url && (
-                      <a href={dealer.twitter_url} target="_blank" rel="noopener noreferrer"
-                        className="text-[#01BBDC] hover:opacity-70 transition-opacity">
-                        <Twitter size={24} />
-                      </a>
-                    )}
-                    {dealer?.linkedin_url && (
-                      <a href={dealer.linkedin_url} target="_blank" rel="noopener noreferrer"
-                        className="text-[#01BBDC] hover:opacity-70 transition-opacity">
-                        <Linkedin size={24} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+            )}
 
-        {/* Boat Details Section */}
-        <div className="grid grid-cols-12 gap-8 mb-12">
-          
-          {/* Left: Details (6 cols) */}
-          <div className="col-span-6">
-            <h3 className="text-[30px] font-semibold text-[#10214F] mb-6"
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-              {listing.model}
-            </h3>
-            
-            <p className="text-[16px] text-[#10214F] mb-8"
-              style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-              {listing.length_feet}m | {listing.make} | {listing.model}
-            </p>
-            
-            {/* Icon Grid */}
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              {listing.berths && (
-                <div className="text-center">
-                  <div className="w-9 h-9 mx-auto mb-2">
-                    <Users size={36} className="text-[#01BBDC]" />
-                  </div>
-                  <p className="text-[16px] font-semibold text-[#10214F]"
-                    style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                    Guests
-                  </p>
-                  <p className="text-[16px] text-[#10214F]"
-                    style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                    {listing.berths}
-                  </p>
-                </div>
-              )}
-              
-              {listing.cabins && (
-                <div className="text-center">
-                  <div className="w-9 h-9 mx-auto mb-2">
-                    <Bed size={36} className="text-[#01BBDC]" />
-                  </div>
-                  <p className="text-[16px] font-semibold text-[#10214F]"
-                    style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                    Cabins
-                  </p>
-                  <p className="text-[16px] text-[#10214F]"
-                    style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                    {listing.cabins}
-                  </p>
-                </div>
-              )}
-              
-              {listing.engine_count && (
-                <div className="text-center">
-                  <div className="w-9 h-9 mx-auto mb-2">
-                    <Wrench size={36} className="text-[#01BBDC]" />
-                  </div>
-                  <p className="text-[16px] font-semibold text-[#10214F]"
-                    style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                    Crew
-                  </p>
-                  <p className="text-[16px] text-[#10214F]"
-                    style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                    {listing.engine_count}
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            {/* More details */}
-            <div className="space-y-4">
-              {listing.make && (
-                <div className="flex items-center gap-3">
-                  <Ship size={36} className="text-[#01BBDC]" />
-                  <div>
-                    <p className="text-[16px] font-semibold text-[#10214F]"
-                      style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                      {listing.make}
-                    </p>
-                    <p className="text-[16px] text-[#10214F]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Shipyard
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {listing.model && (
-                <div className="flex items-center gap-3">
-                  <Ship size={30} className="text-[#01BBDC]" />
-                  <div>
-                    <p className="text-[16px] font-semibold text-[#10214F]"
-                      style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                      {listing.model}
-                    </p>
-                    <p className="text-[16px] text-[#10214F]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Model
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {listing.length_feet && (
-                <div className="flex items-center gap-3">
-                  <Ruler size={36} className="text-[#01BBDC]" />
-                  <div>
-                    <p className="text-[16px] font-semibold text-[#10214F]"
-                      style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                      {listing.length_feet}m
-                    </p>
-                    <p className="text-[16px] text-[#10214F]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Length
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {listing.year && (
-                <div className="flex items-center gap-3">
-                  <Calendar size={36} className="text-[#01BBDC]" />
-                  <div>
-                    <p className="text-[16px] font-semibold text-[#10214F]"
-                      style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                      {listing.year}
-                    </p>
-                    <p className="text-[16px] text-[#10214F]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Build/Refit
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Right: Financing Calculator (6 cols) */}
-          <div className="col-span-6">
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              
-              {/* Inputs side */}
-              <div className="p-6 bg-white">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[14px] text-[#10214F] block mb-2"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Purchase Price
-                    </label>
-                    <input type="text" value={`$${listing.price ? fmt(listing.price) : '0'}`}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-md border border-gray-200 bg-white text-[14px]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }} />
-                  </div>
+          {/* Right sidebar: Map + Finance — 4 cols */}
+          <div className="lg:col-span-4 space-y-6">
+
+            {/* LOCATION MAP */}
+            <div className="rounded-3xl overflow-hidden border border-gray-200 shadow-lg" style={{ height: 280 }}>
+              <ListingDetailMap
+                latitude={listing.latitude}
+                longitude={listing.longitude}
+                locationString={locationString}
+                title={listing.title}
+              />
+            </div>
+
+            {/* FINANCE CALCULATOR */}
+            {listing.price && (
+              <div className="rounded-3xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                
+                {/* Inputs */}
+                <div className="p-6">
+                  <h4 className="text-lg font-bold text-[#10214F] mb-4">Finance Calculator</h4>
                   
-                  <div>
-                    <label className="text-[14px] text-[#10214F] block mb-2"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Down Payment
-                    </label>
-                    <input type="text" value="$0.00"
-                      readOnly
-                      className="w-full px-4 py-3 rounded-md border border-gray-200 bg-white text-[14px]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }} />
-                  </div>
-                  
-                  <div>
-                    <label className="text-[14px] text-[#10214F] block mb-2"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                      Loan amount
-                    </label>
-                    <input type="text" 
-                      value={`$${listing.price ? fmt(listing.price * (1 - finIn.down_payment_percent / 100)) : '0'}`}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-md border border-gray-200 bg-white text-[14px]"
-                      style={{ fontFamily: 'Poppins, Arial, sans-serif' }} />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { label: 'Purchase Price',    key: null,                   type: 'readonly', val: `$${fmt(listing.price)}` },
+                    { label: 'Down Payment %',    key: 'down_payment_percent', type: 'number',   step: 5 },
+                    { label: 'Loan Amount',       key: null,                   type: 'readonly', val: `$${fmt(listing.price * (1 - finIn.down_payment_percent / 100))}` },
+                  ] as any[]).map(f => (
+                    <div key={f.label} className="mb-4">
+                      <p className="mb-2 text-sm font-semibold text-gray-700">{f.label}</p>
+                      {f.type === 'readonly' ? (
+                        <div className="px-4 py-3 rounded-xl text-sm font-medium border border-gray-200 text-[#10214F] bg-white">
+                          {f.val}
+                        </div>
+                      ) : (
+                        <input type="number" step={f.step}
+                          value={(finIn as any)[f.key]}
+                          onChange={e => setFinIn(p => ({ ...p, [f.key]: Number(e.target.value) }))}
+                          className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
                     <div>
-                      <label className="text-[14px] text-[#10214F] block mb-2"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        Loan term in years
-                      </label>
-                      <input type="number" value={finIn.term_years}
+                      <p className="mb-2 text-sm font-semibold text-gray-700">Term (years)</p>
+                      <input type="number" min={1} max={30} value={finIn.term_years}
                         onChange={e => setFinIn(p => ({ ...p, term_years: Number(e.target.value) }))}
-                        className="w-full px-4 py-3 rounded-md border border-gray-200 bg-white text-[14px]"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }} />
+                        className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
                     </div>
                     <div>
-                      <label className="text-[14px] text-[#10214F] block mb-2"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        Loan term in months
-                      </label>
-                      <input type="text" value={finIn.term_years * 12}
-                        readOnly
-                        className="w-full px-4 py-3 rounded-md border border-gray-200 bg-white text-[14px]"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }} />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[14px] text-[#10214F] block mb-2"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        Interest Rate (APR)
-                      </label>
-                      <input type="number" step="0.01" value={finIn.interest_rate}
+                      <p className="mb-2 text-sm font-semibold text-gray-700">Rate %</p>
+                      <input type="number" step={0.01} value={finIn.interest_rate}
                         onChange={e => setFinIn(p => ({ ...p, interest_rate: Number(e.target.value) }))}
-                        className="w-full px-4 py-3 rounded-md border border-gray-200 bg-white text-[14px]"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }} />
-                    </div>
-                    <div className="flex items-end">
-                      <button onClick={calcFinance}
-                        className="w-full py-3 rounded-md text-white text-[14px] bg-[#01BBDC] hover:opacity-90 transition-all"
-                        style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                        Calculate
-                      </button>
+                        className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
                     </div>
                   </div>
+
+                  <button onClick={calcFinance} disabled={finBusy}
+                    className="w-full py-3 rounded-xl text-white font-semibold hover:opacity-90 disabled:opacity-60 transition-all bg-[#01BBDC]">
+                    {finBusy ? 'Calculating…' : 'Calculate'}
+                  </button>
+                </div>
+
+                {/* Results */}
+                <div className="px-6 py-6 bg-gray-50 border-t border-gray-200">
+                  <p className="font-bold text-lg text-[#10214F] mb-2">
+                    Monthly Payment
+                  </p>
+                  <p className="font-bold text-4xl text-[#10214F] mb-5">
+                    {finOut ? `$${fmt(finOut.monthly_payment)}` : '—'}
+                  </p>
+                  {finOut && (
+                    <div className="space-y-3 text-sm">
+                      {[
+                        { label: 'Down payment',   val: `$${fmt(finOut.down_payment)}`   },
+                        { label: 'Loan amount',    val: `$${fmt(finOut.loan_amount)}`    },
+                        { label: 'Total interest', val: `$${fmt(finOut.total_interest)}`  },
+                        { label: 'Total cost',     val: `$${fmt(finOut.total_cost)}`     },
+                      ].map(r => (
+                        <div key={r.label} className="flex justify-between items-center py-2 border-b border-gray-200">
+                          <span className="text-gray-600">{r.label}</span>
+                          <span className="font-bold text-[#10214F]">{r.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
+
+          </div>
+
+        </div>
+
+        {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
+        {listing.description && (
+          <div className="mb-10">
+            <SectionHeading>Description</SectionHeading>
+            <div className="prose prose-lg max-w-none">
+              <div 
+                className="text-base leading-relaxed text-gray-700"
+                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
+        <div className="mb-10">
+          <SectionHeading>Full Specifications</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-1">
+              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide">General</h4>
+              <SpecRow label="Name"           value={listing.title} />
+              <SpecRow label="Stock #"        value={listing.bin} />
+              <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
+              <SpecRow label="Make"           value={listing.make} />
+              <SpecRow label="Model"          value={listing.model} />
+              <SpecRow label="Year"           value={listing.year ? String(listing.year) : null} />
+              <SpecRow label="Type"           value={listing.boat_type} />
+              <SpecRow label="Condition"      value={listing.condition ? (listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)) : null} />
+              <SpecRow label="Previous Owners" value={listing.previous_owners != null ? String(listing.previous_owners) : null} />
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide">Dimensions</h4>
+              <SpecRow label="LOA"            value={listing.length_feet ? `${listing.length_feet} ft` : null} />
+              <SpecRow label="Beam"           value={listing.beam_feet ? `${listing.beam_feet} ft` : null} />
+              <SpecRow label="Draft"          value={listing.draft_feet ? `${listing.draft_feet} ft` : null} />
+              <SpecRow label="Hull Material"  value={listing.hull_material} />
+              <SpecRow label="Hull Type"      value={listing.hull_type} />
               
-              {/* Results side */}
-              <div className="p-6 bg-[#F0FDFF]">
-                <p className="text-[24px] font-semibold text-[#10214F] mb-2"
-                  style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                  Monthly Payment
-                </p>
-                <p className="text-[48px] font-semibold text-[#10214F] mb-4"
-                  style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                  ${finOut ? fmt(finOut.monthly_payment) : '1,970.48'}
-                </p>
-              </div>
+              <h4 className="font-bold text-[#10214F] mb-3 mt-5 text-sm uppercase tracking-wide">Accommodations</h4>
+              <SpecRow label="Cabins"         value={listing.cabins ? String(listing.cabins) : null} />
+              <SpecRow label="Berths"         value={listing.berths ? String(listing.berths) : null} />
+              <SpecRow label="Heads"          value={listing.heads  ? String(listing.heads)  : null} />
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide">Performance</h4>
+              <SpecRow label="Max Speed"      value={listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null} />
+              <SpecRow label="Cruise Speed"   value={listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null} />
+              <SpecRow label="Fuel Type"      value={listing.fuel_type} />
+              <SpecRow label="Fuel Capacity"  value={listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null} />
+              <SpecRow label="Water Capacity" value={listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null} />
+              <SpecRow label="Displacement"   value={listing.additional_specs?.displacement_lbs ? `${fmt(listing.additional_specs.displacement_lbs)} lbs` : null} />
+              <SpecRow label="Dry Weight"     value={listing.additional_specs?.dry_weight_lbs ? `${fmt(listing.additional_specs.dry_weight_lbs)} lbs` : null} />
+              <SpecRow label="Bridge Clearance" value={listing.additional_specs?.bridge_clearance_feet ? `${listing.additional_specs.bridge_clearance_feet} ft` : null} />
+              <SpecRow label="Deadrise"       value={listing.additional_specs?.deadrise_degrees ? `${listing.additional_specs.deadrise_degrees}°` : null} />
+              <SpecRow label="Range"          value={listing.additional_specs?.cruising_range_nm ? `${fmt(listing.additional_specs.cruising_range_nm)} nm` : null} />
+              <SpecRow label="Fuel Burn"      value={listing.additional_specs?.fuel_burn_gph ? `${listing.additional_specs.fuel_burn_gph} gph` : null} />
+              <SpecRow label="Holding Tank"   value={listing.additional_specs?.holding_tank_gallons ? `${fmt(listing.additional_specs.holding_tank_gallons)} gal` : null} />
+              
+              <h4 className="font-bold text-[#10214F] mb-3 mt-5 text-sm uppercase tracking-wide">Listing Details</h4>
+              <SpecRow label="Listed"         value={listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null} />
             </div>
           </div>
         </div>
 
-        {/* Description + Image */}
-        <div className="grid grid-cols-12 gap-8 mb-12">
-          <div className="col-span-6">
-            <h3 className="text-[30px] font-semibold text-[#01BBDC] mb-4"
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-              Description
-            </h3>
-            <div className="h-[1px] bg-[#01BBDC] mb-6" />
-            
-            {listing.description && (
-              <div className="text-[16px] text-[#10214F] leading-relaxed space-y-4"
-                style={{ fontFamily: 'Poppins, Arial, sans-serif' }}
-                dangerouslySetInnerHTML={{ 
-                  __html: listing.description.replace(/\n/g, '<br />') 
-                }} />
-            )}
-          </div>
-          
-          <div className="col-span-6">
-            {galleryItems[1] && (
-              <div className="rounded-xl overflow-hidden">
-                <img src={mediaUrl(galleryItems[1].url)} onError={onImgError}
-                  alt={listing.title}
-                  className="w-full h-full object-cover"
-                  style={{ height: '393px' }} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Specification */}
-        <div className="mb-12">
-          <h3 className="text-[30px] font-semibold text-[#01BBDC] mb-4"
-            style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-            Specification
-          </h3>
-          <div className="h-[1px] bg-[#01BBDC] mb-6" />
-          
-          <div className="grid grid-cols-3 gap-x-12 gap-y-4 text-[16px]"
-            style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-            {[
-              { label: 'Name:', value: listing.title },
-              { label: 'Stock:', value: `${listing.id}` },
-              { label: 'Stock:', value: 'Yes' },
-              { label: 'LOA:', value: listing.length_feet ? `${listing.length_feet} ft` : null },
-              { label: 'Type:', value: listing.boat_type },
-              { label: 'Year:', value: listing.year?.toString() },
-              { label: 'Draft Max:', value: listing.draft_feet ? `${listing.draft_feet} ft` : null },
-              { label: 'Cabins:', value: listing.cabins?.toString() },
-              { label: 'Heads:', value: listing.heads?.toString() },
-              { label: 'Maximum Speed:', value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
-              { label: 'Cruise Speed:', value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
-              { label: 'Fuel Type:', value: listing.fuel_type },
-              { label: 'Hull Material:', value: listing.hull_material },
-              { label: 'Hull Shape:', value: listing.hull_type },
-              { label: 'Fuel Tank:', value: listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null },
-              { label: 'Fresh Water:', value: listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null },
-              { label: 'Holding Tank:', value: listing.additional_specs?.holding_tank_gallons ? `${fmt(listing.additional_specs.holding_tank_gallons)} gal` : null },
-              { label: 'Dry Weight:', value: listing.additional_specs?.dry_weight_lbs ? `${fmt(listing.additional_specs.dry_weight_lbs)} lbs` : null },
-            ].filter(spec => spec.value).map((spec, idx) => (
-              <p key={idx} className="text-[#10214F]">
-                <span className="font-normal">{spec.label}</span> {spec.value}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        {/* Engines */}
-        {(listing.engine_make || listing.engine_model) && (
-          <div className="mb-12">
-            <h3 className="text-[30px] font-semibold text-[#01BBDC] mb-4"
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-              Engines
-            </h3>
-            <div className="h-[1px] bg-[#01BBDC] mb-6" />
-            
-            <div className="grid grid-cols-2 gap-x-12">
-              <div>
-                <h4 className="text-[24px] font-semibold text-[#10214F] mb-4"
-                  style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-                  Engine 1
-                </h4>
-                <div className="space-y-2 text-[16px]"
-                  style={{ fontFamily: 'Poppins, Arial, sans-serif' }}>
-                  {listing.engine_make && <p>Engine Make: {listing.engine_make}</p>}
-                  {listing.engine_model && <p>Engine Model: {listing.engine_model}</p>}
-                  {listing.year && <p>Engine Year: {listing.year}</p>}
-                  {listing.engine_type && <p>Engine Type: {listing.engine_type}</p>}
-                  {listing.fuel_type && <p>Fuel Type: {listing.fuel_type}</p>}
-                  {listing.engine_hours && <p>Hours: {fmt(listing.engine_hours)}</p>}
+        {/* ══ ENGINES ════════════════════════════════════════════════════════ */}
+        {/* NOTE: Backend currently supports single engine data with engine_count.
+            For full multi-engine support, backend would need a separate engines table. */}
+        {(listing.engine_make || listing.engine_model || listing.engine_type || (listing.additional_engines?.length || 0) > 0 || (listing.generators?.length || 0) > 0) && (
+          <div className="mb-10">
+            <SectionHeading>Engine Details</SectionHeading>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Array.from({ length: Math.max(listing.engine_count || 1, 1) }).map((_, ei) => (
+                <div key={ei} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                  <h4 className="text-xl font-bold text-[#10214F] mb-4">
+                    {listing.engine_count && listing.engine_count > 1 ? `Engine ${ei + 1}` : 'Engine'}
+                  </h4>
+                  <div className="space-y-1">
+                    <SpecRow label="Make"       value={listing.engine_make}  />
+                    <SpecRow label="Model"      value={listing.engine_model} />
+                    <SpecRow label="Year"       value={listing.year ? String(listing.year) : null} />
+                    <SpecRow label="Type"       value={listing.engine_type}  />
+                    <SpecRow label="Fuel"       value={listing.fuel_type}    />
+                    <SpecRow label="Hours"      value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
+                  </div>
+                  {listing.engine_count && listing.engine_count > 1 && (
+                    <p className="text-xs text-gray-500 mt-4 italic">
+                      * All engines share same specs. For unique per-engine details, contact seller.
+                    </p>
+                  )}
                 </div>
-              </div>
+              ))}
+
+              {(listing.additional_engines || []).map((engine, idx) => (
+                <div key={`extra-engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                  <h4 className="text-xl font-bold text-[#10214F] mb-4">Additional Engine {idx + 1}</h4>
+                  <div className="space-y-1">
+                    <SpecRow label="Make" value={engine.make} />
+                    <SpecRow label="Model" value={engine.model} />
+                    <SpecRow label="Type" value={engine.type} />
+                    <SpecRow label="Hours" value={engine.hours != null ? fmt(engine.hours) : null} />
+                    <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
+                    <SpecRow label="Notes" value={engine.notes} />
+                  </div>
+                </div>
+              ))}
+
+              {(listing.generators || []).map((generator, idx) => (
+                <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                  <h4 className="text-xl font-bold text-[#10214F] mb-4">Generator {idx + 1}</h4>
+                  <div className="space-y-1">
+                    <SpecRow label="Brand" value={generator.brand} />
+                    <SpecRow label="Model" value={generator.model} />
+                    <SpecRow label="Hours" value={generator.hours != null ? fmt(generator.hours) : null} />
+                    <SpecRow label="Power" value={generator.kw != null ? `${fmt(generator.kw)} kW` : null} />
+                    <SpecRow label="Notes" value={generator.notes} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Overview */}
+        {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
         {listing.features && (
-          <div className="mb-12">
-            <h3 className="text-[30px] font-semibold text-[#01BBDC] mb-4"
-              style={{ fontFamily: 'Bahnschrift, Arial, sans-serif' }}>
-              Overview
-            </h3>
-            <div className="h-[1px] bg-[#01BBDC] mb-6" />
-            
-            <div className="text-[16px] text-[#10214F] leading-relaxed"
-              style={{ fontFamily: 'Poppins, Arial, sans-serif' }}
-              dangerouslySetInnerHTML={{ 
-                __html: listing.features.replace(/\n/g, '<br />') 
-              }} />
+          <div className="mb-16">
+            <SectionHeading>Equipment & Features</SectionHeading>
+            <div className="text-base leading-relaxed text-gray-700">
+              {listing.features.split('\n').map((line, i) => {
+                const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
+                return isSectionHeader ? (
+                  <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0">
+                    {line.trim()}
+                  </h4>
+                ) : line.trim() ? (
+                  <p key={i} className="mb-2">• {line}</p>
+                ) : (
+                  <div key={i} className="h-4" />
+                );
+              })}
+            </div>
           </div>
         )}
+
       </div>
     </div>
   );
