@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { apiUrl } from "@/app/lib/apiRoot";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,11 +76,11 @@ function ScoreBar({ score }: { score: number }) {
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
-
 async function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem("authToken");
-  const res = await fetch(`${API}${path}`, {
+  // Strip leading /api so apiUrl doesn't double it
+  const normalised = path.replace(/^\/api\//, '/');
+  const res = await fetch(apiUrl(normalised), {
     ...opts,
     headers: {
       "Content-Type": "application/json",
