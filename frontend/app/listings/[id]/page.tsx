@@ -209,35 +209,37 @@ export default function ListingDetailPage() {
       {/* ...existing code... */}
       {/* LIGHTBOX, MESSAGE MODAL, and PAGE CONTENT remain unchanged below */}
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  // Construct location string
-  const locationParts = [listing?.city, listing?.state, listing?.country].filter(Boolean);
-  const locationString = locationParts.join(', ');
+        {/* ...existing code... */}
+      </div>
 
-  // Parse key features from features text (first 5-6 bullet points)
-  const keyFeatures = listing?.feature_bullets?.length
-    ? listing.feature_bullets.filter(Boolean).slice(0, 8)
-    : (listing?.features
-      ? listing.features
-          .replace(/<[^>]*>/g, '\n')
-          .split('\n')
-          .map(line => line.replace(/^[-•\s]+/, '').trim())
-          .filter(line => line && !line.match(/^[A-Z\s]+$/))
-          .slice(0, 8)
-      : []);
+// ...existing code...
+      // Construct location string
+      const locationParts = [listing?.city, listing?.state, listing?.country].filter(Boolean);
+      const locationString = locationParts.join(', ');
 
-  const descriptionHtml = listing?.description
-    ? (/<\/?[a-z][\s\S]*>/i.test(listing.description)
-        ? listing.description
-        : listing.description.replace(/\n/g, '<br />'))
-    : '';
+      // Parse key features from features text (first 5-6 bullet points)
+      const keyFeatures = listing?.feature_bullets?.length
+        ? listing.feature_bullets.filter(Boolean).slice(0, 8)
+        : (listing?.features
+          ? listing.features
+              .replace(/<[^>]*>/g, '\n')
+              .split('\n')
+              .map(line => line.replace(/^[-•\s]+/, '').trim())
+              .filter(line => line && !line.match(/^[A-Z\s]+$/))
+              .slice(0, 8)
+          : []);
 
-  useEffect(() => {
-    if (lightbox !== null) setLightboxZoom(1);
-  }, [lightbox]);
+      const descriptionHtml = listing?.description
+        ? (/<\/?[a-z][\s\S]*>/i.test(listing.description)
+            ? listing.description
+            : listing.description.replace(/\n/g, '<br />'))
+        : '';
 
-  // ── loading / not found ────────────────────────────────────────────────────
+      useEffect(() => {
+        if (lightbox !== null) setLightboxZoom(1);
+      }, [lightbox]);
 
-  if (loading) return (
+      // ── loading / not found ────────────────────────────────────────────────────
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="w-14 h-14 rounded-full border-4 border-t-[#01BBDC] border-[#01BBDC]/20 animate-spin" />
     </div>
