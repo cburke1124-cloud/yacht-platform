@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { apiUrl } from '@/app/lib/apiRoot';
 import { Upload, Folder, FolderPlus, Image, Video, Trash2, X, Check, Search, Grid3x3, List, Move, FolderOpen, ChevronRight, MoreVertical, Edit2, Download, Star } from 'lucide-react';
 
 // Type definitions
@@ -84,24 +85,21 @@ export default function DealerMediaGallery({
   const fetchMedia = async () => {
     setLoading(true);
     try {
-      // Mock data - replace with API call
-      const mockMedia: MediaItem[] = Array.from({ length: 20 }, (_, i) => ({
-        id: i + 1,
-        filename: `yacht-${i + 1}.jpg`,
-        url: `https://images.unsplash.com/photo-${1560807707019 + i * 1000}-${Math.random().toString(36).substr(2, 9)}?w=800`,
-        thumbnail_url: `https://images.unsplash.com/photo-${1560807707019 + i * 1000}-${Math.random().toString(36).substr(2, 9)}?w=200`,
-        file_type: i % 10 === 0 ? 'video' : 'image',
-        file_size_mb: parseFloat((Math.random() * 5 + 0.5).toFixed(2)),
-        folder_id: currentFolder,
-        created_at: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-        alt_text: `Yacht image ${i + 1}`,
-        width: 1920,
-        height: 1080
-      }));
-      
-      setMedia(mockMedia);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({ limit: '100' });
+      const response = await fetch(apiUrl(`/media/my-media?${params}`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMedia(data.media || []);
+      } else {
+        console.error('Failed to fetch media:', response.status);
+        setMedia([]);
+      }
     } catch (error) {
       console.error('Failed to fetch media:', error);
+      setMedia([]);
     } finally {
       setLoading(false);
     }
@@ -113,8 +111,11 @@ export default function DealerMediaGallery({
 
     const totalFiles = files.length;
     let uploaded = 0;
+    const newMedia: MediaItem[] = [];
 
     try {
+      const token = localStorage.getItem('token');
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const formData = new FormData();
@@ -123,18 +124,44 @@ export default function DealerMediaGallery({
           formData.append('folder_id', currentFolder.toString());
         }
 
-        // Mock upload - replace with actual API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
+        const response = await fetch(apiUrl('/media/upload'), {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.media) {
+            newMedia.push({
+              id: data.media.id,
+              filename: data.media.filename,
+              url: data.media.url,
+              thumbnail_url: data.media.thumbnail_url,
+              file_type: data.media.file_type,
+              file_size_mb: file.size / (1024 * 1024),
+              folder_id: currentFolder,
+              created_at: new Date().toISOString(),
+              width: data.media.width,
+              height: data.media.height
+            });
+          }
+        }
+
         uploaded++;
         setUploadProgress((uploaded / totalFiles) * 100);
       }
 
-      alert(`Successfully uploaded ${totalFiles} file(s)!`);
-      fetchMedia();
+      setMedia(prev => [...newMedia, ...prev]);
+      if (newMedia.length > 0) {
+        alert(`Successfully uploaded ${newMedia.length} file(s)!`);
+      }
+      if (newMedia.length < totalFiles) {
+        alert(`${totalFiles - newMedia.length} file(s) failed to upload.`);
+      }
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Some files failed to upload');
+      alert('Upload failed');
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -214,12 +241,29 @@ export default function DealerMediaGallery({
 
   const deleteSelected = async () => {
     if (!confirm(`Delete ${selectedMedia.size} item(s)?`)) return;
-    
+
+    const token = localStorage.getItem('token');
+    const idsToDelete = Array.from(selectedMedia);
+    let deleted = 0;
+
     try {
+      for (const id of idsToDelete) {
+        const response = await fetch(apiUrl(`/media/${id}`), {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) deleted++;
+      }
+
       setMedia(media.filter(m => !selectedMedia.has(m.id)));
       setSelectedMedia(new Set());
+
+      if (deleted < idsToDelete.length) {
+        alert(`${idsToDelete.length - deleted} item(s) could not be deleted.`);
+      }
     } catch (error) {
       console.error('Failed to delete:', error);
+      alert('Delete failed');
     }
   };
 

@@ -135,7 +135,7 @@ export default function ListingMediaPicker({
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch(apiUrl('/upload'), {
+        const response = await fetch(apiUrl('/media/upload'), {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -144,10 +144,10 @@ export default function ListingMediaPicker({
         if (response.ok) {
           const data = await response.json();
           newMedia.push({
-            id: Date.now() + i,
+            id: data.media?.id ?? Date.now() + i,
             filename: file.name,
-            url: data.url,
-            thumbnail_url: data.thumbnail_url,
+            url: data.media?.url ?? data.url,
+            thumbnail_url: data.media?.thumbnail_url ?? data.thumbnail_url,
             file_type: file.type.startsWith('video/') ? 'video' : 'image',
             file_size_mb: file.size / (1024 * 1024),
             folder_id: currentFolder,
