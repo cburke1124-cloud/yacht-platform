@@ -543,7 +543,7 @@ def register_broker_for_sales_rep(
     db.flush()  # get new_user.id
 
     # --- create dealer profile ------------------------------------------- #
-    slug = create_slug(company_name or f"{first_name} {last_name}".strip() or email.split("@")[0], db)
+    slug = create_slug(company_name or f"{first_name} {last_name}".strip() or email.split("@")[0], db, DealerProfile)
     profile = DealerProfile(
         user_id=new_user.id,
         name=f"{first_name} {last_name}".strip() or company_name or email.split("@")[0],

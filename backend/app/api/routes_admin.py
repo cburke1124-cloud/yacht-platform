@@ -2705,7 +2705,7 @@ def register_broker_admin(
     
     # 4. Create Profile
     slug_base = company_name or f"{first_name} {last_name}".strip() or email.split("@")[0]
-    slug = create_slug(slug_base, db)
+    slug = create_slug(slug_base, db, DealerProfile)
     
     profile = DealerProfile(
         user_id=new_user.id,
