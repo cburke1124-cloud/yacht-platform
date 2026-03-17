@@ -126,7 +126,15 @@ export default function DealerProfileEditPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setProfile(prev => ({ ...prev, [field]: data.url }));
+        const url = data?.media?.url ?? data?.url;
+        if (url) {
+          setProfile(prev => ({ ...prev, [field]: url }));
+        } else {
+          alert('Upload succeeded but no URL returned — check API response');
+        }
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(err.detail || 'Upload failed');
       }
     } catch (error) {
       console.error('Upload failed:', error);

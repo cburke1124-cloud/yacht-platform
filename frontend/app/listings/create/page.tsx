@@ -831,7 +831,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           .filter(generator => Object.values(generator).some(v => v !== null && v !== '')),
       };
 
-      const endpoint = isEditMode ? `${API_ROOT}/listings/${listingId}` : `${API_ROOT}/listings`;
+      const endpoint = isEditMode ? `${API_ROOT}/listings/${listingId}` : `${API_ROOT}/listings/`;
       const res = await fetch(endpoint, {
         method: isEditMode ? 'PUT' : 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

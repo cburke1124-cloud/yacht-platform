@@ -35,11 +35,48 @@ export default function MediaUpload({
   folderId = null,
 }: MediaUploadProps) {
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [showVideoEmbed, setShowVideoEmbed] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
   const [videoType, setVideoType] = useState<'youtube' | 'vimeo' | 'tour'>(
     'youtube'
   );
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    setUploading(true);
+    const uploadedMedia: any[] = [];
+    try {
+      const token = localStorage.getItem('token');
+      for (const file of files) {
+        if (file.size > maxFileSize * 1024 * 1024) {
+          alert(`${file.name} exceeds ${maxFileSize}MB`);
+          continue;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        if (folderId) formData.append('folder_id', folderId.toString());
+        const response = await fetch(`${API_ROOT}/media/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (response.ok) {
+          const data = await response.json();
+          uploadedMedia.push(data?.media || data);
+        }
+      }
+      if (uploadedMedia.length > 0) onUploadComplete(uploadedMedia);
+    } catch (err) {
+      console.error(err);
+      alert('Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
@@ -136,7 +173,14 @@ export default function MediaUpload({
   return (
     <div className="space-y-4">
       {/* File upload */}
-      <div className="border-2 border-dashed rounded-lg p-8 text-center">
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); }}
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          isDragging ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-gray-400'
+        }`}
+      >
         <input
           type="file"
           id="media-upload"
@@ -177,7 +221,7 @@ export default function MediaUpload({
             </>
           )}
         </label>
-      </div>
+      </div> {/* end drop zone */}
 
       {/* Video embed */}
       {acceptVideos && (
