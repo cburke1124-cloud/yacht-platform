@@ -194,9 +194,77 @@ class PublicInquiry(BaseModel):
     message: str
 
 
+# ─── Helper: primary image from new media system ─────────────────────────────
+
+def _get_primary_images_for_listings(db: Session, listing_ids: list[int]) -> dict[int, list[dict]]:
+    """
+    Batch-fetch the primary image(s) from ListingMediaAttachment → MediaFile
+    for the given listing IDs.  Returns {listing_id: [{"url": ..., ...}]}.
+    """
+    if not listing_ids:
+        return {}
+    rows = (
+        db.query(
+            ListingMediaAttachment.listing_id,
+            ListingMediaAttachment.is_primary,
+            ListingMediaAttachment.display_order,
+            ListingMediaAttachment.caption,
+            MediaFile.id,
+            MediaFile.url,
+            MediaFile.thumbnail_url,
+            MediaFile.file_type,
+        )
+        .join(MediaFile, ListingMediaAttachment.media_id == MediaFile.id)
+        .filter(
+            ListingMediaAttachment.listing_id.in_(listing_ids),
+            MediaFile.deleted_at == None,  # noqa: E711
+            MediaFile.file_type == "image",
+        )
+        .order_by(
+            ListingMediaAttachment.listing_id,
+            ListingMediaAttachment.is_primary.desc(),
+            ListingMediaAttachment.display_order,
+        )
+        .all()
+    )
+    result: dict[int, list[dict]] = {}
+    for lid, is_primary, display_order, caption, mid, url, thumb, ftype in rows:
+        result.setdefault(lid, []).append({
+            "id": mid,
+            "url": url,
+            "thumbnail_url": thumb,
+            "is_primary": is_primary,
+            "display_order": display_order or 0,
+            "caption": caption,
+        })
+    return result
+
+
+def _get_listing_images(listing: Listing, db: Session) -> list[dict]:
+    """
+    Return image list for a single listing, preferring ListingMediaAttachment
+    over the legacy ListingImage table.
+    """
+    media_map = _get_primary_images_for_listings(db, [listing.id])
+    if listing.id in media_map:
+        return media_map[listing.id]
+    # Legacy fallback
+    return [
+        {
+            "id": img.id,
+            "url": img.url,
+            "thumbnail_url": img.thumbnail_url,
+            "is_primary": img.is_primary,
+            "display_order": img.display_order or 0,
+            "caption": img.caption,
+        }
+        for img in sorted(listing.images, key=lambda i: (not i.is_primary, i.display_order or 0))
+    ]
+
+
 # ─── Helper: full listing serializer ──────────────────────────────────────────
 
-def _serialize_listing(listing: Listing) -> dict:
+def _serialize_listing(listing: Listing, db: Session = None) -> dict:
     """Return every field from the Listing model."""
     return {
         "id": listing.id,
@@ -264,8 +332,8 @@ def _serialize_listing(listing: Listing) -> dict:
         "published_at": listing.published_at.isoformat() if listing.published_at else None,
         "created_at": listing.created_at.isoformat() if listing.created_at else None,
         "updated_at": listing.updated_at.isoformat() if listing.updated_at else None,
-        # Images (legacy fallback; prefer /media endpoint)
-        "images": [
+        # Images – prefer new ListingMediaAttachment system, fall back to legacy
+        "images": _get_listing_images(listing, db) if db else [
             {
                 "id": img.id,
                 "url": img.url,
@@ -533,6 +601,9 @@ def get_listings(
         except Exception:
             return None
 
+    listing_ids = [l.id for l in listings]
+    media_map = _get_primary_images_for_listings(db, listing_ids)
+
     return [
         {
             "id": l.id,
@@ -551,7 +622,10 @@ def get_listings(
             "status": l.status,
             "views": l.views or 0,
             "featured": l.featured or False,
-            "images": [{"url": img.url} for img in l.images[:1]],
+            "images": (
+                media_map.get(l.id, [])
+                or [{"url": img.url} for img in l.images[:1]]
+            ),
             "dealer": dealer_payload(l),
         }
         for l in listings
@@ -568,6 +642,9 @@ def get_my_listings(
     if status:
         query = query.filter(Listing.status == status)
     listings = query.order_by(Listing.created_at.desc()).all()
+    listing_ids = [l.id for l in listings]
+    media_map = _get_primary_images_for_listings(db, listing_ids)
+
     return [
         {
             "id": l.id,
@@ -586,7 +663,10 @@ def get_my_listings(
             "featured": l.featured or False,
             "featured_until": l.featured_until.isoformat() if l.featured_until else None,
             "created_at": l.created_at.isoformat() if l.created_at else None,
-            "images": [{"url": img.url, "is_primary": img.is_primary} for img in l.images],
+            "images": (
+                media_map.get(l.id, [])
+                or [{"url": img.url, "is_primary": img.is_primary} for img in l.images]
+            ),
         }
         for l in listings
     ]
@@ -779,7 +859,7 @@ def get_listing(listing_id: int, db: Session = Depends(get_db)):
     # Increment view counter
     listing.views = (listing.views or 0) + 1
     db.commit()
-    return _serialize_listing(listing)
+    return _serialize_listing(listing, db)
 
 
 # ─── GET media for a listing ──────────────────────────────────────────────────
@@ -1143,12 +1223,13 @@ def get_share_metadata(listing_id: int, db: Session = Depends(get_db)):
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     from app.core.config import settings
+    images = _get_listing_images(listing, db)
     return {
         "url": f"{settings.BASE_URL}/listings/{listing_id}",
         "title": listing.title,
         "description": (listing.description or "")[:200]
         or f"{listing.year} {listing.make} {listing.model}",
-        "image": listing.images[0].url if listing.images else None,
+        "image": images[0]["url"] if images else None,
         "price": listing.price,
         "currency": listing.currency or "USD",
     }
