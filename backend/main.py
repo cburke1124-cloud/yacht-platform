@@ -3147,6 +3147,489 @@ def track_click(data: dict, db: Session = Depends(get_db)):
 
 
 # ======================
+# PAYMENTS / CHECKOUT
+# ======================
+
+# Stripe price IDs per tier — must match Render env vars.
+# 'ultimate' is excluded: variable pricing, requires custom_subscription_price set by admin.
+_CHECKOUT_STRIPE_PRICES = {
+    "basic": os.getenv("STRIPE_PRICE_BASIC", "price_basic_monthly"),
+    "plus": os.getenv("STRIPE_PRICE_PLUS", "price_plus_monthly"),
+    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_monthly"),
+    "private_basic": os.getenv("STRIPE_PRICE_PRIVATE_BASIC", "price_private_basic_monthly"),
+    "private_plus": os.getenv("STRIPE_PRICE_PRIVATE_PLUS", "price_private_plus_monthly"),
+    "private_pro": os.getenv("STRIPE_PRICE_PRIVATE_PRO", "price_private_pro_monthly"),
+}
+
+# Trial days per tier
+_CHECKOUT_TRIAL_DAYS = {
+    "basic": 14,
+    "plus": 14,
+    "pro": 30,
+    "private_basic": 7,
+    "private_plus": 7,
+    "private_pro": 14,
+}
+
+
+@app.post("/api/payments/create-checkout-session")
+async def create_checkout_session(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a Stripe Checkout Session for new registrations.
+    The frontend redirects the browser to the returned checkout_url.
+    After payment Stripe redirects to success_url / cancel_url.
+    """
+    subscription_tier = (data.get("subscription_tier") or "").lower().strip()
+    user_type = (data.get("user_type") or "").lower().strip()
+    success_url = data.get("success_url")
+    cancel_url = data.get("cancel_url")
+
+    if not subscription_tier:
+        raise ValidationException("subscription_tier is required")
+    if not success_url or not cancel_url:
+        raise ValidationException("success_url and cancel_url are required")
+
+    # Map tier name  ─  private sellers use private_* prefix
+    tier_key = subscription_tier
+    if user_type == "private" and not tier_key.startswith("private_"):
+        tier_key = f"private_{tier_key}"
+
+    # ── Ultimate tier uses variable pricing negotiated by sales ────
+    if tier_key == "ultimate":
+        if not current_user.custom_subscription_price or current_user.custom_subscription_price <= 0:
+            raise ValidationException(
+                "Ultimate plan pricing must be arranged with our sales team. "
+                "Please contact support to complete your registration."
+            )
+        try:
+            custom_price = stripe.Price.create(
+                unit_amount=int(current_user.custom_subscription_price * 100),
+                currency="usd",
+                recurring={"interval": "month"},
+                product_data={
+                    "name": f"Ultimate Plan — {current_user.company_name or current_user.email}"
+                },
+            )
+            price_id = custom_price.id
+        except stripe.error.StripeError as e:
+            logger.error("Custom price creation failed: %s", e)
+            raise ExternalServiceException(f"Stripe error: {e}")
+        trial_days = 0  # No trial for Ultimate; terms negotiated individually
+    else:
+        price_id = _CHECKOUT_STRIPE_PRICES.get(tier_key)
+        if not price_id:
+            raise ValidationException(f"No Stripe price configured for tier: {tier_key}")
+        trial_days = _CHECKOUT_TRIAL_DAYS.get(tier_key, 0)
+
+    # ── Get or create Stripe customer ──────────────────────────────
+    if not current_user.stripe_customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip(),
+                metadata={"user_id": str(current_user.id), "user_type": user_type},
+            )
+            current_user.stripe_customer_id = customer.id
+            db.commit()
+        except stripe.error.StripeError as e:
+            logger.error("Stripe customer creation failed: %s", e)
+            raise ExternalServiceException(f"Stripe error: {e}")
+
+    # ── Build Checkout Session params ──────────────────────────────
+    session_params: dict = {
+        "customer": current_user.stripe_customer_id,
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": {
+            "user_id": str(current_user.id),
+            "subscription_tier": tier_key,
+        },
+    }
+
+    if trial_days > 0:
+        session_params["subscription_data"] = {"trial_period_days": trial_days}
+
+    # ── Create session ─────────────────────────────────────────────
+    try:
+        session = stripe.checkout.Session.create(**session_params)
+    except stripe.error.StripeError as e:
+        logger.error("Stripe checkout session creation failed: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    # Update user's subscription tier (will be confirmed by webhook)
+    current_user.subscription_tier = tier_key
+    if trial_days > 0:
+        current_user.trial_active = True
+        current_user.trial_end_date = datetime.utcnow() + timedelta(days=trial_days)
+    db.commit()
+
+    logger.info(
+        "Created checkout session %s for user %s (tier=%s)",
+        session.id,
+        current_user.id,
+        tier_key,
+    )
+
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@app.get("/api/payments/plans")
+def get_payment_plans(current_user: User = Depends(get_current_user)):
+    """Return available subscription plans"""
+    DEALER_PLANS = [
+        {
+            "id": "basic",
+            "name": "Basic",
+            "price": 199,
+            "interval": "month",
+            "features": [
+                "25 active listings",
+                "Featured-listing eligibility",
+                "Basic analytics dashboard",
+                "Lead & inquiry management",
+                "Email support",
+            ],
+        },
+        {
+            "id": "plus",
+            "name": "Plus",
+            "price": 299,
+            "popular": True,
+            "interval": "month",
+            "features": [
+                "75 active listings",
+                "Priority featured placement",
+                "Advanced analytics",
+                "CRM integration",
+                "Team management (up to 3)",
+                "Phone & email support",
+            ],
+        },
+        {
+            "id": "pro",
+            "name": "Pro",
+            "price": 499,
+            "interval": "month",
+            "features": [
+                "Unlimited listings",
+                "Priority featured placement",
+                "Advanced analytics & API access",
+                "Full CRM integration",
+                "Unlimited team members",
+                "Dedicated account manager",
+                "Priority support",
+            ],
+        },
+    ]
+
+    PRIVATE_SELLER_PLANS = [
+        {
+            "id": "private_basic",
+            "name": "Basic",
+            "price": 9,
+            "interval": "month",
+            "features": [
+                "1 active listing",
+                "Basic analytics",
+                "Email support",
+            ],
+        },
+        {
+            "id": "private_plus",
+            "name": "Plus",
+            "price": 19,
+            "popular": True,
+            "interval": "month",
+            "features": [
+                "3 active listings",
+                "Featured-listing eligibility",
+                "Analytics dashboard",
+                "Email support",
+            ],
+        },
+        {
+            "id": "private_pro",
+            "name": "Pro",
+            "price": 39,
+            "interval": "month",
+            "features": [
+                "5 active listings",
+                "Priority featured placement",
+                "Advanced analytics",
+                "Priority support",
+            ],
+        },
+    ]
+
+    user_type = (current_user.user_type or "").lower()
+    plans = list(PRIVATE_SELLER_PLANS) if user_type == "private" else list(DEALER_PLANS)
+
+    # If admin set a custom price for this user, override displayed price
+    if current_user.custom_subscription_price is not None and current_user.custom_subscription_price >= 0:
+        plans = [dict(p) for p in plans]
+        for p in plans:
+            if p["id"] == (current_user.subscription_tier or "").lower():
+                p["price"] = current_user.custom_subscription_price
+                p["custom_price"] = True
+
+    return {
+        "plans": plans,
+        "current_tier": current_user.subscription_tier or "free",
+        "custom_subscription_price": current_user.custom_subscription_price,
+    }
+
+
+@app.get("/api/payments/subscription")
+def get_subscription_details(current_user: User = Depends(get_current_user)):
+    """Get current subscription details"""
+    if not current_user.stripe_subscription_id:
+        return {
+            "active": False,
+            "tier": current_user.subscription_tier,
+            "trial_active": current_user.trial_active,
+        }
+
+    try:
+        sub = stripe.Subscription.retrieve(current_user.stripe_subscription_id)
+        return {
+            "active": True,
+            "tier": current_user.subscription_tier,
+            "status": sub.status,
+            "current_period_end": sub.current_period_end,
+            "cancel_at_period_end": sub.cancel_at_period_end,
+            "trial_end": sub.trial_end,
+            "trial_active": current_user.trial_active,
+        }
+    except stripe.error.StripeError:
+        return {
+            "active": False,
+            "tier": current_user.subscription_tier,
+            "trial_active": current_user.trial_active,
+        }
+
+
+@app.post("/api/payments/create-subscription")
+async def create_subscription_inline(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a subscription with Stripe Elements (inline card form).
+    Returns a client_secret for stripe.confirmCardPayment().
+    Used by the billing page for upgrades / new subscriptions.
+    """
+    tier = (data.get("tier") or "").lower().strip()
+    valid_tiers = set(_CHECKOUT_STRIPE_PRICES.keys())
+    if tier not in valid_tiers:
+        raise ValidationException(f"Invalid subscription tier: {tier}")
+
+    # Get or create Stripe customer
+    if not current_user.stripe_customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip(),
+                metadata={"user_id": str(current_user.id)},
+            )
+            current_user.stripe_customer_id = customer.id
+            db.commit()
+        except stripe.error.StripeError as e:
+            logger.error("Stripe customer creation failed: %s", e)
+            raise ExternalServiceException(f"Stripe error: {e}")
+
+    # Resolve price ID — custom price takes precedence
+    price_id = None
+    if current_user.custom_subscription_price is not None and current_user.custom_subscription_price >= 0:
+        try:
+            price = stripe.Price.create(
+                unit_amount=int(current_user.custom_subscription_price * 100),
+                currency="usd",
+                recurring={"interval": "month"},
+                product_data={"name": f"{tier.title()} Plan (Custom)"},
+            )
+            price_id = price.id
+        except stripe.error.StripeError as e:
+            raise ExternalServiceException(f"Custom price creation failed: {e}")
+
+    if not price_id:
+        price_id = _CHECKOUT_STRIPE_PRICES.get(tier)
+    if not price_id:
+        raise ValidationException(f"Price not configured for tier: {tier}")
+
+    # Create subscription (incomplete until card confirmed)
+    try:
+        sub_params = {
+            "customer": current_user.stripe_customer_id,
+            "items": [{"price": price_id}],
+            "payment_behavior": "default_incomplete",
+            "payment_settings": {"save_default_payment_method": "on_subscription"},
+            "expand": ["latest_invoice.payment_intent"],
+        }
+
+        trial_days = _CHECKOUT_TRIAL_DAYS.get(tier, 0)
+        if trial_days > 0:
+            sub_params["trial_period_days"] = trial_days
+
+        subscription = stripe.Subscription.create(**sub_params)
+    except stripe.error.StripeError as e:
+        logger.error("Stripe subscription creation failed: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    # Update user record
+    current_user.subscription_tier = tier
+    current_user.stripe_subscription_id = subscription.id
+    if trial_days > 0:
+        current_user.trial_active = True
+        current_user.trial_end_date = datetime.utcnow() + timedelta(days=trial_days)
+    db.commit()
+
+    return {
+        "success": True,
+        "client_secret": subscription.latest_invoice.payment_intent.client_secret,
+        "subscription_id": subscription.id,
+        "trial_days": trial_days,
+    }
+
+
+@app.post("/api/payments/cancel-subscription")
+async def cancel_subscription_endpoint(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Cancel the current subscription"""
+    if not current_user.stripe_subscription_id:
+        raise ValidationException("No active subscription found")
+
+    cancel_immediately = data.get("cancel_immediately", False)
+
+    try:
+        if cancel_immediately:
+            stripe.Subscription.delete(current_user.stripe_subscription_id)
+            current_user.subscription_tier = "free"
+            current_user.stripe_subscription_id = None
+        else:
+            stripe.Subscription.modify(
+                current_user.stripe_subscription_id,
+                cancel_at_period_end=True,
+            )
+        db.commit()
+    except stripe.error.StripeError as e:
+        logger.error("Stripe cancel failed: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    return {"success": True, "message": "Subscription cancelled"}
+
+
+@app.get("/api/payments/billing-portal")
+def get_billing_portal(current_user: User = Depends(get_current_user)):
+    """Get Stripe billing portal URL for the customer to manage payment methods"""
+    if not current_user.stripe_customer_id:
+        raise ValidationException("No Stripe customer found. Subscribe first.")
+
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=current_user.stripe_customer_id,
+            return_url=os.getenv("FRONTEND_URL", "https://www.yachtversal.com") + "/dashboard/billing",
+        )
+        return {"url": session.url}
+    except stripe.error.StripeError as e:
+        logger.error("Billing portal error: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+
+@app.post("/api/payments/webhooks/stripe")
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    """
+    Handle Stripe webhooks — fires on payment success/failure, subscription
+    lifecycle events, and invoice events.
+    """
+    import json as _json
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    # Verify signature if secret is configured
+    if webhook_secret:
+        try:
+            stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        except (ValueError, stripe.error.SignatureVerificationError) as e:
+            logger.warning("Webhook signature verification failed: %s", e)
+            raise ValidationException("Invalid webhook signature")
+
+    event = _json.loads(payload)
+    event_type = event.get("type", "")
+    obj = event.get("data", {}).get("object", {})
+
+    logger.info("Stripe webhook received: %s", event_type)
+
+    # --- Checkout session completed (registration flow) ----------------
+    if event_type == "checkout.session.completed":
+        customer_id = obj.get("customer")
+        subscription_id = obj.get("subscription")
+        metadata = obj.get("metadata", {})
+        user_id = metadata.get("user_id")
+        tier = metadata.get("subscription_tier")
+
+        user = None
+        if user_id:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user and customer_id:
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+
+        if user:
+            user.stripe_subscription_id = subscription_id
+            if tier:
+                user.subscription_tier = tier
+            db.commit()
+            logger.info("checkout.session.completed → user %s subscribed (tier=%s)", user.id, tier)
+
+    # --- Subscription lifecycle ----------------------------------------
+    elif event_type == "customer.subscription.created":
+        customer_id = obj.get("customer")
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        if user:
+            user.stripe_subscription_id = obj.get("id")
+            db.commit()
+
+    elif event_type == "customer.subscription.updated":
+        sub_id = obj.get("id")
+        status = obj.get("status")
+        user = db.query(User).filter(User.stripe_subscription_id == sub_id).first()
+        if user:
+            if status == "active" and obj.get("trial_end"):
+                user.trial_active = False
+                user.trial_converted = True
+            db.commit()
+
+    elif event_type == "customer.subscription.deleted":
+        sub_id = obj.get("id")
+        user = db.query(User).filter(User.stripe_subscription_id == sub_id).first()
+        if user:
+            user.subscription_tier = "free"
+            user.stripe_subscription_id = None
+            db.commit()
+            logger.info("Subscription deleted → user %s downgraded to free", user.id)
+
+    # --- Invoice events -----------------------------------------------
+    elif event_type == "invoice.payment_failed":
+        customer_id = obj.get("customer")
+        user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        if user:
+            logger.warning("Invoice payment failed for user %s", user.id)
+
+    return {"success": True}
+
+
+# ======================
 # ADVANCED SEARCH
 # ======================
 

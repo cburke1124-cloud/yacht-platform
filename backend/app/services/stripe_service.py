@@ -11,10 +11,26 @@ logger = logging.getLogger(__name__)
 # Initialize Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-# Price IDs (set these in Stripe Dashboard)
+# Price IDs — set these in your Stripe Dashboard and add as Render env vars.
+# NOTE: 'ultimate' is intentionally excluded — it uses custom per-account pricing
+# set by an admin and a dynamic Stripe Price is created at checkout time.
 STRIPE_PRICES = {
     "basic": os.getenv("STRIPE_PRICE_BASIC", "price_basic_monthly"),
-    "premium": os.getenv("STRIPE_PRICE_PREMIUM", "price_premium_monthly"),
+    "plus": os.getenv("STRIPE_PRICE_PLUS", "price_plus_monthly"),
+    "pro": os.getenv("STRIPE_PRICE_PRO", "price_pro_monthly"),
+    "private_basic": os.getenv("STRIPE_PRICE_PRIVATE_BASIC", "price_private_basic_monthly"),
+    "private_plus": os.getenv("STRIPE_PRICE_PRIVATE_PLUS", "price_private_plus_monthly"),
+    "private_pro": os.getenv("STRIPE_PRICE_PRIVATE_PRO", "price_private_pro_monthly"),
+}
+
+# Trial days per tier (used during checkout session creation)
+TIER_TRIAL_DAYS = {
+    "basic": 14,
+    "plus": 14,
+    "pro": 30,
+    "private_basic": 7,
+    "private_plus": 7,
+    "private_pro": 14,
 }
 
 
