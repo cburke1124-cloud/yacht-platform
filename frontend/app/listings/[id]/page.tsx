@@ -211,54 +211,7 @@ export default function ListingDetailPage() {
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ...existing code... */}
       </div>
-
 // ...existing code...
-      // Construct location string
-      const locationParts = [listing?.city, listing?.state, listing?.country].filter(Boolean);
-      const locationString = locationParts.join(', ');
-
-      // Parse key features from features text (first 5-6 bullet points)
-      const keyFeatures = listing?.feature_bullets?.length
-        ? listing.feature_bullets.filter(Boolean).slice(0, 8)
-        : (listing?.features
-          ? listing.features
-              .replace(/<[^>]*>/g, '\n')
-              .split('\n')
-              .map(line => line.replace(/^[-•\s]+/, '').trim())
-              .filter(line => line && !line.match(/^[A-Z\s]+$/))
-              .slice(0, 8)
-          : []);
-
-      const descriptionHtml = listing?.description
-        ? (/<\/?[a-z][\s\S]*>/i.test(listing.description)
-            ? listing.description
-            : listing.description.replace(/\n/g, '<br />'))
-        : '';
-
-      useEffect(() => {
-        if (lightbox !== null) setLightboxZoom(1);
-      }, [lightbox]);
-
-      // ── loading / not found ────────────────────────────────────────────────────
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="w-14 h-14 rounded-full border-4 border-t-[#01BBDC] border-[#01BBDC]/20 animate-spin" />
-    </div>
-  );
-  if (!listing) return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="text-center">
-        <h2 className="text-3xl font-bold mb-4 text-[#10214F]">Listing not found</h2>
-        <button onClick={() => router.back()} className="text-[#01BBDC] hover:underline font-medium">
-          ← Back to listings
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── render ─────────────────────────────────────────────────────────────────
-
-  return (
-    <div className="min-h-screen bg-white">
 
       {/* ══ LIGHTBOX ════════════════════════════════════════════════════════ */}
       {lightbox !== null && imageLightboxItems.length > 0 && (
