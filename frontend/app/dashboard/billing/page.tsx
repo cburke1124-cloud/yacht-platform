@@ -215,7 +215,7 @@ export default function BillingPage() {
             </p>
             {subscription.current_period_end && (
               <p className="text-sm text-gray-600 mt-1">
-                Next billing date: {new Date(subscription.current_period_end * 1000).toLocaleDateString()}
+                Next billing date: {new Date(Number(subscription.current_period_end) * 1000).toLocaleDateString()}
               </p>
             )}
           </div>
