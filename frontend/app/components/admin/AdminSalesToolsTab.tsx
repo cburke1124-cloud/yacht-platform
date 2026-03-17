@@ -66,6 +66,8 @@ export default function AdminSalesToolsTab() {
   const [regLoading, setRegLoading] = useState(false);
   const [regSuccess, setRegSuccess] = useState<any>(null);
   const [regError, setRegError] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendResult, setResendResult] = useState<{ email_sent: boolean; setup_url: string; message: string } | null>(null);
 
   // Deal Form State
   const [showDealModal, setShowDealModal] = useState(false);
@@ -501,22 +503,70 @@ export default function AdminSalesToolsTab() {
             <p className="text-sm text-gray-500 mb-6">Create a broker account manually and bypass payment if needed.</p>
 
             {regSuccess && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-lg">
-                <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
+              <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-green-700 font-medium">
                   <Check className="w-5 h-5" />
                   Registration Successful
                 </div>
                 <div className="space-y-1 text-sm text-green-800">
                   <p>Account created for <span className="font-semibold">{regSuccess.email}</span></p>
                   {regSuccess.password_setup_email_sent
-                    ? <p className="text-green-700">✓ A password setup email has been sent to the broker.</p>
-                    : <p className="text-amber-700 font-medium">⚠ Could not send setup email — please notify the broker manually.</p>
+                    ? <p className="text-green-700">✓ Setup email sent to broker.</p>
+                    : <p className="text-amber-700 font-medium">⚠ Email delivery failed — use the button below to resend or copy the setup link.</p>
                   }
-                  <p className="text-xs mt-2 text-green-600">The broker will use the link in their email to set their own password.</p>
                 </div>
-                <button 
-                  onClick={() => setRegSuccess(null)}
-                  className="mt-4 text-sm text-green-700 hover:text-green-800 font-medium"
+
+                {/* Resend / copy setup link */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={async () => {
+                      setResendLoading(true);
+                      setResendResult(null);
+                      try {
+                        const token = localStorage.getItem('token');
+                        const res = await fetch(apiUrl(`/admin/broker/${regSuccess.dealer_id}/resend-setup`), {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const d = await res.json();
+                        setResendResult(d);
+                      } catch {
+                        setResendResult({ email_sent: false, setup_url: '', message: 'Network error.' });
+                      } finally {
+                        setResendLoading(false);
+                      }
+                    }}
+                    disabled={resendLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${resendLoading ? 'animate-spin' : ''}`} />
+                    {resendLoading ? 'Sending…' : 'Resend Setup Email'}
+                  </button>
+                </div>
+
+                {resendResult && (
+                  <div className={`text-sm rounded-lg p-3 space-y-2 ${
+                    resendResult.email_sent ? 'bg-green-100 text-green-800' : 'bg-amber-50 text-amber-800'
+                  }`}>
+                    <p>{resendResult.message}</p>
+                    {resendResult.setup_url && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs break-all flex-1">{resendResult.setup_url}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(resendResult!.setup_url)}
+                          className="shrink-0 p-1.5 bg-white border rounded hover:bg-gray-50"
+                          title="Copy link"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-gray-600" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => { setRegSuccess(null); setResendResult(null); }}
+                  className="text-sm text-green-700 hover:text-green-800 font-medium"
                 >
                   Register Another
                 </button>

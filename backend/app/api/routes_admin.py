@@ -2820,3 +2820,52 @@ def update_subscription_config(
         "message": "Subscription configuration updated",
         "broker_tiers": broker_tiers,
     }
+
+
+# ── Resend / regenerate broker setup link ─────────────────────────────────────
+
+@router.post("/broker/{user_id}/resend-setup")
+def resend_broker_setup_email(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Regenerate a password-setup token for a broker and re-send the setup email.
+    Also returns the setup URL so the admin can share it manually if email
+    delivery is not working.
+    """
+    if current_user.user_type != "admin":
+        raise AuthorizationException("Admin access required")
+
+    broker = db.query(User).filter(User.id == user_id, User.user_type == "dealer").first()
+    if not broker:
+        raise ResourceNotFoundException("Broker", user_id)
+
+    # Regenerate token
+    new_token = secrets.token_urlsafe(32)
+    broker.verification_token = new_token
+    db.commit()
+
+    setup_url = f"{email_service.base_url}/set-password?token={new_token}"
+
+    # Attempt to email — non-fatal if it fails
+    email_sent = False
+    display_name = broker.first_name or broker.company_name or broker.email.split("@")[0]
+    try:
+        email_service.send_password_set_email(broker.email, display_name, setup_url)
+        email_sent = True
+    except Exception as exc:
+        import logging as _log
+        _log.warning("resend_broker_setup: email failed for %s: %s", broker.email, exc)
+
+    return {
+        "success": True,
+        "email_sent": email_sent,
+        "setup_url": setup_url,
+        "message": (
+            "Setup email sent successfully."
+            if email_sent
+            else "Email delivery failed — copy the setup_url and send it manually."
+        ),
+    }
