@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -479,12 +480,14 @@ def forgot_password(data: dict, db: Session = Depends(get_db)):
     db.commit()
 
     user_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
-    reset_url = f"{email_service.base_url}/reset-password?token={token}"
     try:
-        email_service.send_password_reset_email(user.email, token, user_name)
+        result = email_service.send_password_reset_email(user.email, token, user_name)
+        if result:
+            logging.info("forgot_password: reset email SENT to %s", email)
+        else:
+            logging.error("forgot_password: send_email returned False for %s — check SendGrid config", email)
     except Exception as exc:
-        import logging as _log
-        _log.warning("forgot_password: email failed for %s: %s", email, exc)
+        logging.error("forgot_password: email FAILED for %s: %s", email, exc)
 
     return {"success": True, "message": "If that email exists, a reset link has been sent"}
 

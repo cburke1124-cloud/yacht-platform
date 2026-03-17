@@ -104,6 +104,7 @@ _ENV_KEYS = [
     "HCAPTCHA_SITEKEY",
     "AUTO_CREATE_TABLES",
     "ENABLE_CLAMAV",
+    "FROM_EMAIL",
 ]
 
 
@@ -161,6 +162,39 @@ def system_health(
         "env_vars": env_vars,
         "generated_at": datetime.utcnow().isoformat(),
     }
+
+
+@router.post("/system/test-email")
+def test_email(
+    data: dict,
+    current_user: User = Depends(require_admin),
+):
+    """
+    Admin-only: send a test email to verify SendGrid configuration.
+    Body: { "to": "recipient@example.com" }
+    """
+    to = (data.get("to") or "").strip()
+    if not to:
+        return {"success": False, "error": "Missing 'to' field"}
+
+    from app.services.email_service import email_service
+
+    diag = {
+        "api_key_set": bool(email_service.api_key),
+        "api_key_prefix": (email_service.api_key or "")[:7] + "..." if email_service.api_key else None,
+        "from_email": email_service.from_email,
+        "base_url": email_service.base_url,
+    }
+
+    try:
+        result = email_service.send_email(
+            to_email=to,
+            subject="YachtVersal Test Email",
+            html_content="<h2>It works!</h2><p>This is a test email from your YachtVersal backend.</p>",
+        )
+        return {"success": True, "send_result": result, "diagnostics": diag}
+    except Exception as e:
+        return {"success": False, "error": str(e), "diagnostics": diag}
 
 
 @router.get("/system/info")
