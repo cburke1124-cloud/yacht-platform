@@ -34,6 +34,10 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
     min-height: 100vh;
   }
+
+  button, [role="button"] {
+    cursor: pointer;
+  }
 }
 
 /* =========================
