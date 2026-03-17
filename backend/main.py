@@ -2186,6 +2186,10 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
 
     # Hash password
     hashed_password = get_password_hash(user_data.password)
+    # Subscription tier is intentionally NOT set from the registration form.
+    # For dealer/private accounts, the tier is upgraded by the Stripe webhook
+    # (checkout.session.completed) AFTER the user has actually paid.
+    # Storing the selected tier here before payment would grant free access.
     user = User(
         email=user_data.email,
         password_hash=hashed_password,
@@ -2194,7 +2198,7 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
         phone=user_data.phone,
         user_type=user_data.user_type,
         company_name=user_data.company_name,
-        subscription_tier=user_data.subscription_tier or "free",
+        subscription_tier="free",  # Always start on free; webhook upgrades after payment
     )
     db.add(user)
     db.commit()
@@ -3262,12 +3266,9 @@ async def create_checkout_session(
         logger.error("Stripe checkout session creation failed: %s", e)
         raise ExternalServiceException(f"Stripe error: {e}")
 
-    # Update user's subscription tier (will be confirmed by webhook)
-    current_user.subscription_tier = tier_key
-    if trial_days > 0:
-        current_user.trial_active = True
-        current_user.trial_end_date = datetime.utcnow() + timedelta(days=trial_days)
-    db.commit()
+    # Do NOT update subscription_tier here — the Stripe webhook
+    # (checkout.session.completed) is the source of truth for tier upgrades.
+    # Setting it prematurely would grant access before payment clears.
 
     logger.info(
         "Created checkout session %s for user %s (tier=%s)",
@@ -3589,6 +3590,15 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             user.stripe_subscription_id = subscription_id
             if tier:
                 user.subscription_tier = tier
+            # Fetch the subscription to check for trial period
+            if subscription_id:
+                try:
+                    sub = stripe.Subscription.retrieve(subscription_id)
+                    if sub.status == "trialing" and sub.trial_end:
+                        user.trial_active = True
+                        user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
+                except stripe.error.StripeError:
+                    pass  # Non-fatal — tier is already set
             db.commit()
             logger.info("checkout.session.completed → user %s subscribed (tier=%s)", user.id, tier)
 

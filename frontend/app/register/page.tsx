@@ -214,7 +214,16 @@ function RegisterContent() {
         });
 
         const checkoutData = await checkoutRes.json();
-        if (!checkoutRes.ok) { router.push('/dashboard?payment=pending'); return; }
+        if (!checkoutRes.ok) {
+          // Payment setup failed — log the user out immediately so they
+          // cannot access the dashboard without completing payment.
+          localStorage.removeItem('token');
+          window.dispatchEvent(new Event('authChange'));
+          setStripeRedirecting(false);
+          const msg = checkoutData?.detail || checkoutData?.error || 'Payment setup failed. Please try again or contact support.';
+          setError(msg);
+          return;
+        }
         window.location.href = checkoutData.checkout_url;
         return;
       }
