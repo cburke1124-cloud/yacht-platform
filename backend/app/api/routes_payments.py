@@ -3,14 +3,16 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 
+import stripe
+
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.misc import Payment, Invoice
-from app.services.stripe_service import stripe_service, STRIPE_PRICES
+from app.services.stripe_service import stripe_service, STRIPE_PRICES, TIER_TRIAL_DAYS
 from app.services.email_service import email_service
 from app.services.notification_service import notification_service
-from app.exceptions import ValidationException, ResourceNotFoundException
+from app.exceptions import ValidationException, ResourceNotFoundException, ExternalServiceException
 from app.core.config import settings
 
 import logging
@@ -103,6 +105,107 @@ PRIVATE_SELLER_PLANS = [
         ],
     },
 ]
+
+
+# ==================== CHECKOUT SESSION ====================
+
+@router.post("/payments/create-checkout-session")
+async def create_checkout_session(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a Stripe Checkout Session for new registrations.
+    The frontend redirects the browser to the returned checkout_url.
+    After payment Stripe redirects to success_url / cancel_url.
+    """
+    subscription_tier = (data.get("subscription_tier") or "").lower().strip()
+    user_type = (data.get("user_type") or "").lower().strip()
+    success_url = data.get("success_url")
+    cancel_url = data.get("cancel_url")
+
+    if not subscription_tier:
+        raise ValidationException("subscription_tier is required")
+    if not success_url or not cancel_url:
+        raise ValidationException("success_url and cancel_url are required")
+
+    # Map tier name — private sellers use private_* prefix
+    tier_key = subscription_tier
+    if user_type == "private" and not tier_key.startswith("private_"):
+        tier_key = f"private_{tier_key}"
+
+    # Ultimate tier uses variable pricing negotiated by sales
+    if tier_key == "ultimate":
+        if not current_user.custom_subscription_price or current_user.custom_subscription_price <= 0:
+            raise ValidationException(
+                "Ultimate plan pricing must be arranged with our sales team. "
+                "Please contact support to complete your registration."
+            )
+        try:
+            custom_price = stripe.Price.create(
+                unit_amount=int(current_user.custom_subscription_price * 100),
+                currency="usd",
+                recurring={"interval": "month"},
+                product_data={
+                    "name": f"Ultimate Plan — {current_user.company_name or current_user.email}"
+                },
+            )
+            price_id = custom_price.id
+        except stripe.error.StripeError as e:
+            logger.error("Custom price creation failed: %s", e)
+            raise ExternalServiceException(f"Stripe error: {e}")
+        trial_days = 0
+    else:
+        price_id = STRIPE_PRICES.get(tier_key)
+        if not price_id:
+            raise ValidationException(f"No Stripe price configured for tier: {tier_key}")
+        trial_days = TIER_TRIAL_DAYS.get(tier_key, 0)
+
+    # Get or create Stripe customer
+    if not current_user.stripe_customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip(),
+                metadata={"user_id": str(current_user.id), "user_type": user_type},
+            )
+            current_user.stripe_customer_id = customer.id
+            db.commit()
+        except stripe.error.StripeError as e:
+            logger.error("Stripe customer creation failed: %s", e)
+            raise ExternalServiceException(f"Stripe error: {e}")
+
+    # Build Checkout Session params
+    session_params: dict = {
+        "customer": current_user.stripe_customer_id,
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": {
+            "user_id": str(current_user.id),
+            "subscription_tier": tier_key,
+        },
+    }
+
+    if trial_days > 0:
+        session_params["subscription_data"] = {"trial_period_days": trial_days}
+
+    try:
+        session = stripe.checkout.Session.create(**session_params)
+    except stripe.error.StripeError as e:
+        logger.error("Stripe checkout session creation failed: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    logger.info(
+        "Created checkout session %s for user %s (tier=%s)",
+        session.id,
+        current_user.id,
+        tier_key,
+    )
+
+    return {"checkout_url": session.url, "session_id": session.id}
 
 
 # ==================== PLAN DISCOVERY ====================
@@ -508,7 +611,36 @@ async def stripe_webhook(
     logger.info(f"Received Stripe webhook: {event_type}")
     
     # Handle different event types
-    if event_type == "payment_intent.succeeded":
+    if event_type == "checkout.session.completed":
+        obj = event["data"]["object"]
+        customer_id = obj.get("customer")
+        subscription_id = obj.get("subscription")
+        metadata = obj.get("metadata", {})
+        user_id = metadata.get("user_id")
+        tier = metadata.get("subscription_tier")
+
+        user = None
+        if user_id:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user and customer_id:
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+
+        if user:
+            user.stripe_subscription_id = subscription_id
+            if tier:
+                user.subscription_tier = tier
+            if subscription_id:
+                try:
+                    sub = stripe.Subscription.retrieve(subscription_id)
+                    if sub.status == "trialing" and sub.trial_end:
+                        user.trial_active = True
+                        user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
+                except stripe.error.StripeError:
+                    pass
+            db.commit()
+            logger.info("checkout.session.completed → user %s subscribed (tier=%s)", user.id, tier)
+
+    elif event_type == "payment_intent.succeeded":
         await handle_payment_succeeded(event["data"]["object"], db, background_tasks)
     
     elif event_type == "payment_intent.payment_failed":
