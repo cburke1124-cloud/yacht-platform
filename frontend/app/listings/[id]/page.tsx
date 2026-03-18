@@ -1097,12 +1097,12 @@ export default function ListingDetailPage() {
         {(() => {
           // Build engines array without duplicating primary/additional entries.
           const engines: Array<any> = [];
-          const hasPrimary = listing.engine_make || listing.engine_model || listing.engine_type || listing.engine_hours != null || listing.engine_count;
+          const hasPrimary = listing.engine_hours != null || listing.engine_count;
           if (hasPrimary) {
             engines.push({
-              make: listing.engine_make || null,
-              model: listing.engine_model || null,
-              type: listing.engine_type || null,
+              make: null,
+              model: null,
+              type: null,
               hours: listing.engine_hours != null ? listing.engine_hours : null,
               horsepower: null,
               note: null,
@@ -1137,6 +1137,7 @@ export default function ListingDetailPage() {
                         <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
                         <SpecRow label="Notes" value={engine.notes || engine.note || null} />
                       </div>
+                    </div>
                   ))
                 ) : (
                   // Fallback: show primary spec once if only engine_count present
