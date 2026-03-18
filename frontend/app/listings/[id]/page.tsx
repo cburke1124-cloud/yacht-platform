@@ -387,7 +387,7 @@ export default function ListingDetailPage() {
             className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronLeft size={28} className="text-white" />
           </button>
-          <img src={imageLightboxItems[lightbox]?.url || FALLBACK_LISTING_IMAGE} className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl transition-transform duration-200"
+          <img src={imageLightboxItems[lightbox]?.url || FALLBACK_LISTING_IMAGE} className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
             style={{ transform: `scale(${lightboxZoom})` }}
             alt={imageLightboxItems[lightbox]?.alt_text || imageLightboxItems[lightbox]?.caption || `${listing.title} photo ${(lightbox ?? 0) + 1}`}
             onClick={e => e.stopPropagation()} />
@@ -422,7 +422,7 @@ export default function ListingDetailPage() {
       {showMsg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm"
           onClick={() => setShowMsg(false)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div>
                 <h3 className="text-xl font-bold text-[#10214F]">
@@ -546,161 +546,54 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* ══ GALLERY + CONTACT ════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
+        {/* ══ FEATURED IMAGE + CONTACT ════════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
-          {/* ── Gallery: 7 cols ─────────────────────────────────────────────── */}
-          <div className="lg:col-span-7 space-y-2">
-
-            {/* Mosaic: main image (3/5 width) + 2 stacked thumbnails (2/5 width) */}
-            <div className="grid gap-2" style={{ gridTemplateColumns: '3fr 2fr', height: 440 }}>
-
-              {/* Main featured image */}
-              <div className="relative rounded-2xl overflow-hidden cursor-pointer bg-gray-100"
-                onClick={() => {
-                  if (!featuredMedia) return;
-                  if (featuredMedia.file_type === 'image') {
-                    const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
-                    if (idx >= 0) setLightbox(idx);
-                  } else if (featuredMedia.file_type === 'video') {
-                    window.open(featuredMedia.url, '_blank');
-                  }
-                }}>
-                {featuredMedia?.file_type === 'video' ? (
-                  <div className="relative w-full h-full bg-black">
-                    {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
-                      <iframe src={featuredMedia.url} title={listing.title} className="w-full h-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
-                    ) : (
-                      <video src={featuredMedia.url} controls className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                ) : (
-                  <img src={featuredMedia?.url || FALLBACK_LISTING_IMAGE}
-                    alt={`${listing.title} main photo`} className="w-full h-full object-cover" />
-                )}
-                {listing.featured && (
-                  <div className="absolute top-4 left-4 px-3 py-1.5 rounded-xl text-sm font-bold text-white bg-[#01BBDC]">
-                    ⭐ Featured
-                  </div>
-                )}
-                {contact?.dealer?.is_demo && (
-                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10">
-                    <div className="bg-[#10214F]/80 backdrop-blur-md text-white px-6 py-4 rounded-xl shadow-2xl text-center border-2 border-[#01BBDC]">
-                      <p className="text-2xl font-black uppercase tracking-widest mb-1 text-[#01BBDC] font-bahnschrift">Sample Listing</p>
-                      <p className="text-sm font-medium opacity-80">Demonstration Purposes Only</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right column: 2 stacked thumbnails */}
-              <div className="flex flex-col gap-2">
-                {[0, 1].map(slot => {
-                  const item = galleryMedia[slot];
-                  const isLast = slot === 1;
-                  const remaining = Math.max(galleryItems.length - 3, 0);
-                  return (
-                    <button key={slot} type="button"
-                      className="flex-1 relative rounded-2xl overflow-hidden bg-gray-100"
-                      onClick={() => {
-                        if (!item) return;
-                        if (item.file_type === 'image') {
-                          const idx = imageLightboxItems.findIndex(i => i.id === item.id);
-                          if (idx >= 0) setLightbox(idx);
-                        } else if (item.file_type === 'video') {
-                          window.open(item.url, '_blank');
-                        }
-                      }}>
-                      {item ? (
-                        item.file_type === 'video' ? (
-                          <>
-                            <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
-                              alt={`${listing.title} video ${slot + 2}`} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                              <PlayCircle size={28} className="text-white" />
-                            </div>
-                          </>
-                        ) : (
-                          <img src={item.thumbnail_url || item.url}
-                            alt={`${listing.title} photo ${slot + 2}`} className="w-full h-full object-cover" />
-                        )
-                      ) : (
-                        <div className="w-full h-full bg-gray-100" />
-                      )}
-                      {isLast && remaining > 0 && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Extra thumbnails row when more than 3 images */}
-            {galleryItems.length > 3 && (
-              <div className="grid grid-cols-4 gap-2">
-                {galleryItems.slice(3, 7).map((item, idx) => {
-                  const isLast = idx === 3;
-                  const remaining = Math.max(galleryItems.length - 7, 0);
-                  return (
-                    <button key={item.id} type="button"
-                      className="relative h-24 rounded-xl overflow-hidden bg-gray-100"
-                      onClick={() => {
-                        if (item.file_type === 'image') {
-                          const i = imageLightboxItems.findIndex(x => x.id === item.id);
-                          if (i >= 0) setLightbox(i);
-                        } else if (item.file_type === 'video') {
-                          window.open(item.url, '_blank');
-                        }
-                      }}>
-                      {item.file_type === 'video' ? (
-                        <>
-                          <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
-                            alt={`${listing.title} video`} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                            <PlayCircle size={22} className="text-white" />
-                          </div>
-                        </>
-                      ) : (
-                        <img src={item.thumbnail_url || item.url}
-                          alt={`${listing.title} photo`} className="w-full h-full object-cover" />
-                      )}
-                      {isLast && remaining > 0 && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="text-white font-bold font-bahnschrift">+{remaining}</span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {pdfItems.length > 0 && (
-              <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                <h4 className="text-sm font-bold text-[#10214F] mb-3 uppercase tracking-wide font-bahnschrift">Documents</h4>
-                <div className="space-y-2">
-                  {pdfItems.map((doc, idx) => (
-                    <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
-                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
-                      <span className="flex items-center gap-2 text-sm text-[#10214F] font-poppins">
-                        <FileText size={16} className="text-[#01BBDC]" />
-                        {doc.caption || doc.alt_text || `Document ${idx + 1}`}
-                      </span>
-                      <ExternalLink size={14} className="text-gray-500" />
-                    </a>
-                  ))}
+          {/* ── Featured image: 8 cols ──────────────────────────────────────── */}
+          <div className="lg:col-span-8">
+            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
+              style={{ height: 500 }}
+              onClick={() => {
+                if (!featuredMedia) return;
+                if (featuredMedia.file_type === 'image') {
+                  const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
+                  if (idx >= 0) setLightbox(idx);
+                } else if (featuredMedia.file_type === 'video') {
+                  window.open(featuredMedia.url, '_blank');
+                }
+              }}>
+              {featuredMedia?.file_type === 'video' ? (
+                <div className="relative w-full h-full bg-black">
+                  {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
+                    <iframe src={featuredMedia.url} title={listing.title} className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+                  ) : (
+                    <video src={featuredMedia.url} controls className="w-full h-full object-cover" />
+                  )}
                 </div>
-              </div>
-            )}
+              ) : (
+                <img src={featuredMedia?.url || FALLBACK_LISTING_IMAGE}
+                  alt={`${listing.title} main photo`} className="w-full h-full object-cover" />
+              )}
+              {listing.featured && (
+                <div className="absolute top-4 left-4 px-3 py-1.5 rounded-xl text-sm font-bold text-white bg-[#01BBDC]">
+                  ⭐ Featured
+                </div>
+              )}
+              {contact?.dealer?.is_demo && (
+                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10">
+                  <div className="bg-[#10214F]/80 backdrop-blur-md text-white px-6 py-4 rounded-xl text-center border-2 border-[#01BBDC]">
+                    <p className="text-2xl font-black uppercase tracking-widest mb-1 text-[#01BBDC] font-bahnschrift">Sample Listing</p>
+                    <p className="text-sm font-medium opacity-80">Demonstration Purposes Only</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* ── Contact card: 5 cols ─────────────────────────────────────────── */}
-          <div className="lg:col-span-5">
-            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-lg">
+          {/* ── Contact card: 4 cols ─────────────────────────────────────────── */}
+          <div className="lg:col-span-4">
+            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white">
 
               {/* Sales contact or dealer info */}
               {(sc || dealer) ? (
@@ -711,7 +604,7 @@ export default function ListingDetailPage() {
                     <div className="flex gap-4 mb-5">
                       {sc.photo_url ? (
                         <img src={sc.photo_url} alt={sc.name || 'Sales contact photo'}
-                          className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 shadow-md"
+                          className="w-20 h-20 rounded-2xl object-cover flex-shrink-0"
                           onError={e => { (e.target as HTMLImageElement).src = '/images/user-placeholder.png'; }} />
                       ) : (
                         <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
@@ -744,7 +637,7 @@ export default function ListingDetailPage() {
                       <div className="flex gap-4 mb-5">
                         {dealer.logo_url ? (
                           <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`}
-                            className="w-16 h-16 rounded-2xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100 shadow-sm"
+                            className="w-16 h-16 rounded-2xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
                             onError={e => { (e.target as HTMLImageElement).src = '/images/company-placeholder.png'; }} />
                         ) : (
                           <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
@@ -778,7 +671,7 @@ export default function ListingDetailPage() {
                   {/* CTA buttons - NO GRADIENTS */}
                   <div className="flex flex-col gap-3">
                     <button onClick={() => setShowMsg(true)}
-                      className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg bg-[#01BBDC] hover:opacity-90">
+                      className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#01BBDC] hover:opacity-90">
                       <Mail size={18} /> Contact Seller
                     </button>
                     {primaryPhone && (
@@ -808,7 +701,7 @@ export default function ListingDetailPage() {
                 <div className="px-6 py-5 border-t border-gray-200 bg-gray-50">
                   <div className="flex gap-3 items-start">
                     {dealer.logo_url ? (
-                      <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`} className="w-14 h-14 rounded-xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100 shadow-sm"
+                      <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`} className="w-14 h-14 rounded-xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
                         onError={e => { (e.target as HTMLImageElement).src = '/images/company-placeholder.png'; }} />
                     ) : (
                       <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border border-gray-100">
@@ -859,7 +752,7 @@ export default function ListingDetailPage() {
                     Compare
                   </button>
                   {showComp && (
-                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
+                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
                       <div className="p-2">
                         <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
                         {comparisons.map(c => (
@@ -877,7 +770,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-200 z-20">
+                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl border border-gray-200 z-20">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
@@ -912,11 +805,70 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
+        {/* ══ PHOTO GRID ══════════════════════════════════════════════════════ */}
+        {galleryItems.length > 1 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            {galleryItems.slice(1, 5).map((item, idx) => {
+              const isLast = idx === 3;
+              const remaining = Math.max(galleryItems.length - 5, 0);
+              return (
+                <button key={item.id} type="button"
+                  className="relative h-44 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                  onClick={() => {
+                    if (item.file_type === 'image') {
+                      const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                      if (i >= 0) setLightbox(i);
+                    } else if (item.file_type === 'video') {
+                      window.open(item.url, '_blank');
+                    }
+                  }}>
+                  {item.file_type === 'video' ? (
+                    <>
+                      <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                        alt={`${listing.title} video`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <PlayCircle size={28} className="text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <img src={item.thumbnail_url || item.url}
+                      alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
+                  )}
+                  {isLast && remaining > 0 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* PDF documents */}
+        {pdfItems.length > 0 && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 mb-6">
+            <h4 className="text-sm font-bold text-[#10214F] mb-3 uppercase tracking-wide font-bahnschrift">Documents</h4>
+            <div className="space-y-2">
+              {pdfItems.map((doc, idx) => (
+                <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
+                  <span className="flex items-center gap-2 text-sm text-[#10214F] font-poppins">
+                    <FileText size={16} className="text-[#01BBDC]" />
+                    {doc.caption || doc.alt_text || `Document ${idx + 1}`}
+                  </span>
+                  <ExternalLink size={14} className="text-gray-500" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ══ KEY SPECS & KEY FEATURES (2 columns) + SIDEBAR (right) ═════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left side: Key Specs + Key Features — 7 cols */}
-          <div className="lg:col-span-7 space-y-6">
+          {/* Left side: Key Specs + Key Features — 8 cols */}
+          <div className="lg:col-span-8 space-y-6">
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
             <div className="py-6 border-y border-gray-100">
@@ -951,7 +903,7 @@ export default function ListingDetailPage() {
 
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-3xl border border-gray-200 p-6">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
                 <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
                 <ul className="space-y-2">
                   {keyFeatures.map((feature, i) => (
@@ -970,7 +922,7 @@ export default function ListingDetailPage() {
           <div className="lg:col-span-4 space-y-6">
 
             {/* LOCATION MAP */}
-            <div className="rounded-3xl overflow-hidden border border-gray-200 shadow-lg" style={{ height: 280 }}>
+            <div className="rounded-3xl overflow-hidden border border-gray-200" style={{ height: 280 }}>
               <ListingDetailMap
                 latitude={listing.latitude}
                 longitude={listing.longitude}
@@ -981,7 +933,7 @@ export default function ListingDetailPage() {
 
             {/* FINANCE CALCULATOR */}
             {listing.price && (
-              <div className="rounded-3xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+              <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
                 
                 {/* Inputs */}
                 <div className="p-6">
