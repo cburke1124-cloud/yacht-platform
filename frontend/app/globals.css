@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 
 /* =========================
    Brand Color System
@@ -62,6 +63,9 @@
   .hover-secondary:hover { @apply bg-[#0D1940]; }
   
   .text-light { @apply text-[#FFFFFF]; }
+
+  .font-bahnschrift { font-family: 'Bahnschrift', 'DIN Alternate', 'Franklin Gothic Medium', 'Arial Narrow', sans-serif; }
+  .font-poppins { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif; }
 }
 
 /* =========================
