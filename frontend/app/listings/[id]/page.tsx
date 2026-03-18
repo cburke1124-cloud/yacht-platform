@@ -895,8 +895,8 @@ export default function ListingDetailPage() {
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
             <div>
-              <div className="py-6 border-y border-gray-100">
-              <h3 className="text-xl font-bold text-[#01BBDC] mb-5 font-bahnschrift">Key Specifications</h3>
+              <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Specifications</h3>
+              <div className="h-[1px] bg-[#01BBDC] mb-5" />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
                   { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
@@ -923,7 +923,6 @@ export default function ListingDetailPage() {
                   </div>
                 ))}
               </div>
-            </div>
             </div>
 
             {/* KEY FEATURES */}
@@ -1138,10 +1137,6 @@ export default function ListingDetailPage() {
                         <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
                         <SpecRow label="Notes" value={engine.notes || engine.note || null} />
                       </div>
-                      {engine.isPrimaryFallback && listing.engine_count && listing.engine_count > 1 && (
-                        <p className="text-xs text-gray-500 mt-4 italic">* All engines share same specs. For unique per-engine details, contact seller.</p>
-                      )}
-                    </div>
                   ))
                 ) : (
                   // Fallback: show primary spec once if only engine_count present
@@ -1155,9 +1150,6 @@ export default function ListingDetailPage() {
                         <SpecRow label="Fuel" value={listing.fuel_type} />
                         <SpecRow label="Hours" value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
                       </div>
-                      {listing.engine_count && listing.engine_count > 1 && (
-                        <p className="text-xs text-gray-500 mt-4 italic">* All engines share same specs. For unique per-engine details, contact seller.</p>
-                      )}
                     </div>
                   ) : null
                 )}

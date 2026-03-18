@@ -277,10 +277,28 @@ export default function ListingCard({
 
         {/* Content */}
         <div className="p-5">
-          <div className="flex justify-between items-start gap-3 mb-2">
+          <div className="flex justify-between items-start gap-3 mb-1">
             <h3 className="text-xl font-bold text-gray-900 line-clamp-2 min-h-[56px] flex-1">
               {title}
             </h3>
+          </div>
+
+          <div className="mb-2">
+            {price ? (
+              <p className="text-2xl font-bold text-[#01BBDC]">
+                ${price.toLocaleString()}
+              </p>
+            ) : (
+              <p className="text-2xl font-bold text-gray-700">
+                Contact for Pricing
+              </p>
+            )}
+            {(city || state) && (
+              <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
+                <MapPin size={14} className="text-[#01BBDC]" />
+                {[city, state].filter(Boolean).join(', ')}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center flex-wrap gap-3 text-sm text-[#10214F]/80 mb-3">
@@ -298,24 +316,6 @@ export default function ListingCard({
                 {(boatType || normalizedCondition) && <span className="text-[#10214F]/40">•</span>}
                 <span>{cabins} cabins</span>
               </>
-            )}
-          </div>
-
-          <div className="mb-4">
-            {price ? (
-              <p className="text-2xl font-bold text-[#01BBDC]">
-                ${price.toLocaleString()}
-              </p>
-            ) : (
-              <p className="text-2xl font-bold text-gray-700">
-                Contact for Pricing
-              </p>
-            )}
-            {(city || state) && (
-              <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
-                <MapPin size={14} className="text-[#01BBDC]" />
-                {[city, state].filter(Boolean).join(', ')}
-              </p>
             )}
           </div>
 
