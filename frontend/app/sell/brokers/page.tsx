@@ -404,7 +404,7 @@ export default function SellBrokersPage() {
                           {priceLabel}
                         </p>
 
-                        {/* Stripe / enterprise subtitle */}}
+                        {/* Stripe / enterprise subtitle */}
                         <p
                           className="text-center"
                           style={{
