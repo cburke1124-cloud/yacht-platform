@@ -549,19 +549,21 @@ export default function ListingDetailPage() {
         {/* ══ FEATURED IMAGE + CONTACT ════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
-          {/* ── Featured image: 8 cols ──────────────────────────────────────── */}
+          {/* ── Gallery: large primary + 2×2 thumbnails ─────────────────── */}
           <div className="lg:col-span-8">
-            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
-              style={{ height: 500 }}
-              onClick={() => {
-                if (!featuredMedia) return;
-                if (featuredMedia.file_type === 'image') {
-                  const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
-                  if (idx >= 0) setLightbox(idx);
-                } else if (featuredMedia.file_type === 'video') {
-                  window.open(featuredMedia.url, '_blank');
-                }
-              }}>
+            <div className="grid grid-cols-5 gap-2" style={{ height: 500 }}>
+
+              {/* Primary image — left 3/5 */}
+              <div className="col-span-3 relative h-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
+                onClick={() => {
+                  if (!featuredMedia) return;
+                  if (featuredMedia.file_type === 'image') {
+                    const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
+                    if (idx >= 0) setLightbox(idx);
+                  } else if (featuredMedia.file_type === 'video') {
+                    window.open(featuredMedia.url, '_blank');
+                  }
+                }}>
               {featuredMedia?.file_type === 'video' ? (
                 <div className="relative w-full h-full bg-black">
                   {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
@@ -588,18 +590,55 @@ export default function ListingDetailPage() {
                   </div>
                 </div>
               )}
+              </div>
+
+              {/* 2×2 thumbnail grid — right 2/5 */}
+              <div className="col-span-2 grid grid-cols-2 gap-2">
+                {galleryItems.slice(1, 5).map((item, idx) => {
+                  const isLast = idx === 3;
+                  const remaining = Math.max(galleryItems.length - 5, 0);
+                  return (
+                    <button key={item.id} type="button"
+                      className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
+                      style={{ height: 'calc(50% - 4px)' }}
+                      onClick={() => {
+                        if (item.file_type === 'image') {
+                          const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                          if (i >= 0) setLightbox(i);
+                        } else if (item.file_type === 'video') {
+                          window.open(item.url, '_blank');
+                        }
+                      }}>
+                      {item.file_type === 'video' ? (
+                        <>
+                          <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                            alt={`${listing.title} video`} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <PlayCircle size={22} className="text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <img src={item.thumbnail_url || item.url}
+                          alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
+                      )}
+                      {isLast && remaining > 0 && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="text-white text-lg font-bold font-bahnschrift">+{remaining}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
             </div>
           </div>
 
-          {/* ── Contact card: 4 cols ─────────────────────────────────────────── */}
+          {/* ── Contact card: 4 cols ── */}
           <div className="lg:col-span-4">
             <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white">
-
-              {/* Sales contact or dealer info */}
               {(sc || dealer) ? (
                 <div className="p-6">
-
-                  {/* Sales contact */}
                   {sc ? (
                     <div className="flex gap-4 mb-5">
                       {sc.photo_url ? (
@@ -677,7 +716,7 @@ export default function ListingDetailPage() {
                     {primaryPhone && (
                       <a href={`tel:${primaryPhone}`}
                         className="w-full py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all border-2 border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white">
-                        <Phone size={18} /> Call {sc ? 'Agent' : 'Dealer'}
+                        <Phone size={18} /> Call {sc ? 'Agent' : 'Broker'}
                       </a>
                     )}
                   </div>
@@ -805,45 +844,7 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* ══ PHOTO GRID ══════════════════════════════════════════════════════ */}
-        {galleryItems.length > 1 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            {galleryItems.slice(1, 5).map((item, idx) => {
-              const isLast = idx === 3;
-              const remaining = Math.max(galleryItems.length - 5, 0);
-              return (
-                <button key={item.id} type="button"
-                  className="relative h-44 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
-                  onClick={() => {
-                    if (item.file_type === 'image') {
-                      const i = imageLightboxItems.findIndex(x => x.id === item.id);
-                      if (i >= 0) setLightbox(i);
-                    } else if (item.file_type === 'video') {
-                      window.open(item.url, '_blank');
-                    }
-                  }}>
-                  {item.file_type === 'video' ? (
-                    <>
-                      <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
-                        alt={`${listing.title} video`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <PlayCircle size={28} className="text-white" />
-                      </div>
-                    </>
-                  ) : (
-                    <img src={item.thumbnail_url || item.url}
-                      alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
-                  )}
-                  {isLast && remaining > 0 && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+
 
         {/* PDF documents */}
         {pdfItems.length > 0 && (
@@ -1135,25 +1136,31 @@ export default function ListingDetailPage() {
         )}
 
         {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
-        {listing.features && (
-          <div className="mb-16">
-            <SectionHeading>Equipment & Features</SectionHeading>
-            <div className="text-base leading-relaxed text-[#10214F] font-poppins">
-              {listing.features.split('\n').map((line, i) => {
-                const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
-                return isSectionHeader ? (
-                  <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0 font-bahnschrift">
-                    {line.trim()}
-                  </h4>
-                ) : line.trim() ? (
-                  <p key={i} className="mb-2">• {line}</p>
-                ) : (
-                  <div key={i} className="h-4" />
-                );
-              })}
+        {listing.features && (() => {
+          // Strip feature_bullet lines (prefixed "- ") — already shown in Key Features above
+          const equipmentLines = listing.features.split('\n').filter((line: string) => !line.trimStart().startsWith('- '));
+          const hasContent = equipmentLines.some((l: string) => l.trim().length > 0);
+          if (!hasContent) return null;
+          return (
+            <div className="mb-16">
+              <SectionHeading>Equipment &amp; Features</SectionHeading>
+              <div className="text-base leading-relaxed text-[#10214F] font-poppins">
+                {equipmentLines.map((line: string, i: number) => {
+                  const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
+                  return isSectionHeader ? (
+                    <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0 font-bahnschrift">
+                      {line.trim()}
+                    </h4>
+                  ) : line.trim() ? (
+                    <p key={i} className="mb-2">• {line}</p>
+                  ) : (
+                    <div key={i} className="h-4" />
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>

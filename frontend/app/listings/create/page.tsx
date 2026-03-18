@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import MediaUpload from '@/app/components/MediaUpload';
 import ScraperModal from '@/app/components/ScraperModal';
-import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote } from 'lucide-react';
+import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
 const TABS = ['basic', 'specs', 'engine', 'media'] as const;
@@ -91,6 +91,24 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   // Tracks whether this dealer has co-brokering enabled at account level.
   // Fetched after access check; defaults true so the toggle is hidden until we know.
   const [dealerCobrokingEnabled, setDealerCobrokingEnabled] = useState(true);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const moveMedia = (from: number, to: number) => {
+    setUploadedMedia(prev => {
+      const arr = [...prev];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      return arr;
+    });
+  };
+
+  const setPrimaryMedia = (idx: number) => {
+    setUploadedMedia(prev => {
+      const arr = [...prev];
+      const [item] = arr.splice(idx, 1);
+      return [item, ...arr];
+    });
+  };
 
   const [form, setForm] = useState({
     // Basic
@@ -1410,26 +1428,88 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
                 {uploadedMedia.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium mb-3" style={{ color: '#10214F' }}>
-                      Uploaded Media ({uploadedMedia.length})
-                    </h3>
-                    <div className="grid grid-cols-4 gap-3">
-                      {uploadedMedia.map((m, i) => (
-                        <div key={i} className="relative">
-                          <img src={m.url || m.thumbnail_url} alt={`Upload ${i + 1}`}
-                            className="w-full h-24 object-cover rounded-xl" />
-                          {i === 0 && (
-                            <span className="absolute top-1.5 left-1.5 bg-[#01BBDC] text-white text-xs px-2 py-0.5 rounded-md font-semibold">
-                              Primary
-                            </span>
-                          )}
-                          <button type="button"
-                            onClick={() => setUploadedMedia(p => p.filter((_, j) => j !== i))}
-                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 transition">
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium" style={{ color: '#10214F' }}>
+                        Photos & Media ({uploadedMedia.length})
+                      </h3>
+                      <p className="text-xs text-gray-400">Drag to reorder · First image is the primary photo</p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {uploadedMedia.map((m, i) => {
+                        const isImg = !m.file_type || m.file_type === 'image';
+                        const isVideo = m.file_type === 'video';
+                        const isPrimary = i === 0 && isImg;
+                        return (
+                          <div
+                            key={m.id ?? i}
+                            draggable
+                            onDragStart={e => e.dataTransfer.setData('text/plain', String(i))}
+                            onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+                            onDragLeave={() => setDragOverIdx(null)}
+                            onDrop={e => {
+                              e.preventDefault();
+                              const from = Number(e.dataTransfer.getData('text/plain'));
+                              if (from !== i) moveMedia(from, i);
+                              setDragOverIdx(null);
+                            }}
+                            onDragEnd={() => setDragOverIdx(null)}
+                            className={`relative group rounded-xl overflow-hidden border-2 transition cursor-grab active:cursor-grabbing ${
+                              dragOverIdx === i ? 'border-[#01BBDC] scale-[1.02]' : isPrimary ? 'border-[#01BBDC]' : 'border-transparent'
+                            }`}
+                          >
+                            {isImg ? (
+                              <img
+                                src={m.url || m.thumbnail_url}
+                                alt={`Media ${i + 1}`}
+                                className="w-full h-28 object-cover"
+                              />
+                            ) : isVideo ? (
+                              <div className="w-full h-28 bg-gray-100 flex flex-col items-center justify-center gap-1">
+                                <Film size={24} className="text-gray-400" />
+                                <span className="text-xs text-gray-500 truncate max-w-[90%]">{m.url?.split('/').pop()}</span>
+                              </div>
+                            ) : (
+                              <div className="w-full h-28 bg-gray-100 flex flex-col items-center justify-center gap-1">
+                                <FileText size={24} className="text-gray-400" />
+                                <span className="text-xs text-gray-500 truncate max-w-[90%]">{m.url?.split('/').pop()}</span>
+                              </div>
+                            )}
+
+                            {/* Primary badge */}
+                            {isPrimary && (
+                              <span className="absolute top-1.5 left-1.5 bg-[#01BBDC] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5">
+                                <Star size={10} fill="white" /> Primary
+                              </span>
+                            )}
+
+                            {/* Drag handle */}
+                            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition">
+                              <GripVertical size={16} className="text-white drop-shadow" />
+                            </div>
+
+                            {/* Set Primary button (images only, not already primary) */}
+                            {isImg && !isPrimary && (
+                              <button
+                                type="button"
+                                onClick={() => setPrimaryMedia(i)}
+                                title="Set as primary photo"
+                                className="absolute bottom-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition bg-black/60 hover:bg-[#01BBDC] text-white rounded px-1.5 py-0.5 text-[10px] flex items-center gap-0.5"
+                              >
+                                <Star size={10} /> Set Primary
+                              </button>
+                            )}
+
+                            {/* Delete button */}
+                            <button
+                              type="button"
+                              onClick={() => setUploadedMedia(p => p.filter((_, j) => j !== i))}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
