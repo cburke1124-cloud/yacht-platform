@@ -132,7 +132,6 @@ def get_comparison(
             "draft_feet": listing.draft_feet,
             "cabins": listing.cabins,
             "berths": listing.berths,
-            "engine_make": listing.engine_make,
             "engine_hours": listing.engine_hours,
             "fuel_type": listing.fuel_type,
             "condition": listing.condition,

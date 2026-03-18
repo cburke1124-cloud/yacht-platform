@@ -319,8 +319,6 @@ async def sync_listings_to_wordpress(
                             "draft_feet": listing.draft_feet,
                             "cabins": listing.cabins,
                             "berths": listing.berths,
-                            "engine_make": listing.engine_make,
-                            "engine_model": listing.engine_model,
                             "fuel_type": listing.fuel_type
                         },
                         "images": [img.url for img in listing.images],

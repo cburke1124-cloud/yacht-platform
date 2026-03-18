@@ -171,7 +171,7 @@ Text:
 {text[:12000]}
 
 Fields: title, make, model, year, price, length_feet, beam_feet, draft_feet,
-cabins, berths, heads, engine_make, engine_model, engine_type, engine_count, engine_hours,
+cabins, berths, heads, engine_count, engine_hours,
 fuel_type, fuel_capacity_gallons, water_capacity_gallons, max_speed_knots, cruising_speed_knots,
 city, state, country, hull_material, hull_type, feature_bullets (array), features (string)"""
     try:

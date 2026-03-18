@@ -67,8 +67,6 @@ async def import_listings(
                 "draft_feet": float(row.get("draft_feet") or 0),
                 "hull_material": row.get("hull_material"),
                 "fuel_type": row.get("fuel_type"),
-                "engine_make": row.get("engine_make"),
-                "engine_model": row.get("engine_model"),
                 "engine_hours": float(row.get("engine_hours") or 0),
                 "cruising_speed_knots": float(row.get("cruising_speed") or 0),
                 "max_speed_knots": float(row.get("max_speed") or 0),
@@ -146,7 +144,7 @@ def export_listings(
     writer.writerow([
         "id","title","make","model","year","price","currency",
         "length_feet","beam_feet","draft_feet","hull_material","fuel_type",
-        "engine_make","engine_model","engine_hours",
+        "engine_hours",
         "cruising_speed","max_speed",
         "fuel_capacity","water_capacity",
         "cabins","berths","heads",
@@ -157,7 +155,7 @@ def export_listings(
         writer.writerow([
             l.id, l.title, l.make, l.model, l.year, l.price, l.currency,
             l.length_feet, l.beam_feet, l.draft_feet, l.hull_material, l.fuel_type,
-            l.engine_make, l.engine_model, l.engine_hours,
+            l.engine_hours,
             l.cruising_speed_knots, l.max_speed_knots,
             l.fuel_capacity_gallons, l.water_capacity_gallons,
             l.cabins, l.berths, l.heads,

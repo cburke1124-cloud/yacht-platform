@@ -57,7 +57,7 @@ def _derive_feature_bullets(payload: dict[str, Any]) -> list[str]:
 
     derived = [
         f"{payload.get('length_feet') or '—'} ft {payload.get('boat_type') or 'yacht'} layout",
-        f"{payload.get('engine_count') or 'Twin'} {payload.get('engine_make') or 'diesel'} power setup",
+        f"{payload.get('engine_count') or 'Twin'} engine power setup",
         f"{payload.get('cabins') or 'Spacious'} cabin configuration",
         f"{payload.get('fuel_capacity_gallons') or 'Large'} gallon fuel capacity",
         "Factory-new condition" if payload.get("condition") == "new" else "Well-kept pre-owned condition",
@@ -86,9 +86,6 @@ class ListingCreate(BaseModel):
     hull_material: Optional[str] = None
     hull_type: Optional[str] = None
     # Engine
-    engine_make: Optional[str] = None
-    engine_model: Optional[str] = None
-    engine_type: Optional[str] = None
     engine_count: Optional[int] = None
     engine_hours: Optional[int] = None
     additional_engines: Optional[list[dict[str, Any]]] = None
@@ -138,9 +135,6 @@ class ListingUpdate(BaseModel):
     boat_type: Optional[str] = None
     hull_material: Optional[str] = None
     hull_type: Optional[str] = None
-    engine_make: Optional[str] = None
-    engine_model: Optional[str] = None
-    engine_type: Optional[str] = None
     engine_count: Optional[int] = None
     engine_hours: Optional[int] = None
     additional_engines: Optional[list[dict[str, Any]]] = None
@@ -289,9 +283,6 @@ def _serialize_listing(listing: Listing, db: Session = None) -> dict:
         "hull_material": listing.hull_material,
         "hull_type": listing.hull_type,
         # Engine
-        "engine_make": listing.engine_make,
-        "engine_model": listing.engine_model,
-        "engine_type": listing.engine_type,
         "engine_count": listing.engine_count,
         "engine_hours": listing.engine_hours,
         "additional_engines": (listing.additional_engines or []) if _has_listing_column("additional_engines") else [],
@@ -475,11 +466,7 @@ def get_listings(
         if hull_material:
             q = q.filter(Listing.hull_material.ilike(f"%{hull_material}%"))
         if engine:
-            q = q.filter(
-                Listing.engine_make.ilike(f"%{engine}%") |
-                Listing.engine_type.ilike(f"%{engine}%") |
-                Listing.engine_model.ilike(f"%{engine}%")
-            )
+            q = q.filter(Listing.fuel_type.ilike(f"%{engine}%"))
         listings = (
             q.order_by(
                 Listing.featured.desc(),
@@ -754,7 +741,7 @@ def update_listing(
     update_payload = listing_data.dict(exclude_unset=True)
     if _has_listing_column("feature_bullets"):
         merged = {**{k: getattr(listing, k, None) for k in [
-            "feature_bullets", "features", "length_feet", "boat_type", "engine_count", "engine_make", "cabins", "fuel_capacity_gallons", "condition"
+            "feature_bullets", "features", "length_feet", "boat_type", "engine_count", "cabins", "fuel_capacity_gallons", "condition"
         ]}, **update_payload}
         update_payload["feature_bullets"] = _derive_feature_bullets(merged)
     for field_name in ("additional_engines", "generators", "feature_bullets", "additional_specs"):

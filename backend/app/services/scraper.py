@@ -262,7 +262,7 @@ Return ONLY JSON with yacht listing fields."""
             else:
                 prompt = f"""Extract yacht listing data from the text below. Return ONLY a JSON object.
 Include: title, make, model, year, price, currency, length_feet, beam_feet, draft_feet,
-cabins, berths, heads, engine_count, engine_make, engine_model, engine_type, engine_hours,
+cabins, berths, heads, engine_count, engine_hours,
 fuel_type, max_speed_knots, cruising_speed_knots, hull_material, hull_type,
 city, state, country, description, boat_type.
 
@@ -483,8 +483,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     """Copy scraped fields onto a Listing object, preserving manually-set overrides."""
     str_fields = ["title", "make", "model", "description", "boat_type",
-                  "hull_material", "hull_type", "fuel_type", "engine_make",
-                  "engine_model", "engine_type", "city", "state", "country",
+                  "hull_material", "hull_type", "fuel_type", "city", "state", "country",
                   "currency"]
     float_fields = ["price", "length_feet", "beam_feet", "draft_feet",
                     "max_speed_knots", "cruising_speed_knots",
