@@ -13,7 +13,7 @@ type Tab = typeof TABS[number];
 const TAB_LABELS: Record<Tab, string> = {
   basic:  'Basic Info',
   specs:  'Specifications',
-  engine: 'Engine & Videos',
+  engine: 'Engine',
   media:  'Photos & Media',
 };
 
@@ -1269,7 +1269,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {/* ─── ENGINE & VIDEOS ─────────────────────────────────────────── */}
             {activeTab === 'engine' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#01BBDC' }}>Engine</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Engine Make</label>
