@@ -763,7 +763,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl border border-gray-200 z-20">
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
