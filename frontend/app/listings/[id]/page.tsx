@@ -803,7 +803,7 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mt-6 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
             {/* Large left image */}
             <button type="button"
               className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
@@ -890,14 +890,15 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* ══ KEY SPECS & KEY FEATURES (2 columns) + SIDEBAR (right) ═════════ */}
+        {/* ══ KEY SPECS & KEY FEATURES (LEFT) + MAP & FINANCE (RIGHT) ═════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left side: Key Specs + Key Features — 8 cols */}
-          <div className="lg:col-span-8 space-y-6">
+          {/* Left column: Key Specs + Key Features — 8 cols */}
+          <div className="lg:col-span-8 space-y-8">
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
-            <div className="py-6 border-y border-gray-100">
+            <div>
+              <div className="py-6 border-y border-gray-100">
               <h3 className="text-xl font-bold text-[#01BBDC] mb-5 font-bahnschrift">Key Specifications</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
@@ -926,10 +927,11 @@ export default function ListingDetailPage() {
                 ))}
               </div>
             </div>
+            </div>
 
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
-              <div className="pt-2">
+              <div>
                 <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
                 <div className="h-px bg-gray-200 mb-4" />
                 <ul className="space-y-2">
@@ -945,7 +947,7 @@ export default function ListingDetailPage() {
 
           </div>
 
-          {/* Right sidebar: Map + Finance — 4 cols */}
+          {/* Right column: Map + Finance — 4 cols */}
           <div className="lg:col-span-4 space-y-6">
 
             {/* LOCATION MAP */}
@@ -1040,15 +1042,13 @@ export default function ListingDetailPage() {
 
         {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
         {listing.description && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
-            <div className="lg:col-span-8">
-              <SectionHeading>Description</SectionHeading>
-              <div className="prose prose-lg max-w-none">
-                <div
-                  className="text-base leading-relaxed text-[#10214F] font-poppins"
-                  dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-                />
-              </div>
+          <div className="mb-10">
+            <SectionHeading>Description</SectionHeading>
+            <div className="prose prose-lg max-w-none">
+              <div
+                className="text-base leading-relaxed text-[#10214F] font-poppins"
+                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+              />
             </div>
           </div>
         )}
