@@ -803,7 +803,7 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+          <div className="grid gap-3 mt-6 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
             {/* Large left image */}
             <button type="button"
               className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
@@ -929,8 +929,9 @@ export default function ListingDetailPage() {
 
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="pt-2">
                 <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
+                <div className="h-px bg-gray-200 mb-4" />
                 <ul className="space-y-2">
                   {keyFeatures.map((feature, i) => (
                     <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
@@ -1039,13 +1040,15 @@ export default function ListingDetailPage() {
 
         {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
         {listing.description && (
-          <div className="mb-10">
-            <SectionHeading>Description</SectionHeading>
-            <div className="prose prose-lg max-w-none">
-              <div
-                className="text-base leading-relaxed text-[#10214F] font-poppins"
-                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-              />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
+            <div className="lg:col-span-8">
+              <SectionHeading>Description</SectionHeading>
+              <div className="prose prose-lg max-w-none">
+                <div
+                  className="text-base leading-relaxed text-[#10214F] font-poppins"
+                  dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+                />
+              </div>
             </div>
           </div>
         )}
