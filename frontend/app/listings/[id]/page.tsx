@@ -513,8 +513,8 @@ export default function ListingDetailPage() {
                   {locationString}
                 </span>
               )}
-              {listing.bin && (
-                <span>Stock #{listing.bin}</span>
+              {id && (
+                <span>Stock #{id}</span>
               )}
               {listing.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
@@ -1062,7 +1062,7 @@ export default function ListingDetailPage() {
             <div className="space-y-1">
               <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">General</h4>
               <SpecRow label="Name"           value={listing.title} />
-              <SpecRow label="Stock #"        value={listing.bin} />
+              <SpecRow label="HIN"            value={listing.bin} />
               <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
               <SpecRow label="Make"           value={listing.make} />
               <SpecRow label="Model"          value={listing.model} />
