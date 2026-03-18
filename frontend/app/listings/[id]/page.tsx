@@ -1144,9 +1144,6 @@ export default function ListingDetailPage() {
                     <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
                       <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Engine</h4>
                       <div className="space-y-1">
-                        <SpecRow label="Make" value={listing.engine_make} />
-                        <SpecRow label="Model" value={listing.engine_model} />
-                        <SpecRow label="Type" value={listing.engine_type} />
                         <SpecRow label="Fuel" value={listing.fuel_type} />
                         <SpecRow label="Hours" value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
                       </div>
