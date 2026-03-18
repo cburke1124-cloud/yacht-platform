@@ -320,7 +320,7 @@ export default function MediaGallery() {
                 )}
               </div>
 
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteMedia(file.id); }}
                   className="opacity-0 group-hover:opacity-100 p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-opacity"
