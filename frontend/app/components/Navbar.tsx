@@ -260,7 +260,7 @@ export default function Navbar() {
             <Link href="/" className="flex items-center h-20 overflow-hidden leading-none">
               {!logoError ? (
                 <Image
-                  src="/logo/logo-full.png"
+                  src="/logo/logo-full-cropped.png"
                   alt="YachtVersal"
                   width={280}
                   height={70}
