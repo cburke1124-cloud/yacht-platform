@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Heart, Share2, Mail, Printer, Facebook, Twitter, Linkedin, MapPin, Ruler } from 'lucide-react';
+import { Heart, Share2, Mail, Printer, Facebook, Twitter, Linkedin, MapPin } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
@@ -281,40 +281,21 @@ export default function ListingCard({
             <h3 className="text-xl font-bold text-gray-900 line-clamp-2 min-h-[56px] flex-1">
               {title}
             </h3>
-            {dealerInfo?.logoUrl && (
-              <div className="flex-shrink-0">
-                <img
-                  src={mediaUrl(dealerInfo.logoUrl)}
-                  alt={`${dealerInfo.company} logo`}
-                  className="w-12 h-12 rounded object-contain bg-white border border-gray-200 p-1"
-                  onError={onImgError}
-                />
-              </div>
-            )}
           </div>
 
           <div className="flex items-center flex-wrap gap-3 text-sm text-[#10214F]/80 mb-3">
-            {length && (
-              <span className="inline-flex items-center gap-1.5">
-                <Ruler size={14} className="text-[#01BBDC]" />
-                {Math.round(length)} ft
-              </span>
-            )}
             {boatType && (
-              <>
-                {length && <span className="text-[#10214F]/40">•</span>}
-                <span>{boatType}</span>
-              </>
+              <span>{boatType}</span>
             )}
             {normalizedCondition && (
               <>
-                {(length || boatType) && <span className="text-[#10214F]/40">•</span>}
+                {boatType && <span className="text-[#10214F]/40">•</span>}
                 <span>{normalizedCondition}</span>
               </>
             )}
             {cabins && (
               <>
-                {(length || boatType || normalizedCondition) && <span className="text-[#10214F]/40">•</span>}
+                {(boatType || normalizedCondition) && <span className="text-[#10214F]/40">•</span>}
                 <span>{cabins} cabins</span>
               </>
             )}
