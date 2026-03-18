@@ -1118,7 +1118,7 @@ export default function ListingDetailPage() {
               model: listing.engine_model || null,
               type: listing.engine_type || null,
               hours: listing.engine_hours != null ? listing.engine_hours : null,
-              horsepower: listing.additional_specs?.horsepower ?? null,
+              horsepower: null,
               note: null,
               isPrimaryFallback: !((listing.additional_engines || []).length > 0) && !!listing.engine_count,
             });
