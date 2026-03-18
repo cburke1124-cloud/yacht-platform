@@ -216,10 +216,13 @@ function RegisterContent() {
         const checkoutData = await checkoutRes.json();
         if (!checkoutRes.ok) {
           // Checkout setup failed but the account was successfully created.
-          // Keep the user logged in and send them to billing to complete payment
-          // rather than stranding them on the registration page.
+          // Keep the user logged in and show the error so they know what happened,
+          // then send them to billing where they can retry payment.
           setStripeRedirecting(false);
-          router.push('/dashboard/billing?payment=required');
+          const msg = checkoutData?.detail || checkoutData?.error || 'Payment setup failed. You can complete payment from your billing dashboard.';
+          setError(`Account created, but payment setup failed: ${msg}`);
+          // Give user a moment to read the message before redirecting
+          setTimeout(() => router.push('/dashboard/billing?payment=required'), 3000);
           return;
         }
         window.location.href = checkoutData.checkout_url;

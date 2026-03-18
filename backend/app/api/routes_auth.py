@@ -178,7 +178,10 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
                 phone=user_data.phone,
                 user_type=user_data.user_type,
                 company_name=user_data.company_name,
-                subscription_tier=user_data.subscription_tier or "free",
+                # Always start at "free" — the Stripe webhook (checkout.session.completed)
+                # is the authoritative source that upgrades the tier after payment clears.
+                # Setting the tier here before payment would bypass the paywall.
+                subscription_tier="free",
                 assigned_sales_rep_id=assigned_sales_rep_id,
             )
             db.add(user)
@@ -204,7 +207,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
                 "phone": user_data.phone,
                 "user_type": user_data.user_type,
                 "company_name": user_data.company_name,
-                "subscription_tier": user_data.subscription_tier or "free",
+                "subscription_tier": "free",  # Tier set by Stripe webhook after payment
                 "assigned_sales_rep_id": assigned_sales_rep_id,
                 "active": True,
                 "created_at": datetime.utcnow(),
@@ -241,7 +244,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
                     phone=user_data.phone,
                     user_type=user_data.user_type,
                     company_name=user_data.company_name,
-                    subscription_tier=user_data.subscription_tier or "free",
+                    subscription_tier="free",  # Tier set by Stripe webhook after payment
                     permissions={},
                 )
 

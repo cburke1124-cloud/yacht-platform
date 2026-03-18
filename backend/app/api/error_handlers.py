@@ -17,7 +17,15 @@ async def yachtversal_exception_handler(request: Request, exc: YachtVersalExcept
     response = {"error": exc.message, "detail": exc.message, "status_code": exc.status_code}
     if hasattr(exc, "details") and exc.details:
         response["details"] = exc.details
-    return JSONResponse(status_code=exc.status_code, content=response)
+    json_response = JSONResponse(status_code=exc.status_code, content=response)
+    # Attach CORS headers so the browser's fetch() can read the response body
+    # even on error status codes (without these headers the browser gets a
+    # TypeError instead of a response object with the error detail).
+    origin = request.headers.get("origin", "")
+    if origin:
+        json_response.headers["Access-Control-Allow-Origin"] = origin
+        json_response.headers["Access-Control-Allow-Credentials"] = "true"
+    return json_response
 
 
 async def http_exception_handler(request: Request, exc):
