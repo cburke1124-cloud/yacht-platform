@@ -517,7 +517,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       '',
       'Notable details:',
       `- Hull: ${form.hull_material || 'N/A'} ${form.hull_type ? `(${form.hull_type})` : ''}`,
-      `- Engines: ${form.engine_count || 'N/A'} ${form.engine_make || ''} ${form.engine_model || ''}`.trim(),
+      `- Engines: ${form.engine_count || 'N/A'} main engines`.trim(),
       `- Accommodation: ${form.cabins || 'N/A'} cabins, ${form.berths || 'N/A'} berths`,
     ].join('\n');
 
