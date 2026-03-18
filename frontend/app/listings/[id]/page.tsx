@@ -800,7 +800,7 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+          <div className="grid gap-3 mb-12" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
             {/* Large left image */}
             <button type="button"
               className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
