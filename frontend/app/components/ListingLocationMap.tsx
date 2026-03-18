@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
@@ -122,7 +122,7 @@ export default function ListingLocationMap({ city, state, country = 'USA' }: Lis
               rel="noopener noreferrer"
               className="text-sm text-blue-600 hover:underline mt-2 inline-block"
             >
-              Open in Google Maps ΓåÆ
+              Open in Google Maps →
             </a>
           </div>
         </div>

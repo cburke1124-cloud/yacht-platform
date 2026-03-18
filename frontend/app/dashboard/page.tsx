@@ -180,10 +180,18 @@ export default function EnhancedDealerDashboard() {
       const response = await fetch(apiUrl('/listings/my-listings'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!response.ok) {
+        if (response.status === 401) {
+          setLoading(false);
+          return;
+        }
+        throw new Error(`Failed to load listings: ${response.status}`);
+      }
       const data = await response.json();
-      setListings(data);
+      const listings = Array.isArray(data) ? data : [];
+      setListings(listings);
       setQuickEdits(
-        data.reduce((acc: Record<number, QuickEditDraft>, listing: Listing) => {
+        listings.reduce((acc: Record<number, QuickEditDraft>, listing: Listing) => {
           acc[listing.id] = {
             title: listing.title || '',
             price: listing.price != null ? String(listing.price) : '',
@@ -193,13 +201,13 @@ export default function EnhancedDealerDashboard() {
         }, {})
       );
 
-      const totalViews = data.reduce((sum: number, l: Listing) => sum + (l.views || 0), 0);
-      const totalInquiries = data.reduce((sum: number, l: Listing) => sum + (l.inquiries || 0), 0);
-      const featuredCount = data.filter((l: Listing) => l.featured).length;
+      const totalViews = listings.reduce((sum: number, l: Listing) => sum + (l.views || 0), 0);
+      const totalInquiries = listings.reduce((sum: number, l: Listing) => sum + (l.inquiries || 0), 0);
+      const featuredCount = listings.filter((l: Listing) => l.featured).length;
 
       setStats({
-        totalListings: data.length,
-        activeListings: data.filter((l: Listing) => l.status === 'active').length,
+        totalListings: listings.length,
+        activeListings: listings.filter((l: Listing) => l.status === 'active').length,
         totalViews,
         totalInquiries,
         featuredListings: featuredCount
