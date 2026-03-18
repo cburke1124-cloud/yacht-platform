@@ -561,8 +561,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     const hullType = firstMatch([/hull\s*(?:shape|type)\s*[:\-]?\s*([^\n]+)/i]);
     const make = firstMatch([/\b(Azimut|Beneteau|Bertram|Boston\s*Whaler|Cabo|Carver|Chris\-Craft|Ferretti|Formula|Hatteras|Jeanneau|Leopard|Meridian|Monterey|Monte\s*Carlo|Nordhavn|Pershing|Princess|Regal|Riva|Sanlorenzo|Sea\s*Ray|Sunseeker|Tiara|Viking|Yamaha|Yellowfin)\b/i]);
     const model = firstMatch([/model\s*[:\-]?\s*([^\n]+)/i]);
-    const engineMake = firstMatch([/engine\s*make\s*[:\-]?\s*([^\n]+)/i, /\b(Mercury|Yamaha|Caterpillar|MAN|Volvo\s*Penta|MTU|Cummins)\b/i]);
-
     let engineCount = '';
     const engineHeaders = normalized.match(/engine\s*\d+/gi);
     if (engineHeaders?.length) engineCount = String(engineHeaders.length);
@@ -604,7 +602,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       water_capacity_gallons: toNumString(waterTank) || form.water_capacity_gallons,
       make: make || form.make,
       model: model || form.model,
-      engine_make: engineMake || form.engine_make,
       engine_count: engineCount || form.engine_count,
       city: city || form.city,
       state: state || form.state,
@@ -654,9 +651,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             boat_type: ai.boat_type || form.boat_type,
             hull_material: ai.hull_material || form.hull_material,
             hull_type: ai.hull_type || form.hull_type,
-            engine_make: ai.engine_make || form.engine_make,
-            engine_model: ai.engine_model || form.engine_model,
-            engine_type: ai.engine_type || form.engine_type,
             engine_count: ai.engine_count != null ? String(ai.engine_count) : form.engine_count,
             engine_hours: ai.engine_hours != null ? String(ai.engine_hours) : form.engine_hours,
             fuel_type: ai.fuel_type || form.fuel_type,
@@ -704,9 +698,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       boat_type: ai.boat_type || p.boat_type,
       hull_material: ai.hull_material || p.hull_material,
       hull_type: ai.hull_type || p.hull_type,
-      engine_make: ai.engine_make || p.engine_make,
-      engine_model: ai.engine_model || p.engine_model,
-      engine_type: ai.engine_type || p.engine_type,
       engine_count: ai.engine_count != null ? String(ai.engine_count) : p.engine_count,
       engine_hours: ai.engine_hours != null ? String(ai.engine_hours) : p.engine_hours,
       fuel_type: ai.fuel_type || p.fuel_type,
