@@ -513,8 +513,8 @@ export default function ListingDetailPage() {
                   {locationString}
                 </span>
               )}
-              {id && (
-                <span>Stock #{id}</span>
+              {listing.bin && (
+                <span>Stock #{listing.bin}</span>
               )}
               {listing.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
@@ -593,7 +593,7 @@ export default function ListingDetailPage() {
 
           {/* ── Contact card: 4 cols ── */}
           <div className="lg:col-span-4">
-            <div className="rounded-3xl overflow-visible border border-gray-200 bg-white">
+            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white">
               {(sc || dealer) ? (
                 <div className="p-6">
                   {sc ? (
@@ -748,7 +748,7 @@ export default function ListingDetailPage() {
                     Compare
                   </button>
                   {showComp && (
-                    <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 z-50 max-h-52 overflow-y-auto">
+                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
                       <div className="p-2">
                         <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
                         {comparisons.map(c => (
@@ -766,7 +766,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
+                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl border border-gray-200 z-20">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
@@ -803,7 +803,7 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mb-8" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
             {/* Large left image */}
             <button type="button"
               className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
@@ -893,13 +893,14 @@ export default function ListingDetailPage() {
         {/* ══ KEY SPECS & KEY FEATURES (LEFT) + MAP & FINANCE (RIGHT) ═════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left column: Key Specs + Key Features + Description — 8 cols */}
+          {/* Left column: Key Specs + Key Features — 8 cols */}
           <div className="lg:col-span-8 space-y-8">
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
             <div>
-              <SectionHeading>Key Specifications</SectionHeading>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-6">
+              <div className="py-6 border-y border-gray-100">
+              <h3 className="text-xl font-bold text-[#01BBDC] mb-5 font-bahnschrift">Key Specifications</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
                   { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
                   { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
@@ -931,29 +932,16 @@ export default function ListingDetailPage() {
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
               <div>
-                <SectionHeading>Key Features</SectionHeading>
-                <div className="text-base leading-relaxed text-[#10214F] font-poppins">
-                  <ul className="list-disc list-inside space-y-2">
-                    {keyFeatures.map((feature, i) => (
-                      <li key={i} className="text-base">
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* DESCRIPTION (moved into left column so it sits beside finance) */}
-            {listing.description && (
-              <div className="mb-10">
-                <SectionHeading>Description</SectionHeading>
-                <div className="prose prose-lg max-w-none">
-                  <div
-                    className="text-base leading-relaxed text-[#10214F] font-poppins"
-                    dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-                  />
-                </div>
+                <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
+                <div className="h-px bg-gray-200 mb-4" />
+                <ul className="space-y-2">
+                  {keyFeatures.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
+                      <span className="text-[#01BBDC] mt-1 flex-shrink-0">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -963,7 +951,7 @@ export default function ListingDetailPage() {
           <div className="lg:col-span-4 space-y-6">
 
             {/* LOCATION MAP */}
-            <div className="rounded-3xl overflow-hidden border border-gray-200 mt-4" style={{ height: 280 }}>
+            <div className="rounded-3xl overflow-hidden border border-gray-200" style={{ height: 280 }}>
               <ListingDetailMap
                 latitude={listing.latitude}
                 longitude={listing.longitude}
@@ -1052,7 +1040,18 @@ export default function ListingDetailPage() {
 
         </div>
 
-        {/* DESCRIPTION moved into left column above so it displays beside finance on wide screens */}
+        {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
+        {listing.description && (
+          <div className="mb-10">
+            <SectionHeading>Description</SectionHeading>
+            <div className="prose prose-lg max-w-none">
+              <div
+                className="text-base leading-relaxed text-[#10214F] font-poppins"
+                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
         <div className="mb-10">
@@ -1061,7 +1060,7 @@ export default function ListingDetailPage() {
             <div className="space-y-1">
               <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">General</h4>
               <SpecRow label="Name"           value={listing.title} />
-              <SpecRow label="HIN"            value={listing.bin} />
+              <SpecRow label="Stock #"        value={listing.bin} />
               <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
               <SpecRow label="Make"           value={listing.make} />
               <SpecRow label="Model"          value={listing.model} />
@@ -1109,63 +1108,116 @@ export default function ListingDetailPage() {
         {/* ══ ENGINES ════════════════════════════════════════════════════════ */}
         {/* NOTE: Backend currently supports single engine data with engine_count.
             For full multi-engine support, backend would need a separate engines table. */}
-        {(listing.engine_make || listing.engine_model || listing.engine_type || (listing.additional_engines?.length || 0) > 0 || (listing.generators?.length || 0) > 0) && (
-          <div className="mb-10">
-            <SectionHeading>Engine Details</SectionHeading>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Array.from({ length: Math.max(listing.engine_count || 1, 1) }).map((_, ei) => (
-                <div key={ei} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                  <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">
-                    {listing.engine_count && listing.engine_count > 1 ? `Engine ${ei + 1}` : 'Engine'}
-                  </h4>
-                  <div className="space-y-1">
-                    <SpecRow label="Make"       value={listing.engine_make}  />
-                    <SpecRow label="Model"      value={listing.engine_model} />
-                    <SpecRow label="Year"       value={listing.year ? String(listing.year) : null} />
-                    <SpecRow label="Type"       value={listing.engine_type}  />
-                    <SpecRow label="Fuel"       value={listing.fuel_type}    />
-                    <SpecRow label="Hours"      value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
-                  </div>
-                  {listing.engine_count && listing.engine_count > 1 && (
-                    <p className="text-xs text-gray-500 mt-4 italic">
-                      * All engines share same specs. For unique per-engine details, contact seller.
-                    </p>
-                  )}
-                </div>
-              ))}
+        {(() => {
+          // Build engines array without duplicating primary/additional entries.
+          const engines: Array<any> = [];
+          const hasPrimary = listing.engine_make || listing.engine_model || listing.engine_type || listing.engine_hours != null || listing.engine_count;
+          if (hasPrimary) {
+            engines.push({
+              make: listing.engine_make || null,
+              model: listing.engine_model || null,
+              type: listing.engine_type || null,
+              hours: listing.engine_hours != null ? listing.engine_hours : null,
+              horsepower: null,
+              note: null,
+              isPrimaryFallback: !((listing.additional_engines || []).length > 0) && !!listing.engine_count,
+            });
+          }
 
-              {(listing.additional_engines || []).map((engine, idx) => (
-                <div key={`extra-engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                  <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Additional Engine {idx + 1}</h4>
-                  <div className="space-y-1">
-                    <SpecRow label="Make" value={engine.make} />
-                    <SpecRow label="Model" value={engine.model} />
-                    <SpecRow label="Type" value={engine.type} />
-                    <SpecRow label="Hours" value={engine.hours != null ? fmt(engine.hours) : null} />
-                    <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
-                    <SpecRow label="Notes" value={engine.notes} />
-                  </div>
-                </div>
-              ))}
+          if (Array.isArray(listing.additional_engines) && listing.additional_engines.length > 0) {
+            for (const e of listing.additional_engines) {
+              engines.push(e);
+            }
+          }
 
-              {(listing.generators || []).map((generator, idx) => (
-                <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                  <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Generator {idx + 1}</h4>
-                  <div className="space-y-1">
-                    <SpecRow label="Brand" value={generator.brand} />
-                    <SpecRow label="Model" value={generator.model} />
-                    <SpecRow label="Hours" value={generator.hours != null ? fmt(generator.hours) : null} />
-                    <SpecRow label="Power" value={generator.kw != null ? `${fmt(generator.kw)} kW` : null} />
-                    <SpecRow label="Notes" value={generator.notes} />
+          const gens = Array.isArray(listing.generators) ? listing.generators.slice(0, 2) : [];
+
+          if (engines.length === 0 && gens.length === 0) return null;
+
+          return (
+            <div className="mb-10">
+              <SectionHeading>Engine Details</SectionHeading>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {engines.length > 0 ? (
+                  // If we have explicit engine entries, render them (max 4)
+                  engines.slice(0, 4).map((engine, idx) => (
+                    <div key={`engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">{engines.length > 1 ? `Engine ${idx + 1}` : 'Engine'}</h4>
+                      <div className="space-y-1">
+                        <SpecRow label="Make" value={engine.make} />
+                        <SpecRow label="Model" value={engine.model} />
+                        <SpecRow label="Type" value={engine.type} />
+                        <SpecRow label="Hours" value={engine.hours != null ? fmt(engine.hours) : null} />
+                        <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
+                        <SpecRow label="Notes" value={engine.notes || engine.note || null} />
+                      </div>
+                      {engine.isPrimaryFallback && listing.engine_count && listing.engine_count > 1 && (
+                        <p className="text-xs text-gray-500 mt-4 italic">* All engines share same specs. For unique per-engine details, contact seller.</p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  // Fallback: show primary spec once if only engine_count present
+                  listing.engine_count ? (
+                    <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Engine</h4>
+                      <div className="space-y-1">
+                        <SpecRow label="Make" value={listing.engine_make} />
+                        <SpecRow label="Model" value={listing.engine_model} />
+                        <SpecRow label="Type" value={listing.engine_type} />
+                        <SpecRow label="Fuel" value={listing.fuel_type} />
+                        <SpecRow label="Hours" value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
+                      </div>
+                      {listing.engine_count && listing.engine_count > 1 && (
+                        <p className="text-xs text-gray-500 mt-4 italic">* All engines share same specs. For unique per-engine details, contact seller.</p>
+                      )}
+                    </div>
+                  ) : null
+                )}
+
+                {gens.map((generator, idx) => (
+                  <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                    <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Generator {idx + 1}</h4>
+                    <div className="space-y-1">
+                      <SpecRow label="Brand" value={generator.brand} />
+                      <SpecRow label="Model" value={generator.model} />
+                      <SpecRow label="Hours" value={generator.hours != null ? fmt(generator.hours) : null} />
+                      <SpecRow label="Power" value={generator.kw != null ? `${fmt(generator.kw)} kW` : null} />
+                      <SpecRow label="Notes" value={generator.notes} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
-        {/* Equipment block temporarily disabled for parsing check */}
+        {listing.features && (() => {
+          // Strip feature_bullet lines (prefixed "- ") — already shown in Key Features above
+          const equipmentLines = listing.features.split('\n').filter((line: string) => !line.trimStart().startsWith('- '));
+          const hasContent = equipmentLines.some((l: string) => l.trim().length > 0);
+          if (!hasContent) return null;
+          return (
+            <div className="mb-16">
+              <SectionHeading>Equipment &amp; Features</SectionHeading>
+              <div className="text-base leading-relaxed text-[#10214F] font-poppins">
+                {equipmentLines.map((line: string, i: number) => {
+                  const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
+                  return isSectionHeader ? (
+                    <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0 font-bahnschrift">
+                      {line.trim()}
+                    </h4>
+                  ) : line.trim() ? (
+                    <p key={i} className="mb-2">• {line}</p>
+                  ) : (
+                    <div key={i} className="h-4" />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
     </div>

@@ -215,13 +215,11 @@ function RegisterContent() {
 
         const checkoutData = await checkoutRes.json();
         if (!checkoutRes.ok) {
-          // Payment setup failed — log the user out immediately so they
-          // cannot access the dashboard without completing payment.
-          localStorage.removeItem('token');
-          window.dispatchEvent(new Event('authChange'));
+          // Checkout setup failed but the account was successfully created.
+          // Keep the user logged in and send them to billing to complete payment
+          // rather than stranding them on the registration page.
           setStripeRedirecting(false);
-          const msg = checkoutData?.detail || checkoutData?.error || 'Payment setup failed. Please try again or contact support.';
-          setError(msg);
+          router.push('/dashboard/billing?payment=required');
           return;
         }
         window.location.href = checkoutData.checkout_url;

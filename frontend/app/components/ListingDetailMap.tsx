@@ -19,7 +19,7 @@ function loadGoogleMapsScript(): Promise<void> {
     (window as any)[callbackName] = () => { resolve(); delete (window as any)[callbackName]; };
     const script = document.createElement('script');
     script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=${callbackName}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=${callbackName}&loading=async`;
     script.async = true;
     script.defer = true;
     script.onerror = () => reject(new Error('Failed to load Google Maps'));

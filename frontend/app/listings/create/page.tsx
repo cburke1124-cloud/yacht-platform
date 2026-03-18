@@ -13,7 +13,7 @@ type Tab = typeof TABS[number];
 const TAB_LABELS: Record<Tab, string> = {
   basic:  'Basic Info',
   specs:  'Specifications',
-  engine: 'Engine & Videos',
+  engine: 'Engine',
   media:  'Photos & Media',
 };
 
@@ -422,17 +422,25 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   };
 
   const addExtraEngine = () => {
-    setForm(p => ({
-      ...p,
-      additional_engines: [...p.additional_engines, { make: '', model: '', type: '', hours: '', horsepower: '', notes: '' }],
-    }));
+    setForm(p => {
+      // Allow up to 3 additional engines (primary engine + up to 3 = 4 total)
+      if (p.additional_engines.length >= 3) return p;
+      return {
+        ...p,
+        additional_engines: [...p.additional_engines, { make: '', model: '', type: '', hours: '', horsepower: '', notes: '' }],
+      };
+    });
   };
 
   const addGenerator = () => {
-    setForm(p => ({
-      ...p,
-      generators: [...p.generators, { brand: '', model: '', hours: '', kw: '', notes: '' }],
-    }));
+    setForm(p => {
+      // Allow up to 2 generators
+      if (p.generators.length >= 2) return p;
+      return {
+        ...p,
+        generators: [...p.generators, { brand: '', model: '', hours: '', kw: '', notes: '' }],
+      };
+    });
   };
 
   const removeExtraEngine = (index: number) => {
@@ -1261,7 +1269,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {/* ─── ENGINE & VIDEOS ─────────────────────────────────────────── */}
             {activeTab === 'engine' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#01BBDC' }}>Engine</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Engine Make</label>
@@ -1382,7 +1389,12 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                       <textarea value={engine.notes} onChange={e => setExtraEngine(index, 'notes', e.target.value)} rows={3} className={inp} placeholder="Notes" />
                     </div>
                   ))}
-                  <button type="button" onClick={addExtraEngine} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">+ Add Motor</button>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={addExtraEngine} disabled={form.additional_engines.length >= 3} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">+ Add Motor</button>
+                    {form.additional_engines.length >= 3 && (
+                      <p className="text-xs text-gray-500">Max 4 engines supported (primary + 3 extras)</p>
+                    )}
+                  </div>
                 </div>
 
                 <h3 className="text-sm font-semibold uppercase tracking-wide pt-2" style={{ color: '#01BBDC' }}>Generators</h3>
@@ -1406,7 +1418,12 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                       <textarea value={generator.notes} onChange={e => setGenerator(index, 'notes', e.target.value)} rows={3} className={inp} placeholder="Notes" />
                     </div>
                   ))}
-                  <button type="button" onClick={addGenerator} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">+ Add Generator</button>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={addGenerator} disabled={form.generators.length >= 2} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">+ Add Generator</button>
+                    {form.generators.length >= 2 && (
+                      <p className="text-xs text-gray-500">Max 2 generators supported</p>
+                    )}
+                  </div>
                 </div>
 
               </div>
