@@ -898,9 +898,8 @@ export default function ListingDetailPage() {
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
             <div>
-              <div className="py-6 border-y border-gray-100">
-              <h3 className="text-xl font-bold text-[#01BBDC] mb-5 font-bahnschrift">Key Specifications</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+              <SectionHeading>Key Specifications</SectionHeading>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-6">
                 {[
                   { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
                   { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
@@ -932,16 +931,16 @@ export default function ListingDetailPage() {
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
               <div>
-                <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
-                <div className="h-px bg-gray-200 mb-4" />
-                <ul className="space-y-2">
-                  {keyFeatures.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
-                      <span className="text-[#01BBDC] mt-1 flex-shrink-0">✓</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                <SectionHeading>Key Features</SectionHeading>
+                <div className="text-base leading-relaxed text-[#10214F] font-poppins">
+                  <ul className="list-disc list-inside space-y-2">
+                    {keyFeatures.map((feature, i) => (
+                      <li key={i} className="text-base">
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
 
@@ -964,7 +963,7 @@ export default function ListingDetailPage() {
           <div className="lg:col-span-4 space-y-6">
 
             {/* LOCATION MAP */}
-            <div className="rounded-3xl overflow-hidden border border-gray-200" style={{ height: 280 }}>
+            <div className="rounded-3xl overflow-hidden border border-gray-200 mt-4" style={{ height: 280 }}>
               <ListingDetailMap
                 latitude={listing.latitude}
                 longitude={listing.longitude}
