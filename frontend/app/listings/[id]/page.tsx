@@ -549,21 +549,19 @@ export default function ListingDetailPage() {
         {/* ══ FEATURED IMAGE + CONTACT ════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
-          {/* ── Gallery: large primary + 2×2 thumbnails ─────────────────── */}
+          {/* ── Featured image: 8 cols ──────────────────────────────────────── */}
           <div className="lg:col-span-8">
-            <div className="grid grid-cols-5 gap-2" style={{ height: 500 }}>
-
-              {/* Primary image — left 3/5 */}
-              <div className="col-span-3 relative h-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
-                onClick={() => {
-                  if (!featuredMedia) return;
-                  if (featuredMedia.file_type === 'image') {
-                    const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
-                    if (idx >= 0) setLightbox(idx);
-                  } else if (featuredMedia.file_type === 'video') {
-                    window.open(featuredMedia.url, '_blank');
-                  }
-                }}>
+            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
+              style={{ height: 500 }}
+              onClick={() => {
+                if (!featuredMedia) return;
+                if (featuredMedia.file_type === 'image') {
+                  const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
+                  if (idx >= 0) setLightbox(idx);
+                } else if (featuredMedia.file_type === 'video') {
+                  window.open(featuredMedia.url, '_blank');
+                }
+              }}>
               {featuredMedia?.file_type === 'video' ? (
                 <div className="relative w-full h-full bg-black">
                   {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
@@ -590,47 +588,6 @@ export default function ListingDetailPage() {
                   </div>
                 </div>
               )}
-              </div>
-
-              {/* 2×2 thumbnail grid — right 2/5 */}
-              <div className="col-span-2 grid grid-cols-2 gap-2">
-                {galleryItems.slice(1, 5).map((item, idx) => {
-                  const isLast = idx === 3;
-                  const remaining = Math.max(galleryItems.length - 5, 0);
-                  return (
-                    <button key={item.id} type="button"
-                      className="relative rounded-xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
-                      style={{ height: 'calc(50% - 4px)' }}
-                      onClick={() => {
-                        if (item.file_type === 'image') {
-                          const i = imageLightboxItems.findIndex(x => x.id === item.id);
-                          if (i >= 0) setLightbox(i);
-                        } else if (item.file_type === 'video') {
-                          window.open(item.url, '_blank');
-                        }
-                      }}>
-                      {item.file_type === 'video' ? (
-                        <>
-                          <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
-                            alt={`${listing.title} video`} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                            <PlayCircle size={22} className="text-white" />
-                          </div>
-                        </>
-                      ) : (
-                        <img src={item.thumbnail_url || item.url}
-                          alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
-                      )}
-                      {isLast && remaining > 0 && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="text-white text-lg font-bold font-bahnschrift">+{remaining}</span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
             </div>
           </div>
 
@@ -844,7 +801,75 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
+        {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
+        {galleryItems.length > 1 && (
+          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+            {/* Large left image */}
+            <button type="button"
+              className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
+              onClick={() => {
+                const item = galleryItems[1];
+                if (!item) return;
+                if (item.file_type === 'image') {
+                  const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                  if (i >= 0) setLightbox(i);
+                } else if (item.file_type === 'video') {
+                  window.open(item.url, '_blank');
+                }
+              }}>
+              {galleryItems[1]?.file_type === 'video' ? (
+                <>
+                  <img src={galleryItems[1].thumbnail_url || '/images/listing-fallback1.png'}
+                    alt={`${listing.title} video`} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <PlayCircle size={28} className="text-white" />
+                  </div>
+                </>
+              ) : (
+                <img src={galleryItems[1]?.thumbnail_url || galleryItems[1]?.url}
+                  alt={`${listing.title} photo 2`} className="w-full h-full object-cover" />
+              )}
+            </button>
 
+            {/* 2×2 right grid */}
+            <div className="grid grid-cols-2 gap-3 h-full">
+              {galleryItems.slice(2, 6).map((item, idx) => {
+                const isLast = idx === 3;
+                const remaining = Math.max(galleryItems.length - 6, 0);
+                return (
+                  <button key={item.id} type="button"
+                    className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                    onClick={() => {
+                      if (item.file_type === 'image') {
+                        const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                        if (i >= 0) setLightbox(i);
+                      } else if (item.file_type === 'video') {
+                        window.open(item.url, '_blank');
+                      }
+                    }}>
+                    {item.file_type === 'video' ? (
+                      <>
+                        <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                          alt={`${listing.title} video`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <PlayCircle size={22} className="text-white" />
+                        </div>
+                      </>
+                    ) : (
+                      <img src={item.thumbnail_url || item.url}
+                        alt={`${listing.title} photo ${idx + 3}`} className="w-full h-full object-cover" />
+                    )}
+                    {isLast && remaining > 0 && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* PDF documents */}
         {pdfItems.length > 0 && (
