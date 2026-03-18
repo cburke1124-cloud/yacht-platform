@@ -1165,31 +1165,7 @@ export default function ListingDetailPage() {
         )}
 
         {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
-        {listing.features && (() => {
-          // Strip feature_bullet lines (prefixed "- ") — already shown in Key Features above
-          const equipmentLines = listing.features.split('\n').filter((line: string) => !line.trimStart().startsWith('- '));
-          const hasContent = equipmentLines.some((l: string) => l.trim().length > 0);
-          if (!hasContent) return null;
-          return (
-            <div className="mb-16">
-              <SectionHeading>Equipment &amp; Features</SectionHeading>
-              <div className="text-base leading-relaxed text-[#10214F] font-poppins">
-                {equipmentLines.map((line: string, i: number) => {
-                  const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
-                  return isSectionHeader ? (
-                    <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0 font-bahnschrift">
-                      {line.trim()}
-                    </h4>
-                  ) : line.trim() ? (
-                    <p key={i} className="mb-2">• {line}</p>
-                  ) : (
-                    <div key={i} className="h-4" />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
+        {/* Equipment block temporarily disabled for parsing check */}
 
       </div>
     </div>
