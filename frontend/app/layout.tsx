@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -7,6 +7,13 @@ import CookieConsentBanner from "./components/CookieConsentBanner";
 import LayoutShell from "./components/LayoutShell";
 
 const inter = Inter({ subsets: ["latin"] });
+
+const poppins = Poppins({ 
+  weight: ['400', '500', '600', '700'],
+  subsets: ["latin"],
+  variable: '--font-poppins',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: "YachtVersal - Yacht Marketplace",
@@ -19,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={poppins.variable}>
       <body className={inter.className} suppressHydrationWarning>
         <a
           href="#main-content"
