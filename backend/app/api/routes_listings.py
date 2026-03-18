@@ -490,13 +490,14 @@ def get_listings(
                     Listing.model.ilike(f"%{search}%"),
                 )
             )
+        order_cols = [Listing.featured.desc()]
+        if _has_listing_column("featured_priority"):
+            order_cols.append(Listing.featured_priority.desc())
+        if _has_listing_column("featured_until"):
+            order_cols.append(Listing.featured_until.desc())
+        order_cols.append(Listing.created_at.desc())
         listings = (
-            q.order_by(
-                Listing.featured.desc(),
-                Listing.featured_priority.desc(),
-                Listing.featured_until.desc(),
-                Listing.created_at.desc(),
-            )
+            q.order_by(*order_cols)
             .offset(skip)
             .limit(limit)
             .all()

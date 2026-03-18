@@ -590,7 +590,7 @@ export default function ListingDetailPage() {
 
           {/* ── Contact card: 4 cols ── */}
           <div className="lg:col-span-4">
-            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white">
+            <div className="rounded-3xl border border-gray-200 bg-white">
               {(sc || dealer) ? (
                 <div className="p-6">
                   {sc ? (
@@ -730,7 +730,7 @@ export default function ListingDetailPage() {
               )}
 
               {/* Action buttons row */}
-              <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50">
+              <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
                 <button onClick={toggleSave}
                   className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
                   style={{ color: saved ? '#01BBDC' : '#10214F' }}>
@@ -763,7 +763,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },

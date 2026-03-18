@@ -370,9 +370,23 @@ def get_my_media(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get current user's media files"""
+    """Get media files for the current user's company (dealer + their team members)."""
+    # Determine the root dealer for this user
+    root_dealer_id = current_user.parent_dealer_id or current_user.id
+
+    # Collect all user IDs in the same organisation
+    team_ids = (
+        db.query(User.id)
+        .filter(
+            (User.id == root_dealer_id) |
+            (User.parent_dealer_id == root_dealer_id)
+        )
+        .all()
+    )
+    org_ids = [row[0] for row in team_ids] or [current_user.id]
+
     query = db.query(MediaFile).filter(
-        MediaFile.user_id == current_user.id,  # ✅ CHANGED from owner_id
+        MediaFile.user_id.in_(org_ids),
         MediaFile.deleted_at == None
     )
     
