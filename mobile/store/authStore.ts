@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { authApi } from '@/lib/api';
-import { saveToken, clearTokens, cacheUser } from '@/lib/storage';
+import { saveToken, clearTokens, cacheUser, getToken } from '@/lib/storage';
 import type { User } from '@/types';
 
 interface AuthState {
@@ -60,7 +60,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user, isAuthenticated: !!user }),
 
   hydrateFromCache: async () => {
-    const { getToken } = await import('@/lib/storage');
     const token = await getToken();
     if (!token) {
       set({ isLoading: false });

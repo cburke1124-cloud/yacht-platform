@@ -895,7 +895,7 @@ export default function ListingDetailPage() {
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
             <div>
-              <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Specifications</h3>
+              <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Specifications</h3>
               <div className="h-[1px] bg-[#01BBDC] mb-5" />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
@@ -928,7 +928,7 @@ export default function ListingDetailPage() {
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
               <div>
-                <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
+                <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Features</h3>
                 <div className="h-[1px] bg-[#01BBDC] mb-4" />
                 <ul className="space-y-2">
                   {keyFeatures.map((feature, i) => (

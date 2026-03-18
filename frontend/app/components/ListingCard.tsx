@@ -277,8 +277,8 @@ export default function ListingCard({
 
         {/* Content */}
         <div className="p-5">
-          <div className="flex justify-between items-start gap-3 mb-1">
-            <h3 className="text-xl font-bold text-gray-900 line-clamp-2 min-h-[56px] flex-1">
+          <div className="flex justify-between items-start gap-3 mb-0.5">
+            <h3 className="text-xl font-bold text-gray-900 line-clamp-2 flex-1">
               {title}
             </h3>
           </div>

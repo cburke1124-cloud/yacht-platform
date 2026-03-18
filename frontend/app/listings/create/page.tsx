@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import MediaUpload from '@/app/components/MediaUpload';
 import ScraperModal from '@/app/components/ScraperModal';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film } from 'lucide-react';
-import { API_ROOT } from '@/app/lib/apiRoot';
+import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 
 const TABS = ['basic', 'specs', 'engine', 'media'] as const;
 type Tab = typeof TABS[number];
@@ -1444,7 +1444,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                           >
                             {isImg ? (
                               <img
-                                src={m.url || m.thumbnail_url}
+                                src={mediaUrl(m.url || m.thumbnail_url)}
                                 alt={`Media ${i + 1}`}
                                 className="w-full h-28 object-cover"
                               />

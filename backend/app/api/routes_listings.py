@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from typing import Optional, Any
 from functools import lru_cache
-from sqlalchemy import inspect, text, func
+from sqlalchemy import inspect, text, func, or_, cast, String
 import logging
 
 from app.db.session import get_db
@@ -416,6 +416,8 @@ def get_listings(
     fuel: Optional[str] = None,
     hull_material: Optional[str] = None,
     engine: Optional[str] = None,
+    brokerage: Optional[str] = None,
+    search: Optional[str] = None,
 ):
     SAIL_TYPES = {"Sailing Yacht", "Catamaran", "Sloop", "Ketch", "Schooner", "Motorsailer"}
     try:
@@ -466,7 +468,28 @@ def get_listings(
         if hull_material:
             q = q.filter(Listing.hull_material.ilike(f"%{hull_material}%"))
         if engine:
-            q = q.filter(Listing.fuel_type.ilike(f"%{engine}%"))
+            q = q.filter(
+                or_(
+                    cast(Listing.additional_engines, String).ilike(f"%{engine}%"),
+                    Listing.fuel_type.ilike(f"%{engine}%"),
+                )
+            )
+        if brokerage:
+            q = q.outerjoin(DealerProfile, DealerProfile.user_id == User.id)
+            q = q.filter(
+                or_(
+                    DealerProfile.company_name.ilike(f"%{brokerage}%"),
+                    DealerProfile.name.ilike(f"%{brokerage}%"),
+                )
+            )
+        if search:
+            q = q.filter(
+                or_(
+                    Listing.title.ilike(f"%{search}%"),
+                    Listing.make.ilike(f"%{search}%"),
+                    Listing.model.ilike(f"%{search}%"),
+                )
+            )
         listings = (
             q.order_by(
                 Listing.featured.desc(),
