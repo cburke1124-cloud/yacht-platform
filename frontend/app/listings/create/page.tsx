@@ -141,9 +141,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     heads:           '',
     previous_owners: '',
     // Engine & performance
-    engine_make:     '',
-    engine_model:    '',
-    engine_type:     '',
     engine_count:    '',
     engine_hours:    '',
     fuel_type:       '',
@@ -320,9 +317,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             berths: listing.berths != null ? String(listing.berths) : '',
             heads: listing.heads != null ? String(listing.heads) : '',
             previous_owners: listing.previous_owners != null ? String(listing.previous_owners) : '',
-            engine_make: listing.engine_make || '',
-            engine_model: listing.engine_model || '',
-            engine_type: listing.engine_type || '',
             engine_count: listing.engine_count != null ? String(listing.engine_count) : '',
             engine_hours: listing.engine_hours != null ? String(listing.engine_hours) : '',
             fuel_type: listing.fuel_type || '',
@@ -818,9 +812,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         heads:           int(form.heads),
         previous_owners: int(form.previous_owners),
         // Engine
-        engine_make:     form.engine_make  || null,
-        engine_model:    form.engine_model || null,
-        engine_type:     form.engine_type  || null,
         engine_count:    int(form.engine_count),
         engine_hours:    int(form.engine_hours),
         fuel_type:       form.fuel_type    || null,
@@ -1276,26 +1267,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {/* ─── ENGINE & VIDEOS ─────────────────────────────────────────── */}
             {activeTab === 'engine' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Engine Make</label>
-                    <input name="engine_make" value={form.engine_make} onChange={set} className={inp} placeholder="Caterpillar" />
-                  </div>
-                  <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Engine Model</label>
-                    <input name="engine_model" value={form.engine_model} onChange={set} className={inp} placeholder="C32" />
-                  </div>
-                  <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Engine Type</label>
-                    <select name="engine_type" value={form.engine_type} onChange={set} className={inp}>
-                      <option value="">Select…</option>
-                      {['Diesel','Gas','Electric','Hybrid','Outboard','Inboard','Jet'].map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Engine Count</label>

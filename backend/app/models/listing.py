@@ -42,9 +42,6 @@ class Listing(Base):
     hull_type = Column(String)
 
     # Engine & Performance
-    engine_make = Column(String)
-    engine_model = Column(String)
-    engine_type = Column(String)
     engine_count = Column(Integer)
     engine_hours = Column(Float)
     additional_engines = deferred(Column(JSON, default=[]))
