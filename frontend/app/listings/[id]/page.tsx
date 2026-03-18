@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import {
   Heart, Download, MapPin, Calendar, ArrowLeft, Mail,
   Ship, Share2, Facebook, Twitter, Linkedin,
@@ -14,8 +13,6 @@ import {
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
-
-const ListingDetailMap = dynamic(() => import('../../components/ListingDetailMap'), { ssr: false });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -933,7 +930,7 @@ export default function ListingDetailPage() {
             {keyFeatures.length > 0 && (
               <div>
                 <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
-                <div className="h-px bg-gray-200 mb-4" />
+                <div className="h-[1px] bg-[#01BBDC] mb-4" />
                 <ul className="space-y-2">
                   {keyFeatures.map((feature, i) => (
                     <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
@@ -947,18 +944,8 @@ export default function ListingDetailPage() {
 
           </div>
 
-          {/* Right column: Map + Finance — 4 cols */}
+          {/* Right column: Finance — 4 cols */}
           <div className="lg:col-span-4 space-y-6">
-
-            {/* LOCATION MAP */}
-            <div className="rounded-3xl overflow-hidden border border-gray-200" style={{ height: 280 }}>
-              <ListingDetailMap
-                latitude={listing.latitude}
-                longitude={listing.longitude}
-                locationString={locationString}
-                title={listing.title}
-              />
-            </div>
 
             {/* FINANCE CALCULATOR */}
             {listing.price && (
