@@ -593,7 +593,7 @@ export default function ListingDetailPage() {
 
           {/* ── Contact card: 4 cols ── */}
           <div className="lg:col-span-4">
-            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white">
+            <div className="rounded-3xl overflow-visible border border-gray-200 bg-white">
               {(sc || dealer) ? (
                 <div className="p-6">
                   {sc ? (
@@ -748,7 +748,7 @@ export default function ListingDetailPage() {
                     Compare
                   </button>
                   {showComp && (
-                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
+                    <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 z-50 max-h-52 overflow-y-auto">
                       <div className="p-2">
                         <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
                         {comparisons.map(c => (
@@ -766,7 +766,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl border border-gray-200 z-20">
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
