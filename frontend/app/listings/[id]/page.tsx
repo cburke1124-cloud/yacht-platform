@@ -803,7 +803,7 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+          <div className="grid gap-3 mb-8" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
             {/* Large left image */}
             <button type="button"
               className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
@@ -893,7 +893,7 @@ export default function ListingDetailPage() {
         {/* ══ KEY SPECS & KEY FEATURES (LEFT) + MAP & FINANCE (RIGHT) ═════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left column: Key Specs + Key Features — 8 cols */}
+          {/* Left column: Key Specs + Key Features + Description — 8 cols */}
           <div className="lg:col-span-8 space-y-8">
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
@@ -942,6 +942,19 @@ export default function ListingDetailPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* DESCRIPTION (moved into left column so it sits beside finance) */}
+            {listing.description && (
+              <div className="mb-10">
+                <SectionHeading>Description</SectionHeading>
+                <div className="prose prose-lg max-w-none">
+                  <div
+                    className="text-base leading-relaxed text-[#10214F] font-poppins"
+                    dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+                  />
+                </div>
               </div>
             )}
 
@@ -1040,18 +1053,7 @@ export default function ListingDetailPage() {
 
         </div>
 
-        {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
-        {listing.description && (
-          <div className="mb-10">
-            <SectionHeading>Description</SectionHeading>
-            <div className="prose prose-lg max-w-none">
-              <div
-                className="text-base leading-relaxed text-[#10214F] font-poppins"
-                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-              />
-            </div>
-          </div>
-        )}
+        {/* DESCRIPTION moved into left column above so it displays beside finance on wide screens */}
 
         {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
         <div className="mb-10">
