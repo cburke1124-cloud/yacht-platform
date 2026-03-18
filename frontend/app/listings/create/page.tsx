@@ -899,7 +899,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
   if (accessChecking || initializing) {
     return (
-      <div className="min-h-screen py-8" style={{ background: '#F0FDFF' }}>
+      <div className="min-h-screen py-8 bg-white">
         <div className="max-w-5xl mx-auto px-4">
           <div className="bg-white rounded-2xl shadow-sm p-8" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
             Loading listing…
@@ -914,7 +914,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   }
 
   return (
-    <div className="min-h-screen py-8" style={{ background: '#F0FDFF' }}>
+    <div className="min-h-screen py-8 bg-white">
       <ScraperModal
         isOpen={showScraperModal}
         onClose={() => setShowScraperModal(false)}
