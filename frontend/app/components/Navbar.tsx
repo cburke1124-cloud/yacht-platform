@@ -257,14 +257,14 @@ export default function Navbar() {
 
           {/* ── Logo ── */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center h-20 overflow-hidden">
+            <Link href="/" className="flex items-center h-20 overflow-hidden leading-none">
               {!logoError ? (
                 <Image
                   src="/logo/logo-full.png"
                   alt="YachtVersal"
                   width={280}
                   height={70}
-                  className="block w-auto max-w-[180px] sm:max-w-[240px] md:max-w-[280px] max-h-[56px]"
+                  className="block w-auto max-w-[180px] sm:max-w-[240px] md:max-w-[280px] max-h-[40px] object-contain align-middle"
                   onError={() => setLogoError(true)}
                   priority
                 />
