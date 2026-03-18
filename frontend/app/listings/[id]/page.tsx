@@ -513,8 +513,8 @@ export default function ListingDetailPage() {
                   {locationString}
                 </span>
               )}
-              {id && (
-                <span>Stock #{id}</span>
+              {listing.bin && (
+                <span>Stock #{listing.bin}</span>
               )}
               {listing.featured && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
@@ -593,7 +593,7 @@ export default function ListingDetailPage() {
 
           {/* ── Contact card: 4 cols ── */}
           <div className="lg:col-span-4">
-            <div className="rounded-3xl overflow-visible border border-gray-200 bg-white">
+            <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white">
               {(sc || dealer) ? (
                 <div className="p-6">
                   {sc ? (
@@ -748,7 +748,7 @@ export default function ListingDetailPage() {
                     Compare
                   </button>
                   {showComp && (
-                    <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-gray-200 z-50 max-h-52 overflow-y-auto">
+                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto">
                       <div className="p-2">
                         <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
                         {comparisons.map(c => (
@@ -766,7 +766,7 @@ export default function ListingDetailPage() {
                     <Share2 size={18} strokeWidth={2} /> Share
                   </button>
                   {showShare && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
+                    <div className="absolute right-0 bottom-full mb-2 w-56 bg-white rounded-2xl border border-gray-200 z-20">
                       <div className="p-2 space-y-1">
                         {[
                           { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
@@ -803,7 +803,7 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mb-8" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
+          <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
             {/* Large left image */}
             <button type="button"
               className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
@@ -893,13 +893,14 @@ export default function ListingDetailPage() {
         {/* ══ KEY SPECS & KEY FEATURES (LEFT) + MAP & FINANCE (RIGHT) ═════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left column: Key Specs + Key Features + Description — 8 cols */}
+          {/* Left column: Key Specs + Key Features — 8 cols */}
           <div className="lg:col-span-8 space-y-8">
 
             {/* KEY SPECIFICATIONS — icon strip matching Figma */}
             <div>
-              <SectionHeading>Key Specifications</SectionHeading>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-6">
+              <div className="py-6 border-y border-gray-100">
+              <h3 className="text-xl font-bold text-[#01BBDC] mb-5 font-bahnschrift">Key Specifications</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
                   { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
                   { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
@@ -931,29 +932,16 @@ export default function ListingDetailPage() {
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
               <div>
-                <SectionHeading>Key Features</SectionHeading>
-                <div className="text-base leading-relaxed text-[#10214F] font-poppins">
-                  <ul className="list-disc list-inside space-y-2">
-                    {keyFeatures.map((feature, i) => (
-                      <li key={i} className="text-base">
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* DESCRIPTION (moved into left column so it sits beside finance) */}
-            {listing.description && (
-              <div className="mb-10">
-                <SectionHeading>Description</SectionHeading>
-                <div className="prose prose-lg max-w-none">
-                  <div
-                    className="text-base leading-relaxed text-[#10214F] font-poppins"
-                    dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-                  />
-                </div>
+                <h3 className="text-xl font-bold text-[#01BBDC] mb-4 font-bahnschrift">Key Features</h3>
+                <div className="h-px bg-gray-200 mb-4" />
+                <ul className="space-y-2">
+                  {keyFeatures.map((feature, i) => (
+                    <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
+                      <span className="text-[#01BBDC] mt-1 flex-shrink-0">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -963,7 +951,7 @@ export default function ListingDetailPage() {
           <div className="lg:col-span-4 space-y-6">
 
             {/* LOCATION MAP */}
-            <div className="rounded-3xl overflow-hidden border border-gray-200 mt-4" style={{ height: 280 }}>
+            <div className="rounded-3xl overflow-hidden border border-gray-200" style={{ height: 280 }}>
               <ListingDetailMap
                 latitude={listing.latitude}
                 longitude={listing.longitude}
@@ -1052,7 +1040,18 @@ export default function ListingDetailPage() {
 
         </div>
 
-        {/* DESCRIPTION moved into left column above so it displays beside finance on wide screens */}
+        {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
+        {listing.description && (
+          <div className="mb-10">
+            <SectionHeading>Description</SectionHeading>
+            <div className="prose prose-lg max-w-none">
+              <div
+                className="text-base leading-relaxed text-[#10214F] font-poppins"
+                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
         <div className="mb-10">
@@ -1061,7 +1060,7 @@ export default function ListingDetailPage() {
             <div className="space-y-1">
               <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">General</h4>
               <SpecRow label="Name"           value={listing.title} />
-              <SpecRow label="HIN"            value={listing.bin} />
+              <SpecRow label="Stock #"        value={listing.bin} />
               <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
               <SpecRow label="Make"           value={listing.make} />
               <SpecRow label="Model"          value={listing.model} />
@@ -1165,7 +1164,31 @@ export default function ListingDetailPage() {
         )}
 
         {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
-        {/* Equipment block temporarily disabled for parsing check */}
+        {listing.features && (() => {
+          // Strip feature_bullet lines (prefixed "- ") — already shown in Key Features above
+          const equipmentLines = listing.features.split('\n').filter((line: string) => !line.trimStart().startsWith('- '));
+          const hasContent = equipmentLines.some((l: string) => l.trim().length > 0);
+          if (!hasContent) return null;
+          return (
+            <div className="mb-16">
+              <SectionHeading>Equipment &amp; Features</SectionHeading>
+              <div className="text-base leading-relaxed text-[#10214F] font-poppins">
+                {equipmentLines.map((line: string, i: number) => {
+                  const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
+                  return isSectionHeader ? (
+                    <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0 font-bahnschrift">
+                      {line.trim()}
+                    </h4>
+                  ) : line.trim() ? (
+                    <p key={i} className="mb-2">• {line}</p>
+                  ) : (
+                    <div key={i} className="h-4" />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
     </div>
