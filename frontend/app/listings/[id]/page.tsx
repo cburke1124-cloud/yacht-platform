@@ -9,8 +9,8 @@ import {
   Ship, Share2, Facebook, Twitter, Linkedin,
   MessageCircle, Link2, Printer, Plus, Check, Phone,
   X, ChevronLeft, ChevronRight, Building2, User,
-  ExternalLink, Globe, Users, Wrench, Anchor, Youtube,
-  Bed, Gauge, Fuel, Waves, Ruler, Navigation, Droplet,
+  ExternalLink, Globe, Users, Wrench,
+  Bed, Gauge, Fuel, Waves, Ruler,
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
@@ -305,8 +305,6 @@ export default function ListingDetailPage() {
   const imageLightboxItems: MediaItem[] = galleryItems.filter(i => i.file_type === 'image');
   const featuredMedia = galleryItems[0] || null;
   const galleryMedia = galleryItems.slice(1);
-  const extraGalleryCount = Math.max(galleryMedia.length - 4, 0);
-  const showGallery = galleryItems.length > 1;
 
   const sc     = contact?.sales_contact;
   const dealer = contact?.dealer;
@@ -548,72 +546,65 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* ══ FEATURED IMAGE + CONTACT ═══════════════════════════════════════ */}
+        {/* ══ GALLERY + CONTACT ════════════════════════════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
-          <div className="lg:col-span-8">
-            <div className="relative w-full rounded-3xl overflow-hidden shadow-xl border border-gray-200 bg-gray-50"
-              style={{ height: 520 }}
-              onClick={() => {
-                if (!featuredMedia) return;
-                if (featuredMedia.file_type === 'image') {
-                  const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
-                  if (idx >= 0) setLightbox(idx);
-                } else if (featuredMedia.file_type === 'video') {
-                  window.open(featuredMedia.url, '_blank');
-                }
-              }}>
-              {featuredMedia?.file_type === 'video' ? (
-                <div className="relative w-full h-full bg-black">
-                  {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
-                    <iframe
-                      src={featuredMedia.url}
-                      title={listing.title}
-                      className="w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video src={featuredMedia.url} controls className="w-full h-full object-cover" />
-                  )}
-                </div>
-              ) : (
-                <img
-                  src={featuredMedia?.url || FALLBACK_LISTING_IMAGE}
-                  alt={`${listing.title} - ${listing.year ? listing.year + ' ' : ''}${listing.make || ''} ${listing.model || ''}`.trim()}
-                  className="w-full h-full object-cover"
-                />
-              )}
-              {listing.featured && (
-                <div className="absolute top-5 left-5 px-4 py-2 rounded-2xl text-sm font-bold text-white backdrop-blur-sm shadow-lg bg-[#01BBDC]">
-                  ⭐ Featured
-                </div>
-              )}
-              {contact?.dealer?.is_demo && (
-                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center bg-transparent z-10">
-                    <div className="bg-[#10214F]/80 backdrop-blur-md text-white px-8 py-4 rounded-xl shadow-2xl transform text-center border-2 border-[#01BBDC]">
-                        <p className="text-3xl font-black uppercase tracking-widest mb-1 text-[#01BBDC]">Sample Listing</p>
-                        <p className="text-sm font-medium opacity-80">Demonstration Purposes Only</p>
+
+          {/* ── Gallery: 7 cols ─────────────────────────────────────────────── */}
+          <div className="lg:col-span-7 space-y-2">
+
+            {/* Mosaic: main image (3/5 width) + 2 stacked thumbnails (2/5 width) */}
+            <div className="grid gap-2" style={{ gridTemplateColumns: '3fr 2fr', height: 440 }}>
+
+              {/* Main featured image */}
+              <div className="relative rounded-2xl overflow-hidden cursor-pointer bg-gray-100"
+                onClick={() => {
+                  if (!featuredMedia) return;
+                  if (featuredMedia.file_type === 'image') {
+                    const idx = imageLightboxItems.findIndex(i => i.id === featuredMedia.id);
+                    if (idx >= 0) setLightbox(idx);
+                  } else if (featuredMedia.file_type === 'video') {
+                    window.open(featuredMedia.url, '_blank');
+                  }
+                }}>
+                {featuredMedia?.file_type === 'video' ? (
+                  <div className="relative w-full h-full bg-black">
+                    {featuredMedia.url.includes('youtube.com/embed') || featuredMedia.url.includes('vimeo.com/video') ? (
+                      <iframe src={featuredMedia.url} title={listing.title} className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+                    ) : (
+                      <video src={featuredMedia.url} controls className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                ) : (
+                  <img src={featuredMedia?.url || FALLBACK_LISTING_IMAGE}
+                    alt={`${listing.title} main photo`} className="w-full h-full object-cover" />
+                )}
+                {listing.featured && (
+                  <div className="absolute top-4 left-4 px-3 py-1.5 rounded-xl text-sm font-bold text-white bg-[#01BBDC]">
+                    ⭐ Featured
+                  </div>
+                )}
+                {contact?.dealer?.is_demo && (
+                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-10">
+                    <div className="bg-[#10214F]/80 backdrop-blur-md text-white px-6 py-4 rounded-xl shadow-2xl text-center border-2 border-[#01BBDC]">
+                      <p className="text-2xl font-black uppercase tracking-widest mb-1 text-[#01BBDC] font-bahnschrift">Sample Listing</p>
+                      <p className="text-sm font-medium opacity-80">Demonstration Purposes Only</p>
                     </div>
                   </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {showGallery && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                {[0, 1, 2, 3].map(slot => {
+              {/* Right column: 2 stacked thumbnails */}
+              <div className="flex flex-col gap-2">
+                {[0, 1].map(slot => {
                   const item = galleryMedia[slot];
-                  const isLastSlot = slot === 3;
-
-                  if (!item) {
-                    return <div key={slot} className="h-32 rounded-2xl border border-gray-200 bg-gray-50" />;
-                  }
-
+                  const isLast = slot === 1;
+                  const remaining = Math.max(galleryItems.length - 3, 0);
                   return (
-                    <button
-                      key={`${slot}-${item.id}`}
-                      type="button"
-                      className="relative h-32 rounded-2xl overflow-hidden border border-gray-200"
+                    <button key={slot} type="button"
+                      className="flex-1 relative rounded-2xl overflow-hidden bg-gray-100"
                       onClick={() => {
+                        if (!item) return;
                         if (item.file_type === 'image') {
                           const idx = imageLightboxItems.findIndex(i => i.id === item.id);
                           if (idx >= 0) setLightbox(idx);
@@ -621,27 +612,65 @@ export default function ListingDetailPage() {
                           window.open(item.url, '_blank');
                         }
                       }}>
+                      {item ? (
+                        item.file_type === 'video' ? (
+                          <>
+                            <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                              alt={`${listing.title} video ${slot + 2}`} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                              <PlayCircle size={28} className="text-white" />
+                            </div>
+                          </>
+                        ) : (
+                          <img src={item.thumbnail_url || item.url}
+                            alt={`${listing.title} photo ${slot + 2}`} className="w-full h-full object-cover" />
+                        )
+                      ) : (
+                        <div className="w-full h-full bg-gray-100" />
+                      )}
+                      {isLast && remaining > 0 && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Extra thumbnails row when more than 3 images */}
+            {galleryItems.length > 3 && (
+              <div className="grid grid-cols-4 gap-2">
+                {galleryItems.slice(3, 7).map((item, idx) => {
+                  const isLast = idx === 3;
+                  const remaining = Math.max(galleryItems.length - 7, 0);
+                  return (
+                    <button key={item.id} type="button"
+                      className="relative h-24 rounded-xl overflow-hidden bg-gray-100"
+                      onClick={() => {
+                        if (item.file_type === 'image') {
+                          const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                          if (i >= 0) setLightbox(i);
+                        } else if (item.file_type === 'video') {
+                          window.open(item.url, '_blank');
+                        }
+                      }}>
                       {item.file_type === 'video' ? (
                         <>
-                          <img
-                            src={item.thumbnail_url || '/images/listing-fallback1.png'}
-                            alt={item.alt_text || item.caption || `${listing.title} video ${slot + 2}`}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={item.thumbnail_url || '/images/listing-fallback1.png'}
+                            alt={`${listing.title} video`} className="w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                            <PlayCircle size={30} className="text-white" />
+                            <PlayCircle size={22} className="text-white" />
                           </div>
                         </>
                       ) : (
-                        <img
-                          src={item.thumbnail_url || item.url}
-                          alt={item.alt_text || item.caption || `${listing.title} gallery photo ${slot + 2}`}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={item.thumbnail_url || item.url}
+                          alt={`${listing.title} photo`} className="w-full h-full object-cover" />
                       )}
-                      {isLastSlot && extraGalleryCount > 0 && (
+                      {isLast && remaining > 0 && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <span className="text-white text-2xl font-bold">+{extraGalleryCount}</span>
+                          <span className="text-white font-bold font-bahnschrift">+{remaining}</span>
                         </div>
                       )}
                     </button>
@@ -651,17 +680,13 @@ export default function ListingDetailPage() {
             )}
 
             {pdfItems.length > 0 && (
-              <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
-                <h4 className="text-sm font-bold text-[#10214F] mb-3 uppercase tracking-wide">Documents</h4>
+              <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                <h4 className="text-sm font-bold text-[#10214F] mb-3 uppercase tracking-wide font-bahnschrift">Documents</h4>
                 <div className="space-y-2">
                   {pdfItems.map((doc, idx) => (
-                    <a
-                      key={doc.id}
-                      href={doc.url}
-                      target="_blank"
-                      rel="noreferrer"
+                    <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
                       className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
-                      <span className="flex items-center gap-2 text-sm text-[#10214F]">
+                      <span className="flex items-center gap-2 text-sm text-[#10214F] font-poppins">
                         <FileText size={16} className="text-[#01BBDC]" />
                         {doc.caption || doc.alt_text || `Document ${idx + 1}`}
                       </span>
@@ -673,7 +698,8 @@ export default function ListingDetailPage() {
             )}
           </div>
 
-          <div className="lg:col-span-4">
+          {/* ── Contact card: 5 cols ─────────────────────────────────────────── */}
+          <div className="lg:col-span-5">
             <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-lg">
 
               {/* Sales contact or dealer info */}
@@ -888,35 +914,35 @@ export default function ListingDetailPage() {
 
         {/* ══ KEY SPECS & KEY FEATURES (2 columns) + SIDEBAR (right) ═════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
-          
-          {/* Left side: Key Specs + Key Features — 8 cols */}
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* KEY SPECIFICATIONS */}
-            <div className="bg-gradient-to-br from-gray-50 to-white rounded-3xl border border-gray-200 p-6">
+
+          {/* Left side: Key Specs + Key Features — 7 cols */}
+          <div className="lg:col-span-7 space-y-6">
+
+            {/* KEY SPECIFICATIONS — icon strip matching Figma */}
+            <div className="py-6 border-y border-gray-100">
               <h3 className="text-xl font-bold text-[#01BBDC] mb-5 font-bahnschrift">Key Specifications</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
-                  { icon: <Ruler size={32} className="text-[#01BBDC]" />, label: 'Length', value: listing.length_feet ? `${listing.length_feet}'` : null },
-                  { icon: <Waves size={32} className="text-[#01BBDC]" />, label: 'Cruise Speed', value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
-                  { icon: <Gauge size={32} className="text-[#01BBDC]" />, label: 'Max Speed', value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
-                  { icon: <Anchor size={32} className="text-[#01BBDC]" />, label: 'Range', value: listing.additional_specs?.cruising_range_nm ? `${fmt(listing.additional_specs.cruising_range_nm)} nm` : null },
-                  { icon: <Fuel size={32} className="text-[#01BBDC]" />, label: 'Fuel Tank', value: listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null },
-                  { icon: <Droplet size={32} className="text-[#01BBDC]" />, label: 'Fresh Water', value: listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null },
-                  { icon: <Ship size={32} className="text-[#01BBDC]" />, label: 'Engines', value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
-                  { icon: <Gauge size={32} className="text-[#01BBDC]" />, label: 'Year', value: listing.year ? String(listing.year) : null },
-                  { icon: <Fuel size={32} className="text-[#01BBDC]" />, label: 'Fuel Type', value: listing.fuel_type },
-                  { icon: <Bed size={32} className="text-[#01BBDC]" />, label: 'Cabins', value: listing.cabins ? String(listing.cabins) : null },
-                  { icon: <Users size={32} className="text-[#01BBDC]" />, label: 'Guests', value: listing.berths ? String(listing.berths) : null },
-                  { icon: <Wrench size={32} className="text-[#01BBDC]" />, label: 'Make', value: listing.make },
-                  { icon: <Ship size={32} className="text-[#01BBDC]" />, label: 'Type', value: listing.boat_type },
-                  { icon: <Navigation size={32} className="text-[#01BBDC]" />, label: 'Condition', value: listing.condition ? (listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)) : null },
+                  { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
+                  { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
+                  { icon: <Bed size={28} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
+                  { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
+                  { icon: <Wrench size={28} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make },
+                  { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
+                  { icon: <Waves size={28} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
+                  { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
+                  { icon: <Fuel size={28} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
+                  { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
+                  { icon: <MapPin size={28} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
+                  { icon: <Calendar size={28} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
                 ].filter(s => s.value).map(s => (
                   <div key={s.label} className="flex items-center gap-3">
-                    <div className="flex-shrink-0">{s.icon}</div>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#F0FDFF]">
+                      {s.icon}
+                    </div>
                     <div>
-                      <p className="text-sm text-[#10214F] font-poppins">{s.label}</p>
-                      <p className="font-bold text-[#10214F] font-bahnschrift">{s.value}</p>
+                      <p className="text-xs text-[#10214F]/60 uppercase tracking-wide font-bahnschrift">{s.label}</p>
+                      <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
                     </div>
                   </div>
                 ))}
