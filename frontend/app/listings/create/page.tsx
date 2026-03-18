@@ -203,6 +203,13 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         const isPaidPrivate = userType === 'private' && paidPrivateTiers.has(tier);
         const hasPermission = me.permissions?.can_create_listings === true;
 
+        // If trial has expired (webhook may not have fired yet), send to billing
+        const trialExpired = me.trial_active && me.trial_end_date && new Date(me.trial_end_date) < new Date();
+        if (trialExpired && !isAdmin) {
+          router.replace('/dashboard/billing?payment=required');
+          return;
+        }
+
         if (isAdmin || isPaidDealer || isPaidPrivate || hasPermission) {
           setHasListingAccess(true);
           // Fetch dealer profile to check if account-level co-brokering is enabled

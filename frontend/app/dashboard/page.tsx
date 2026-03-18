@@ -127,6 +127,7 @@ export default function EnhancedDealerDashboard() {
     featuredListings: 0
   });
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
@@ -159,6 +160,13 @@ export default function EnhancedDealerDashboard() {
   useEffect(() => {
     fetchDashboardData();
     fetchCRMStatus();
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setCurrentUser(data); })
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -537,9 +545,32 @@ export default function EnhancedDealerDashboard() {
     { id: 'api-keys', label: 'API Keys', icon: Key }
   ];
 
+  const paidTiers = new Set(['basic','plus','pro','premium','private_basic','private_plus','private_pro']);
+  const paymentLapsed = currentUser &&
+    (currentUser.user_type === 'dealer' || currentUser.user_type === 'private') &&
+    !currentUser.always_free &&
+    !paidTiers.has(currentUser.subscription_tier || '');
+
   return (
     <div className="min-h-screen bg-soft">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Payment lapsed banner */}
+        {paymentLapsed && (
+          <div className="mb-6 flex items-start justify-between gap-4 p-4 bg-red-50 border border-red-300 rounded-xl">
+            <div>
+              <p className="font-semibold text-red-700">Subscription inactive — action required</p>
+              <p className="text-sm text-red-600 mt-0.5">Your listings are suspended and new listings cannot be created until payment is complete. Update your payment method to restore access.</p>
+            </div>
+            <button
+              onClick={() => setActiveTab('billing')}
+              className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              Update payment
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>

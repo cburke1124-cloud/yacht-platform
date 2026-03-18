@@ -691,7 +691,14 @@ def create_listing(
     is_paid_private = user_type == "private" and subscription_tier in paid_private_tiers
 
     if not (is_admin or has_create_permission or is_paid_dealer or is_paid_private):
-        raise AuthorizationException("Listing creation requires a paid dealer or private seller account")
+        raise AuthorizationException("Listing creation requires an active paid subscription")
+
+    # Belt-and-suspenders: reject if trial period has expired but webhook hasn't cleared tier yet
+    if not is_admin and not has_create_permission:
+        trial_active = getattr(current_user, "trial_active", False)
+        trial_end = getattr(current_user, "trial_end_date", None)
+        if trial_active and trial_end and trial_end < datetime.utcnow():
+            raise AuthorizationException("Your free trial has expired. Please complete payment to continue creating listings.")
 
     if listing_data.bin:
         existing = db.query(Listing).filter(Listing.bin == listing_data.bin).first()

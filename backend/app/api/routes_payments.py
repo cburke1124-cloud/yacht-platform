@@ -11,6 +11,9 @@ from app.models.user import User
 from app.models.misc import Payment, Invoice
 from app.services.stripe_service import stripe_service, STRIPE_PRICES, TIER_TRIAL_DAYS
 from app.services.email_service import email_service
+
+# Reverse map: Stripe price ID → tier key (used to restore tier on subscription reactivation)
+STRIPE_PRICES_REVERSE: dict[str, str] = {v: k for k, v in STRIPE_PRICES.items()}
 from app.services.notification_service import notification_service
 from app.exceptions import ValidationException, ResourceNotFoundException, ExternalServiceException
 from app.core.config import settings
@@ -795,14 +798,41 @@ async def handle_subscription_updated(subscription, db: Session, background_task
     """Handle subscription update"""
     subscription_id = subscription["id"]
     status = subscription["status"]
-    
+
     user = db.query(User).filter(User.stripe_subscription_id == subscription_id).first()
-    if user:
-        # Handle trial ending
-        if status == "active" and subscription.get("trial_end"):
+    if not user:
+        return
+
+    if status in ("past_due", "unpaid", "incomplete_expired"):
+        # Payment has lapsed — revoke listing access until invoice clears
+        user.subscription_tier = "free"
+        db.commit()
+        logger.warning("Subscription %s is %s — downgraded user %s to free tier", subscription_id, status, user.id)
+        background_tasks.add_task(send_invoice_failed_email, user.email, 0)
+
+    elif status == "canceled":
+        # Explicit cancellation — also handled by subscription.deleted but belt-and-suspenders
+        user.subscription_tier = "free"
+        user.stripe_subscription_id = None
+        db.commit()
+        logger.info("Subscription %s canceled — downgraded user %s to free tier", subscription_id, user.id)
+        background_tasks.add_task(send_subscription_cancelled_email, user.email, immediately=False)
+
+    elif status == "active":
+        # Trial ended (converted to paid) or subscription reactivated after lapse
+        if subscription.get("trial_end"):
             user.trial_active = False
             user.trial_converted = True
-        
+        # Restore tier if we previously downgraded to free (payment lapsed then resumed)
+        if (user.subscription_tier or "").lower() == "free":
+            try:
+                price_id = subscription["items"]["data"][0]["price"]["id"]
+                restored_tier = STRIPE_PRICES_REVERSE.get(price_id)
+                if restored_tier:
+                    user.subscription_tier = restored_tier
+                    logger.info("Subscription %s reactivated — restored user %s to tier %s", subscription_id, user.id, restored_tier)
+            except (KeyError, IndexError):
+                pass
         db.commit()
 
 
