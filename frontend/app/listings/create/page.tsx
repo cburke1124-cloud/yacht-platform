@@ -49,7 +49,6 @@ function deriveFeatureBullets(form: {
   length_feet: string;
   boat_type: string;
   engine_count: string;
-  engine_make: string;
   cabins: string;
   berths: string;
   fuel_capacity_gallons: string;
@@ -66,7 +65,7 @@ function deriveFeatureBullets(form: {
 
   return [
     `${form.length_feet || '—'} ft ${form.boat_type || 'yacht'} layout`,
-    `${form.engine_count || 'Twin'} ${form.engine_make || 'diesel'} power setup`,
+    `${form.engine_count || 'Twin'} engine power setup`,
     `${form.cabins || 'Spacious'} cabin configuration`,
     `${form.fuel_capacity_gallons || 'Large'} gallon fuel capacity`,
     `${form.condition === 'new' ? 'Factory-new condition' : 'Well-kept pre-owned condition'}`,
