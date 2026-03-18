@@ -90,6 +90,14 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   // Tracks whether this dealer has co-brokering enabled at account level.
   // Fetched after access check; defaults true so the toggle is hidden until we know.
   const [dealerCobrokingEnabled, setDealerCobrokingEnabled] = useState(true);
+
+  // Power/Sail selector for boat type filtering (UI only — not a saved field)
+  const SAIL_BOAT_TYPES = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner', 'Motorsailer'];
+  const POWER_BOAT_TYPES = ['Motor Yacht', 'Mega Yacht', 'Superyacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
+  const ALL_BOAT_TYPES = [...POWER_BOAT_TYPES, ...SAIL_BOAT_TYPES];
+
+  const derivePropulsion = (bt: string) => SAIL_BOAT_TYPES.includes(bt) ? 'sail' : bt ? 'power' : '';
+  const [propulsion, setPropulsion] = useState('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const moveMedia = (from: number, to: number) => {
@@ -353,6 +361,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                 }))
               : p.generators,
           }));
+          if (listing.boat_type) setPropulsion(derivePropulsion(listing.boat_type));
         }
 
         if (mediaRes.ok) {
@@ -763,6 +772,21 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       setActiveTab('media');
       return;
     }
+    if (!form.boat_type) {
+      alert('Please select a Boat Type in the Specifications tab');
+      setActiveTab('specs');
+      return;
+    }
+    if (!form.fuel_type) {
+      alert('Please select a Fuel Type in the Engine tab');
+      setActiveTab('engine');
+      return;
+    }
+    if (!form.hull_material) {
+      alert('Please select a Hull Material in the Specifications tab');
+      setActiveTab('specs');
+      return;
+    }
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -1158,21 +1182,46 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                 </div>
 
                 <h3 className="text-sm font-semibold uppercase tracking-wide pt-2" style={{ color: '#01BBDC' }}>Hull</h3>
+
+                {/* Power / Sail toggle — filters boat type options */}
+                <div className="flex gap-2 mb-1">
+                  {['', 'power', 'sail'].map((p) => (
+                    <button key={p} type="button"
+                      onClick={() => {
+                        setPropulsion(p);
+                        // Clear boat_type if it no longer belongs to the new category
+                        if (p === 'power' && SAIL_BOAT_TYPES.includes(form.boat_type)) setForm(f => ({ ...f, boat_type: '' }));
+                        if (p === 'sail' && POWER_BOAT_TYPES.includes(form.boat_type)) setForm(f => ({ ...f, boat_type: '' }));
+                      }}
+                      className="px-3 py-1 rounded-full text-xs font-semibold transition-all border"
+                      style={{
+                        backgroundColor: propulsion === p ? '#01BBDC' : 'transparent',
+                        color: propulsion === p ? '#fff' : '#10214F',
+                        borderColor: propulsion === p ? '#01BBDC' : 'rgba(16,33,79,0.2)',
+                      }}>
+                      {p === '' ? 'All' : p === 'power' ? 'Power' : 'Sail'}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Boat Type</label>
-                    <select name="boat_type" value={form.boat_type} onChange={set} className={inp}>
+                    <label className={lbl} style={{ color: '#10214F' }}>Boat Type <span style={{ color: '#e53e3e' }}>*</span></label>
+                    <select name="boat_type" value={form.boat_type} onChange={(e) => {
+                      set(e);
+                      setPropulsion(derivePropulsion(e.target.value));
+                    }} className={inp} required>
                       <option value="">Select…</option>
-                      {['Motor Yacht','Sailing Yacht','Catamaran','Center Console','Sportfish','Trawler','Mega Yacht','Superyacht'].map(t => (
+                      {(propulsion === 'power' ? POWER_BOAT_TYPES : propulsion === 'sail' ? SAIL_BOAT_TYPES : ALL_BOAT_TYPES).map(t => (
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Hull Material</label>
-                    <select name="hull_material" value={form.hull_material} onChange={set} className={inp}>
+                    <label className={lbl} style={{ color: '#10214F' }}>Hull Material <span style={{ color: '#e53e3e' }}>*</span></label>
+                    <select name="hull_material" value={form.hull_material} onChange={set} className={inp} required>
                       <option value="">Select…</option>
-                      {['Fiberglass','Aluminum','Steel','Wood','Carbon Fiber','Composite'].map(m => (
+                      {['Fiberglass', 'Aluminum', 'Steel', 'Wood', 'Carbon Fiber', 'Composite', 'Other'].map(m => (
                         <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
@@ -1267,10 +1316,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     <input name="engine_hours" type="number" value={form.engine_hours} onChange={set} min="0" className={inp} placeholder="500" />
                   </div>
                   <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Fuel Type</label>
-                    <select name="fuel_type" value={form.fuel_type} onChange={set} className={inp}>
+                    <label className={lbl} style={{ color: '#10214F' }}>Fuel Type <span style={{ color: '#e53e3e' }}>*</span></label>
+                    <select name="fuel_type" value={form.fuel_type} onChange={set} className={inp} required>
                       <option value="">Select…</option>
-                      {['Diesel','Gasoline','Electric','Hybrid'].map(f => (
+                      {['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other'].map(f => (
                         <option key={f} value={f}>{f}</option>
                       ))}
                     </select>

@@ -438,10 +438,14 @@ def get_listings(
         if model:
             q = q.filter(Listing.model.ilike(f"%{model}%"))
         if boat_type:
-            q = q.filter(Listing.boat_type == boat_type)
-        elif propulsion == "sail":
+            bt_vals = [v.strip() for v in boat_type.split(',') if v.strip()]
+            if len(bt_vals) == 1:
+                q = q.filter(Listing.boat_type.ilike(f"%{bt_vals[0]}%"))
+            elif bt_vals:
+                q = q.filter(or_(*[Listing.boat_type.ilike(f"%{v}%") for v in bt_vals]))
+        if not boat_type and propulsion == "sail":
             q = q.filter(Listing.boat_type.in_(SAIL_TYPES))
-        elif propulsion == "power":
+        elif not boat_type and propulsion == "power":
             q = q.filter(~Listing.boat_type.in_(SAIL_TYPES))
         if condition:
             q = q.filter(Listing.condition.ilike(condition))
@@ -464,9 +468,17 @@ def get_listings(
         if country:
             q = q.filter(Listing.country.ilike(f"%{country}%"))
         if fuel:
-            q = q.filter(Listing.fuel_type.ilike(f"%{fuel}%"))
+            fuel_vals = [v.strip() for v in fuel.split(',') if v.strip()]
+            if len(fuel_vals) == 1:
+                q = q.filter(Listing.fuel_type.ilike(f"%{fuel_vals[0]}%"))
+            elif fuel_vals:
+                q = q.filter(or_(*[Listing.fuel_type.ilike(f"%{v}%") for v in fuel_vals]))
         if hull_material:
-            q = q.filter(Listing.hull_material.ilike(f"%{hull_material}%"))
+            hull_vals = [v.strip() for v in hull_material.split(',') if v.strip()]
+            if len(hull_vals) == 1:
+                q = q.filter(Listing.hull_material.ilike(f"%{hull_vals[0]}%"))
+            elif hull_vals:
+                q = q.filter(or_(*[Listing.hull_material.ilike(f"%{v}%") for v in hull_vals]))
         if engine:
             q = q.filter(
                 or_(

@@ -219,8 +219,8 @@ function UnifiedListingsContent() {
     max_distance: searchParams.get('max_distance') || '',
   });
 
-  const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
-  const SAIL_TYPES  = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner'];
+  const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Superyacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
+  const SAIL_TYPES  = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner', 'Motorsailer'];
   const typeOptions =
     filters.propulsion === 'power' ? POWER_TYPES :
     filters.propulsion === 'sail'  ? SAIL_TYPES  :
@@ -671,7 +671,6 @@ function UnifiedListingsContent() {
                   <FilterAccordion label="Fuel" isOpen={!!openSections.fuel} onToggle={() => toggleSection('fuel')}>
                     <FilterOptions
                       options={['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other']}
-                      values={['diesel', 'gasoline', 'electric', 'hybrid', 'other']}
                       value={filters.fuel}
                       onChange={(v) => handleFilterChange('fuel', v)}
                     />
@@ -679,8 +678,7 @@ function UnifiedListingsContent() {
 
                   <FilterAccordion label="Hull Material" isOpen={!!openSections.hull_material} onToggle={() => toggleSection('hull_material')}>
                     <FilterOptions
-                      options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fibre', 'Wood', 'Composite', 'Other']}
-                      values={['fiberglass', 'steel', 'aluminum', 'carbon_fibre', 'wood', 'composite', 'other']}
+                      options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fiber', 'Wood', 'Composite', 'Other']}
                       value={filters.hull_material}
                       onChange={(v) => handleFilterChange('hull_material', v)}
                     />
