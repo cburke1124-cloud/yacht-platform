@@ -23,14 +23,15 @@ STRIPE_PRICES = {
     "private_pro": os.getenv("STRIPE_PRICE_PRIVATE_PRO", "price_private_pro_monthly"),
 }
 
-# Trial days per tier (used during checkout session creation)
+# Trial days per tier — 0 means no trial by default.
+# Sales reps can set per-customer trials via the admin sales tools.
 TIER_TRIAL_DAYS = {
-    "basic": 14,
-    "plus": 14,
-    "pro": 30,
-    "private_basic": 7,
-    "private_plus": 7,
-    "private_pro": 14,
+    "basic": 0,
+    "plus": 0,
+    "pro": 0,
+    "private_basic": 0,
+    "private_plus": 0,
+    "private_pro": 0,
 }
 
 

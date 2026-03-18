@@ -270,9 +270,7 @@ function SellerLoginContent() {
                           <span className="text-dark/50 text-sm">/month</span>
                         </div>
                       )}
-                      {!isUltimate && tier.trial_days > 0 && (
-                        <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
-                      )}
+
                       {isUltimate && <p className="text-xs text-white/60 font-medium mb-4">Tailored to your brokerage</p>}
                       <ul className="space-y-2 mb-6">
                         {(tier.features || []).map((f: string, i: number) => (
@@ -328,9 +326,7 @@ function SellerLoginContent() {
                       <span className="text-3xl font-bold text-primary">${(tier as any).price}</span>
                       <span className="text-dark/50 text-sm">/month</span>
                     </div>
-                    {(tier as any).trial_days > 0 && (
-                      <p className="text-xs text-primary font-medium mb-4">{(tier as any).trial_days}-day free trial</p>
-                    )}
+
                     <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
                     <ul className="space-y-2 mb-6">
                       {((tier as any).features || []).map((f: string, i: number) => (
@@ -353,7 +349,7 @@ function SellerLoginContent() {
               </div>
             </div>
 
-            <p className="text-center text-xs text-dark/40 mt-6">All plans include a free trial · Cancel anytime · No commission on sales</p>
+            <p className="text-center text-xs text-dark/40 mt-6">Cancel anytime · No commission on sales</p>
           </div>
 
           {/* ── Toggle button ── */}

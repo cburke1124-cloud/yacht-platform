@@ -55,7 +55,7 @@ export default function SellYourYachtPage() {
         'Priority customer support',
         'Featured listing options'
       ],
-      cta: 'Start Free Trial',
+      cta: 'Get Started',
       route: '/register?type=dealer'
     },
     {
@@ -82,7 +82,7 @@ export default function SellYourYachtPage() {
         step: 1,
         icon: CheckCircle,
         title: 'Create Your Account',
-        description: 'Sign up for a free trial. No credit card required. Choose the plan that fits your business.'
+        description: 'Create your account and choose the plan that fits your business.'
       },
       {
         step: 2,
@@ -235,7 +235,7 @@ export default function SellYourYachtPage() {
               onClick={() => router.push('/register?type=dealer')}
               className="px-8 py-4 bg-primary text-white rounded-xl font-semibold text-lg hover:bg-primary/90 transition-all shadow-xl hover:shadow-2xl hover:scale-105"
             >
-              Start Free Trial
+              Get Started
             </button>
             <button
               onClick={() => {
@@ -248,7 +248,7 @@ export default function SellYourYachtPage() {
           </div>
 
           <p className="text-sm text-gray-500">
-            ✓ No credit card required • ✓ 14-day free trial • ✓ Cancel anytime
+            ✓ No credit card required • ✓ Cancel anytime
           </p>
         </div>
       </section>
@@ -530,7 +530,7 @@ export default function SellYourYachtPage() {
                 onClick={() => router.push('/register?type=dealer')}
                 className="px-8 py-4 bg-primary text-white rounded-xl font-semibold text-lg hover:bg-primary/90 transition-all shadow-xl hover:shadow-2xl hover:scale-105"
               >
-                Start Free Trial
+                Get Started
               </button>
               <button
                 onClick={() => router.push('/contact')}

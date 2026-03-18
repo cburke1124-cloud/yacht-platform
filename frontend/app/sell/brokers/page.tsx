@@ -398,28 +398,13 @@ export default function SellBrokersPage() {
                             lineHeight: '36px',
                             fontWeight: 600,
                             color: isEnterprise ? '#FFFFFF' : '#10214F',
-                            marginBottom: trialDays > 0 ? 4 : 24,
+                            marginBottom: 24,
                           }}
                         >
                           {priceLabel}
                         </p>
 
-                        {/* Trial days label */}
-                        {trialDays > 0 && (
-                          <p
-                            className="text-center"
-                            style={{
-                              fontFamily: 'Poppins, sans-serif',
-                              fontSize: 12,
-                              color: '#01BBDC',
-                              marginBottom: 4,
-                            }}
-                          >
-                            {trialDays}-day free trial
-                          </p>
-                        )}
-
-                        {/* Stripe / enterprise subtitle */}
+                        {/* Stripe / enterprise subtitle */}}
                         <p
                           className="text-center"
                           style={{

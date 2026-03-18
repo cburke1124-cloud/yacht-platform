@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -250,7 +250,7 @@ function RegisterContent() {
               <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
             </Link>
             <h2 className="text-2xl font-semibold text-secondary">Choose Your Plan</h2>
-            <p className="mt-2 text-dark/70">All plans include a free trial. Cancel anytime. No commission on sales.</p>
+            <p className="mt-2 text-dark/70">Cancel anytime. No commission on sales.</p>
           </div>
 
           {/* Yacht Broker tiers */}
@@ -291,9 +291,7 @@ function RegisterContent() {
                         <span className="text-dark/50 text-sm">/month</span>
                       </div>
                     )}
-                    {!isUltimate && tier.trial_days > 0 && (
-                      <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
-                    )}
+
                     {isUltimate && <p className="text-xs text-white/60 font-medium mb-4">Tailored to your brokerage</p>}
                     <ul className="space-y-2 mb-6">
                       {(tier.features as string[]).map((f: string, i: number) => (
@@ -347,9 +345,7 @@ function RegisterContent() {
                     <span className="text-3xl font-bold text-primary">${tier.price}</span>
                     <span className="text-dark/50 text-sm">/month</span>
                   </div>
-                  {tier.trial_days > 0 && (
-                    <p className="text-xs text-primary font-medium mb-4">{tier.trial_days}-day free trial</p>
-                  )}
+
                   <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
                   <ul className="space-y-2 mb-6">
                     {(tier.features as string[]).map((f: string, i: number) => (
@@ -370,7 +366,7 @@ function RegisterContent() {
             </div>
           </div>
 
-          <p className="text-center text-xs text-dark/40 mb-4">All plans include a free trial · Cancel anytime · No commission on sales</p>
+          <p className="text-center text-xs text-dark/40 mb-4">Cancel anytime · No commission on sales</p>
           <p className="text-center text-sm text-dark/50 mb-6">
             Already have an account?{' '}
             <Link href="/login/seller" className="text-primary font-medium hover:text-primary/80">Sign in</Link>
@@ -400,8 +396,8 @@ function RegisterContent() {
           {selectedTierInfo && !isBuyer && (
             <p className="mt-3">
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-secondary rounded-full text-sm font-medium">
-                {selectedTierInfo.name} Plan � ${selectedTierInfo.price}/month
-                <span className="text-xs text-dark/50">� payment via Stripe</span>
+                {selectedTierInfo.name} Plan - ${selectedTierInfo.price}/month
+                <span className="text-xs text-dark/50">payment via Stripe</span>
               </span>
             </p>
           )}
@@ -411,7 +407,7 @@ function RegisterContent() {
           {searchParams.get('payment') === 'cancelled' && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                <strong>Payment was cancelled.</strong> Your account has been created � complete payment from your dashboard at any time.
+                <strong>Payment was cancelled.</strong> Your account has been created - complete payment from your dashboard at any time.
               </p>
             </div>
           )}

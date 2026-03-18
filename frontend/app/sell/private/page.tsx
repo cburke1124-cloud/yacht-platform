@@ -394,26 +394,11 @@ export default function SellPrivatePage() {
                             lineHeight: '36px',
                             fontWeight: 600,
                             color: '#10214F',
-                            marginBottom: tier.trial_days > 0 ? 4 : 24,
+                            marginBottom: 24,
                           }}
                         >
                           {priceLabel}
                         </p>
-
-                        {/* Trial days */}
-                        {tier.trial_days > 0 && (
-                          <p
-                            className="text-center"
-                            style={{
-                              fontFamily: 'Poppins, sans-serif',
-                              fontSize: 12,
-                              color: '#01BBDC',
-                              marginBottom: 4,
-                            }}
-                          >
-                            {tier.trial_days}-day free trial
-                          </p>
-                        )}
 
                         {/* Stripe badge */}
                         <p
