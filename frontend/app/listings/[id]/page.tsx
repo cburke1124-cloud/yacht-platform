@@ -1108,60 +1108,89 @@ export default function ListingDetailPage() {
         {/* ══ ENGINES ════════════════════════════════════════════════════════ */}
         {/* NOTE: Backend currently supports single engine data with engine_count.
             For full multi-engine support, backend would need a separate engines table. */}
-        {(listing.engine_make || listing.engine_model || listing.engine_type || (listing.additional_engines?.length || 0) > 0 || (listing.generators?.length || 0) > 0) && (
-          <div className="mb-10">
-            <SectionHeading>Engine Details</SectionHeading>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {Array.from({ length: Math.max(listing.engine_count || 1, 1) }).map((_, ei) => (
-                <div key={ei} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                  <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">
-                    {listing.engine_count && listing.engine_count > 1 ? `Engine ${ei + 1}` : 'Engine'}
-                  </h4>
-                  <div className="space-y-1">
-                    <SpecRow label="Make"       value={listing.engine_make}  />
-                    <SpecRow label="Model"      value={listing.engine_model} />
-                    <SpecRow label="Year"       value={listing.year ? String(listing.year) : null} />
-                    <SpecRow label="Type"       value={listing.engine_type}  />
-                    <SpecRow label="Fuel"       value={listing.fuel_type}    />
-                    <SpecRow label="Hours"      value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
-                  </div>
-                  {listing.engine_count && listing.engine_count > 1 && (
-                    <p className="text-xs text-gray-500 mt-4 italic">
-                      * All engines share same specs. For unique per-engine details, contact seller.
-                    </p>
-                  )}
-                </div>
-              ))}
+        {(() => {
+          // Build engines array without duplicating primary/additional entries.
+          const engines: Array<any> = [];
+          const hasPrimary = listing.engine_make || listing.engine_model || listing.engine_type || listing.engine_hours != null || listing.engine_count;
+          if (hasPrimary) {
+            engines.push({
+              make: listing.engine_make || null,
+              model: listing.engine_model || null,
+              type: listing.engine_type || null,
+              hours: listing.engine_hours != null ? listing.engine_hours : null,
+              horsepower: listing.additional_specs?.horsepower ?? null,
+              note: null,
+              isPrimaryFallback: !((listing.additional_engines || []).length > 0) && !!listing.engine_count,
+            });
+          }
 
-              {(listing.additional_engines || []).map((engine, idx) => (
-                <div key={`extra-engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                  <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Additional Engine {idx + 1}</h4>
-                  <div className="space-y-1">
-                    <SpecRow label="Make" value={engine.make} />
-                    <SpecRow label="Model" value={engine.model} />
-                    <SpecRow label="Type" value={engine.type} />
-                    <SpecRow label="Hours" value={engine.hours != null ? fmt(engine.hours) : null} />
-                    <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
-                    <SpecRow label="Notes" value={engine.notes} />
-                  </div>
-                </div>
-              ))}
+          if (Array.isArray(listing.additional_engines) && listing.additional_engines.length > 0) {
+            for (const e of listing.additional_engines) {
+              engines.push(e);
+            }
+          }
 
-              {(listing.generators || []).map((generator, idx) => (
-                <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                  <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Generator {idx + 1}</h4>
-                  <div className="space-y-1">
-                    <SpecRow label="Brand" value={generator.brand} />
-                    <SpecRow label="Model" value={generator.model} />
-                    <SpecRow label="Hours" value={generator.hours != null ? fmt(generator.hours) : null} />
-                    <SpecRow label="Power" value={generator.kw != null ? `${fmt(generator.kw)} kW` : null} />
-                    <SpecRow label="Notes" value={generator.notes} />
+          const gens = Array.isArray(listing.generators) ? listing.generators.slice(0, 2) : [];
+
+          if (engines.length === 0 && gens.length === 0) return null;
+
+          return (
+            <div className="mb-10">
+              <SectionHeading>Engine Details</SectionHeading>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {engines.length > 0 ? (
+                  // If we have explicit engine entries, render them (max 4)
+                  engines.slice(0, 4).map((engine, idx) => (
+                    <div key={`engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">{engines.length > 1 ? `Engine ${idx + 1}` : 'Engine'}</h4>
+                      <div className="space-y-1">
+                        <SpecRow label="Make" value={engine.make} />
+                        <SpecRow label="Model" value={engine.model} />
+                        <SpecRow label="Type" value={engine.type} />
+                        <SpecRow label="Hours" value={engine.hours != null ? fmt(engine.hours) : null} />
+                        <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
+                        <SpecRow label="Notes" value={engine.notes || engine.note || null} />
+                      </div>
+                      {engine.isPrimaryFallback && listing.engine_count && listing.engine_count > 1 && (
+                        <p className="text-xs text-gray-500 mt-4 italic">* All engines share same specs. For unique per-engine details, contact seller.</p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  // Fallback: show primary spec once if only engine_count present
+                  listing.engine_count ? (
+                    <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Engine</h4>
+                      <div className="space-y-1">
+                        <SpecRow label="Make" value={listing.engine_make} />
+                        <SpecRow label="Model" value={listing.engine_model} />
+                        <SpecRow label="Type" value={listing.engine_type} />
+                        <SpecRow label="Fuel" value={listing.fuel_type} />
+                        <SpecRow label="Hours" value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
+                      </div>
+                      {listing.engine_count && listing.engine_count > 1 && (
+                        <p className="text-xs text-gray-500 mt-4 italic">* All engines share same specs. For unique per-engine details, contact seller.</p>
+                      )}
+                    </div>
+                  ) : null
+                )}
+
+                {gens.map((generator, idx) => (
+                  <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                    <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Generator {idx + 1}</h4>
+                    <div className="space-y-1">
+                      <SpecRow label="Brand" value={generator.brand} />
+                      <SpecRow label="Model" value={generator.model} />
+                      <SpecRow label="Hours" value={generator.hours != null ? fmt(generator.hours) : null} />
+                      <SpecRow label="Power" value={generator.kw != null ? `${fmt(generator.kw)} kW` : null} />
+                      <SpecRow label="Notes" value={generator.notes} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ══ FEATURES / EQUIPMENT ═══════════════════════════════════════════ */}
         {listing.features && (() => {
