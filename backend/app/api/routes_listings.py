@@ -1136,6 +1136,32 @@ def submit_inquiry(
     db.commit()
     db.refresh(inquiry)
 
+    # Create a Message record FIRST so we have _msg_id for the reply token
+    _msg_id = None
+    try:
+        msg = Message(
+            ticket_number=f"INQ-{inquiry.id}",
+            sender_id=None,
+            recipient_id=notify_user_id,
+            listing_id=listing_id,
+            message_type="inquiry",
+            subject=f"Inquiry: {listing.title}",
+            body=(
+                f"From {data.sender_name}"
+                + (f" \u2014 {data.sender_phone}" if data.sender_phone else "")
+                + f" ({data.sender_email}):\n\n{data.message}"
+            ),
+            status="new",
+            visible_to_dealer=True,
+            external_sender_email=data.sender_email,
+        )
+        db.add(msg)
+        db.commit()
+        db.refresh(msg)
+        _msg_id = msg.id
+    except Exception as e:
+        logger.error(f"submit_inquiry: failed to create Message record: {e}")
+
     # Notify the assigned person (salesman or dealer)
     owner = db.query(User).filter(User.id == notify_user_id).first()
     if owner:
@@ -1173,8 +1199,8 @@ def submit_inquiry(
                 reply_to=_reply_to,
                 from_email=email_service.notifications_email,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"submit_inquiry: failed to send broker email: {e}")
         try:
             db.add(
                 Notification(
@@ -1182,39 +1208,13 @@ def submit_inquiry(
                     notification_type="inquiry",
                     title=f"New inquiry: {listing.title}",
                     body=f"From {data.sender_name}: {data.message[:120]}{'…' if len(data.message) > 120 else ''}",
-                    link=f"/dashboard/inquiries/{inquiry.id}",
+                    link="/dashboard/inquiries",
                     read=False,
                 )
             )
             db.commit()
-        except Exception:
-            pass
-
-    # Create a Message record so the inquiry appears in the broker's messages inbox
-    try:
-        msg = Message(
-            ticket_number=f"INQ-{inquiry.id}",
-            sender_id=None,
-            recipient_id=notify_user_id,
-            listing_id=listing_id,
-            message_type="inquiry",
-            subject=f"Inquiry: {listing.title}",
-            body=(
-                f"From {data.sender_name}"
-                + (f" \u2014 {data.sender_phone}" if data.sender_phone else "")
-                + f" ({data.sender_email}):\n\n{data.message}"
-            ),
-            status="new",
-            visible_to_dealer=True,
-            external_sender_email=data.sender_email,
-        )
-        db.add(msg)
-        db.commit()
-        db.refresh(msg)
-        _msg_id = msg.id
-    except Exception:
-        _msg_id = None
-        pass
+        except Exception as e:
+            logger.error(f"submit_inquiry: failed to create notification: {e}")
 
     # If the notified person is a team member, also notify the main broker
     if owner and owner.parent_dealer_id:
@@ -1255,8 +1255,8 @@ def submit_inquiry(
                     reply_to=_dealer_reply_to,
                     from_email=email_service.notifications_email,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"submit_inquiry: failed to send dealer email: {e}")
             try:
                 db.add(
                     Notification(
@@ -1272,8 +1272,8 @@ def submit_inquiry(
                     )
                 )
                 db.commit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"submit_inquiry: failed to create dealer notification: {e}")
 
     return {
         "success": True,
