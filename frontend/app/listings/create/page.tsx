@@ -150,7 +150,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     previous_owners: '',
     // Engine & performance
     engine_count:    '',
-    engine_hours:    '',
     fuel_type:       '',
     max_speed_knots: '',
     cruising_speed_knots: '',
@@ -324,7 +323,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             heads: listing.heads != null ? String(listing.heads) : '',
             previous_owners: listing.previous_owners != null ? String(listing.previous_owners) : '',
             engine_count: listing.engine_count != null ? String(listing.engine_count) : '',
-            engine_hours: listing.engine_hours != null ? String(listing.engine_hours) : '',
             fuel_type: listing.fuel_type || '',
             max_speed_knots: listing.max_speed_knots != null ? String(listing.max_speed_knots) : '',
             cruising_speed_knots: listing.cruising_speed_knots != null ? String(listing.cruising_speed_knots) : '',
@@ -662,7 +660,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             hull_material: ai.hull_material || form.hull_material,
             hull_type: ai.hull_type || form.hull_type,
             engine_count: ai.engine_count != null ? String(ai.engine_count) : form.engine_count,
-            engine_hours: ai.engine_hours != null ? String(ai.engine_hours) : form.engine_hours,
             fuel_type: ai.fuel_type || form.fuel_type,
             max_speed_knots: ai.max_speed_knots != null ? String(ai.max_speed_knots) : form.max_speed_knots,
             cruising_speed_knots: ai.cruising_speed_knots != null ? String(ai.cruising_speed_knots) : form.cruising_speed_knots,
@@ -709,7 +706,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       hull_material: ai.hull_material || p.hull_material,
       hull_type: ai.hull_type || p.hull_type,
       engine_count: ai.engine_count != null ? String(ai.engine_count) : p.engine_count,
-      engine_hours: ai.engine_hours != null ? String(ai.engine_hours) : p.engine_hours,
       fuel_type: ai.fuel_type || p.fuel_type,
       max_speed_knots: ai.max_speed_knots != null ? String(ai.max_speed_knots) : p.max_speed_knots,
       cruising_speed_knots: ai.cruising_speed_knots != null ? String(ai.cruising_speed_knots) : p.cruising_speed_knots,
@@ -828,7 +824,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         previous_owners: int(form.previous_owners),
         // Engine
         engine_count:    int(form.engine_count),
-        engine_hours:    int(form.engine_hours),
         fuel_type:       form.fuel_type    || null,
         max_speed_knots: num(form.max_speed_knots),
         cruising_speed_knots: num(form.cruising_speed_knots),
@@ -1321,14 +1316,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {/* ─── ENGINE & VIDEOS ─────────────────────────────────────────── */}
             {activeTab === 'engine' && (
               <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Engine Count</label>
                     <input name="engine_count" type="number" value={form.engine_count} onChange={set} min="1" className={inp} placeholder="2" />
-                  </div>
-                  <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Engine Hours</label>
-                    <input name="engine_hours" type="number" value={form.engine_hours} onChange={set} min="0" className={inp} placeholder="500" />
                   </div>
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Fuel Type <span style={{ color: '#e53e3e' }}>*</span></label>
