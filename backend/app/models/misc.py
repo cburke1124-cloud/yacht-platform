@@ -37,6 +37,8 @@ class Message(Base):
     visibility = Column(String, default="private")  # private, dealer_visible, company_wide
     visible_to_dealer = Column(Boolean, default=False)
     visible_to_sales_rep = Column(Boolean, default=False)
+    # For anonymous inquiries: stores the external buyer's email for reply routing
+    external_sender_email = Column(String, nullable=True)
 
 
 class SmsConversation(Base):

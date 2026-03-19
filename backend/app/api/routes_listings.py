@@ -16,7 +16,10 @@ from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.exceptions import ResourceNotFoundException, AuthorizationException
 from app.services.email_service import email_service
-from pydantic import BaseModel
+from app.core.reply_token import generate_reply_token
+import os
+
+REPLY_TO_DOMAIN = os.getenv("REPLY_TO_DOMAIN", "mail.yachtversal.com")
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1136,6 +1139,8 @@ def submit_inquiry(
     owner = db.query(User).filter(User.id == notify_user_id).first()
     if owner:
         try:
+            _reply_token = generate_reply_token(_msg_id, owner.id) if _msg_id else None
+            _reply_to = f"reply+{_reply_token}@{REPLY_TO_DOMAIN}" if _reply_token else None
             email_service.send_email(
                 to_email=owner.email,
                 subject=f"New Inquiry: {listing.title}",
@@ -1155,12 +1160,16 @@ def submit_inquiry(
                       <h3 style="margin-top:0;color:#10214F;">Message</h3>
                       <p style="line-height:1.6;white-space:pre-wrap;">{data.message}</p>
                     </div>
+                    <p style="color:#4b5563;font-size:14px;margin-top:16px;">
+                      &#128172; <strong>Reply directly to this email</strong> and your response will be forwarded to {data.sender_name} automatically.
+                    </p>
                   </div>
                   <div style="background:#10214F;padding:20px;text-align:center;color:#9ca3af;font-size:12px;">
-                    <p style="margin:0;">© 2026 YachtVersal.</p>
+                    <p style="margin:0;">&#169; 2026 YachtVersal &mdash; Reply to respond instantly. No login required.</p>
                   </div>
                 </body></html>
                 """,
+                reply_to=_reply_to,
             )
         except Exception:
             pass
@@ -1195,10 +1204,14 @@ def submit_inquiry(
             ),
             status="new",
             visible_to_dealer=True,
+            external_sender_email=data.sender_email,
         )
         db.add(msg)
         db.commit()
+        db.refresh(msg)
+        _msg_id = msg.id
     except Exception:
+        _msg_id = None
         pass
 
     # If the notified person is a team member, also notify the main broker
@@ -1206,6 +1219,8 @@ def submit_inquiry(
         dealer = db.query(User).filter(User.id == owner.parent_dealer_id).first()
         if dealer and dealer.email:
             try:
+                _dealer_reply_token = generate_reply_token(_msg_id, dealer.id) if _msg_id else None
+                _dealer_reply_to = f"reply+{_dealer_reply_token}@{REPLY_TO_DOMAIN}" if _dealer_reply_token else None
                 email_service.send_email(
                     to_email=dealer.email,
                     subject=f"New Inquiry (via {owner.first_name}): {listing.title}",
@@ -1226,12 +1241,16 @@ def submit_inquiry(
                       <h3 style="margin-top:0;color:#10214F;">Message</h3>
                       <p style="line-height:1.6;white-space:pre-wrap;">{data.message}</p>
                     </div>
+                    <p style="color:#4b5563;font-size:14px;margin-top:16px;">
+                      &#128172; <strong>Reply directly to this email</strong> and your response will be forwarded to {data.sender_name} automatically.
+                    </p>
                   </div>
                   <div style="background:#10214F;padding:20px;text-align:center;color:#9ca3af;font-size:12px;">
-                    <p style="margin:0;">&copy; 2026 YachtVersal.</p>
+                    <p style="margin:0;">&copy; 2026 YachtVersal &mdash; Reply to respond instantly. No login required.</p>
                   </div>
                 </body></html>
                 """,
+                    reply_to=_dealer_reply_to,
                 )
             except Exception:
                 pass

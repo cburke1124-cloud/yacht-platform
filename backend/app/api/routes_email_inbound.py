@@ -127,6 +127,67 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
         logger.warning("email_inbound: user not party to conversation")
         return {"ok": True}
 
+    sender_name = f"{sender.first_name} {sender.last_name}"
+
+    # -----------------------------------------------------------------------
+    # CASE A: Inquiry reply — parent has no registered sender (anonymous buyer).
+    # Email the buyer directly using external_sender_email and do NOT try to
+    # create a user-to-user Message or Notification for a non-existent user.
+    # -----------------------------------------------------------------------
+    if parent.sender_id is None and parent.external_sender_email:
+        parent.status = "replied"
+        parent.replied_at = datetime.utcnow()
+        db.commit()
+
+        try:
+            email_service.send_email(
+                to_email=parent.external_sender_email,
+                subject=f"Re: {parent.subject}",
+                html_content=f"""
+                <html>
+                <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                  <div style="background:linear-gradient(135deg,#10214F,#01BBDC);
+                              padding:28px;text-align:center;">
+                    <h1 style="color:white;margin:0;font-size:22px;">
+                      Reply from {sender_name}
+                    </h1>
+                  </div>
+                  <div style="padding:30px;background:#f9fafb;">
+                    <p style="color:#64748b;font-size:13px;margin-bottom:20px;">
+                      You submitted an inquiry about <strong>{parent.subject.replace("Inquiry: ", "", 1)}</strong>.
+                      Here is their response:
+                    </p>
+                    <div style="background:white;border-left:4px solid #01BBDC;
+                                padding:20px;border-radius:4px;margin-bottom:24px;">
+                      <p style="color:#334155;line-height:1.7;white-space:pre-wrap;
+                                margin:0;">{body}</p>
+                    </div>
+                    <p style="color:#64748b;font-size:13px;">
+                      You can reply to this email to continue the conversation.
+                    </p>
+                  </div>
+                  <div style="background:#1e293b;padding:18px;text-align:center;
+                              color:#94a3b8;font-size:12px;">
+                    &#169; 2026 YachtVersal.
+                  </div>
+                </body>
+                </html>
+                """,
+                reply_to=sender.email,
+            )
+            logger.info(
+                f"email_inbound: forwarded broker reply to external buyer "
+                f"{parent.external_sender_email} (message {parent.id})"
+            )
+        except Exception as exc:
+            logger.error(f"email_inbound: failed to email external buyer: {exc}")
+
+        return {"ok": True}
+
+    # -----------------------------------------------------------------------
+    # CASE B: Normal registered-user-to-user reply
+    # -----------------------------------------------------------------------
+
     # --- create reply message -----------------------------------------------
     recipient_id = (
         parent.sender_id
@@ -170,7 +231,6 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
         if recipient:
             new_token = generate_reply_token(reply.id, recipient_id)
             reply_to_addr = f"reply+{new_token}@{REPLY_TO_DOMAIN}"
-            sender_name = f"{sender.first_name} {sender.last_name}"
             email_service.send_email(
                 to_email=recipient.email,
                 subject=f"Re: {parent.subject}",
