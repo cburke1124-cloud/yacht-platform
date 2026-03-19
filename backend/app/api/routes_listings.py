@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from typing import Optional, Any
@@ -1360,7 +1361,6 @@ def get_share_metadata(listing_id: int, db: Session = Depends(get_db)):
     }
 
 # --- Reorder listing media attachments ---
-from pydantic import BaseModel
 
 class ListingMediaReorderRequest(BaseModel):
     attachments: list[dict]
