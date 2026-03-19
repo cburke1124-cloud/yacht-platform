@@ -77,7 +77,7 @@ function ScoreBar({ score }: { score: number }) {
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
 async function apiFetch(path: string, opts?: RequestInit) {
-  const token = localStorage.getItem("authToken");
+  const token = localStorage.getItem('token');
   // Strip leading /api so apiUrl doesn't double it
   const normalised = path.replace(/^\/api\//, '/');
   const res = await fetch(apiUrl(normalised), {

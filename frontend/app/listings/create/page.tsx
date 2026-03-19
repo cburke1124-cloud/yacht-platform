@@ -1064,9 +1064,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                       <button type="button" title="Quote" onClick={() => wrapDescriptionSelection('<blockquote>', '</blockquote>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Quote size={14} /></button>
                       <button type="button" title="Paragraph" onClick={() => wrapDescriptionSelection('<p>', '</p>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Pilcrow size={14} /></button>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={aiGenerateDescription} className="px-3 py-1.5 text-xs rounded-md text-white" style={{ background: '#01BBDC' }}>AI Draft</button>
-                      <button type="button" onClick={aiPolishDescription} className="px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50">AI Polish</button>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <button type="button" onClick={aiGenerateDescription} title="Generates a boilerplate description template using the specs, location, and feature bullets you've already entered" className="px-3 py-1.5 text-xs rounded-md text-white" style={{ background: '#01BBDC' }}>Draft from Specs</button>
+                      <button type="button" onClick={aiPolishDescription} title="Collapses extra whitespace and fixes line breaks in the current description" className="px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50">Fix Spacing</button>
+                      <span className="text-xs text-gray-400">Builds from fields you've already filled in</span>
                     </div>
                     <textarea
                       ref={descriptionRef}
@@ -1273,20 +1274,22 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                       <button
                         type="button"
                         onClick={aiGenerateFeatureBullets}
+                        title="Derives highlight bullets from the specs you've filled in (engine count, hull, dimensions, etc.)"
                         className="px-3 py-1.5 text-xs rounded-md text-white"
                         style={{ background: '#01BBDC' }}>
-                        AI Generate Bullets
+                        Auto-Fill Bullets
                       </button>
                       <button
                         type="button"
                         onClick={aiGenerateFeaturesText}
+                        title="Compiles your entered specs into a plain-text features summary"
                         className="px-3 py-1.5 text-xs rounded-md text-white"
                         style={{ background: '#10214F' }}>
-                        AI Generate Features
+                        Build Features Summary
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 -mt-1">Bullets = short highlights for top of listing. Features = expanded specs/equipment text for the full details section.</p>
+                  <p className="text-xs text-gray-500 -mt-1">Bullets = short highlights shown beneath key specs. Features = expanded specs/equipment text shown in the full details section. Both buttons derive content from fields you've already filled in — no external AI.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {form.feature_bullets.map((bullet, index) => (
                       <input

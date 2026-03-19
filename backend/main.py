@@ -894,7 +894,15 @@ class Inquiry(Base):
     sender_phone = Column(String)
     message = Column(Text, nullable=False)
     status = Column(String, default="new")
+    lead_stage = Column(String, default="new")
+    lead_score = Column(Integer, default=0)
+    notes = Column(Text, default="")
+    assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    listing = relationship("Listing", foreign_keys=[listing_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
 
 
 class BlogPost(Base):
@@ -2884,25 +2892,30 @@ def get_listing_contact_info(listing_id: int, db: Session = Depends(get_db)):
     
     result = {
         "dealer": {
+            "id": dealer.id,
             "name": dealer.company_name or f"{dealer.first_name} {dealer.last_name}",
             "email": dealer.email,
             "phone": dealer.phone,
             "logo_url": dealer_profile.logo_url if dealer_profile else None,
-            "slug": dealer_profile.slug if dealer_profile else None
+            "slug": dealer_profile.slug if dealer_profile else None,
+            "is_demo": getattr(dealer_profile, "is_demo", False) if dealer_profile else False,
         }
     }
-    
-    # Add creator if different and has public profile
-    if creator and creator.id != dealer.id and creator.public_profile:
+
+    # Add the team member / creator as primary sales contact if they are different
+    # from the main dealer.  Even without a public profile, we expose their id and
+    # name so that logged-in users can address messages to the right person.
+    if creator and creator.id != dealer.id:
         result["sales_contact"] = {
-            "name": f"{creator.first_name} {creator.last_name}",
+            "id": creator.id,
+            "name": f"{creator.first_name or ''} {creator.last_name or ''}".strip() or creator.email,
             "title": creator.title,
-            "email": creator.email,
-            "phone": creator.phone,
-            "photo_url": creator.profile_photo_url,
-            "bio": creator.bio
+            "email": creator.email if creator.public_profile else None,
+            "phone": creator.phone if creator.public_profile else None,
+            "photo_url": creator.profile_photo_url if creator.public_profile else None,
+            "bio": creator.bio if creator.public_profile else None,
         }
-    
+
     return result
 
 
@@ -5523,19 +5536,53 @@ async def create_inquiry(
     db.commit()
     db.refresh(inquiry)
 
-    # Send email to dealer
-    dealer = listing.owner
-    if dealer.email:
-        email_service.send_inquiry_to_dealer(
-            dealer_email=dealer.email,
-            dealer_name=f"{dealer.first_name} {dealer.last_name}",
-            inquirer_name=inquiry.sender_name,
-            inquirer_email=inquiry.sender_email,
-            inquirer_phone=inquiry.sender_phone or "Not provided",
-            listing_title=listing.title,
-            listing_url=f"https://yachtversal.com/listings/{listing.id}",
-            message=inquiry.message,
+    # ── Determine who should receive this inquiry ─────────────────────────────
+    # Primary recipient = team member who created/owns the listing (created_by_user_id)
+    # if different from the main dealer (user_id).  The main dealer always gets
+    # visibility via the dashboard (query by user_id), but notifications/email
+    # only go out based on each person's own email_new_inquiry preference.
+    dealer = listing.owner  # main broker account (user_id)
+    creator = (
+        db.query(User).filter(User.id == listing.created_by_user_id).first()
+        if listing.created_by_user_id and listing.created_by_user_id != listing.user_id
+        else None
+    )
+
+    # Build ordered recipient list — team member first (primary), then main dealer
+    recipients: list[User] = []
+    if creator:
+        recipients.append(creator)
+    if dealer:
+        recipients.append(dealer)
+
+    listing_url = f"{email_service.base_url}/listings/{listing.id}"
+
+    for recipient in recipients:
+        prefs = recipient.permissions or {}
+        # Email notification (respects per-user preference, defaults to True)
+        if prefs.get("email_new_inquiry", True) and recipient.email:
+            email_service.send_inquiry_to_dealer(
+                dealer_email=recipient.email,
+                dealer_name=f"{recipient.first_name or ''} {recipient.last_name or ''}".strip() or recipient.email,
+                inquirer_name=inquiry.sender_name,
+                inquirer_email=inquiry.sender_email,
+                inquirer_phone=inquiry.sender_phone or "Not provided",
+                listing_title=listing.title,
+                listing_url=listing_url,
+                message=inquiry.message,
+            )
+
+        # In-app notification
+        notification = Notification(
+            user_id=recipient.id,
+            notification_type="inquiry",
+            title=f"New inquiry: {listing.title}",
+            body=f"{inquiry.sender_name}: {inquiry.message[:120]}",
+            link=f"/dashboard/inquiries",
         )
+        db.add(notification)
+
+    db.commit()
 
     # Sync to CRM in background
     background_tasks.add_task(process_inquiry_crm_sync, inquiry.id, db)
@@ -6473,19 +6520,36 @@ def update_listing(
 
 
 @app.get("/api/inquiries")
-def get_inquiries(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get inquiries - filtered by permissions"""
+def get_inquiries(
+    stage: str = None,
+    search: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get inquiries - filtered by permissions, stage, and search"""
     if current_user.user_type == "admin":
-        inquiries = db.query(Inquiry).all()
+        q = db.query(Inquiry)
     elif current_user.parent_dealer_id is not None:
-        # Team member - only see inquiries for their own listings
+        # Team member — see only inquiries for listings they created
         if not current_user.permissions.get("can_view_inquiries", True):
             raise AuthorizationException("No permission to view inquiries")
-
-        inquiries = db.query(Inquiry).join(Listing).filter(Listing.created_by_user_id == current_user.id).all()
+        q = db.query(Inquiry).join(Listing).filter(Listing.created_by_user_id == current_user.id)
     else:
-        # Dealer - see all inquiries for their company
-        inquiries = db.query(Inquiry).join(Listing).filter(Listing.user_id == current_user.id).all()
+        # Main dealer — see ALL inquiries across their entire company (all team listings too)
+        q = db.query(Inquiry).join(Listing).filter(Listing.user_id == current_user.id)
+
+    if stage:
+        q = q.filter(Inquiry.lead_stage == stage)
+
+    if search:
+        term = f"%{search}%"
+        q = q.filter(
+            (Inquiry.sender_name.ilike(term))
+            | (Inquiry.sender_email.ilike(term))
+            | (Inquiry.message.ilike(term))
+        )
+
+    inquiries = q.order_by(Inquiry.created_at.desc()).all()
 
     return [
         {
@@ -6497,10 +6561,50 @@ def get_inquiries(current_user: User = Depends(get_current_user), db: Session = 
             "sender_phone": inq.sender_phone,
             "message": inq.message,
             "status": inq.status,
+            "lead_stage": inq.lead_stage or "new",
+            "lead_score": inq.lead_score or 0,
+            "notes": inq.notes or "",
+            "paperwork_status": None,
+            "assigned_to_id": inq.assigned_to_id,
+            "assigned_to_name": (
+                f"{inq.assigned_to.first_name} {inq.assigned_to.last_name}".strip()
+                if inq.assigned_to else None
+            ),
+            "lead_notes": [],
             "created_at": inq.created_at.isoformat(),
+            "updated_at": inq.updated_at.isoformat() if inq.updated_at else None,
         }
         for inq in inquiries
     ]
+
+
+@app.put("/api/inquiries/{inquiry_id}")
+def update_inquiry(
+    inquiry_id: int, data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Update inquiry lead stage, score, and notes"""
+    inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inquiry:
+        raise ResourceNotFoundException("Inquiry", inquiry_id)
+
+    listing = db.query(Listing).filter(Listing.id == inquiry.listing_id).first()
+    if listing and not (
+        current_user.user_type == "admin"
+        or listing.user_id == current_user.id
+        or listing.created_by_user_id == current_user.id
+    ):
+        raise AuthorizationException("Not authorized")
+
+    if "lead_stage" in data:
+        inquiry.lead_stage = data["lead_stage"]
+    if "lead_score" in data:
+        inquiry.lead_score = data["lead_score"]
+    if "notes" in data:
+        inquiry.notes = data["notes"]
+    if "status" in data:
+        inquiry.status = data["status"]
+    db.commit()
+    return {"success": True}
 
 
 @app.patch("/api/inquiries/{inquiry_id}/status")
@@ -6512,9 +6616,8 @@ def update_inquiry_status(
     if not inquiry:
         raise ResourceNotFoundException("Inquiry", inquiry_id)
 
-    # Check permission
-    listing = inquiry.listing
-    if not (
+    listing = db.query(Listing).filter(Listing.id == inquiry.listing_id).first()
+    if listing and not (
         current_user.user_type == "admin"
         or listing.user_id == current_user.id
         or listing.created_by_user_id == current_user.id
@@ -6524,6 +6627,68 @@ def update_inquiry_status(
     inquiry.status = data.get("status", inquiry.status)
     db.commit()
 
+    return {"success": True}
+
+
+@app.get("/api/inquiries-summary")
+def get_inquiries_summary(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return count of inquiries grouped by lead_stage"""
+    if current_user.user_type == "admin":
+        inquiries = db.query(Inquiry).all()
+    elif current_user.parent_dealer_id is not None:
+        inquiries = db.query(Inquiry).join(Listing).filter(Listing.created_by_user_id == current_user.id).all()
+    else:
+        inquiries = db.query(Inquiry).join(Listing).filter(Listing.user_id == current_user.id).all()
+
+    counts: dict = {}
+    for inq in inquiries:
+        stage = inq.lead_stage or "new"
+        counts[stage] = counts.get(stage, 0) + 1
+
+    return [{"stage": stage, "count": count} for stage, count in counts.items()]
+
+
+@app.get("/api/inquiries/{inquiry_id}/notes")
+def get_inquiry_notes(
+    inquiry_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Get notes for an inquiry (placeholder - returns empty list)"""
+    inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inquiry:
+        raise ResourceNotFoundException("Inquiry", inquiry_id)
+    return []
+
+
+@app.post("/api/inquiries/{inquiry_id}/notes")
+def add_inquiry_note(
+    inquiry_id: int, data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Add a note to an inquiry"""
+    inquiry = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inquiry:
+        raise ResourceNotFoundException("Inquiry", inquiry_id)
+    # Append to the flat notes field
+    existing = inquiry.notes or ""
+    author = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    content = data.get("content", "").strip()
+    inquiry.notes = (existing + f"\n\n[{timestamp} – {author}]\n{content}").strip()
+    db.commit()
+    # Return a synthetic note object so the frontend can add it to the list
+    return {
+        "id": int(datetime.utcnow().timestamp()),
+        "content": content,
+        "author_name": author,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.delete("/api/inquiries/{inquiry_id}/notes/{note_id}")
+def delete_inquiry_note(
+    inquiry_id: int, note_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Delete a note (no-op since notes are stored as flat text)"""
     return {"success": True}
 
 

@@ -269,15 +269,24 @@ export default function ListingDetailPage() {
       const sc      = contact?.sales_contact;
       const dealer  = contact?.dealer;
       const recipId = sc?.id ?? dealer?.id ?? listing?.created_by_user_id ?? listing?.user_id;
+      let ok = false;
       if (token && recipId) {
         // Logged-in users: create a message
-        await fetch(`${API_ROOT}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
+        const r = await fetch(`${API_ROOT}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
+        ok = r.ok;
       } else {
-        // Anonymous users: create an inquiry (triggers webhook delivery)
-        await fetch(`${API_ROOT}/inquiries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message, listing_id: Number(id) }) });
+        // Anonymous users: create an inquiry
+        const r = await fetch(`${API_ROOT}/inquiries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message, listing_id: Number(id) }) });
+        ok = r.ok;
       }
-      setMsgDone(true); setMsgForm({ name: '', email: '', phone: '', message: '' });
-    } catch {}
+      if (ok) {
+        setMsgDone(true); setMsgForm({ name: '', email: '', phone: '', message: '' });
+      } else {
+        alert('Something went wrong sending your message. Please try again.');
+      }
+    } catch {
+      alert('Unable to send message. Please check your connection and try again.');
+    }
     setMsgBusy(false);
   }
 
@@ -1045,6 +1054,7 @@ export default function ListingDetailPage() {
               <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">General</h4>
               <SpecRow label="Name"           value={listing.title} />
               <SpecRow label="Stock #"        value={id} />
+              <SpecRow label="BIN"            value={listing.bin} />
               <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
               <SpecRow label="Make"           value={listing.make} />
               <SpecRow label="Model"          value={listing.model} />
