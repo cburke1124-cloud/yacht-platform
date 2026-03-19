@@ -276,7 +276,7 @@ export default function ListingDetailPage() {
         ok = r.ok;
       } else {
         // Anonymous users: create an inquiry
-        const r = await fetch(`${API_ROOT}/inquiries`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message, listing_id: Number(id) }) });
+        const r = await fetch(`${API_ROOT}/listings/${id}/inquiry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_name: msgForm.name, sender_email: msgForm.email, sender_phone: msgForm.phone || undefined, message: msgForm.message }) });
         ok = r.ok;
       }
       if (ok) {

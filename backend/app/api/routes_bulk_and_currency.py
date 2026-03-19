@@ -197,7 +197,7 @@ def get_currency_rates(db: Session = Depends(get_db)):
         all_rates = db.query(CurrencyRate).all()
         return {
             "base": "USD",
-            "rates": {rate.currency_code: rate.rate_to_usd for rate in all_rates},
+            "rates": {rate.target_currency: rate.rate for rate in all_rates},
             "updated_at": latest.updated_at.isoformat()
         }
     
@@ -217,16 +217,16 @@ def get_currency_rates(db: Session = Depends(get_db)):
             # Update database
             for currency_code, rate in rates.items():
                 existing = db.query(CurrencyRate).filter(
-                    CurrencyRate.currency_code == currency_code
+                    CurrencyRate.target_currency == currency_code
                 ).first()
                 
                 if existing:
-                    existing.rate_to_usd = rate
+                    existing.rate = rate
                     existing.updated_at = datetime.utcnow()
                 else:
                     new_rate = CurrencyRate(
-                        currency_code=currency_code,
-                        rate_to_usd=rate
+                        target_currency=currency_code,
+                        rate=rate
                     )
                     db.add(new_rate)
             
@@ -246,7 +246,7 @@ def get_currency_rates(db: Session = Depends(get_db)):
         if all_rates:
             return {
                 "base": "USD",
-                "rates": {rate.currency_code: rate.rate_to_usd for rate in all_rates},
+                "rates": {rate.target_currency: rate.rate for rate in all_rates},
                 "updated_at": all_rates[0].updated_at.isoformat() if all_rates else None,
                 "warning": "Using cached rates due to API error"
             }
@@ -302,17 +302,17 @@ def convert_currency(
     
     if from_currency != "USD":
         rate_obj = db.query(CurrencyRate).filter(
-            CurrencyRate.currency_code == from_currency
+            CurrencyRate.target_currency == from_currency
         ).first()
         if rate_obj:
-            from_rate = rate_obj.rate_to_usd
+            from_rate = rate_obj.rate
     
     if to_currency != "USD":
         rate_obj = db.query(CurrencyRate).filter(
-            CurrencyRate.currency_code == to_currency
+            CurrencyRate.target_currency == to_currency
         ).first()
         if rate_obj:
-            to_rate = rate_obj.rate_to_usd
+            to_rate = rate_obj.rate
     
     # Convert to USD first, then to target currency
     usd_amount = amount / from_rate
