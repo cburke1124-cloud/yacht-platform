@@ -1170,6 +1170,7 @@ def submit_inquiry(
                 </body></html>
                 """,
                 reply_to=_reply_to,
+                from_email=email_service.notifications_email,
             )
         except Exception:
             pass
@@ -1251,6 +1252,7 @@ def submit_inquiry(
                 </body></html>
                 """,
                     reply_to=_dealer_reply_to,
+                    from_email=email_service.notifications_email,
                 )
             except Exception:
                 pass

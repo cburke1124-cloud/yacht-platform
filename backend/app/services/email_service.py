@@ -21,6 +21,7 @@ class EmailService:
 
         self.api_key = raw_api_key
         self.from_email = os.getenv("FROM_EMAIL", "noreply@yachtversal.com")
+        self.notifications_email = os.getenv("NOTIFICATIONS_EMAIL", "inquiries@yachtversal.com")
         self.base_url = os.getenv("BASE_URL", "https://yachtversal.com")
 
         self._jinja = Environment(
@@ -43,6 +44,7 @@ class EmailService:
         subject: str,
         html_content: str,
         reply_to: str | None = None,
+        from_email: str | None = None,
     ):
         """
         Send email via SendGrid.
@@ -50,6 +52,8 @@ class EmailService:
         Args:
             reply_to: Optional Reply-To address -- used by the email-reply
                       routing feature so recipients can reply without logging in.
+            from_email: Override the default From address (e.g. use
+                        notifications_email for inquiry/conversational emails).
         """
         if not self.api_key:
             message = f"SendGrid not configured. Failed to send email to {to_email}: {subject}"
@@ -60,7 +64,7 @@ class EmailService:
             from sendgrid.helpers.mail import ReplyTo
 
             message = Mail(
-                from_email=self.from_email,
+                from_email=from_email or self.from_email,
                 to_emails=to_email,
                 subject=subject,
                 html_content=html_content,

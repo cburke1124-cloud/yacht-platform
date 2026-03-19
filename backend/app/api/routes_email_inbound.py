@@ -144,6 +144,7 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
                 to_email=parent.external_sender_email,
                 subject=f"Re: {parent.subject}",
                 html_content=f"""
+                html_content=f"""
                 <html>
                 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
                   <div style="background:linear-gradient(135deg,#10214F,#01BBDC);
@@ -174,6 +175,7 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
                 </html>
                 """,
                 reply_to=sender.email,
+                from_email=email_service.notifications_email,
             )
             logger.info(
                 f"email_inbound: forwarded broker reply to external buyer "
@@ -270,6 +272,7 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
                 </html>
                 """,
                 reply_to=reply_to_addr,
+                from_email=email_service.notifications_email,
             )
     except Exception as exc:
         logger.error(f"email_inbound: failed to forward notification: {exc}")
