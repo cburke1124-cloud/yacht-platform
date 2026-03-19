@@ -323,11 +323,15 @@ export default function LeadsManager() {
       if (activeStage !== "all") params.set("stage", activeStage);
       if (search) params.set("search", search);
 
-      const [list, sum] = await Promise.all([
+      const [list, rawSum] = await Promise.all([
         apiFetch(`/api/inquiries?${params}`),
         apiFetch("/api/inquiries-summary"),
       ]);
       setInquiries(list.items ?? list);
+      // Backend returns { new: 5, contacted: 2, ... } — convert to array
+      const sum: StageSummary[] = Object.entries(rawSum as Record<string, number>).map(
+        ([stage, count]) => ({ stage: stage as Stage, count })
+      );
       setSummary(sum);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load inquiries");
