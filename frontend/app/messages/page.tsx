@@ -23,7 +23,7 @@ export default function MessagingCenter() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'support_ticket' | 'direct'>('all');
+  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'direct'>('all');
   const [showNewMessage, setShowNewMessage] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -196,6 +196,7 @@ export default function MessagingCenter() {
           <div className="flex gap-2">
             {[
               { id: 'all', label: 'All Messages', count: messages.length },
+              { id: 'inquiry', label: 'Inquiries', count: messages.filter(m => m.message_type === 'inquiry').length },
               { id: 'support_ticket', label: 'Support Tickets', count: messages.filter(m => m.message_type === 'support_ticket').length },
               { id: 'direct', label: 'Direct Messages', count: messages.filter(m => m.message_type === 'direct').length }
             ].map((tab) => (

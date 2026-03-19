@@ -1245,7 +1245,7 @@ def submit_inquiry(
                             f"From {data.sender_name} (via {owner.first_name} {owner.last_name}): "
                             f"{data.message[:100]}" + ("\u2026" if len(data.message) > 100 else "")
                         ),
-                        link=f"/dashboard/inquiries/{inquiry.id}",
+                        link="/dashboard/inquiries",
                         read=False,
                     )
                 )

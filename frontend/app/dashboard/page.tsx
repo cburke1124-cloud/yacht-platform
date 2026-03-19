@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
+import LeadsManager from '@/app/dashboard/inquiries/LeadsManager';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, 
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
@@ -910,36 +911,7 @@ export default function EnhancedDealerDashboard() {
 
           {/* Leads Tab */}
           {activeTab === 'leads' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <MessageSquare className="mx-auto text-accent mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">Inbound Leads</h2>
-                <p className="text-gray-600 mb-6">View and manage all inbound leads and inquiries from potential buyers</p>
-              </div>
-              <div className="grid md:grid-cols-3 gap-4 mb-6">
-                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
-                  <MessageSquare className="mx-auto text-primary mb-2" size={32} />
-                  <p className="font-semibold text-secondary">New Leads</p>
-                  <p className="text-sm text-gray-600">Review new inquiries as they arrive</p>
-                </div>
-                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
-                  <Users className="mx-auto text-secondary mb-2" size={32} />
-                  <p className="font-semibold text-secondary">Pipeline Stages</p>
-                  <p className="text-sm text-gray-600">Track leads from new to won</p>
-                </div>
-                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
-                  <BarChart3 className="mx-auto text-primary mb-2" size={32} />
-                  <p className="font-semibold text-secondary">Lead Scoring</p>
-                  <p className="text-sm text-gray-600">Score and prioritize your best leads</p>
-                </div>
-              </div>
-              <button
-                onClick={() => window.location.href = '/dashboard/inquiries'}
-                className="mt-2 w-full px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors"
-              >
-                Open Lead Manager
-              </button>
-            </div>
+            <LeadsManager />
           )}
 
           {/* Featured Tab — hidden until feature is ready */}

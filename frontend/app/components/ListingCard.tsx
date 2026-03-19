@@ -172,7 +172,7 @@ export default function ListingCard({
     <Link href={`/listings/${id}`} className="block">
       <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden">
         {/* Image with Featured Badge and Action Buttons */}
-        <div className="relative h-64 bg-gray-200">
+        <div className="relative aspect-[4/3] bg-gray-200">
           <img
             src={imageUrl}
             alt={title}
