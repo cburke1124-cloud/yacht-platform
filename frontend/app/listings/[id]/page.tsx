@@ -929,7 +929,7 @@ export default function ListingDetailPage() {
             {keyFeatures.length > 0 && (
               <div>
                 <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Features</h3>
-                <div className="h-[1px] bg-[#01BBDC] mb-5" />
+                <div className="h-[1px] bg-[#01BBDC] mb-2" />
                 <ul className="space-y-2">
                   {keyFeatures.map((feature, i) => (
                     <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">

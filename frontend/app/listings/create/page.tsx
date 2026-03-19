@@ -6,6 +6,7 @@ import MediaUpload from '@/app/components/MediaUpload';
 import ScraperModal from '@/app/components/ScraperModal';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film } from 'lucide-react';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
+import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 
 const TABS = ['basic', 'specs', 'engine', 'media'] as const;
 type Tab = typeof TABS[number];
@@ -133,8 +134,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     // Location
     city:            '',
     state:           '',
-    country:         'USA',
-    zip_code:        '',
+    country:         'United States',
+    zip_code:        ''
     continent:       '',
     // Specs
     length_feet:     '',
@@ -309,7 +310,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             status: listing.status || 'draft',
             city: listing.city || '',
             state: listing.state || '',
-            country: listing.country || 'USA',
+            country: listing.country || 'United States',
             zip_code: listing.zip_code || '',
             continent: listing.continent || '',
             length_feet: listing.length_feet != null ? String(listing.length_feet) : '',
@@ -340,14 +341,16 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             features_text: listing.features || '',
             allow_cobrokering: listing.allow_cobrokering !== false,
             additional_engines: listing.additional_engines?.length
-              ? listing.additional_engines.map((engine: any) => ({
-                  make: engine.make || '',
-                  model: engine.model || '',
-                  type: engine.type || '',
-                  hours: engine.hours != null ? String(engine.hours) : '',
-                  horsepower: engine.horsepower != null ? String(engine.horsepower) : '',
-                  notes: engine.notes || '',
-                }))
+              ? listing.additional_engines
+                  .map((engine: any) => ({
+                    make: engine.make || '',
+                    model: engine.model || '',
+                    type: engine.type || '',
+                    hours: engine.hours != null ? String(engine.hours) : '',
+                    horsepower: engine.horsepower != null ? String(engine.horsepower) : '',
+                    notes: engine.notes || '',
+                  }))
+                  .filter((e: ExtraEngine) => e.make || e.model || e.type || e.hours || e.horsepower || e.notes)
               : p.additional_engines,
             generators: listing.generators?.length
               ? listing.generators.map((generator: any) => ({
@@ -1089,8 +1092,17 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     <input name="city" value={form.city} onChange={set} required className={inp} placeholder="Miami" />
                   </div>
                   <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>State</label>
-                    <input name="state" value={form.state} onChange={set} className={inp} placeholder="Florida" />
+                    <label className={lbl} style={{ color: '#10214F' }}>State / Province</label>
+                    {STATES_BY_COUNTRY[form.country] ? (
+                      <select name="state" value={form.state} onChange={(e) => { setForm(f => ({ ...f, state: e.target.value })); }} className={inp}>
+                        <option value="">Select…</option>
+                        {STATES_BY_COUNTRY[form.country].map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input name="state" value={form.state} onChange={set} className={inp} placeholder="State / Province" />
+                    )}
                   </div>
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Zip / Post</label>
@@ -1098,7 +1110,12 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   </div>
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Country *</label>
-                    <input name="country" value={form.country} onChange={set} required className={inp} placeholder="USA" />
+                    <select name="country" value={form.country} onChange={(e) => { setForm(f => ({ ...f, country: e.target.value, state: '' })); }} required className={inp}>
+                      <option value="">Select…</option>
+                      {COUNTRIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

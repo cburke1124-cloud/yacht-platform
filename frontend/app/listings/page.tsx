@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import ListingCard from '../components/ListingCard';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 
 const ListingsMap = dynamic(() => import('../components/ListingsMap'), { ssr: false });
 
@@ -192,8 +193,6 @@ function UnifiedListingsContent() {
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const isFirstRender = useRef(true);
-  const [centerLat, setCenterLat] = useState<number | null>(null);
-  const [centerLng, setCenterLng] = useState<number | null>(null);
 
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
@@ -215,8 +214,6 @@ function UnifiedListingsContent() {
     engine: searchParams.get('engine') || '',
     brokerage: searchParams.get('brokerage') || '',
     country: searchParams.get('country') || '',
-    location_query: searchParams.get('location_query') || '',
-    max_distance: searchParams.get('max_distance') || '',
   });
 
   const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Superyacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
@@ -276,9 +273,8 @@ function UnifiedListingsContent() {
       if (isAISearch && aiQuery) {
         url = apiUrl(`/ai/search?query=${encodeURIComponent(aiQuery)}`);
       } else {
-        const skipKeys = new Set(['location_query', 'max_distance']);
         Object.entries(filters).forEach(([key, value]) => {
-          if (value && !skipKeys.has(key)) url += `&${key}=${encodeURIComponent(value)}`;
+          if (value) url += `&${key}=${encodeURIComponent(value)}`;
         });
       }
       const response = await fetch(url);
@@ -295,33 +291,12 @@ function UnifiedListingsContent() {
   const handleFilterChange = (key: string, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const geocodeLocation = async (query: string): Promise<{ lat: number; lng: number } | null> => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
-        { headers: { 'User-Agent': 'YachtVersal/1.0' } }
-      );
-      const data = await res.json();
-      if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    } catch { /* ignore */ }
-    return null;
-  };
-
   const applyFilters = async () => {
-    if (filters.location_query && filters.max_distance) {
-      const coords = await geocodeLocation(filters.location_query);
-      setCenterLat(coords ? coords.lat : null);
-      setCenterLng(coords ? coords.lng : null);
-    } else {
-      setCenterLat(null);
-      setCenterLng(null);
-    }
     fetchListings(searchType === 'ai');
   };
 
   const clearFilters = () => {
-    setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '', country: '', location_query: '', max_distance: '' });
-    setCenterLat(null); setCenterLng(null);
+    setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '', country: '' });
     setAiQuery('');
     setSearchType('basic');
     fetchListings(false);
@@ -370,12 +345,6 @@ function UnifiedListingsContent() {
   };
 
   let processedListings = [...listings];
-  if (centerLat !== null && centerLng !== null && filters.max_distance) {
-    const maxDist = parseFloat(filters.max_distance);
-    processedListings = processedListings.filter((l) =>
-      (!l.latitude || !l.longitude) ? true : haversineMiles(centerLat!, centerLng!, l.latitude, l.longitude) <= maxDist
-    );
-  }
   processedListings.sort((a, b) => {
     if (sort === 'nearest' && userLat !== null && userLng !== null) {
       const da = (a.latitude && a.longitude) ? haversineMiles(userLat, userLng, a.latitude, a.longitude) : Infinity;
@@ -645,23 +614,28 @@ function UnifiedListingsContent() {
                   </FilterAccordion>
 
                   <FilterAccordion label="Location" isOpen={!!openSections.location} onToggle={() => toggleSection('location')}>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" style={accInputStyle} className="focus:outline-none" />
-                      <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State" style={accInputStyle} className="focus:outline-none" />
+                    <div style={{ marginBottom: 6 }}>
+                      <label style={{ fontSize: 11, color: 'rgba(16,33,79,0.6)', fontFamily: 'Poppins, sans-serif', display: 'block', marginBottom: 4 }}>Country</label>
+                      <select value={filters.country} onChange={(e) => { handleFilterChange('country', e.target.value); handleFilterChange('state', ''); }} style={accInputStyle} className="focus:outline-none">
+                        <option value="">Any country</option>
+                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                     </div>
-                    <input type="text" value={filters.country} onChange={(e) => handleFilterChange('country', e.target.value)} placeholder="Country" style={{ ...accInputStyle, marginBottom: 8 }} className="focus:outline-none" />
-                    <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', marginBottom: 8 }} />
-                    <p style={{ fontSize: 11, color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif', marginBottom: 6 }}>Filter by distance from a location</p>
-                    <input type="text" value={filters.location_query} onChange={(e) => handleFilterChange('location_query', e.target.value)} placeholder="Zip, city, or address" style={{ ...accInputStyle, marginBottom: 6 }} className="focus:outline-none" />
-                    <select value={filters.max_distance} onChange={(e) => handleFilterChange('max_distance', e.target.value)} style={accInputStyle} className="focus:outline-none">
-                      <option value="">Any distance</option>
-                      <option value="25">Within 25 miles</option>
-                      <option value="50">Within 50 miles</option>
-                      <option value="100">Within 100 miles</option>
-                      <option value="250">Within 250 miles</option>
-                      <option value="500">Within 500 miles</option>
-                      <option value="1000">Within 1,000 miles</option>
-                    </select>
+                    <div style={{ marginBottom: 6 }}>
+                      <label style={{ fontSize: 11, color: 'rgba(16,33,79,0.6)', fontFamily: 'Poppins, sans-serif', display: 'block', marginBottom: 4 }}>State / Province</label>
+                      {filters.country && STATES_BY_COUNTRY[filters.country] ? (
+                        <select value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} style={accInputStyle} className="focus:outline-none">
+                          <option value="">Any state</option>
+                          {STATES_BY_COUNTRY[filters.country].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State / Province" style={accInputStyle} className="focus:outline-none" />
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'rgba(16,33,79,0.6)', fontFamily: 'Poppins, sans-serif', display: 'block', marginBottom: 4 }}>City</label>
+                      <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" style={accInputStyle} className="focus:outline-none" />
+                    </div>
                   </FilterAccordion>
 
                   <FilterAccordion label="Engine Details" isOpen={!!openSections.engine} onToggle={() => toggleSection('engine')}>
