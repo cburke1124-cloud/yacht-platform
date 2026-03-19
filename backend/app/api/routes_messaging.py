@@ -58,9 +58,24 @@ def get_messages(
     message_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
 ):
-    query = db.query(Message).filter(
+    visibility_filter = (
         (Message.sender_id == current_user.id) | (Message.recipient_id == current_user.id)
     )
+
+    # Dealers also see inquiry messages addressed to any of their team members
+    if current_user.user_type == "dealer":
+        team_ids = [
+            row.id
+            for row in db.query(User.id)
+            .filter(User.parent_dealer_id == current_user.id, User.active == True)
+            .all()
+        ]
+        if team_ids:
+            visibility_filter = visibility_filter | (
+                (Message.recipient_id.in_(team_ids)) & (Message.visible_to_dealer == True)
+            )
+
+    query = db.query(Message).filter(visibility_filter)
     if message_type:
         query = query.filter(Message.message_type == message_type)
     if status:

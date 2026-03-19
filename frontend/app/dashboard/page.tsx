@@ -910,65 +910,35 @@ export default function EnhancedDealerDashboard() {
 
           {/* Leads Tab */}
           {activeTab === 'leads' && (
-            <div className="glass-card overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-xl font-bold text-secondary mb-2">Inbound Leads</h2>
-                <p className="text-gray-600">View all contact information and conversations from potential buyers</p>
+            <div className="glass-card p-8">
+              <div className="text-center mb-6">
+                <MessageSquare className="mx-auto text-accent mb-4" size={64} />
+                <h2 className="text-2xl font-bold text-secondary mb-2">Inbound Leads</h2>
+                <p className="text-gray-600 mb-6">View and manage all inbound leads and inquiries from potential buyers</p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-soft">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase">
-                        Email
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase">
-                        Phone
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase">
-                        Interested In
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    <tr className="hover:bg-soft cursor-pointer">
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-secondary">John Smith</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">john@example.com</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">(555) 123-4567</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">Motor Yacht - 45ft</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">Feb 18, 2026</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => window.location.href = '/dashboard/leads/1'}
-                          className="p-2 text-primary hover:bg-cyan-50 rounded transition-colors"
-                          title="View conversations"
-                        >
-                          <MessageSquare size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="grid md:grid-cols-3 gap-4 mb-6">
+                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
+                  <MessageSquare className="mx-auto text-primary mb-2" size={32} />
+                  <p className="font-semibold text-secondary">New Leads</p>
+                  <p className="text-sm text-gray-600">Review new inquiries as they arrive</p>
+                </div>
+                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
+                  <Users className="mx-auto text-secondary mb-2" size={32} />
+                  <p className="font-semibold text-secondary">Pipeline Stages</p>
+                  <p className="text-sm text-gray-600">Track leads from new to won</p>
+                </div>
+                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
+                  <BarChart3 className="mx-auto text-primary mb-2" size={32} />
+                  <p className="font-semibold text-secondary">Lead Scoring</p>
+                  <p className="text-sm text-gray-600">Score and prioritize your best leads</p>
+                </div>
               </div>
+              <button
+                onClick={() => window.location.href = '/dashboard/inquiries'}
+                className="mt-2 w-full px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors"
+              >
+                Open Lead Manager
+              </button>
             </div>
           )}
 

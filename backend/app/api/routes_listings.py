@@ -11,7 +11,7 @@ from app.db.session import engine
 from app.api.deps import get_current_user
 from app.models.listing import Listing, ListingImage
 from app.models.media import MediaFile, ListingMediaAttachment
-from app.models.misc import Inquiry, Notification
+from app.models.misc import Inquiry, Notification, Message
 from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.exceptions import ResourceNotFoundException, AuthorizationException
@@ -1178,6 +1178,77 @@ def submit_inquiry(
             db.commit()
         except Exception:
             pass
+
+    # Create a Message record so the inquiry appears in the broker's messages inbox
+    try:
+        msg = Message(
+            ticket_number=f"INQ-{inquiry.id}",
+            sender_id=None,
+            recipient_id=notify_user_id,
+            listing_id=listing_id,
+            message_type="inquiry",
+            subject=f"Inquiry: {listing.title}",
+            body=(
+                f"From {data.sender_name}"
+                + (f" \u2014 {data.sender_phone}" if data.sender_phone else "")
+                + f" ({data.sender_email}):\n\n{data.message}"
+            ),
+            status="new",
+            visible_to_dealer=True,
+        )
+        db.add(msg)
+        db.commit()
+    except Exception:
+        pass
+
+    # If the notified person is a team member, also notify the main broker
+    if owner and owner.parent_dealer_id:
+        dealer = db.query(User).filter(User.id == owner.parent_dealer_id).first()
+        if dealer and dealer.email:
+            try:
+                email_service.send_email(
+                    to_email=dealer.email,
+                    subject=f"New Inquiry (via {owner.first_name}): {listing.title}",
+                    html_content=f"""
+                <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                  <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:30px;text-align:center;">
+                    <h1 style="color:white;margin:0;">New Inquiry</h1>
+                  </div>
+                  <div style="padding:30px;background:#f9fafb;">
+                    <h2 style="color:#10214F;">{listing.title}</h2>
+                    <p style="color:#6b7280;font-size:13px;">Assigned to {owner.first_name} {owner.last_name}</p>
+                    <div style="background:white;border-left:4px solid #01BBDC;padding:20px;margin:20px 0;">
+                      <p><strong>From:</strong> {data.sender_name}</p>
+                      <p><strong>Email:</strong> <a href="mailto:{data.sender_email}">{data.sender_email}</a></p>
+                      {"<p><strong>Phone:</strong> <a href='tel:" + data.sender_phone + "'>" + data.sender_phone + "</a></p>" if data.sender_phone else ""}
+                    </div>
+                    <div style="background:white;border:1px solid #e5e7eb;padding:20px;margin:20px 0;">
+                      <h3 style="margin-top:0;color:#10214F;">Message</h3>
+                      <p style="line-height:1.6;white-space:pre-wrap;">{data.message}</p>
+                    </div>
+                  </div>
+                  <div style="background:#10214F;padding:20px;text-align:center;color:#9ca3af;font-size:12px;">
+                    <p style="margin:0;">&copy; 2026 YachtVersal.</p>
+                  </div>
+                </body></html>
+                """,
+                )
+            except Exception:
+                pass
+            try:
+                db.add(
+                    Notification(
+                        user_id=dealer.id,
+                        notification_type="inquiry",
+                        title=f"New inquiry: {listing.title}",
+                        body=f"From {data.sender_name} (via {owner.first_name} {owner.last_name}): {data.message[:100]}{'\u2026' if len(data.message) > 100 else ''}",
+                        link=f"/dashboard/inquiries/{inquiry.id}",
+                        read=False,
+                    )
+                )
+                db.commit()
+            except Exception:
+                pass
 
     return {
         "success": True,
