@@ -135,7 +135,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     city:            '',
     state:           '',
     country:         'United States',
-    zip_code:        ''
+    zip_code:        '',
     continent:       '',
     // Specs
     length_feet:     '',
