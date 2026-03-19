@@ -1241,7 +1241,10 @@ def submit_inquiry(
                         user_id=dealer.id,
                         notification_type="inquiry",
                         title=f"New inquiry: {listing.title}",
-                        body=f"From {data.sender_name} (via {owner.first_name} {owner.last_name}): {data.message[:100]}{'\u2026' if len(data.message) > 100 else ''}",
+                        body=(
+                            f"From {data.sender_name} (via {owner.first_name} {owner.last_name}): "
+                            f"{data.message[:100]}" + ("\u2026" if len(data.message) > 100 else "")
+                        ),
                         link=f"/dashboard/inquiries/{inquiry.id}",
                         read=False,
                     )
