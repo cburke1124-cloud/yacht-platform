@@ -144,7 +144,6 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
                 to_email=parent.external_sender_email,
                 subject=f"Re: {parent.subject}",
                 html_content=f"""
-                html_content=f"""
                 <html>
                 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
                   <div style="background:linear-gradient(135deg,#10214F,#01BBDC);
