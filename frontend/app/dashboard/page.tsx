@@ -541,7 +541,6 @@ export default function EnhancedDealerDashboard() {
   const tabs = [
     { id: 'listings', label: 'My Listings', icon: BarChart3 },
     { id: 'leads', label: 'Leads', icon: MessageSquare },
-    { id: 'featured', label: 'Featured', icon: Star },
     { id: 'media', label: 'Media Gallery', icon: Image },
     { id: 'bulk', label: 'Bulk Tools', icon: Archive },
     { id: 'team', label: 'Team', icon: Users },
@@ -973,10 +972,7 @@ export default function EnhancedDealerDashboard() {
             </div>
           )}
 
-          {/* Featured Tab */}
-          {activeTab === 'featured' && (
-            <DealerFeaturedTab />
-          )}
+          {/* Featured Tab — hidden until feature is ready */}
 
           {/* Media Gallery Tab */}
           {activeTab === 'media' && (
