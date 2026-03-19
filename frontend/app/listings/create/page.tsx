@@ -96,8 +96,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const POWER_BOAT_TYPES = ['Motor Yacht', 'Mega Yacht', 'Superyacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
   const ALL_BOAT_TYPES = [...POWER_BOAT_TYPES, ...SAIL_BOAT_TYPES];
 
-  const derivePropulsion = (bt: string) => SAIL_BOAT_TYPES.includes(bt) ? 'sail' : bt ? 'power' : '';
-  const [propulsion, setPropulsion] = useState('');
+  const derivePropulsion = (bt: string) => SAIL_BOAT_TYPES.includes(bt) ? 'sail' : bt ? 'power' : 'power';
+  const [propulsion, setPropulsion] = useState('power');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const moveMedia = (from: number, to: number) => {
@@ -167,9 +167,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     // Enhanced listing details
     feature_bullets: ['', '', '', '', ''],
     features_text: '',
-    additional_engines: [
-      { make: '', model: '', type: '', hours: '', horsepower: '', notes: '' },
-    ] as ExtraEngine[],
+    additional_engines: [] as ExtraEngine[],
     generators: [
       { brand: '', model: '', hours: '', kw: '', notes: '' },
     ] as Generator[],
@@ -1185,7 +1183,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
                 {/* Power / Sail toggle — filters boat type options */}
                 <div className="flex gap-2 mb-1">
-                  {['', 'power', 'sail'].map((p) => (
+                  {['power', 'sail'].map((p) => (
                     <button key={p} type="button"
                       onClick={() => {
                         setPropulsion(p);
@@ -1199,7 +1197,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                         color: propulsion === p ? '#fff' : '#10214F',
                         borderColor: propulsion === p ? '#01BBDC' : 'rgba(16,33,79,0.2)',
                       }}>
-                      {p === '' ? 'All' : p === 'power' ? 'Power' : 'Sail'}
+                      {p === 'power' ? 'Power' : 'Sail'}
                     </button>
                   ))}
                 </div>
