@@ -168,6 +168,30 @@ export default function EnhancedDealerDashboard() {
         .then(data => { if (data) setCurrentUser(data); })
         .catch(() => {});
     }
+
+    // Confirm Stripe checkout session immediately when redirected back from Stripe
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    if (params.get('payment') === 'success' && sessionId && token) {
+      fetch(apiUrl('/payments/confirm-session'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ session_id: sessionId }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            // Refresh user so subscription_tier reflects the new plan
+            return fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.ok ? r.json() : null)
+              .then(me => { if (me) setCurrentUser(me); });
+          }
+        })
+        .catch(() => {});
+      // Remove payment query params from URL without reloading
+      const clean = window.location.pathname;
+      window.history.replaceState({}, '', clean);
+    }
   }, []);
 
   useEffect(() => {

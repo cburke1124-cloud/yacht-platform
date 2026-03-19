@@ -208,7 +208,7 @@ function RegisterContent() {
           body: JSON.stringify({
             subscription_tier: formData.subscription_tier,
             user_type: formData.user_type,
-            success_url: `${window.location.origin}/dashboard?payment=success`,
+            success_url: `${window.location.origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${window.location.origin}/register?payment=cancelled&user_type=${formData.user_type}&subscription_tier=${formData.subscription_tier}`,
           }),
         });

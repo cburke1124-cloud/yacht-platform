@@ -590,6 +590,64 @@ async def pay_for_featured_listing(
     }
 
 
+# ==================== SESSION CONFIRMATION ====================
+
+@router.post("/payments/confirm-session")
+async def confirm_checkout_session(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Called by the frontend immediately after Stripe redirects back to success_url.
+    Proactively activates the subscription without waiting for a webhook.
+    """
+    session_id = data.get("session_id")
+    if not session_id:
+        raise ValidationException("session_id is required")
+
+    try:
+        session = stripe.checkout.Session.retrieve(session_id, expand=["subscription"])
+    except stripe.error.StripeError as e:
+        logger.error("confirm_session: stripe error retrieving session %s: %s", session_id, e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    # Verify the session belongs to this user
+    if session.customer != current_user.stripe_customer_id:
+        raise HTTPException(status_code=403, detail="Session does not belong to this user")
+
+    if session.payment_status not in ("paid", "no_payment_required"):
+        raise HTTPException(status_code=402, detail=f"Payment not complete (status: {session.payment_status})")
+
+    tier = (session.metadata or {}).get("subscription_tier")
+    subscription_id = session.subscription.id if session.subscription else None
+
+    if subscription_id:
+        current_user.stripe_subscription_id = subscription_id
+    if tier:
+        current_user.subscription_tier = tier
+
+    # Check for trial
+    if session.subscription:
+        sub = session.subscription
+        if getattr(sub, "status", None) == "trialing" and getattr(sub, "trial_end", None):
+            current_user.trial_active = True
+            current_user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
+
+    db.commit()
+    db.refresh(current_user)
+
+    logger.info(
+        "confirm_session: activated user %s (tier=%s, subscription=%s)",
+        current_user.id, tier, subscription_id,
+    )
+    return {
+        "success": True,
+        "subscription_tier": current_user.subscription_tier,
+        "subscription_id": current_user.stripe_subscription_id,
+    }
+
+
 # ==================== WEBHOOK HANDLER ====================
 
 @router.post("/payments/webhooks/stripe")
