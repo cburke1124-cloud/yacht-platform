@@ -39,6 +39,37 @@ export default function AdminDealersTab() {
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ id: number; type: 'success' | 'error'; text: string } | null>(null);
 
+  // Team accordion state: dealerId → member list (null = not yet loaded)
+  const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
+  const [teamData, setTeamData] = useState<Record<number, any[]>>({});
+  const [teamLoading, setTeamLoading] = useState<number | null>(null);
+
+  const toggleTeam = async (dealerId: number) => {
+    if (expandedTeam === dealerId) {
+      setExpandedTeam(null);
+      return;
+    }
+    setExpandedTeam(dealerId);
+    if (teamData[dealerId]) return; // already fetched
+    setTeamLoading(dealerId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/dealers/${dealerId}/team`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeamData(prev => ({ ...prev, [dealerId]: data.team ?? [] }));
+      } else {
+        setTeamData(prev => ({ ...prev, [dealerId]: [] }));
+      }
+    } catch {
+      setTeamData(prev => ({ ...prev, [dealerId]: [] }));
+    } finally {
+      setTeamLoading(null);
+    }
+  };
+
   const showMsg = (id: number, type: 'success' | 'error', text: string) => {
     setActionMsg({ id, type, text });
     setTimeout(() => setActionMsg(null), 5000);
@@ -290,8 +321,8 @@ export default function AdminDealersTab() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-                {['Dealer', 'Contact', 'Subscription', 'Listings', 'Verified', 'Actions'].map((h, i) => (
-                  <th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 5 ? 'text-right pr-6' : ''}`}>
+                {['', 'Dealer', 'Contact', 'Subscription', 'Listings', 'Verified', 'Actions'].map((h, i) => (
+                  <th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 6 ? 'text-right pr-6' : ''} ${i === 0 ? 'w-8' : ''}`}>
                     {h}
                   </th>
                 ))}
@@ -303,6 +334,18 @@ export default function AdminDealersTab() {
                 return (
                   <>
                     <tr key={dealer.id} className="hover:bg-gray-50 transition">
+                      {/* Expand toggle */}
+                      <td className="pl-3 pr-1 py-3 w-8">
+                        <button
+                          onClick={() => toggleTeam(dealer.id)}
+                          title="Toggle team members"
+                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-200 transition text-gray-400"
+                        >
+                          <svg className={`w-3.5 h-3.5 transition-transform ${expandedTeam === dealer.id ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </td>
                       {/* Dealer name/company */}
                       <td className="px-4 py-3 min-w-[160px]">
                         <div className="font-medium text-secondary text-sm">{dealer.name}</div>
@@ -384,10 +427,71 @@ export default function AdminDealersTab() {
                     {/* Per-row feedback */}
                     {actionMsg?.id === dealer.id && (
                       <tr key={`msg-${dealer.id}`}>
-                        <td colSpan={6} className="px-4 pb-2 pt-0">
+                        <td colSpan={7} className="px-4 pb-2 pt-0">
                           <div className={`text-xs px-3 py-1.5 rounded-md ${
                             actionMsg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                           }`}>{actionMsg.text}</div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Team accordion */}
+                    {expandedTeam === dealer.id && (
+                      <tr key={`team-${dealer.id}`}>
+                        <td colSpan={7} className="px-0 py-0 bg-slate-50 border-b border-gray-100">
+                          <div className="px-6 py-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <svg className="w-4 h-4 text-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
+                              </svg>
+                              <span className="text-xs font-semibold text-secondary uppercase tracking-wider">Team Members</span>
+                            </div>
+
+                            {teamLoading === dealer.id ? (
+                              <p className="text-xs text-dark/40 py-2">Loading...</p>
+                            ) : !teamData[dealer.id] || teamData[dealer.id].length === 0 ? (
+                              <p className="text-xs text-dark/40 py-2">No team members under this account.</p>
+                            ) : (
+                              <table className="min-w-full text-xs">
+                                <thead>
+                                  <tr className="text-dark/40 uppercase tracking-wider">
+                                    {['Name', 'Email', 'Phone', 'Role / Type', 'Account', 'Joined'].map(col => (
+                                      <th key={col} className="pr-6 pb-2 text-left font-semibold">{col}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {teamData[dealer.id].map((member: any) => (
+                                    <tr key={member.id} className="hover:bg-white/60 transition">
+                                      <td className="pr-6 py-2 font-medium text-secondary">
+                                        {member.first_name} {member.last_name}
+                                      </td>
+                                      <td className="pr-6 py-2 text-dark/70">{member.email}</td>
+                                      <td className="pr-6 py-2 text-dark/50">{member.phone || '—'}</td>
+                                      <td className="pr-6 py-2">
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                          member.user_type === 'salesman' ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          {member.role || member.user_type}
+                                        </span>
+                                      </td>
+                                      <td className="pr-6 py-2">
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                          member.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                                        }`}>
+                                          {member.active ? 'Active' : 'Inactive'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 text-dark/40">
+                                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}

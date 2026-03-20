@@ -817,6 +817,43 @@ def delete_dealer(
     return {"success": True, "message": "Dealer deleted"}
 
 
+@router.get("/dealers/{dealer_id}/team")
+def get_dealer_team(
+    dealer_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return all team members (salesman + sub-accounts) whose parent_dealer_id = dealer_id."""
+    dealer = db.query(User).filter(User.id == dealer_id).first()
+    if not dealer:
+        raise ResourceNotFoundException("Dealer", dealer_id)
+
+    members = (
+        db.query(User)
+        .filter(User.parent_dealer_id == dealer_id)
+        .order_by(User.created_at)
+        .all()
+    )
+
+    return {
+        "dealer_id": dealer_id,
+        "team": [
+            {
+                "id": m.id,
+                "email": m.email,
+                "first_name": m.first_name,
+                "last_name": m.last_name,
+                "phone": m.phone,
+                "user_type": m.user_type,
+                "role": m.role,
+                "active": m.active,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in members
+        ],
+    }
+
+
 # ============= MEDIA MANAGEMENT =============
 
 @router.get("/media/stats")
