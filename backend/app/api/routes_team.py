@@ -191,7 +191,7 @@ def invite_team_member(
     if role not in TeamMemberRole.__members__.values():
         role = "salesperson"
 
-    permissions = TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].copy()
+    permissions = {perm.value: allowed for perm, allowed in TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].items()}
 
     if "permissions" in data:
         permissions.update(data["permissions"])
@@ -283,7 +283,7 @@ def update_member_permissions(
         role = data["role"]
         if role in TeamMemberRole.__members__.values():
             member.role = role
-            member.permissions = TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].copy()
+            member.permissions = {perm.value: allowed for perm, allowed in TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].items()}
 
     if "permissions" in data:
         if member.permissions is None:
