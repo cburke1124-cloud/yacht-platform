@@ -617,11 +617,15 @@ def accept_terms(current_user: User = Depends(get_current_user), db: Session = D
         except Exception:
             permissions = {}
 
-    permissions["agreed_terms"] = True
-    permissions["agreed_communications"] = True
-    permissions["consent_recorded_at"] = datetime.utcnow().isoformat()
-
-    current_user.permissions = permissions
+    # Assign a NEW dict so SQLAlchemy detects the JSON column as dirty and
+    # persists the change.  Mutating the existing dict in-place is not
+    # reliably detected by the ORM's change-tracking.
+    current_user.permissions = {
+        **permissions,
+        "agreed_terms": True,
+        "agreed_communications": True,
+        "consent_recorded_at": datetime.utcnow().isoformat(),
+    }
     db.commit()
 
     return {"success": True, "message": "Terms accepted successfully"}
