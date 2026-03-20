@@ -11,6 +11,7 @@ import time
 import logging
 import uuid
 import time
+import stripe
 
 from app.core.logging import memory_log_handler
 
@@ -451,6 +452,81 @@ def update_user(
         "user_type": user.user_type,
         "subscription_tier": user.subscription_tier
     }}
+
+
+@router.post("/users/{user_id}/sync-stripe")
+def sync_user_stripe(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Pull the user's current Stripe subscription state and update the DB.
+    Use this to fix users whose subscription_tier is wrong after a payment.
+    """
+    from app.core.config import settings
+    from app.services.stripe_service import STRIPE_PRICES_REVERSE
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    updated = {}
+
+    # Sync via stripe_subscription_id if we have one
+    if user.stripe_subscription_id:
+        try:
+            sub = stripe.Subscription.retrieve(user.stripe_subscription_id)
+            if sub.status in ("active", "trialing"):
+                price_id = sub["items"]["data"][0]["price"]["id"]
+                tier = STRIPE_PRICES_REVERSE.get(price_id)
+                if tier and user.subscription_tier != tier:
+                    user.subscription_tier = tier
+                    updated["subscription_tier"] = tier
+                if sub.status == "trialing" and sub.trial_end:
+                    user.trial_active = True
+                    user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
+                    updated["trial_active"] = True
+            elif sub.status in ("past_due", "unpaid", "incomplete_expired", "canceled"):
+                user.subscription_tier = "free"
+                updated["subscription_tier"] = "free"
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=502, detail=f"Stripe error: {e}")
+
+    # Also try looking up by customer_id for latest subscription if none stored
+    elif user.stripe_customer_id:
+        try:
+            subs = stripe.Subscription.list(customer=user.stripe_customer_id, status="active", limit=1)
+            if subs.data:
+                sub = subs.data[0]
+                user.stripe_subscription_id = sub.id
+                price_id = sub["items"]["data"][0]["price"]["id"]
+                tier = STRIPE_PRICES_REVERSE.get(price_id)
+                if tier:
+                    user.subscription_tier = tier
+                    updated["subscription_tier"] = tier
+                updated["stripe_subscription_id"] = sub.id
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=502, detail=f"Stripe error: {e}")
+    else:
+        raise HTTPException(status_code=400, detail="User has no Stripe customer or subscription ID")
+
+    db.commit()
+    return {
+        "success": True,
+        "updated": updated,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "subscription_tier": user.subscription_tier,
+            "stripe_subscription_id": user.stripe_subscription_id,
+        },
+    }
 
 
 @router.patch("/users/{user_id}/email")

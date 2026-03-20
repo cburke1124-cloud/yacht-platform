@@ -943,30 +943,116 @@ async def handle_invoice_failed(invoice, db: Session, background_tasks: Backgrou
 # ==================== EMAIL NOTIFICATIONS ====================
 
 async def send_subscription_confirmation(email: str, tier: str, trial_days: int):
-    """Send subscription confirmation email"""
-    # Implementation in next artifact
-    pass
+    tier_display = tier.replace("_", " ").title()
+    billing_url = f"{email_service.base_url}/dashboard/billing"
+    if trial_days > 0:
+        body = f"Your {trial_days}-day free trial of the <strong>{tier_display}</strong> plan has started. You won't be charged until the trial ends."
+    else:
+        body = f"Your <strong>{tier_display}</strong> subscription is now active. Thank you for subscribing to YachtVersal!"
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Subscription Confirmed</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">{body}</p>
+        <p style="margin-top:24px;"><a href="{billing_url}" style="background:#01BBDC;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">View Billing</a></p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, f"Your YachtVersal {tier_display} Subscription is Active", html)
+
 
 async def send_subscription_updated_email(email: str, tier: str):
-    """Send subscription update email"""
-    pass
+    tier_display = tier.replace("_", " ").title()
+    billing_url = f"{email_service.base_url}/dashboard/billing"
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Plan Updated</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">Your subscription has been updated to the <strong>{tier_display}</strong> plan.</p>
+        <p style="margin-top:24px;"><a href="{billing_url}" style="background:#01BBDC;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">View Billing</a></p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, "Your YachtVersal Plan Has Been Updated", html)
+
 
 async def send_subscription_cancelled_email(email: str, immediately: bool):
-    """Send cancellation confirmation"""
-    pass
+    if immediately:
+        msg = "Your subscription has been cancelled and access has ended."
+    else:
+        msg = "Your subscription has been cancelled. You will retain access until the end of your current billing period."
+    billing_url = f"{email_service.base_url}/dashboard/billing"
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Subscription Cancelled</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">{msg}</p>
+        <p style="color:#64748b;font-size:13px;">We&#8217;re sorry to see you go. You can resubscribe at any time from your billing dashboard.</p>
+        <p style="margin-top:24px;"><a href="{billing_url}" style="background:#10214F;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">Resubscribe</a></p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, "Your YachtVersal Subscription Has Been Cancelled", html)
+
 
 async def send_payment_success_email(email: str, amount: float, description: str):
-    """Send payment success email"""
-    pass
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Payment Received</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">We received your payment of <strong>${amount:.2f}</strong> for <em>{description}</em>. Thank you!</p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, "Payment Received — YachtVersal", html)
+
 
 async def send_payment_failed_email(email: str, reason: str):
-    """Send payment failure email"""
-    pass
+    billing_url = f"{email_service.base_url}/dashboard/billing"
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:#dc2626;padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Payment Failed</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">We were unable to process your payment{f': {reason}' if reason else ''}.</p>
+        <p style="color:#64748b;font-size:13px;">Please update your payment method to avoid losing access to your listings.</p>
+        <p style="margin-top:24px;"><a href="{billing_url}" style="background:#dc2626;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">Update Payment Method</a></p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, "Action Required: Payment Failed — YachtVersal", html)
+
 
 async def send_invoice_receipt_email(email: str, invoice_url: str):
-    """Send invoice receipt"""
-    pass
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Invoice Paid</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">Your monthly YachtVersal invoice has been paid successfully.</p>
+        <p style="margin-top:24px;"><a href="{invoice_url}" style="background:#01BBDC;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">View Invoice</a></p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, "Invoice Paid — YachtVersal", html)
+
 
 async def send_invoice_failed_email(email: str, amount: float):
-    """Send failed invoice notification"""
-    pass
+    billing_url = f"{email_service.base_url}/dashboard/billing"
+    amount_str = f"${amount:.2f}" if amount else "your outstanding invoice"
+    html = f"""<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:#dc2626;padding:28px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:22px;">Invoice Payment Failed</h1>
+      </div>
+      <div style="padding:30px;background:#f9fafb;">
+        <p style="color:#334155;font-size:15px;line-height:1.7;">We were unable to collect payment of <strong>{amount_str}</strong> for your YachtVersal subscription.</p>
+        <p style="color:#64748b;font-size:13px;">Your account has been downgraded to the free tier. Update your payment method to restore full access.</p>
+        <p style="margin-top:24px;"><a href="{billing_url}" style="background:#dc2626;color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;">Update Payment Method</a></p>
+      </div>
+      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">&copy; 2026 YachtVersal</div>
+    </body></html>"""
+    email_service.send_email(email, "Action Required: Invoice Payment Failed — YachtVersal", html)
