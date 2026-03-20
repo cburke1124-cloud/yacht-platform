@@ -423,7 +423,7 @@ export default function AdminUsersTab() {
                         </div>
                       </td>
                     </tr>
-                    {actionMsg?.id === user.id && (
+                    {actionMsg?.id === user.id && actionMsg && (
                       <tr key={`msg-${user.id}`}>
                         <td colSpan={7} className="px-4 pb-2 pt-0">
                           <div className={`text-xs px-3 py-1.5 rounded-md ${
