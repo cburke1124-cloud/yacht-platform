@@ -717,6 +717,12 @@ def create_listing(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    import uuid as _uuid
+    # Normalise empty-string BIN to a generated value so the unique
+    # constraint is never violated by blank submissions.
+    if not listing_data.bin:
+        listing_data.bin = str(_uuid.uuid4()).replace("-", "").upper()[:12]
+
     user_type = (current_user.user_type or "").lower()
     subscription_tier = (current_user.subscription_tier or "").lower()
     permissions = current_user.permissions or {}

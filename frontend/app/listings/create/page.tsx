@@ -91,6 +91,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   // Tracks whether this dealer has co-brokering enabled at account level.
   // Fetched after access check; defaults true so the toggle is hidden until we know.
   const [dealerCobrokingEnabled, setDealerCobrokingEnabled] = useState(true);
+  const [userId, setUserId] = useState<number | null>(null);
 
   // Power/Sail selector for boat type filtering (UI only — not a saved field)
   const SAIL_BOAT_TYPES = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner', 'Motorsailer'];
@@ -173,7 +174,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     ] as Generator[],
   });
 
-  const draftStorageKey = `listing-editor-draft:${isEditMode ? `edit:${listingId}` : 'create'}`;
+  // Scope the draft key to the current user so drafts never bleed across accounts.
+  const draftStorageKey = `listing-editor-draft:${userId ?? 'anon'}:${isEditMode ? `edit:${listingId}` : 'create'}`;
 
   useEffect(() => {
     const checkListingAccess = async () => {
@@ -194,6 +196,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         }
 
         const me = await response.json();
+        setUserId(me.id ?? null);
         const userType = String(me.user_type || '').toLowerCase();
         const tier = String(me.subscription_tier || '').toLowerCase();
 
