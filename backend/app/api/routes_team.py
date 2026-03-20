@@ -191,10 +191,12 @@ def invite_team_member(
     if role not in TeamMemberRole.__members__.values():
         role = "salesperson"
 
-    permissions = {perm.value: allowed for perm, allowed in TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].items()}
-
+    # Use explicit permissions from the request if provided; otherwise fall back
+    # to the role defaults.  Storing ONLY one key format prevents duplicates.
     if "permissions" in data:
-        permissions.update(data["permissions"])
+        permissions = data["permissions"]
+    else:
+        permissions = {perm.value: allowed for perm, allowed in TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].items()}
 
     temp_password = secrets.token_urlsafe(12)
 
@@ -306,12 +308,13 @@ def update_member_permissions(
         role = data["role"]
         if role in TeamMemberRole.__members__.values():
             member.role = role
-            member.permissions = {perm.value: allowed for perm, allowed in TEAM_ROLE_PERMISSIONS[TeamMemberRole(role)].items()}
+            # Clear custom permissions so the new role defaults apply cleanly
+            if "permissions" not in data:
+                member.permissions = None
 
     if "permissions" in data:
-        if member.permissions is None:
-            member.permissions = {}
-        member.permissions.update(data["permissions"])
+        # Replace entirely — the frontend sends the full set each time
+        member.permissions = data["permissions"]
 
     db.commit()
 

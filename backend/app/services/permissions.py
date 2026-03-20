@@ -54,12 +54,8 @@ ROLE_PERMISSIONS = {
         Permission.VIEW_LISTINGS,
         Permission.VIEW_ANALYTICS,
     },
-    
-    # Team member permissions vary by role
-    "team_member": {
-        Permission.VIEW_LISTINGS,
-        Permission.VIEW_MESSAGES,
-    },
+    # team_member is intentionally omitted — their permissions come from
+    # TEAM_ROLE_PERMISSIONS (role-based) or user.permissions (custom overrides).
 }
 
 # Team member role permissions
@@ -115,33 +111,45 @@ TEAM_ROLE_PERMISSIONS = {
 }
 
 
+def _perms_from_dict(perms_dict: dict) -> Set[Permission]:
+    """Convert a {key: bool} dict to a set of Permissions. Handles both
+    'create_listings' and 'can_create_listings' key formats."""
+    result: Set[Permission] = set()
+    for perm_name, allowed in perms_dict.items():
+        if allowed:
+            try:
+                # Strip leading 'can_' so both formats resolve to the enum value
+                name = perm_name[4:] if perm_name.startswith("can_") else perm_name
+                result.add(Permission(name))
+            except ValueError:
+                pass
+    return result
+
+
 def get_user_permissions(user: User) -> Set[Permission]:
-    """Get all permissions for a user"""
+    """Get all permissions for a user."""
     if user.user_type in ROLE_PERMISSIONS:
         return ROLE_PERMISSIONS[user.user_type]
-    
-    # For team members, check their role
-    if user.user_type == "team_member" and user.role:
-        try:
-            role = TeamMemberRole(user.role)
-            return {
-                perm for perm, allowed in TEAM_ROLE_PERMISSIONS[role].items()
-                if allowed
-            }
-        except (ValueError, KeyError):
-            pass
-    
-    # Check custom permissions
+
+    # Team members: custom per-user permissions take precedence over role defaults.
+    if user.user_type == "team_member":
+        if user.permissions:
+            return _perms_from_dict(user.permissions)
+        if user.role:
+            try:
+                role = TeamMemberRole(user.role)
+                return {
+                    perm
+                    for perm, allowed in TEAM_ROLE_PERMISSIONS[role].items()
+                    if allowed
+                }
+            except (ValueError, KeyError):
+                pass
+
+    # Fallback: check custom permissions for any other user type
     if user.permissions:
-        custom_perms = set()
-        for perm_name, allowed in user.permissions.items():
-            if allowed:
-                try:
-                    custom_perms.add(Permission(perm_name))
-                except ValueError:
-                    pass
-        return custom_perms
-    
+        return _perms_from_dict(user.permissions)
+
     return set()
 
 
