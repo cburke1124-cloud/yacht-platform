@@ -68,6 +68,11 @@ function SellerLoginContent() {
   const [userName, setUserName] = useState<string | undefined>();
   const [userType, setUserType] = useState<string | undefined>();
 
+  // 2FA state
+  const [requires2fa, setRequires2fa] = useState(false);
+  const [twoFaEmail, setTwoFaEmail] = useState('');
+  const [twoFaCode, setTwoFaCode] = useState('');
+
   const [liveBrokerTiers, setLiveBrokerTiers] = useState<Record<string, any>>(BROKER_TIERS);
   const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
 
@@ -88,6 +93,39 @@ function SellerLoginContent() {
       .catch(() => {});
   }, []);
 
+  const finishLogin = async (accessToken: string) => {
+    localStorage.setItem('token', accessToken);
+    window.dispatchEvent(new Event('authChange'));
+
+    const userResponse = await fetch(apiUrl('/auth/me'), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const userData = await userResponse.json();
+
+    let redirectTo = '/dashboard';
+    if (userData.user_type === 'admin') redirectTo = '/admin';
+    else if (userData.user_type === 'salesman') redirectTo = '/sales-rep/dashboard';
+    else if (userData.user_type === 'user') redirectTo = '/account';
+
+    // Fire-and-forget Stripe sync for broker/private accounts on every login
+    if (userData.user_type === 'dealer' || userData.user_type === 'private') {
+      fetch(apiUrl('/payments/sync-my-subscription'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).catch(() => { /* non-critical, ignore errors */ });
+    }
+
+    if (userData.user_type !== 'admin' && !userData.agreed_terms) {
+      setUserName(userData.first_name || undefined);
+      setUserType(userData.user_type || undefined);
+      setPendingRedirect(redirectTo);
+      setShowTermsModal(true);
+      return;
+    }
+
+    router.push(redirectTo);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -103,36 +141,13 @@ function SellerLoginContent() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Login failed');
 
-      localStorage.setItem('token', data.access_token);
-      window.dispatchEvent(new Event('authChange'));
-
-      const userResponse = await fetch(apiUrl('/auth/me'), {
-        headers: { Authorization: `Bearer ${data.access_token}` },
-      });
-      const userData = await userResponse.json();
-
-      let redirectTo = '/dashboard';
-      if (userData.user_type === 'admin') redirectTo = '/admin';
-      else if (userData.user_type === 'salesman') redirectTo = '/sales-rep/dashboard';
-      else if (userData.user_type === 'user') redirectTo = '/account';
-
-      // Fire-and-forget Stripe sync for broker/private accounts on every login
-      if (userData.user_type === 'dealer' || userData.user_type === 'private') {
-        fetch(apiUrl('/payments/sync-my-subscription'), {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${data.access_token}` },
-        }).catch(() => { /* non-critical, ignore errors */ });
-      }
-
-      if (userData.user_type !== 'admin' && !userData.agreed_terms) {
-        setUserName(userData.first_name || undefined);
-        setUserType(userData.user_type || undefined);
-        setPendingRedirect(redirectTo);
-        setShowTermsModal(true);
+      if (data.requires_2fa) {
+        setTwoFaEmail(data.email || formData.email);
+        setRequires2fa(true);
         return;
       }
 
-      router.push(redirectTo);
+      await finishLogin(data.access_token);
     } catch (err: any) {
       const msg: string = err.message || '';
       if (msg.toLowerCase().includes('failed to fetch')) {
@@ -140,6 +155,30 @@ function SellerLoginContent() {
       } else {
         setError(msg || 'Login failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handle2faSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch(apiUrl('/auth/2fa/complete-login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: twoFaEmail, code: twoFaCode }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Invalid code. Please try again.');
+
+      await finishLogin(data.access_token);
+    } catch (err: any) {
+      const msg: string = err.message || '';
+      setError(msg || 'Invalid code. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -172,13 +211,62 @@ function SellerLoginContent() {
               <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
             </Link>
             <h2 className="text-2xl font-semibold text-secondary">
-              {showSignup ? 'List Your Yacht' : 'Seller Sign In'}
+              {requires2fa ? 'Two-Factor Authentication' : showSignup ? 'List Your Yacht' : 'Seller Sign In'}
             </h2>
             <p className="mt-2 text-dark/70">
-              {showSignup ? 'Choose a plan and get started today' : 'Welcome back to your seller account'}
+              {requires2fa
+                ? `Enter the verification code sent to ${twoFaEmail}`
+                : showSignup ? 'Choose a plan and get started today' : 'Welcome back to your seller account'}
             </p>
           </div>
 
+          {/* ── 2FA code entry (replaces everything when active) ── */}
+          {requires2fa ? (
+            <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+              <form onSubmit={handle2faSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="twofa-code" className="block text-sm font-medium text-dark mb-2">
+                    Verification Code
+                  </label>
+                  <input
+                    id="twofa-code"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    autoComplete="one-time-code"
+                    value={twoFaCode}
+                    onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-full px-4 py-3 text-center text-2xl tracking-widest border border-gray-400 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="000000"
+                  />
+                  <p className="mt-2 text-xs text-dark/50">Check your email for a 6-digit code.</p>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || twoFaCode.length !== 6}
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Verifying…' : 'Verify & Sign In'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRequires2fa(false); setTwoFaCode(''); setError(''); }}
+                  className="w-full text-sm text-dark/50 hover:text-dark/70"
+                >
+                  ← Back to sign in
+                </button>
+              </form>
+            </div>
+          ) : (
+          <>
           {/* ── Sign In form — constrained width, collapses when accordion open ── */}
           <div
             className="overflow-hidden transition-all duration-500 ease-in-out max-w-md mx-auto"
@@ -384,6 +472,8 @@ function SellerLoginContent() {
             </p>
             <Link href="/" className="block text-sm text-dark/40 hover:text-dark/60">Back to home</Link>
           </div>
+          </>
+          )}
 
         </div>
       </div>

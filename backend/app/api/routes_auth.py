@@ -371,6 +371,20 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
 
         # Do not send verification or welcome emails here. These will be sent after payment confirmation via Stripe webhook.
 
+        # However, for non-Stripe tiers (admin-created, free accounts) send the verification email now.
+        stripe_tiers = {"basic", "plus", "premium", "pro", "ultimate", "private_basic", "private_plus", "private_pro"}
+        needs_stripe = user.subscription_tier in stripe_tiers
+        if not needs_stripe and token:
+            try:
+                user_name = f"{user.first_name} {user.last_name}".strip() if user.first_name else None
+                email_service.send_verification_email(
+                    to_email=user.email,
+                    token=token,
+                    user_name=user_name or None,
+                )
+            except Exception:
+                logger.exception("Verification email send failed for user %s", user.id)
+
         access_token = create_access_token(
             data={"sub": user.email},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -387,7 +401,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
         raise HTTPException(status_code=500, detail=f"Registration failed: {exc}")
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 @limiter.limit("10/minute")
 async def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
     try:
@@ -408,12 +422,111 @@ async def login(request: Request, user_data: UserLogin, db: Session = Depends(ge
     if not bool(row.get("active", True)):
         raise AuthorizationException("User account is inactive")
 
+    # Load full user for email_verified and 2FA checks
+    user = db.query(User).filter(User.id == row["id"]).first()
+
+    # Enforce email verification (skip for admin accounts)
+    if user and not user.email_verified and user.user_type != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email address before signing in. Check your inbox for a verification link.",
+        )
+
+    # If 2FA is enabled, do not return a token — require the second factor first
+    if user and user.two_factor_enabled:
+        # Generate and email the 2FA code
+        from app.models.dealer import TwoFactorCode
+        code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+        expires_at = datetime.utcnow() + timedelta(minutes=10)
+        db.query(TwoFactorCode).filter(TwoFactorCode.user_id == user.id).delete()
+        db.add(TwoFactorCode(user_id=user.id, code=code, expires_at=expires_at))
+        db.commit()
+        user_name = f"{user.first_name} {user.last_name}".strip() if user.first_name else None
+        try:
+            email_service.send_2fa_code(to_email=user.email, code=code, user_name=user_name or None)
+        except Exception:
+            logger.exception("Failed to send 2FA code to %s", user.email)
+        return {"requires_2fa": True, "email": user.email, "access_token": "", "token_type": "bearer"}
+
     access_token = create_access_token(
         data={"sub": row.get("email")},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/2fa/complete-login")
+@limiter.limit("10/minute")
+async def complete_2fa_login(request: Request, data: dict, db: Session = Depends(get_db)):
+    """Complete login after 2FA code is verified. Returns the access token."""
+    email = data.get("email", "").strip().lower()
+    code = str(data.get("code", "")).strip()
+
+    if not email or not code:
+        raise ValidationException("Email and code are required")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not user.two_factor_enabled:
+        raise AuthenticationException("Invalid request")
+
+    from app.models.dealer import TwoFactorCode, TwoFactorAuth
+    twofa_code = db.query(TwoFactorCode).filter(
+        TwoFactorCode.user_id == user.id,
+        TwoFactorCode.code == code,
+        TwoFactorCode.used == False,
+    ).first()
+
+    if twofa_code:
+        if twofa_code.expires_at < datetime.utcnow():
+            raise AuthenticationException("Verification code has expired")
+        twofa_code.used = True
+        db.commit()
+    else:
+        # Try backup codes
+        twofa = db.query(TwoFactorAuth).filter(TwoFactorAuth.user_id == user.id).first()
+        if twofa and twofa.backup_codes and code in twofa.backup_codes:
+            twofa.backup_codes = [c for c in twofa.backup_codes if c != code]
+            db.commit()
+        else:
+            raise AuthenticationException("Invalid verification code")
+
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/resend-verification-email")
+@limiter.limit("5/minute")
+async def resend_verification_email_public(request: Request, data: dict, db: Session = Depends(get_db)):
+    """Resend email verification link — does not require auth (user can't log in yet)."""
+    email = data.get("email", "").strip().lower()
+    if not email:
+        raise ValidationException("Email is required")
+
+    user = db.query(User).filter(User.email == email).first()
+    # Silently succeed even if user not found (prevents email enumeration)
+    if not user or user.email_verified:
+        return {"success": True, "message": "If that email is registered and unverified, a new link has been sent."}
+
+    token = secrets.token_urlsafe(32)
+    db.query(EmailVerification).filter(EmailVerification.user_id == user.id).delete()
+    db.add(EmailVerification(
+        user_id=user.id,
+        token=token,
+        expires_at=datetime.utcnow() + timedelta(hours=24),
+    ))
+    db.commit()
+
+    try:
+        user_name = f"{user.first_name} {user.last_name}".strip() if user.first_name else None
+        email_service.send_verification_email(to_email=user.email, token=token, user_name=user_name or None)
+    except Exception:
+        logger.exception("Failed to resend verification email to %s", user.email)
+
+    return {"success": True, "message": "If that email is registered and unverified, a new link has been sent."}
 
 
 @router.get("/me")
@@ -487,7 +600,9 @@ def get_me(current_user: User = Depends(get_current_user)):
         "permissions": permissions,
         "active": current_user.active,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
-        "agreed_terms": bool((permissions or {}).get("agreed_terms", False))
+        "agreed_terms": bool((permissions or {}).get("agreed_terms", False)),
+        "email_verified": bool(current_user.email_verified),
+        "two_factor_enabled": bool(current_user.two_factor_enabled),
     }
 
 

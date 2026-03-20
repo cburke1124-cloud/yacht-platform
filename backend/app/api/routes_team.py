@@ -216,6 +216,28 @@ def invite_team_member(
     db.commit()
     db.refresh(member)
 
+    # Create email verification token for the new team member
+    from app.models.dealer import EmailVerification
+    verification_token = None
+    try:
+        verification_token = secrets.token_urlsafe(32)
+        verification = EmailVerification(
+            user_id=member.id,
+            token=verification_token,
+            expires_at=datetime.utcnow() + timedelta(days=7),
+        )
+        db.add(verification)
+        db.commit()
+    except Exception:
+        db.rollback()
+        verification_token = None
+
+    # Build invite email with temp password and optional verify link
+    verify_section = (
+        f'<p>Please verify your email address: '
+        f'<a href="https://yachtversal.com/verify-email?token={verification_token}">Verify Email</a></p>'
+        if verification_token else ""
+    )
     email_service.send_email(
         to_email=email,
         subject="Team Invitation - YachtVersal",
@@ -223,6 +245,7 @@ def invite_team_member(
         <h2>You've been invited to join {current_user.company_name or 'a team'} on YachtVersal!</h2>
         <p>Your temporary password is: <code>{temp_password}</code></p>
         <p>Please log in at <a href="https://yachtversal.com/login">https://yachtversal.com/login</a> and change your password.</p>
+        {verify_section}
         """,
     )
 
