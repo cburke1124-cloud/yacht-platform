@@ -50,6 +50,14 @@ function BuyerLoginContent() {
       else if (userData.user_type === 'salesman') redirectTo = '/sales-rep/dashboard';
       else if (userData.user_type === 'dealer' || userData.user_type === 'private') redirectTo = '/dashboard';
 
+      // Fire-and-forget Stripe sync for broker/private accounts on every login
+      if (userData.user_type === 'dealer' || userData.user_type === 'private') {
+        fetch(apiUrl('/payments/sync-my-subscription'), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        }).catch(() => { /* non-critical, ignore errors */ });
+      }
+
       if (userData.user_type !== 'admin' && !userData.agreed_terms) {
         setUserName(userData.first_name || undefined);
         setUserType(userData.user_type || undefined);

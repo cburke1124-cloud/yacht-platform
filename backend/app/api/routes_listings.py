@@ -424,6 +424,10 @@ def get_listings(
     search: Optional[str] = None,
 ):
     SAIL_TYPES = {"Sailing Yacht", "Catamaran", "Sloop", "Ketch", "Schooner", "Motorsailer"}
+    _PAID_TIERS = [
+        "basic", "plus", "pro", "premium",
+        "private_basic", "private_plus", "private_pro",
+    ]
     try:
         q = (
             db.query(Listing)
@@ -435,6 +439,14 @@ def get_listings(
             .filter(
                 Listing.status == status,
                 User.is_demo != True,
+                # Only surface listings whose owner has an active subscription
+                # (or is marked always_free by an admin). Lapsed accounts keep
+                # their listings in the backend but they disappear from public
+                # search until payment is restored.
+                or_(
+                    User.always_free == True,
+                    User.subscription_tier.in_(_PAID_TIERS),
+                ),
             )
         )
         if make:
@@ -887,9 +899,18 @@ def delete_listing(
 
 @router.get("/{listing_id}")
 def get_listing(listing_id: int, db: Session = Depends(get_db)):
+    _PAID_TIERS = [
+        "basic", "plus", "pro", "premium",
+        "private_basic", "private_plus", "private_pro",
+    ]
     listing = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
+    # Hide listing if the owner's subscription has lapsed
+    owner = listing.owner
+    if owner and not getattr(owner, "always_free", False):
+        if (owner.subscription_tier or "") not in _PAID_TIERS:
+            raise ResourceNotFoundException("Listing", listing_id)
     # Increment view counter
     listing.views = (listing.views or 0) + 1
     db.commit()

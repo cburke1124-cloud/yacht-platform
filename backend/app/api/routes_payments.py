@@ -648,6 +648,78 @@ async def confirm_checkout_session(
     }
 
 
+@router.post("/payments/sync-my-subscription")
+async def sync_my_subscription(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Called on login for dealer/private accounts. Queries Stripe for the
+    latest subscription state and updates subscription_tier in the DB.
+    Safe to call even if Stripe is not configured (returns gracefully).
+    """
+    if current_user.user_type not in ("dealer", "private"):
+        return {"synced": False, "reason": "not_applicable"}
+
+    if not settings.STRIPE_SECRET_KEY:
+        return {"synced": False, "reason": "stripe_not_configured"}
+
+    _PAID_TIERS = {
+        "basic", "plus", "pro", "premium",
+        "private_basic", "private_plus", "private_pro",
+    }
+    from app.services.stripe_service import STRIPE_PRICES_REVERSE
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    updated = {}
+
+    try:
+        if current_user.stripe_subscription_id:
+            sub = stripe.Subscription.retrieve(current_user.stripe_subscription_id)
+            if sub.status in ("active", "trialing"):
+                price_id = sub["items"]["data"][0]["price"]["id"]
+                tier = STRIPE_PRICES_REVERSE.get(price_id)
+                if tier and current_user.subscription_tier != tier:
+                    current_user.subscription_tier = tier
+                    updated["subscription_tier"] = tier
+                if sub.status == "trialing" and sub.trial_end:
+                    current_user.trial_active = True
+                    current_user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
+                    updated["trial_active"] = True
+            elif sub.status in ("past_due", "unpaid", "incomplete_expired", "canceled"):
+                if current_user.subscription_tier in _PAID_TIERS:
+                    current_user.subscription_tier = "free"
+                    current_user.trial_active = False
+                    updated["subscription_tier"] = "free"
+        elif current_user.stripe_customer_id:
+            subs = stripe.Subscription.list(
+                customer=current_user.stripe_customer_id, status="active", limit=1
+            )
+            if subs.data:
+                sub = subs.data[0]
+                current_user.stripe_subscription_id = sub.id
+                price_id = sub["items"]["data"][0]["price"]["id"]
+                tier = STRIPE_PRICES_REVERSE.get(price_id)
+                if tier:
+                    current_user.subscription_tier = tier
+                    updated["subscription_tier"] = tier
+                updated["stripe_subscription_id"] = sub.id
+    except stripe.error.StripeError as e:
+        logger.warning("sync_my_subscription: stripe error for user %s: %s", current_user.id, e)
+        return {"synced": False, "reason": "stripe_error"}
+
+    if updated:
+        db.commit()
+        db.refresh(current_user)
+        logger.info("sync_my_subscription: updated user %s → %s", current_user.id, updated)
+
+    return {
+        "synced": True,
+        "updated": updated,
+        "subscription_tier": current_user.subscription_tier,
+    }
+
+
 # ==================== WEBHOOK HANDLER ====================
 
 @router.post("/payments/webhooks/stripe")

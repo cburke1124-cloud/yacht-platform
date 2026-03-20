@@ -328,15 +328,18 @@ def get_all_users(
     limit: int = 100,
     user_type: Optional[str] = None,
     search: Optional[str] = None,
+    subscription_status: Optional[str] = None,  # active, lapsed, trial, never_paid, always_free
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Get all users with filtering."""
+    _PAID_TIERS = ["basic", "plus", "pro", "premium", "private_basic", "private_plus", "private_pro"]
+
     query = db.query(User)
-    
+
     if user_type:
         query = query.filter(User.user_type == user_type)
-    
+
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(
@@ -345,10 +348,32 @@ def get_all_users(
             (User.last_name.ilike(search_pattern)) |
             (User.company_name.ilike(search_pattern))
         )
-    
+
+    if subscription_status == "active":
+        query = query.filter(User.subscription_tier.in_(_PAID_TIERS), User.always_free != True)
+    elif subscription_status == "lapsed":
+        # Had a Stripe subscription but tier is now free → payment lapsed / cancelled
+        query = query.filter(
+            User.stripe_subscription_id.isnot(None),
+            ~User.subscription_tier.in_(_PAID_TIERS),
+            User.always_free != True,
+        )
+    elif subscription_status == "trial":
+        query = query.filter(User.trial_active == True)
+    elif subscription_status == "never_paid":
+        # Dealer/private with no Stripe customer at all, not active, not trial
+        query = query.filter(
+            User.user_type.in_(["dealer", "private"]),
+            User.stripe_customer_id.is_(None),
+            User.trial_active != True,
+            ~User.subscription_tier.in_(_PAID_TIERS),
+        )
+    elif subscription_status == "always_free":
+        query = query.filter(User.always_free == True)
+
     total = query.count()
-    users = query.offset(skip).limit(limit).all()
-    
+    users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
+
     return {
         "total": total,
         "users": [
@@ -360,9 +385,13 @@ def get_all_users(
                 "company_name": u.company_name,
                 "user_type": u.user_type,
                 "subscription_tier": u.subscription_tier,
+                "stripe_customer_id": u.stripe_customer_id,
+                "stripe_subscription_id": u.stripe_subscription_id,
+                "always_free": u.always_free,
                 "active": u.active,
                 "trial_active": u.trial_active,
-                "created_at": u.created_at.isoformat() if u.created_at else None
+                "trial_end_date": u.trial_end_date.isoformat() if u.trial_end_date else None,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
             }
             for u in users
         ]
