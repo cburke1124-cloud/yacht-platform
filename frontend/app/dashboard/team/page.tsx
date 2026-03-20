@@ -89,7 +89,6 @@ export default function TeamManagementPage() {
     first_name: '',
     last_name: '',
     phone: '',
-    password: 'changeme123',
     role: 'team_member',
     permissions: {
       can_create_listings: true,
@@ -180,7 +179,6 @@ export default function TeamManagementPage() {
           first_name: '',
           last_name: '',
           phone: '',
-          password: 'changeme123',
           role: 'team_member',
           permissions: {
             can_create_listings: true,

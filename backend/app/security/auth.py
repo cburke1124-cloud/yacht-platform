@@ -35,12 +35,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password: str) -> str:
-    """Hash a password after validating it meets requirements."""
-    # Validate before truncation to ensure full password meets requirements
-    is_valid, errors = PasswordValidator.validate(password)
-    if not is_valid:
-        raise ValidationException("Password does not meet requirements", {"errors": errors})
+def get_password_hash(password: str, skip_validation: bool = False) -> str:
+    """Hash a password after validating it meets requirements.
+    
+    Pass skip_validation=True for system-generated passwords (e.g. temp passwords)
+    that are guaranteed to be replaced by the user on first login.
+    """
+    if not skip_validation:
+        # Validate before truncation to ensure full password meets requirements
+        is_valid, errors = PasswordValidator.validate(password)
+        if not is_valid:
+            raise ValidationException("Password does not meet requirements", {"errors": errors})
     
     # Truncate password to 72 bytes for bcrypt before hashing
     password = truncate_password(password)

@@ -200,7 +200,7 @@ def invite_team_member(
 
     member = User(
         email=email,
-        password_hash=get_password_hash(temp_password),
+        password_hash=get_password_hash(temp_password, skip_validation=True),
         first_name=data.get("first_name"),
         last_name=data.get("last_name"),
         phone=data.get("phone"),
