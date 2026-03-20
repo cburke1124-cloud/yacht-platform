@@ -425,7 +425,7 @@ export default function AdminDealersTab() {
                     </tr>
 
                     {/* Per-row feedback */}
-                    {actionMsg?.id === dealer.id && (
+                    {actionMsg?.id === dealer.id && actionMsg && (
                       <tr key={`msg-${dealer.id}`}>
                         <td colSpan={7} className="px-4 pb-2 pt-0">
                           <div className={`text-xs px-3 py-1.5 rounded-md ${
