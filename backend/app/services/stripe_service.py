@@ -23,6 +23,9 @@ STRIPE_PRICES = {
     "private_pro": os.getenv("STRIPE_PRICE_PRIVATE_PRO", "price_private_pro_monthly"),
 }
 
+# Reverse map: Stripe price_id → subscription tier name
+STRIPE_PRICES_REVERSE = {v: k for k, v in STRIPE_PRICES.items()}
+
 # Trial days per tier — 0 means no trial by default.
 # Sales reps can set per-customer trials via the admin sales tools.
 TIER_TRIAL_DAYS = {
