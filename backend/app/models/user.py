@@ -25,8 +25,8 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Soft delete fields for account recovery
-    # deleted_at = Column(DateTime, nullable=True, index=True)  # Timestamp when account was deleted
-    # recovery_deadline = Column(DateTime, nullable=True)  # Until when account can be recovered (60-90 days)
+    deleted_at = Column(DateTime, nullable=True, index=True)  # Timestamp when account was deleted
+    recovery_deadline = Column(DateTime, nullable=True)  # Until when account can be recovered (60-90 days)
 
     parent_dealer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     role = Column(String, default="owner")
