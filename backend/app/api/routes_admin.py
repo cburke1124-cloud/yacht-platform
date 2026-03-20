@@ -620,26 +620,54 @@ def delete_user(
 def get_all_dealers(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = None,
+    subscription_status: Optional[str] = None,  # active, lapsed, trial, never_paid, always_free
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """Get all dealers with their stats."""
-    dealers = db.query(User).filter(
-        User.user_type == "dealer"
-    ).offset(skip).limit(limit).all()
-    
+    _PAID_TIERS = ["basic", "plus", "pro", "premium", "private_basic", "private_plus", "private_pro"]
+
+    query = db.query(User).filter(User.user_type == "dealer")
+
+    if search:
+        sp = f"%{search}%"
+        query = query.filter(
+            (User.email.ilike(sp)) |
+            (User.first_name.ilike(sp)) |
+            (User.last_name.ilike(sp)) |
+            (User.company_name.ilike(sp))
+        )
+
+    if subscription_status == "active":
+        query = query.filter(User.subscription_tier.in_(_PAID_TIERS), User.always_free != True)
+    elif subscription_status == "lapsed":
+        query = query.filter(
+            User.stripe_subscription_id.isnot(None),
+            ~User.subscription_tier.in_(_PAID_TIERS),
+            User.always_free != True,
+        )
+    elif subscription_status == "trial":
+        query = query.filter(User.trial_active == True)
+    elif subscription_status == "never_paid":
+        query = query.filter(
+            User.stripe_customer_id.is_(None),
+            User.trial_active != True,
+            ~User.subscription_tier.in_(_PAID_TIERS),
+        )
+    elif subscription_status == "always_free":
+        query = query.filter(User.always_free == True)
+
+    total = query.count()
+    dealers = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
+
     dealer_list = []
     for dealer in dealers:
-        # Get listing count
-        listing_count = db.query(Listing).filter(
-            Listing.user_id == dealer.id
-        ).count()
-        
+        listing_count = db.query(Listing).filter(Listing.user_id == dealer.id).count()
         active_listings = db.query(Listing).filter(
-            Listing.user_id == dealer.id,
-            Listing.status == "active"
+            Listing.user_id == dealer.id, Listing.status == "active"
         ).count()
-        
+
         dealer_list.append({
             "id": dealer.id,
             "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip() or dealer.email,
@@ -649,14 +677,19 @@ def get_all_dealers(
             "phone": dealer.phone,
             "company_name": dealer.company_name,
             "subscription_tier": dealer.subscription_tier,
+            "stripe_customer_id": dealer.stripe_customer_id,
+            "stripe_subscription_id": dealer.stripe_subscription_id,
+            "always_free": dealer.always_free,
+            "trial_active": dealer.trial_active,
+            "trial_end_date": dealer.trial_end_date.isoformat() if dealer.trial_end_date else None,
             "verified": dealer.verified,
             "active": dealer.active,
             "total_listings": listing_count,
             "active_listings": active_listings,
-            "created_at": dealer.created_at.isoformat() if dealer.created_at else None
+            "created_at": dealer.created_at.isoformat() if dealer.created_at else None,
         })
-    
-    return dealer_list
+
+    return {"total": total, "dealers": dealer_list}
 
 
 @router.post("/dealers")

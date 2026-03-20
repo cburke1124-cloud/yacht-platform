@@ -1,111 +1,130 @@
-'use client';
+﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '@/app/lib/apiRoot';
+
+const PAID_TIERS = new Set([
+  'basic', 'plus', 'pro', 'premium',
+  'private_basic', 'private_plus', 'private_pro',
+]);
+
+function getSubscriptionBadge(dealer: any) {
+  if (dealer.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700' };
+  if (dealer.trial_active) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700' };
+  if (PAID_TIERS.has(dealer.subscription_tier)) return { label: dealer.subscription_tier, bg: 'bg-green-100', text: 'text-green-700' };
+  if (dealer.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700' };
+  if (dealer.stripe_customer_id) return { label: 'Never Activated', bg: 'bg-orange-100', text: 'text-orange-700' };
+  return { label: 'No Payment', bg: 'bg-gray-100', text: 'text-gray-600' };
+}
 
 export default function AdminDealersTab() {
   const [dealers, setDealers] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [filterSubStatus, setFilterSubStatus] = useState('');
+
+  // Create form
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    company_name: '',
-    email: '',
-    phone: '',
-    city: '',
-    state: '',
-    country: 'USA',
-    verified: false,
-    active: true
+    name: '', company_name: '', email: '', phone: '',
+    city: '', state: '', country: 'USA', verified: false, active: true,
   });
 
-  useEffect(() => {
-    fetchDealers();
-  }, []);
+  // Per-row action state
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ id: number; type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchDealers = async () => {
+  const showMsg = (id: number, type: 'success' | 'error', text: string) => {
+    setActionMsg({ id, type, text });
+    setTimeout(() => setActionMsg(null), 5000);
+  };
+
+  const fetchDealers = useCallback(async (overridePage?: number) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/admin/dealers'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const skip = (overridePage ?? page) * PAGE_SIZE;
+      const params = new URLSearchParams({ skip: String(skip), limit: String(PAGE_SIZE) });
+      if (search.trim()) params.set('search', search.trim());
+      if (filterSubStatus) params.set('subscription_status', filterSubStatus);
 
-      if (response.ok) {
-        const data = await response.json();
-        // Ensure data is an array
-        setDealers(Array.isArray(data) ? data : []);
+      const res = await fetch(apiUrl(`/admin/dealers?${params}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.dealers ?? []);
+        setDealers(list);
+        setTotal(data.total ?? list.length);
       } else {
         setDealers([]);
+        setTotal(0);
       }
-    } catch (error) {
-      console.error('Failed to fetch dealers:', error);
+    } catch {
       setDealers([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, filterSubStatus, page]);
+
+  useEffect(() => {
+    setPage(0);
+    fetchDealers(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filterSubStatus]);
+
+  useEffect(() => {
+    fetchDealers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  // ─── Actions ────────────────────────────────────────────────────────────────
 
   const handleCreateDealer = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/admin/dealers'), {
+      const res = await fetch(apiUrl('/admin/dealers'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(formData),
       });
-
-      if (response.ok) {
-        const result = await response.json();
+      if (res.ok) {
+        const result = await res.json();
         alert(result.message || 'Dealer created successfully. A password-setup email has been sent.');
         setShowCreateForm(false);
-        setFormData({
-          name: '',
-          company_name: '',
-          email: '',
-          phone: '',
-          city: '',
-          state: '',
-          country: 'USA',
-          verified: false,
-          active: true
-        });
+        setFormData({ name: '', company_name: '', email: '', phone: '', city: '', state: '', country: 'USA', verified: false, active: true });
         fetchDealers();
       } else {
-        const error = await response.json();
-        alert(`Failed to create dealer: ${error.detail}`);
+        const err = await res.json();
+        alert(`Failed to create dealer: ${err.detail}`);
       }
-    } catch (error) {
-      console.error('Failed to create dealer:', error);
+    } catch {
       alert('Failed to create dealer');
     }
   };
 
   const handleDeleteDealer = async (id: number) => {
     if (!confirm('Are you sure you want to delete this dealer?')) return;
-
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/admin/dealers/${id}`), {
+      const res = await fetch(apiUrl(`/admin/dealers/${id}`), {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (response.ok) {
+      if (res.ok) {
         setDealers(dealers.filter(d => d.id !== id));
-        alert('Dealer deleted successfully');
+        setTotal(t => t - 1);
+      } else {
+        alert('Failed to delete dealer');
       }
-    } catch (error) {
-      console.error('Failed to delete dealer:', error);
+    } catch {
       alert('Failed to delete dealer');
     }
   };
@@ -113,148 +132,147 @@ export default function AdminDealersTab() {
   const handleToggleVerified = async (dealer: any) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/admin/dealers/${dealer.id}`), {
+      const res = await fetch(apiUrl(`/admin/dealers/${dealer.id}`), {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          verified: !dealer.verified
-        })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ verified: !dealer.verified }),
       });
-
-      if (response.ok) {
-        fetchDealers();
+      if (res.ok) {
+        setDealers(dealers.map(d => d.id === dealer.id ? { ...d, verified: !dealer.verified } : d));
       }
-    } catch (error) {
-      console.error('Failed to update dealer:', error);
+    } catch {
+      console.error('Failed to update dealer');
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-8">Loading dealers...</div>;
-  }
+  const handleSyncStripe = async (dealer: any) => {
+    setActionLoading(dealer.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${dealer.id}/sync-stripe`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDealers(dealers.map(d => d.id === dealer.id ? { ...d, ...data.user } : d));
+        const changes = Object.keys(data.updated || {});
+        showMsg(dealer.id, 'success', changes.length ? `Synced: ${changes.join(', ')} updated` : 'Already up-to-date');
+      } else {
+        showMsg(dealer.id, 'error', data.detail || 'Sync failed');
+      }
+    } catch {
+      showMsg(dealer.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Dealer Management</h2>
+      {/* Header */}
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
+        <div>
+          <h2 className="text-2xl font-bold text-secondary">Dealer Management</h2>
+          {!loading && <p className="text-xs text-dark/50 mt-0.5">{total.toLocaleString()} dealer{total !== 1 ? 's' : ''} found</p>}
+        </div>
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition"
         >
           {showCreateForm ? 'Cancel' : '+ Add Dealer'}
         </button>
       </div>
 
+      {/* Filters */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search name, email, company..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+          />
+        </div>
+        <select
+          value={filterSubStatus}
+          onChange={e => setFilterSubStatus(e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+        >
+          <option value="">All Subscription States</option>
+          <option value="active">Active Subscription</option>
+          <option value="lapsed">Lapsed / Cancelled</option>
+          <option value="trial">Trial</option>
+          <option value="never_paid">Never Paid</option>
+          <option value="always_free">Always Free</option>
+        </select>
+      </div>
+
       {/* Create Dealer Form */}
       {showCreateForm && (
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <h3 className="text-xl font-semibold mb-4">Create New Dealer</h3>
+        <div className="bg-white rounded-xl shadow border border-gray-100 p-6 mb-6">
+          <h3 className="text-lg font-semibold text-secondary mb-4">Create New Dealer</h3>
           <form onSubmit={handleCreateDealer} className="grid grid-cols-2 gap-4">
+            {[
+              { label: 'Name *', key: 'name', type: 'text', required: true },
+              { label: 'Company Name', key: 'company_name', type: 'text', required: false },
+            ].map(({ label, key, type, required }) => (
+              <div key={key}>
+                <label className="block text-sm font-medium text-dark/70 mb-1">{label}</label>
+                <input type={type} required={required} value={(formData as any)[key]}
+                  onChange={e => setFormData({ ...formData, [key]: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+              </div>
+            ))}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Company Name
-              </label>
-              <input
-                type="text"
-                value={formData.company_name}
-                onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email *
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              <label className="block text-sm font-medium text-dark/70 mb-1">Email *</label>
+              <input type="email" required value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
                 placeholder="dealer@example.com"
-              />
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
+              <label className="block text-sm font-medium text-dark/70 mb-1">Phone</label>
+              <input type="tel" value={formData.phone}
+                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City
-              </label>
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) => setFormData({...formData, city: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
+              <label className="block text-sm font-medium text-dark/70 mb-1">City</label>
+              <input type="text" value={formData.city}
+                onChange={e => setFormData({ ...formData, city: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                State
-              </label>
-              <input
-                type="text"
-                value={formData.state}
-                onChange={(e) => setFormData({...formData, state: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
+              <label className="block text-sm font-medium text-dark/70 mb-1">State</label>
+              <input type="text" value={formData.state}
+                onChange={e => setFormData({ ...formData, state: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
             </div>
-
-            <div className="col-span-2 flex gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.verified}
-                  onChange={(e) => setFormData({...formData, verified: e.target.checked})}
-                  className="rounded"
-                />
-                <span className="text-sm">Verified</span>
+            <div className="col-span-2 flex gap-6">
+              <label className="flex items-center gap-2 text-sm text-dark/70 cursor-pointer">
+                <input type="checkbox" checked={formData.verified}
+                  onChange={e => setFormData({ ...formData, verified: e.target.checked })}
+                  className="rounded border-gray-300" />
+                Verified
               </label>
-
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({...formData, active: e.target.checked})}
-                  className="rounded"
-                />
-                <span className="text-sm">Active</span>
+              <label className="flex items-center gap-2 text-sm text-dark/70 cursor-pointer">
+                <input type="checkbox" checked={formData.active}
+                  onChange={e => setFormData({ ...formData, active: e.target.checked })}
+                  className="rounded border-gray-300" />
+                Active
               </label>
             </div>
-
             <div className="col-span-2">
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-              >
+              <button type="submit" className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition">
                 Create Dealer
               </button>
             </div>
@@ -263,87 +281,142 @@ export default function AdminDealersTab() {
       )}
 
       {/* Dealers Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Dealer
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Contact
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Location
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Status
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {dealers.length === 0 ? (
+      <div className="bg-white rounded-xl shadow border border-gray-100 overflow-x-auto">
+        {loading ? (
+          <div className="text-center py-12 text-dark/50 text-sm">Loading dealers...</div>
+        ) : dealers.length === 0 ? (
+          <div className="text-center py-12 text-dark/50 text-sm">No dealers match the current filters.</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                  No dealers found. Click "Add Dealer" to create one.
-                </td>
+                {['Dealer', 'Contact', 'Subscription', 'Listings', 'Verified', 'Actions'].map((h, i) => (
+                  <th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 5 ? 'text-right pr-6' : ''}`}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ) : (
-              dealers.map((dealer) => (
-                <tr key={dealer.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{dealer.name}</div>
-                    <div className="text-sm text-gray-500">{dealer.company_name}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{dealer.email}</div>
-                    <div className="text-sm text-gray-500">{dealer.phone}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">
-                      {dealer.city && dealer.state 
-                        ? `${dealer.city}, ${dealer.state}`
-                        : dealer.city || dealer.state || 'N/A'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleToggleVerified(dealer)}
-                        className={`px-2 py-1 rounded text-xs ${
-                          dealer.verified
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {dealer.verified ? '✓ Verified' : 'Not Verified'}
-                      </button>
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        dealer.active
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {dealer.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleDeleteDealer(dealer.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-50">
+              {dealers.map(dealer => {
+                const subBadge = getSubscriptionBadge(dealer);
+                return (
+                  <>
+                    <tr key={dealer.id} className="hover:bg-gray-50 transition">
+                      {/* Dealer name/company */}
+                      <td className="px-4 py-3 min-w-[160px]">
+                        <div className="font-medium text-secondary text-sm">{dealer.name}</div>
+                        {dealer.company_name && <div className="text-xs text-dark/50">{dealer.company_name}</div>}
+                        {dealer.stripe_subscription_id && (
+                          <div className="text-[10px] text-dark/30 font-mono mt-0.5 truncate max-w-[150px]" title={dealer.stripe_subscription_id}>
+                            sub: …{dealer.stripe_subscription_id.slice(-8)}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Contact */}
+                      <td className="px-4 py-3 min-w-[160px]">
+                        <div className="text-sm text-dark/80">{dealer.email}</div>
+                        {dealer.phone && <div className="text-xs text-dark/50">{dealer.phone}</div>}
+                        <div className="text-xs text-dark/40 mt-0.5">
+                          {new Date(dealer.created_at).toLocaleDateString()}
+                        </div>
+                      </td>
+
+                      {/* Subscription */}
+                      <td className="px-4 py-3 whitespace-nowrap min-w-[130px]">
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${subBadge.bg} ${subBadge.text}`}>
+                          {subBadge.label}
+                        </span>
+                        {dealer.trial_active && dealer.trial_end_date && (
+                          <div className="text-[10px] text-dark/40 mt-0.5">
+                            ends {new Date(dealer.trial_end_date).toLocaleDateString()}
+                          </div>
+                        )}
+                        <div className={`text-[10px] mt-0.5 ${dealer.active ? 'text-green-600' : 'text-red-500'}`}>
+                          account {dealer.active ? 'active' : 'inactive'}
+                        </div>
+                      </td>
+
+                      {/* Listings */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm font-medium text-secondary">{dealer.active_listings}</div>
+                        <div className="text-xs text-dark/40">{dealer.total_listings} total</div>
+                      </td>
+
+                      {/* Verified toggle */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button
+                          onClick={() => handleToggleVerified(dealer)}
+                          className={`px-2 py-0.5 rounded text-xs font-semibold transition ${
+                            dealer.verified
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {dealer.verified ? '✓ Verified' : 'Unverified'}
+                        </button>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {(dealer.stripe_customer_id || dealer.stripe_subscription_id) && (
+                            <button
+                              onClick={() => handleSyncStripe(dealer)}
+                              disabled={actionLoading === dealer.id}
+                              title="Pull latest subscription status from Stripe"
+                              className="px-2.5 py-1 text-xs bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition disabled:opacity-50"
+                            >
+                              {actionLoading === dealer.id ? '...' : 'Sync Stripe'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteDealer(dealer.id)}
+                            className="px-2.5 py-1 text-xs bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Per-row feedback */}
+                    {actionMsg?.id === dealer.id && (
+                      <tr key={`msg-${dealer.id}`}>
+                        <td colSpan={6} className="px-4 pb-2 pt-0">
+                          <div className={`text-xs px-3 py-1.5 rounded-md ${
+                            actionMsg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                          }`}>{actionMsg.text}</div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-xs text-dark/50">Page {page + 1} of {totalPages} · {total.toLocaleString()} total</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition"
+            >← Prev</button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition"
+            >Next →</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
