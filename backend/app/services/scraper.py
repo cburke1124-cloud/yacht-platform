@@ -114,10 +114,13 @@ class OptimizedYachtScraper:
 
     def _looks_like_single_listing(self, text: str) -> bool:
         lower = text.lower()
-        signals = ["price", "length", "year", "make", "model", "beam", "draft",
-                   "loa", "inquire", "contact broker", "request info", "engine",
-                   "fuel", "cabin", "berth"]
-        return sum(1 for s in signals if s in lower) >= 4
+        signals = [
+            "price", "length", "year", "make", "model", "beam", "draft",
+            "loa", "inquire", "contact broker", "request info", "engine",
+            "fuel", "cabin", "berth", "stateroom", "vessel", "hull",
+            "horsepower", "knots", "marina", "tender", "saloon", "salon",
+        ]
+        return sum(1 for s in signals if s in lower) >= 3
 
     def find_listing_urls(self, site_url: str, max_pages: int = 30) -> List[str]:
         """
