@@ -112,15 +112,19 @@ class OptimizedYachtScraper:
         re.IGNORECASE,
     )
 
-    def _looks_like_single_listing(self, text: str) -> bool:
+    def _looks_like_single_listing(self, text: str, extract_price_fn=None) -> bool:
+        """Returns True only if the page has a numeric price AND enough vessel-specific signals."""
+        # Require a real dollar amount — prevents marketing pages that mention "price" in prose
+        if extract_price_fn and not extract_price_fn(text):
+            return False
         lower = text.lower()
         signals = [
-            "price", "length", "year", "make", "model", "beam", "draft",
+            "length", "year", "make", "model", "beam", "draft",
             "loa", "inquire", "contact broker", "request info", "engine",
             "fuel", "cabin", "berth", "stateroom", "vessel", "hull",
             "horsepower", "knots", "marina", "tender", "saloon", "salon",
         ]
-        return sum(1 for s in signals if s in lower) >= 3
+        return sum(1 for s in signals if s in lower) >= 2
 
     def find_listing_urls(self, site_url: str, max_pages: int = 30) -> List[str]:
         """
@@ -133,8 +137,10 @@ class OptimizedYachtScraper:
 
         visited_pages: set = set()
         listing_urls: set = set()
+        ever_queued: set = set()  # tracks ALL URLs ever added to queue — prevents re-queuing
         # Queue entries are (url, from_start_page)
         queue: List[tuple] = [(site_url, True)]
+        ever_queued.add(site_url)
 
         # URL path patterns that strongly indicate a single listing detail page
         listing_path_patterns = [
@@ -199,7 +205,6 @@ class OptimizedYachtScraper:
             soup = BeautifulSoup(html, "html.parser")
             found_listing_link = False
 
-            queued_urls = {u for u, _ in queue}
             for a in soup.find_all("a", href=True):
                 href = a["href"].strip()
                 if skip_re.search(href):
@@ -210,7 +215,7 @@ class OptimizedYachtScraper:
 
                 if urlparse(abs_clean).netloc != parsed_base.netloc:
                     continue
-                if abs_clean in visited_pages or abs_clean in queued_urls:
+                if abs_clean in visited_pages:
                     continue
 
                 path = urlparse(abs_clean).path
@@ -218,22 +223,23 @@ class OptimizedYachtScraper:
                 if looks_like_listing(abs_clean):
                     listing_urls.add(abs_clean)
                     found_listing_link = True
-                elif is_inventory_page(path.lower()):
-                    queue.append((abs_clean, False))
-                    queued_urls.add(abs_clean)
-                elif from_start and not self._NON_LISTING_PATHS.search(path):
-                    # On the homepage, follow ALL internal sub-page links that aren't
-                    # obviously non-listing pages (contact/about/etc).
-                    # This handles sites where listings are at non-standard URL shapes.
-                    queue.append((abs_clean, False))
-                    queued_urls.add(abs_clean)
+                elif abs_clean not in ever_queued:
+                    if is_inventory_page(path.lower()):
+                        queue.append((abs_clean, False))
+                        ever_queued.add(abs_clean)
+                    elif from_start and not self._NON_LISTING_PATHS.search(path):
+                        # On the homepage, follow ALL internal sub-page links that aren't
+                        # obviously non-listing pages (contact/about/etc).
+                        # This handles sites where listings are at non-standard URL shapes.
+                        queue.append((abs_clean, False))
+                        ever_queued.add(abs_clean)
 
             # Content-sniff fallback: if we visited a page that was linked from the
             # homepage and it has no conventional listing sub-links, check if the page
             # itself looks like a single vessel detail page (small brokers often do this).
             if not from_start and not found_listing_link and clean_url != site_url:
                 text = self.clean_html(html)
-                if self._looks_like_single_listing(text):
+                if self._looks_like_single_listing(text, self.extract_price_from_text):
                     listing_urls.add(clean_url)
 
         return list(listing_urls)
@@ -423,6 +429,20 @@ Content: {content[:12000]}"""
             yacht_data = self.scrape_with_ai(text, url, partial)
         else:
             yacht_data = partial
+
+        # Title fallback: use the HTML <title> tag if AI didn't return one
+        # (handles case where AI is unavailable or returns incomplete data)
+        if not yacht_data.get("title"):
+            soup_title = BeautifulSoup(html, "html.parser").find("title")
+            if soup_title:
+                raw_title = soup_title.get_text(strip=True)
+                # Strip common site suffixes like " - Broker Name" or " | Site"
+                for sep in [" - ", " | ", " — ", " :: "]:
+                    if sep in raw_title:
+                        raw_title = raw_title.split(sep)[0].strip()
+                        break
+                if len(raw_title) > 3:
+                    yacht_data["title"] = raw_title
 
         images = self.extract_images(html, url)
         yacht_data.update({
