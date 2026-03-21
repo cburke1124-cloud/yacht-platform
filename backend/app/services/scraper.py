@@ -100,82 +100,135 @@ class OptimizedYachtScraper:
             return False, f"Error: {str(e)}"
 
     # ---------------------------------------------------------
-    # INVENTORY DISCOVERY â€” find all listing URLs on a broker site
     # ---------------------------------------------------------
-    def find_listing_urls(self, site_url: str, max_pages: int = 20) -> List[str]:
+    # INVENTORY DISCOVERY - find all listing URLs on a broker site
+    # ---------------------------------------------------------
+
+    # Paths that are definitely NOT listings (contact / about / admin etc.)
+    _NON_LISTING_PATHS = re.compile(
+        r"/(about|contact|team|staff|news|blog|press|careers|privacy|terms|faq|"
+        r"services|newsletter|testimonials|financing|insurance|sitemap|login|"
+        r"register|account|cart|checkout|wp-admin|wp-login|wp-json|feed|rss)(/?$|/)",
+        re.IGNORECASE,
+    )
+
+    def _looks_like_single_listing(self, text: str) -> bool:
+        lower = text.lower()
+        signals = ["price", "length", "year", "make", "model", "beam", "draft",
+                   "loa", "inquire", "contact broker", "request info", "engine",
+                   "fuel", "cabin", "berth"]
+        return sum(1 for s in signals if s in lower) >= 4
+
+    def find_listing_urls(self, site_url: str, max_pages: int = 30) -> List[str]:
         """
-        Crawl a broker's inventory/listings page (and paginated pages)
-        and return a de-duped list of individual listing URLs.
+        Crawl a broker site and return a de-duped list of individual listing URLs.
+        Handles both conventional /listings/ sub-directories AND sites that put
+        listings directly on the homepage or use non-standard URL structures.
         """
         parsed_base = urlparse(site_url)
         base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
 
         visited_pages: set = set()
         listing_urls: set = set()
-        queue = [site_url]
+        # Queue entries are (url, from_start_page)
+        queue: List[tuple] = [(site_url, True)]
 
-        # Patterns likely to indicate a single-listing detail page (not inventory index)
+        # URL path patterns that strongly indicate a single listing detail page
         listing_path_patterns = [
             r"/listing[s]?/",
             r"/boat[s]?/",
             r"/yacht[s]?/",
             r"/vessel[s]?/",
             r"/sale[s]?/",
+            r"/for-sale/",
+            r"/available/[^/]+",
+            r"/detail[s]?/",
+            r"/view/",
+            r"/fleet/[^/]+",
             r"/inventory/[^/]+/?$",
-            r"/\d{4,}/",          # numeric IDs
+            r"/motor.?yacht[s]?/",
+            r"/sail.?boat[s]?/",
+            r"/sailing[s]?/[^/]+",
+            r"/catamaran[s]?/",
+            r"/powerboat[s]?/",
+            r"/\d{4,}/",
             r"-for-sale",
+            r"-yacht$",
+            r"-boat$",
         ]
 
-        # Patterns to skip (pagination, anchors, external, assets)
-        skip_patterns = [
-            r"\.(css|js|jpg|jpeg|png|gif|svg|pdf|xml|ico)($|\?)",
-            r"^mailto:", r"^tel:", r"javascript:",
+        # Keywords in a path that suggest an inventory index page worth crawling deeper
+        inventory_keywords = [
+            "/inventory", "/listings", "/boats", "/yachts", "/search", "/page",
+            "/fleet", "/available", "/for-sale", "/vessels", "/buy",
+            "/powerboats", "/sailboats", "/catamarans", "/motor-yachts",
+            "/our-boats", "/our-yachts", "/center-console", "/express-cruiser",
         ]
 
-        def looks_like_listing(href: str) -> bool:
-            for p in listing_path_patterns:
-                if re.search(p, href, re.IGNORECASE):
-                    return True
-            return False
+        skip_re = re.compile(
+            r"\.(css|js|jpg|jpeg|png|gif|svg|pdf|xml|ico|woff2?|ttf|map)($|\?)"
+            r"|^mailto:|^tel:|javascript:",
+            re.IGNORECASE,
+        )
 
-        def should_skip(href: str) -> bool:
-            for p in skip_patterns:
-                if re.search(p, href, re.IGNORECASE):
-                    return True
-            return False
+        def looks_like_listing(url: str) -> bool:
+            return any(re.search(p, url, re.IGNORECASE) for p in listing_path_patterns)
+
+        def is_inventory_page(path: str) -> bool:
+            return any(kw in path for kw in inventory_keywords)
 
         pages_crawled = 0
         while queue and pages_crawled < max_pages:
-            page_url = queue.pop(0)
-            if page_url in visited_pages:
+            page_url, from_start = queue.pop(0)
+            clean_url = page_url.split("#")[0].split("?")[0]
+            if clean_url in visited_pages:
                 continue
-            visited_pages.add(page_url)
+            visited_pages.add(clean_url)
             pages_crawled += 1
 
-            html = self.fetch_page(page_url)
+            html = self.fetch_page(clean_url)
             if not html:
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
+            found_listing_link = False
 
+            queued_urls = {u for u, _ in queue}
             for a in soup.find_all("a", href=True):
                 href = a["href"].strip()
-                if should_skip(href):
+                if skip_re.search(href):
                     continue
 
                 absolute = urljoin(base_domain, href) if not href.startswith("http") else href
+                abs_clean = absolute.split("#")[0].split("?")[0]
 
-                # Only follow links on the same domain
-                if urlparse(absolute).netloc != parsed_base.netloc:
+                if urlparse(abs_clean).netloc != parsed_base.netloc:
+                    continue
+                if abs_clean in visited_pages or abs_clean in queued_urls:
                     continue
 
-                if looks_like_listing(absolute):
-                    listing_urls.add(absolute.split("#")[0].split("?")[0])
-                elif absolute not in visited_pages and absolute not in queue:
-                    # Follow inventory/search/paginated pages
-                    path = urlparse(absolute).path.lower()
-                    if any(kw in path for kw in ["/inventory", "/listings", "/boats", "/yachts", "/search", "/page", "/fleet"]):
-                        queue.append(absolute)
+                path = urlparse(abs_clean).path
+
+                if looks_like_listing(abs_clean):
+                    listing_urls.add(abs_clean)
+                    found_listing_link = True
+                elif is_inventory_page(path.lower()):
+                    queue.append((abs_clean, False))
+                    queued_urls.add(abs_clean)
+                elif from_start and not self._NON_LISTING_PATHS.search(path):
+                    # On the homepage, follow ALL internal sub-page links that aren't
+                    # obviously non-listing pages (contact/about/etc).
+                    # This handles sites where listings are at non-standard URL shapes.
+                    queue.append((abs_clean, False))
+                    queued_urls.add(abs_clean)
+
+            # Content-sniff fallback: if we visited a page that was linked from the
+            # homepage and it has no conventional listing sub-links, check if the page
+            # itself looks like a single vessel detail page (small brokers often do this).
+            if not from_start and not found_listing_link and clean_url != site_url:
+                text = self.clean_html(html)
+                if self._looks_like_single_listing(text):
+                    listing_urls.add(clean_url)
 
         return list(listing_urls)
 
@@ -324,11 +377,20 @@ Content: {content[:12000]}"""
     def extract_images(self, html: str, base_url: str) -> List[str]:
         soup = BeautifulSoup(html, "html.parser")
         images = []
+        skip_keywords = ["logo", "icon", "avatar", "banner", "/ad", "spacer", "pixel", "tracking"]
         for img in soup.find_all("img"):
-            src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
-            if src and not any(skip in src.lower() for skip in ["logo", "icon", "avatar", "banner", "ad"]):
+            src = (
+                img.get("src") or img.get("data-src") or img.get("data-lazy-src")
+                or img.get("data-original") or img.get("data-image") or img.get("data-full")
+            )
+            if not src and img.get("srcset"):
+                candidates = [s.strip().split()[0] for s in img["srcset"].split(",") if s.strip()]
+                src = candidates[-1] if candidates else None
+            if src and not any(kw in src.lower() for kw in skip_keywords):
                 absolute = urljoin(base_url, src)
-                if absolute.startswith("http"):
+                if absolute.startswith("http") and any(
+                    absolute.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+                ):
                     images.append(absolute)
         return list(dict.fromkeys(images))[:15]
 
