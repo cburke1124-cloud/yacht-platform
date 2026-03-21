@@ -183,7 +183,10 @@ class OptimizedYachtScraper:
         pages_crawled = 0
         while queue and pages_crawled < max_pages:
             page_url, from_start = queue.pop(0)
-            clean_url = page_url.split("#")[0].split("?")[0]
+            clean_url = page_url.split("#")[0].split("?")[0].rstrip("/")
+            # Normalize http -> https to avoid double-visiting the same page
+            if clean_url.startswith("http://"):
+                clean_url = "https://" + clean_url[7:]
             if clean_url in visited_pages:
                 continue
             visited_pages.add(clean_url)
@@ -413,8 +416,10 @@ Content: {content[:12000]}"""
             regex_specs["price"] = price
 
         partial = {**(structured or {}), **regex_specs}
-        critical = ["title", "make", "model", "price"]
-        if not any(field in partial for field in critical):
+        # Call AI whenever title or make/model are missing, not just when everything is missing.
+        # Without AI, listings with only regex-extracted price/year would have no title.
+        needs_ai = not partial.get("title") or not partial.get("make") or not partial.get("model")
+        if needs_ai:
             yacht_data = self.scrape_with_ai(text, url, partial)
         else:
             yacht_data = partial
