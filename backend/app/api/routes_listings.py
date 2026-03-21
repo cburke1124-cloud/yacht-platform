@@ -1116,7 +1116,7 @@ def get_listing_contact_info(listing_id: int, db: Session = Depends(get_db)):
                 "title": getattr(owner, "role", None) or "Sales Representative",
                 "email": owner.email,
                 "phone": getattr(owner, "phone", None),
-                "photo_url": getattr(owner, "photo_url", None),
+                "photo_url": getattr(owner, "profile_photo_url", None),
                 "bio": getattr(owner, "bio", None),
             },
         }

@@ -66,7 +66,7 @@ export default function RouteGuard({
         return;
       }
 
-      if (pathname.startsWith('/dashboard') && user.user_type !== 'dealer' && user.user_type !== 'admin') {
+      if (pathname.startsWith('/dashboard') && user.user_type !== 'dealer' && user.user_type !== 'admin' && user.user_type !== 'team_member') {
         alert('Dealer access required');
         redirectToDashboard(user.user_type);
         return;

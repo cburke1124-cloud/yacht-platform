@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Settings, CheckCircle, RefreshCw, Zap, Link, XCircle, Check } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -41,7 +42,20 @@ type SettingConfig = {
 };
 
 export default function CRMSettings() {
+  const router = useRouter();
   const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { router.replace('/login'); return; }
+    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(u => {
+        if (!u || (u.user_type !== 'dealer' && u.user_type !== 'admin')) {
+          router.replace('/dashboard');
+        }
+      });
+  }, []);
   const [crmType, setCrmType] = useState('');
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);

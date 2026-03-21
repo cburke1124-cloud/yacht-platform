@@ -14,6 +14,7 @@ interface ContactInfo {
     slug?: string;
   };
   sales_contact?: {
+    id: number;
     name: string;
     title?: string;
     email: string;
@@ -105,9 +106,12 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <Building2 size={18} className="text-blue-600" />
-                <h3 className="text-xl font-bold text-gray-900">
+                <button
+                  onClick={() => contact.dealer.slug && router.push(`/dealers/${contact.dealer.slug}`)}
+                  className={`text-xl font-bold ${contact.dealer.slug ? 'text-blue-600 hover:underline cursor-pointer' : 'text-gray-900'} transition-colors`}
+                >
                   {contact.dealer.name}
-                </h3>
+                </button>
               </div>
               
               <div className="space-y-2">
@@ -136,17 +140,8 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
                 >
                   <MessageSquare size={16} />
-                  Contact Broker
+                  Message Broker
                 </button>
-                
-                {contact.dealer.slug && (
-                  <button
-                    onClick={() => router.push(`/dealers/${contact.dealer.slug}`)}
-                    className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
-                  >
-                    View Profile
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -171,9 +166,12 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <User size={16} className="text-gray-600" />
-                  <h4 className="font-bold text-gray-900">
+                  <button
+                    onClick={() => router.push(`/salesmen/${contact.sales_contact!.id}`)}
+                    className="font-bold text-blue-600 hover:underline transition-colors"
+                  >
                     {contact.sales_contact.name}
-                  </h4>
+                  </button>
                 </div>
                 
                 {contact.sales_contact.title && (
@@ -213,7 +211,7 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
                   className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 text-sm font-medium"
                 >
                   <MessageSquare size={16} />
-                  Contact Sales Rep
+                  Message Salesman
                 </button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +32,13 @@ interface Dealer {
   company_name?: string;
   name: string;
   email: string;
+}
+
+interface TeamMember {
+  id: number;
+  name: string;
+  email: string;
+  role?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,18 +81,26 @@ export default function AdminScraperTab() {
   const [runningJob, setRunningJob] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState('');
 
-  // ── Add job form ──
+  // ── Add/Edit job form ──
   const [showAddForm, setShowAddForm] = useState(false);
-  const [form, setForm] = useState({ dealer_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '' });
+  const [editingJob, setEditingJob] = useState<ScraperJob | null>(null);
+  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [formTeamMembers, setFormTeamMembers] = useState<TeamMember[]>([]);
 
   // ── Test tools state ──
   const [testTab, setTestTab] = useState<'single' | 'broker'>('single');
   const [singleUrl, setSingleUrl] = useState('');
+  const [singleDealerId, setSingleDealerId] = useState('');
+  const [singleSalesmanId, setSingleSalesmanId] = useState('');
+  const [singleTeamMembers, setSingleTeamMembers] = useState<TeamMember[]>([]);
   const [singleLoading, setSingleLoading] = useState(false);
   const [singleResult, setSingleResult] = useState<any>(null);
   const [singleError, setSingleError] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ listing_id: number; title: string } | null>(null);
+  const [importError, setImportError] = useState('');
   const [brokerUrl, setBrokerUrl] = useState('');
   const [brokerLoading, setBrokerLoading] = useState(false);
   const [brokerResult, setBrokerResult] = useState<any>(null);
@@ -115,13 +130,22 @@ export default function AdminScraperTab() {
 
   const loadDealers = useCallback(async () => {
     try {
-      const res = await fetch(apiUrl('/admin/dealers'), { headers: authHeaders() });
+      const res = await fetch(apiUrl('/admin/dealers?limit=200'), { headers: authHeaders() });
       const data = await res.json();
       if (data.dealers) setDealers(data.dealers);
     } catch { /* non-critical */ }
   }, []);
 
   useEffect(() => { loadJobs(); loadDealers(); }, [loadJobs, loadDealers]);
+
+  async function loadTeamMembers(dealerId: string, setter: (m: TeamMember[]) => void) {
+    if (!dealerId) { setter([]); return; }
+    try {
+      const res = await fetch(apiUrl(`/scraper/team-members/${dealerId}`), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) setter(data.members);
+    } catch { /* non-critical */ }
+  }
 
   function flash(msg: string) {
     setActionMsg(msg);
@@ -160,30 +184,61 @@ export default function AdminScraperTab() {
     } catch { flash('Failed to delete job'); }
   }
 
-  async function handleCreateJob(e: React.FormEvent) {
+  function handleStartEdit(job: ScraperJob) {
+    setEditingJob(job);
+    setForm({
+      dealer_id: String(job.dealer_id),
+      salesman_id: job.salesman_id ? String(job.salesman_id) : '',
+      site_name: job.site_name || '',
+      broker_url: job.broker_url,
+      schedule_hours: String(job.schedule_hours),
+      notes: job.notes || '',
+      enabled: job.enabled,
+    });
+    loadTeamMembers(String(job.dealer_id), setFormTeamMembers);
+    setFormError('');
+    setShowAddForm(true);
+  }
+
+  function handleCancelForm() {
+    setShowAddForm(false);
+    setEditingJob(null);
+    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true });
+    setFormTeamMembers([]);
+    setFormError('');
+  }
+
+  async function handleSaveJob(e: React.FormEvent) {
     e.preventDefault();
     if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
     if (!form.broker_url) { setFormError('Broker URL is required'); return; }
     setFormSaving(true); setFormError('');
     try {
-      const res = await fetch(apiUrl('/scraper/jobs'), {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          dealer_id: parseInt(form.dealer_id),
-          site_name: form.site_name || form.broker_url,
-          broker_url: form.broker_url,
-          schedule_hours: parseInt(form.schedule_hours) || 24,
-          notes: form.notes || undefined,
-        }),
-      });
+      const body = {
+        dealer_id: parseInt(form.dealer_id),
+        salesman_id: form.salesman_id ? parseInt(form.salesman_id) : null,
+        site_name: form.site_name || form.broker_url,
+        broker_url: form.broker_url,
+        schedule_hours: parseInt(form.schedule_hours) || 24,
+        notes: form.notes || null,
+        enabled: form.enabled,
+      };
+      const isEdit = !!editingJob;
+      const res = await fetch(
+        isEdit ? apiUrl(`/scraper/jobs/${editingJob!.id}`) : apiUrl('/scraper/jobs'),
+        { method: isEdit ? 'PUT' : 'POST', headers: authHeaders(), body: JSON.stringify(body) }
+      );
       const data = await res.json();
       if (data.success) {
-        setJobs(prev => [data.job, ...prev]);
-        setShowAddForm(false);
-        setForm({ dealer_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '' });
-        flash('Scraper job created');
-      } else { setFormError(data.detail || 'Failed to create job'); }
+        if (isEdit) {
+          setJobs(prev => prev.map(j => j.id === editingJob!.id ? data.job : j));
+          flash('Job updated');
+        } else {
+          setJobs(prev => [data.job, ...prev]);
+          flash('Scraper job created');
+        }
+        handleCancelForm();
+      } else { setFormError(data.detail || 'Failed to save job'); }
     } catch { setFormError('Network error'); }
     finally { setFormSaving(false); }
   }
@@ -191,7 +246,7 @@ export default function AdminScraperTab() {
   // ── Test tools ──
   async function handleScrapeSingle() {
     if (!singleUrl) { setSingleError('Please enter a URL'); return; }
-    setSingleLoading(true); setSingleError(''); setSingleResult(null);
+    setSingleLoading(true); setSingleError(''); setSingleResult(null); setImportResult(null); setImportError('');
     try {
       const res = await fetch(apiUrl('/scraper/single'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: singleUrl }) });
       const data = await res.json();
@@ -199,6 +254,26 @@ export default function AdminScraperTab() {
       else setSingleError(data.error || 'Failed to scrape');
     } catch (err: any) { setSingleError(err.message || 'Network error'); }
     finally { setSingleLoading(false); }
+  }
+
+  async function handleImportSingle() {
+    if (!singleResult || !singleDealerId) return;
+    setImportLoading(true); setImportError(''); setImportResult(null);
+    try {
+      const res = await fetch(apiUrl('/scraper/import-single'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          url: singleUrl,
+          dealer_id: parseInt(singleDealerId),
+          salesman_id: singleSalesmanId ? parseInt(singleSalesmanId) : null,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) setImportResult({ listing_id: data.listing_id, title: data.title });
+      else setImportError(data.error || data.detail || 'Import failed');
+    } catch (err: any) { setImportError(err.message || 'Network error'); }
+    finally { setImportLoading(false); }
   }
 
   async function handleScrapeBroker() {
@@ -254,16 +329,19 @@ export default function AdminScraperTab() {
               <button onClick={loadJobs} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg" title="Refresh">
                 <RefreshCw size={16} />
               </button>
-              <button onClick={() => setShowAddForm(v => !v)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
+              <button onClick={() => { handleCancelForm(); setShowAddForm(v => !v); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
                 <Plus size={16} /> Add Job
               </button>
             </div>
           </div>
 
-          {/* Add Job Form */}
+          {/* Add / Edit Job Form */}
           {showAddForm && (
-            <form onSubmit={handleCreateJob} className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl">
-              <h3 className="font-semibold text-gray-900 mb-4">New Scraper Job</h3>
+            <form onSubmit={handleSaveJob} className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">{editingJob ? `Edit Job #${editingJob.id}` : 'New Scraper Job'}</h3>
+                <button type="button" onClick={handleCancelForm} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+              </div>
               {formError && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-center gap-2">
                   <AlertCircle size={16} /> {formError}
@@ -272,13 +350,25 @@ export default function AdminScraperTab() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Broker / Dealer *</label>
-                  <select value={form.dealer_id} onChange={e => setForm(f => ({ ...f, dealer_id: e.target.value }))}
+                  <select value={form.dealer_id} onChange={e => { setForm(f => ({ ...f, dealer_id: e.target.value, salesman_id: '' })); loadTeamMembers(e.target.value, setFormTeamMembers); }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
                     <option value="">— Select a dealer —</option>
                     {dealers.map(d => (
                       <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Assign Salesman <span className="text-gray-400">(optional)</span></label>
+                  <select value={form.salesman_id} onChange={e => setForm(f => ({ ...f, salesman_id: e.target.value }))}
+                    disabled={!form.dealer_id || formTeamMembers.length === 0}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-400">
+                    <option value="">{formTeamMembers.length === 0 ? (form.dealer_id ? 'No team members' : 'Select dealer first') : '— All listings (no specific salesman) —'}</option>
+                    {formTeamMembers.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.role || 'salesperson'})</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Pin all scraped listings to a specific team member.</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Site Label</label>
@@ -311,12 +401,20 @@ export default function AdminScraperTab() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
                 </div>
               </div>
+              <div className="flex items-center gap-2 mt-4">
+                <button type="button" onClick={() => setForm(f => ({ ...f, enabled: !f.enabled }))} className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className={`inline-block w-10 h-5 rounded-full transition-colors ${form.enabled ? 'bg-green-500' : 'bg-gray-300'} relative`}>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </span>
+                  {form.enabled ? 'Enabled — runs on schedule' : 'Disabled — won\'t run automatically'}
+                </button>
+              </div>
               <div className="flex gap-3 mt-4">
                 <button type="submit" disabled={formSaving}
                   className="px-5 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-                  {formSaving ? 'Creating...' : 'Create Job'}
+                  {formSaving ? 'Saving...' : editingJob ? 'Save Changes' : 'Create Job'}
                 </button>
-                <button type="button" onClick={() => { setShowAddForm(false); setFormError(''); }}
+                <button type="button" onClick={handleCancelForm}
                   className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
                   Cancel
                 </button>
@@ -381,6 +479,10 @@ export default function AdminScraperTab() {
                             title="Run now"
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
                             <RefreshCw size={16} className={job.status === 'running' ? 'animate-spin' : ''} />
+                          </button>
+                          <button onClick={() => handleStartEdit(job)} title="Edit job"
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                            <Pencil size={16} />
                           </button>
                           <button onClick={() => handleToggle(job)}
                             title={job.enabled ? 'Pause job' : 'Enable job'}
@@ -450,30 +552,97 @@ export default function AdminScraperTab() {
               <input type="url" value={singleUrl} onChange={e => setSingleUrl(e.target.value)}
                 placeholder="https://broker-website.com/listings/yacht-123"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm" />
+
               {singleError && (
                 <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-center gap-2">
                   <AlertCircle size={16} /> {singleError}
                 </div>
               )}
+
+              <button onClick={handleScrapeSingle} disabled={singleLoading || !singleUrl}
+                className="mt-4 w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+                {singleLoading ? 'Scraping...' : '🔍 Scrape & Preview'}
+              </button>
+
               {singleResult && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle className="text-green-600" size={16} />
-                    <span className="font-medium text-green-800">Successfully extracted!</span>
+                <div className="mt-4 space-y-4">
+                  {/* Scraped data preview */}
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="text-green-600" size={16} />
+                      <span className="font-medium text-green-800">Successfully extracted!</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-green-900 text-xs">
+                      {[['Title', singleResult.title], ['Make/Model', `${singleResult.make || ''} ${singleResult.model || ''}`],
+                        ['Year', singleResult.year], ['Price', singleResult.price ? `$${singleResult.price.toLocaleString()}` : ''],
+                        ['Length', singleResult.length_feet ? `${singleResult.length_feet} ft` : ''],
+                        ['Location', [singleResult.city, singleResult.state].filter(Boolean).join(', ')]
+                      ].map(([k, v]) => v ? <p key={k as string}><strong>{k}:</strong> {v}</p> : null)}
+                    </div>
+                    {singleResult.detected_agent_name && (
+                      <div className="mt-3 pt-3 border-t border-green-300">
+                        <p className="text-xs font-semibold text-green-900 mb-0.5">🧑‍💼 Detected Listing Agent</p>
+                        <p className="text-sm font-medium text-green-800 bg-green-100 inline-block px-2 py-0.5 rounded">{singleResult.detected_agent_name}</p>
+                        <p className="text-xs text-green-700 mt-1">Verify this matches a team member below before importing.</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 gap-1 text-green-900 text-xs">
-                    {[['Title', singleResult.title], ['Make/Model', `${singleResult.make || ''} ${singleResult.model || ''}`],
-                      ['Year', singleResult.year], ['Price', singleResult.price ? `$${singleResult.price.toLocaleString()}` : ''],
-                      ['Length', singleResult.length_feet ? `${singleResult.length_feet} ft` : ''],
-                      ['Location', [singleResult.city, singleResult.state].filter(Boolean).join(', ')]
-                    ].map(([k, v]) => v ? <p key={k as string}><strong>{k}:</strong> {v}</p> : null)}
+
+                  {/* Import panel */}
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-sm font-semibold text-gray-800 mb-3">Import to Database</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Assign to Broker *</label>
+                        <select
+                          value={singleDealerId}
+                          onChange={e => { setSingleDealerId(e.target.value); setSingleSalesmanId(''); loadTeamMembers(e.target.value, setSingleTeamMembers); }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
+                          <option value="">— Select dealer —</option>
+                          {dealers.map(d => (
+                            <option key={d.id} value={d.id}>{d.company_name || d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Assign Salesman
+                          {singleResult.detected_agent_name && <span className="ml-1 text-yellow-600">(detected: {singleResult.detected_agent_name})</span>}
+                        </label>
+                        <select
+                          value={singleSalesmanId}
+                          onChange={e => setSingleSalesmanId(e.target.value)}
+                          disabled={!singleDealerId || singleTeamMembers.length === 0}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-400">
+                          <option value="">{singleTeamMembers.length === 0 ? (singleDealerId ? 'No team members' : 'Select dealer first') : '— Unassigned —'}</option>
+                          {singleTeamMembers.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {importError && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-center gap-2">
+                        <AlertCircle size={16} /> {importError}
+                      </div>
+                    )}
+                    {importResult && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-2">
+                        <CheckCircle size={16} className="text-blue-600" />
+                        Imported! Listing #{importResult.listing_id} — &quot;{importResult.title}&quot;
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleImportSingle}
+                      disabled={importLoading || !singleDealerId}
+                      className="mt-3 w-full px-6 py-2.5 bg-secondary text-white rounded-lg font-medium hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm">
+                      {importLoading ? 'Importing...' : '⬆ Import to Database'}
+                    </button>
                   </div>
                 </div>
               )}
-              <button onClick={handleScrapeSingle} disabled={singleLoading || !singleUrl}
-                className="mt-4 w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
-                {singleLoading ? 'Scraping...' : '🔍 Scrape Listing'}
-              </button>
             </div>
           )}
 

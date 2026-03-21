@@ -152,17 +152,17 @@ function DetailPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+    <div className="fixed top-16 inset-x-0 bottom-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div
-        className="relative w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto flex flex-col"
+        className="relative w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto flex flex-col border-l border-gray-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-800 truncate">
+        <div className="flex items-center justify-between p-4 border-b bg-secondary">
+          <h2 className="text-lg font-semibold text-white truncate">
             {inquiry.sender_name}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">
+          <button onClick={onClose} className="text-white/70 hover:text-white text-xl font-bold">
             ×
           </button>
         </div>
@@ -175,7 +175,7 @@ function DetailPanel({
               {inquiry.sender_email && (
                 <p>
                   <span className="text-gray-400">Email: </span>
-                  <a href={`mailto:${inquiry.sender_email}`} className="text-blue-600 hover:underline">
+                  <a href={`mailto:${inquiry.sender_email}`} className="text-primary hover:underline">
                     {inquiry.sender_email}
                   </a>
                 </p>
@@ -183,7 +183,7 @@ function DetailPanel({
               {inquiry.sender_phone && (
                 <p>
                   <span className="text-gray-400">Phone: </span>
-                  <a href={`tel:${inquiry.sender_phone}`} className="text-blue-600 hover:underline">
+                  <a href={`tel:${inquiry.sender_phone}`} className="text-primary hover:underline">
                     {inquiry.sender_phone}
                   </a>
                 </p>
@@ -208,7 +208,7 @@ function DetailPanel({
             <select
               value={stage}
               onChange={(e) => setStage(e.target.value as Stage)}
-              className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BCDD]"
             >
               {ALL_STAGES.map((s) => (
                 <option key={s} value={s}>{STAGE_META[s].label}</option>
@@ -236,14 +236,14 @@ function DetailPanel({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Short inline note (visible on list view)…"
-              className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BCDD]"
             />
           </section>
 
           <button
             onClick={saveChanges}
             disabled={saving}
-            className="w-full py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+            className="w-full py-2 bg-primary text-white rounded-md text-sm font-semibold hover-primary disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save Changes"}
           </button>
@@ -280,11 +280,11 @@ function DetailPanel({
                 onChange={(e) => setNewNote(e.target.value)}
                 rows={2}
                 placeholder="Add a note…"
-                className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BCDD]"
               />
               <button
                 onClick={addNote}
-                className="self-end px-3 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-700"
+                className="self-end px-3 py-2 bg-secondary text-white rounded-md text-sm hover:bg-secondary/90"
               >
                 Add
               </button>

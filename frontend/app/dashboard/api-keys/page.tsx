@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Copy, AlertTriangle, Check, Key, RefreshCw } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -25,7 +26,20 @@ const sortApiKeys = (keys: APIKey[]) => {
 };
 
 export default function APIKeysPage() {
+  const router = useRouter();
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { router.replace('/login'); return; }
+    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(u => {
+        if (!u || (u.user_type !== 'dealer' && u.user_type !== 'admin')) {
+          router.replace('/dashboard');
+        }
+      });
+  }, []);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [newKeyName, setNewKeyName] = useState('Primary API Key');

@@ -16,13 +16,8 @@ export interface User {
   parent_dealer_id?: number;
   assigned_sales_rep_id?: number;
   agreed_terms?: boolean;
-  permissions?: {
-    can_create_listings: boolean;
-    can_manage_team: boolean;
-    can_view_all_listings: boolean;
-    can_modify_dealer_page: boolean;
-    can_view_analytics: boolean;
-  };
+  // Permissions are stored as { 'create_listings': true } or { 'can_create_listings': true } — both formats handled
+  permissions?: Record<string, boolean>;
 }
 
 type PermissionKey = keyof NonNullable<User['permissions']>;
@@ -138,6 +133,7 @@ export function useAuth() {
         router.push('/sales-rep/dashboard');
         break;
       case 'dealer':
+      case 'team_member':
         router.push('/dashboard');
         break;
       case 'user':
@@ -150,17 +146,16 @@ export function useAuth() {
 
   const hasPermission = (permission: PermissionKey): boolean => {
     if (!user) return false;
-    
-    // Admins have all permissions
     if (user.user_type === 'admin') return true;
-    
-    // Sales reps have limited permissions
+    if (user.user_type === 'dealer') return true;
     if (user.user_type === 'salesman') {
-      return ['can_view_analytics'].includes(permission);
+      return ['can_view_analytics', 'view_analytics'].includes(permission);
     }
-    
-    // Check user-specific permissions
-    return user.permissions?.[permission] ?? false;
+    if (!user.permissions) return false;
+    // Check both 'can_' prefixed and non-prefixed key formats (backend stores without 'can_')
+    const rawKey = permission.startsWith('can_') ? permission.slice(4) : permission;
+    const canKey = permission.startsWith('can_') ? permission : `can_${permission}`;
+    return !!(user.permissions[permission] ?? user.permissions[rawKey] ?? user.permissions[canKey]);
   };
 
   const canAccessRoute = (route: string): boolean => {
@@ -180,7 +175,7 @@ export function useAuth() {
 
     // Dealer dashboard routes
     if (route.startsWith('/dashboard')) {
-      return userType === 'dealer' || userType === 'admin';
+      return userType === 'dealer' || userType === 'admin' || userType === 'team_member';
     }
 
     // User account routes

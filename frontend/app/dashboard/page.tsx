@@ -5,14 +5,14 @@ import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
 import LeadsManager from '@/app/dashboard/inquiries/LeadsManager';
 import {
-  PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, 
+  PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, User,
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
   CheckSquare, X, Archive, RefreshCw, Image, DollarSign,
   Building2, Link2, Link, Upload, CreditCard, Key, CheckCircle,
   XCircle, Check, Zap
 } from 'lucide-react';
 
-type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys';
+type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
 
 interface Listing {
   id: number;
@@ -563,19 +563,32 @@ export default function EnhancedDealerDashboard() {
     );
   }
 
+  // Permission helpers — handles both 'create_listings' and 'can_create_listings' key formats
+  const isDealer = !currentUser || currentUser.user_type === 'dealer' || currentUser.user_type === 'admin';
+  const isTeamMember = currentUser?.user_type === 'team_member';
+  const teamMemberCan = (perm: string): boolean => {
+    if (!currentUser || isDealer) return isDealer;
+    const p = currentUser.permissions as Record<string, boolean> | undefined;
+    if (!p) return false;
+    const raw = perm.startsWith('can_') ? perm.slice(4) : perm;
+    const can = perm.startsWith('can_') ? perm : `can_${perm}`;
+    return !!(p[perm] ?? p[raw] ?? p[can]);
+  };
+
   const tabs = [
     { id: 'listings', label: 'My Listings', icon: BarChart3 },
     { id: 'leads', label: 'Leads', icon: MessageSquare },
     { id: 'media', label: 'Media Gallery', icon: Image },
-    { id: 'bulk', label: 'Bulk Tools', icon: Archive },
-    { id: 'team', label: 'Team', icon: Users },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'crm', label: 'CRM', icon: Link2 },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
+    ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
+    ...(isDealer || teamMemberCan('view_analytics') ? [{ id: 'analytics', label: 'Analytics', icon: BarChart3 }] : []),
+    ...(isDealer || teamMemberCan('manage_team') ? [{ id: 'team', label: 'Team', icon: Users }] : []),
+    ...(isDealer ? [{ id: 'crm', label: 'CRM', icon: Link2 }] : []),
+    ...(isDealer ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
     { id: 'account', label: 'Account', icon: Settings },
-    { id: 'profile', label: 'Broker Page', icon: Building2 },
-    { id: 'api-keys', label: 'API Keys', icon: Key }
-  ];
+    ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
+    ...(isTeamMember ? [{ id: 'salesman-profile', label: 'My Profile', icon: User }] : []),
+    ...(isDealer ? [{ id: 'api-keys', label: 'API Keys', icon: Key }] : []),
+  ] as { id: TabId; label: string; icon: any }[];
 
   const paidTiers = new Set(['basic','plus','pro','premium','private_basic','private_plus','private_pro']);
   const paymentLapsed = currentUser &&
@@ -610,13 +623,15 @@ export default function EnhancedDealerDashboard() {
             <p className="text-gray-600 mt-1">Manage your yacht listings and business</p>
           </div>
           <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={() => window.location.href = '/listings/create'}
-              className="flex items-center gap-2 px-6 py-3 bg-primary text-light rounded-lg hover-primary transition-colors hover-lift font-semibold"
-            >
-              <PlusCircle size={20} />
-              Create Listing
-            </button>
+            {(isDealer || teamMemberCan('create_listings')) && (
+              <button
+                onClick={() => window.location.href = '/listings/create'}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-light rounded-lg hover-primary transition-colors hover-lift font-semibold"
+              >
+                <PlusCircle size={20} />
+                Create Listing
+              </button>
+            )}
           </div>
         </div>
 
@@ -1643,6 +1658,23 @@ export default function EnhancedDealerDashboard() {
                   <p className="text-sm text-gray-600">Learn how to use the API</p>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Salesman Profile Tab */}
+          {activeTab === 'salesman-profile' && (
+            <div className="glass-card p-8">
+              <div className="text-center mb-6">
+                <User className="mx-auto text-primary mb-4" size={64} />
+                <h2 className="text-2xl font-bold text-secondary mb-2">My Profile</h2>
+                <p className="text-gray-600 mb-6">Manage your public profile, bio, and social links</p>
+              </div>
+              <button
+                onClick={() => window.location.href = '/dashboard/salesman-profile'}
+                className="w-full px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors"
+              >
+                Edit My Profile
+              </button>
             </div>
           )}
           </div>

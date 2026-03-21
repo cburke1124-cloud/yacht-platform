@@ -28,6 +28,7 @@ import requests
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing
 from app.exceptions import AuthorizationException, ValidationException
 
@@ -70,6 +71,12 @@ class UpdateJobRequest(BaseModel):
     schedule_hours: Optional[int] = None
     notes: Optional[str] = None
     enabled: Optional[bool] = None
+
+
+class ImportSingleRequest(BaseModel):
+    url: str
+    dealer_id: int
+    salesman_id: Optional[int] = None
 
 
 # -----------------------------------------------------------------------
@@ -269,6 +276,104 @@ def test_broker_inventory(
         "total_found": len(urls),
         "all_urls": urls,
         "previews": previews,
+    }
+
+
+# -----------------------------------------------------------------------
+# IMPORT: scrape a single URL and write it to the DB
+# -----------------------------------------------------------------------
+
+@router.post("/scraper/import-single")
+def import_single_listing(
+    data: ImportSingleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Scrape a single listing URL and create a Listing record assigned to a dealer/salesman."""
+    _require_admin(current_user)
+    if not data.url:
+        raise ValidationException("URL is required")
+
+    from app.services.scraper import OptimizedYachtScraper, _generate_bin, _apply_scraped_data
+    from types import SimpleNamespace
+
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+    scraper = OptimizedYachtScraper(api_key=api_key)
+    raw = scraper.scrape_single_listing(data.url)
+
+    if "error" in raw:
+        return {"success": False, "error": raw["error"]}
+
+    # Check dealer exists
+    dealer = db.query(User).filter(User.id == data.dealer_id).first()
+    if not dealer:
+        raise HTTPException(status_code=404, detail="Dealer not found")
+
+    # Build a job-like namespace so _apply_scraped_data can set ownership
+    job_like = SimpleNamespace(dealer_id=data.dealer_id, salesman_id=data.salesman_id)
+
+    listing = Listing(
+        user_id=data.dealer_id,
+        created_by_user_id=current_user.id,
+        assigned_salesman_id=data.salesman_id,
+        source="scraped",
+        source_url=data.url,
+        status="active",
+        bin=_generate_bin(db),
+        condition="used",
+    )
+    _apply_scraped_data(listing, raw, job_like)
+    db.add(listing)
+    db.flush()
+
+    for img_url in raw.get("images", [])[:10]:
+        db.add(ListingImage(listing_id=listing.id, url=img_url))
+
+    scraped_record = ScrapedListing(
+        job_id=None,
+        listing_id=listing.id,
+        source_url=data.url,
+    )
+    db.add(scraped_record)
+    db.commit()
+    db.refresh(listing)
+
+    return {
+        "success": True,
+        "listing_id": listing.id,
+        "title": listing.title,
+        "detected_agent_name": raw.get("detected_agent_name"),
+        "data": raw,
+    }
+
+
+# -----------------------------------------------------------------------
+# ADMIN: get team members for a given dealer (for salesman assignment)
+# -----------------------------------------------------------------------
+
+@router.get("/scraper/team-members/{dealer_id}")
+def get_dealer_team_members(
+    dealer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    members = (
+        db.query(User)
+        .filter(User.parent_dealer_id == dealer_id, User.active == True)
+        .all()
+    )
+    return {
+        "success": True,
+        "members": [
+            {
+                "id": m.id,
+                "name": f"{m.first_name or ''} {m.last_name or ''}".strip() or m.email,
+                "email": m.email,
+                "role": m.role,
+            }
+            for m in members
+        ],
     }
 
 

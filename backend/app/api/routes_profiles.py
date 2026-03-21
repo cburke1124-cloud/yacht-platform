@@ -198,17 +198,22 @@ def get_salesman_profile(
     db: Session = Depends(get_db)
 ):
     """Get current user's salesman profile."""
+    social_links = getattr(current_user, 'social_links', None) or {}
     return {
         "id": current_user.id,
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "email": current_user.email,
         "phone": current_user.phone,
-        "photo_url": current_user.photo_url,
+        "photo_url": current_user.profile_photo_url,
         "title": current_user.title,
         "bio": current_user.bio,
         "user_type": current_user.user_type,
-        "parent_dealer_id": current_user.parent_dealer_id
+        "parent_dealer_id": current_user.parent_dealer_id,
+        "instagram_url": social_links.get("instagram_url", ""),
+        "linkedin_url": social_links.get("linkedin_url", ""),
+        "facebook_url": social_links.get("facebook_url", ""),
+        "website": social_links.get("website", ""),
     }
 
 
@@ -237,11 +242,19 @@ def update_salesman_profile(
     if "phone" in data:
         current_user.phone = data["phone"]
     if "photo_url" in data:
-        current_user.photo_url = data["photo_url"]
+        current_user.profile_photo_url = data["photo_url"]
     if "title" in data:
         current_user.title = data["title"]
     if "bio" in data:
         current_user.bio = data["bio"]
+    # Social links stored in JSON column
+    social_keys = ("instagram_url", "linkedin_url", "facebook_url", "website")
+    if any(k in data for k in social_keys):
+        existing = dict(getattr(current_user, 'social_links', None) or {})
+        for k in social_keys:
+            if k in data:
+                existing[k] = data[k] or ""
+        current_user.social_links = existing
     
     db.commit()
     db.refresh(current_user)
@@ -254,10 +267,88 @@ def update_salesman_profile(
             "last_name": current_user.last_name,
             "email": current_user.email,
             "phone": current_user.phone,
-            "photo_url": current_user.photo_url,
+            "photo_url": current_user.profile_photo_url,
             "title": current_user.title,
             "bio": current_user.bio
         }
+    }
+
+
+# ===========================
+# PUBLIC SALESMAN PROFILE
+# ===========================
+
+@router.get("/salesmen/{user_id}")
+def get_public_salesman_profile(user_id: int, db: Session = Depends(get_db)):
+    """Public salesman profile — no auth required."""
+    salesman = db.query(User).filter(
+        User.id == user_id,
+        User.user_type == "team_member",
+        User.active == True,
+        User.deleted_at == None,
+    ).first()
+    if not salesman:
+        raise HTTPException(status_code=404, detail="Salesman not found")
+
+    # Fetch parent dealer info
+    dealer_info = None
+    if salesman.parent_dealer_id:
+        dealer = db.query(User).filter(User.id == salesman.parent_dealer_id).first()
+        dealer_profile = (
+            db.query(DealerProfile).filter(DealerProfile.user_id == dealer.id).first()
+            if dealer else None
+        )
+        if dealer:
+            dealer_info = {
+                "id": dealer.id,
+                "name": (dealer_profile.company_name if dealer_profile else None) or dealer.company_name or f"{dealer.first_name or ''} {dealer.last_name or ''}".strip(),
+                "slug": dealer_profile.slug if dealer_profile else None,
+                "logo_url": dealer_profile.logo_url if dealer_profile else None,
+            }
+
+    # Fetch active listings owned by this salesman
+    listings = (
+        db.query(Listing)
+        .filter(Listing.user_id == salesman.id, Listing.status == "active")
+        .order_by(Listing.created_at.desc())
+        .limit(24)
+        .all()
+    )
+
+    social_links = getattr(salesman, 'social_links', None) or {}
+
+    return {
+        "salesman": {
+            "id": salesman.id,
+            "name": f"{salesman.first_name or ''} {salesman.last_name or ''}".strip() or salesman.email,
+            "title": salesman.title or "Sales Representative",
+            "bio": salesman.bio,
+            "email": salesman.email,
+            "phone": salesman.phone,
+            "photo_url": salesman.profile_photo_url,
+            "instagram_url": social_links.get("instagram_url", ""),
+            "linkedin_url": social_links.get("linkedin_url", ""),
+            "facebook_url": social_links.get("facebook_url", ""),
+            "website": social_links.get("website", ""),
+            "dealer": dealer_info,
+        },
+        "listings": [
+            {
+                "id": l.id,
+                "title": l.title,
+                "price": l.price,
+                "currency": l.currency or "USD",
+                "year": l.year,
+                "make": l.make,
+                "model": l.model,
+                "length_feet": l.length_feet,
+                "city": l.city,
+                "state": l.state,
+                "status": l.status,
+                "images": [{"url": img.url} for img in l.images[:1]] if l.images else [],
+            }
+            for l in listings
+        ],
     }
 
 

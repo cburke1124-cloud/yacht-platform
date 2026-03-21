@@ -246,6 +246,40 @@ class OptimizedYachtScraper:
         return "\n".join(chunk for chunk in chunks if chunk)
 
     # ---------------------------------------------------------
+    # AGENT / SALESMAN DETECTION
+    # ---------------------------------------------------------
+    def detect_agent_name(self, html: str, text: str) -> Optional[str]:
+        """Try to extract the listing agent/salesman name from the page."""
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Regex patterns against visible text
+        patterns = [
+            r"(?:listed\s+by|contact\s+agent|your\s+broker|broker\s*[:\-]|agent\s*[:\-]|salesperson\s*[:\-]|presented\s+by|listed\s+with|contact\s*[:\-])\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                candidate = match.group(1).strip()
+                blocked = {"the broker", "our team", "our staff", "a broker", "an agent"}
+                if len(candidate) > 3 and candidate.lower() not in blocked:
+                    return candidate
+
+        # CSS class heuristics
+        agent_classes = re.compile(
+            r"\b(agent|broker|salesperson|contact.name|agent.name|listing.agent|sales.agent)\b",
+            re.I
+        )
+        for tag in soup.find_all(["div", "span", "p", "h3", "h4", "strong"]):
+            cls = " ".join(tag.get("class", []))
+            if agent_classes.search(cls):
+                name_text = tag.get_text(strip=True)
+                words = name_text.split()
+                if 2 <= len(words) <= 4 and all(w[0].isupper() for w in words if w):
+                    return name_text
+
+        return None
+
+    # ---------------------------------------------------------
     # AI EXTRACTION
     # ---------------------------------------------------------
     def scrape_with_ai(self, content: str, url: str, partial_data: Dict = None) -> Dict:
@@ -258,13 +292,13 @@ class OptimizedYachtScraper:
 URL: {url}
 Content: {content[:8000]}
 
-Return ONLY JSON with yacht listing fields."""
+Return ONLY JSON with yacht listing fields. Also include "agent_name" if a listing agent/salesman name is clearly present."""
             else:
                 prompt = f"""Extract yacht listing data from the text below. Return ONLY a JSON object.
 Include: title, make, model, year, price, currency, length_feet, beam_feet, draft_feet,
 cabins, berths, heads, engine_count, engine_hours,
 fuel_type, max_speed_knots, cruising_speed_knots, hull_material, hull_type,
-city, state, country, description, boat_type.
+city, state, country, description, boat_type, agent_name (the listing agent/salesman name if present).
 
 URL: {url}
 Content: {content[:12000]}"""
@@ -327,6 +361,16 @@ Content: {content[:12000]}"""
             "images": images,
             "scraped_at": datetime.utcnow().isoformat(),
         })
+
+        # Surface agent/salesman name for manual assignment
+        detected_agent = self.detect_agent_name(html, text)
+        if not detected_agent and yacht_data.get("agent_name"):
+            detected_agent = yacht_data.pop("agent_name")
+        elif "agent_name" in yacht_data:
+            yacht_data.pop("agent_name")
+        if detected_agent:
+            yacht_data["detected_agent_name"] = detected_agent
+
         return yacht_data
 
 

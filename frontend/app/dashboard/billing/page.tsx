@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Check, CreditCard, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
@@ -105,7 +106,20 @@ function CheckoutForm({ tier }: { tier: string }) {
 }
 
 export default function BillingPage() {
+  const router = useRouter();
   const [plans, setPlans] = useState<Plan[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { router.replace('/login'); return; }
+    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(u => {
+        if (!u || (u.user_type !== 'dealer' && u.user_type !== 'admin')) {
+          router.replace('/dashboard');
+        }
+      });
+  }, []);
   const [currentTier, setCurrentTier] = useState('free');
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [selectedTier, setSelectedTier] = useState<string>('');

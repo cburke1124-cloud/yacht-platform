@@ -32,13 +32,26 @@ type MessageDetail = {
   replies: Reply[];
 };
 
+type Inquiry = {
+  id: number;
+  sender_name: string;
+  sender_email: string;
+  sender_phone: string | null;
+  message: string;
+  lead_stage: string;
+  listing_title: string | null;
+  created_at: string;
+};
+
 export default function MessagesPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<MessageDetail | null>(null);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'new' | 'replied'>('all');
+  const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'inquiries'>('all');
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -65,6 +78,7 @@ export default function MessagesPage() {
       const userData = await response.json();
       setUser(userData);
       await fetchMessages(token);
+      await fetchInquiries(token);
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('token');
@@ -86,6 +100,20 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
+    }
+  };
+
+  const fetchInquiries = async (token: string) => {
+    try {
+      const response = await fetch(apiUrl('/inquiries'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setInquiries(data.items ?? data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch inquiries:', error);
     }
   };
 
@@ -207,11 +235,24 @@ export default function MessagesPage() {
   };
 
   const filteredMessages = messages.filter(msg => {
+    if (filter === 'inquiries') return false;
     if (filter === 'all') return true;
     if (filter === 'new') return msg.status === 'new' || msg.status === 'read';
     if (filter === 'replied') return msg.status === 'replied';
     return true;
   });
+
+  const getStageStyle = (stage: string) => {
+    switch (stage) {
+      case 'new': return 'bg-gray-100 text-gray-700';
+      case 'contacted': return 'bg-blue-100 text-blue-700';
+      case 'qualified': return 'bg-yellow-100 text-yellow-700';
+      case 'proposal': return 'bg-orange-100 text-orange-700';
+      case 'won': return 'bg-green-100 text-green-700';
+      case 'lost': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   if (loading) {
     return (
@@ -228,12 +269,12 @@ export default function MessagesPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold text-blue-600">Messages & Support</h1>
+              <h1 className="text-2xl font-bold text-secondary">Messages & Support</h1>
             </div>
             <div className="flex items-center gap-4">
               <button
                 onClick={handleCreateTicket}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-primary text-white rounded-lg hover-primary"
               >
                 + New Support Ticket
               </button>
@@ -257,27 +298,57 @@ export default function MessagesPage() {
               <div className="flex flex-col md:flex-row">
                 <div className="md:w-44 border-b md:border-b-0 md:border-r border-gray-200 bg-gray-50 p-3 space-y-2">
                   {[
-                    { id: 'all' as const, label: 'All', count: messages.length },
+                    { id: 'all' as const, label: 'Support', count: messages.length },
                     { id: 'new' as const, label: 'New', count: messages.filter(m => m.status === 'new' || m.status === 'read').length },
-                    { id: 'replied' as const, label: 'Replied', count: messages.filter(m => m.status === 'replied').length }
+                    { id: 'replied' as const, label: 'Replied', count: messages.filter(m => m.status === 'replied').length },
+                    { id: 'inquiries' as const, label: 'Inquiries', count: inquiries.length }
                   ].map((tab) => (
                     <button
                       key={tab.id}
-                      onClick={() => setFilter(tab.id)}
+                      onClick={() => { setFilter(tab.id); setSelectedMessage(null); setSelectedInquiry(null); }}
                       className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors ${
                         filter === tab.id
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-primary text-white'
                           : 'bg-white text-gray-700 hover:bg-gray-100'
                       }`}
                     >
                       <span>{tab.label}</span>
-                      <span>({tab.count})</span>
+                      <span className="text-xs opacity-75">({tab.count})</span>
                     </button>
                   ))}
                 </div>
 
                 <div className="flex-1 divide-y max-h-[600px] overflow-y-auto">
-                {filteredMessages.length === 0 ? (
+                {filter === 'inquiries' ? (
+                  inquiries.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                      <Mail size={48} className="mx-auto mb-4 text-gray-400" />
+                      <p>No inquiries yet</p>
+                    </div>
+                  ) : (
+                    inquiries.map((inquiry) => (
+                      <button
+                        key={inquiry.id}
+                        onClick={() => { setSelectedInquiry(inquiry); setSelectedMessage(null); }}
+                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                          selectedInquiry?.id === inquiry.id ? 'bg-[#01BCDD]/10' : ''
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-1">
+                          <p className="text-sm font-semibold text-gray-900">{inquiry.sender_name}</p>
+                          <span className="text-xs text-gray-500">{formatDate(inquiry.created_at)}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-1">{inquiry.listing_title ?? 'General Inquiry'}</p>
+                        <p className="text-sm text-gray-600 line-clamp-2">{inquiry.message}</p>
+                        <div className="mt-2">
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${getStageStyle(inquiry.lead_stage)}`}>
+                            {inquiry.lead_stage ?? 'new'}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  )
+                ) : filteredMessages.length === 0 ? (
                   <div className="p-8 text-center text-gray-500">
                     <Mail size={48} className="mx-auto mb-4 text-gray-400" />
                     <p>No messages</p>
@@ -286,9 +357,9 @@ export default function MessagesPage() {
                   filteredMessages.map((message) => (
                     <button
                       key={message.id}
-                      onClick={() => loadMessageDetail(message.id)}
+                      onClick={() => { loadMessageDetail(message.id); setSelectedInquiry(null); }}
                       className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
-                        selectedMessage?.message.id === message.id ? 'bg-blue-50' : ''
+                        selectedMessage?.message.id === message.id ? 'bg-[#01BCDD]/10' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between mb-2">
@@ -327,7 +398,42 @@ export default function MessagesPage() {
 
           {/* Message Detail */}
           <div className="lg:col-span-2">
-            {selectedMessage ? (
+            {selectedInquiry ? (
+              <div className="bg-white rounded-lg shadow">
+                <div className="p-6 border-b bg-secondary">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-white mb-1">{selectedInquiry.sender_name}</h3>
+                      <p className="text-sm text-white/70">{selectedInquiry.listing_title ?? 'General Inquiry'}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStageStyle(selectedInquiry.lead_stage)}`}>
+                      {selectedInquiry.lead_stage ?? 'new'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/50 mt-2">{formatDate(selectedInquiry.created_at)}</p>
+                </div>
+                <div className="p-6 bg-gray-50 border-b">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</span>
+                  <p className="text-sm text-gray-900 mt-1">
+                    <a href={`mailto:${selectedInquiry.sender_email}`} className="text-primary hover:underline">{selectedInquiry.sender_email}</a>
+                  </p>
+                  {selectedInquiry.sender_phone && (
+                    <p className="text-sm text-gray-900">
+                      <a href={`tel:${selectedInquiry.sender_phone}`} className="text-primary hover:underline">{selectedInquiry.sender_phone}</a>
+                    </p>
+                  )}
+                </div>
+                <div className="p-6">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Message</span>
+                  <div className="bg-gray-50 rounded-lg p-4 mt-2 border">
+                    <p className="text-gray-800 whitespace-pre-wrap">{selectedInquiry.message}</p>
+                  </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-sm text-gray-500">Manage pipeline stage, add notes, and track progress in the <a href="/dashboard" className="text-primary hover:underline font-medium">Leads Manager</a>.</p>
+                  </div>
+                </div>
+              </div>
+            ) : selectedMessage ? (
               <div className="bg-white rounded-lg shadow">
                 {/* Message Header */}
                 <div className="p-6 border-b">
@@ -376,7 +482,7 @@ export default function MessagesPage() {
                     <h4 className="text-sm font-semibold text-gray-700 mb-4">Replies ({selectedMessage.replies.length})</h4>
                     <div className="space-y-4">
                       {selectedMessage.replies.map((reply: Reply) => (
-                        <div key={reply.id} className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                        <div key={reply.id} className="bg-[#01BCDD]/10 rounded-lg p-4 border border-[#01BCDD]/20">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-semibold text-gray-900">{reply.sender_name}</span>
                             <span className="text-xs text-gray-500">{formatDate(reply.created_at)}</span>
@@ -394,7 +500,7 @@ export default function MessagesPage() {
                   <textarea
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#01BCDD] mb-4"
                     rows={4}
                     placeholder="Type your reply..."
                   />
@@ -408,7 +514,7 @@ export default function MessagesPage() {
                     <button
                       onClick={handleSendReply}
                       disabled={sending || !replyText.trim()}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+                      className="px-6 py-2 bg-primary text-white rounded-lg hover-primary disabled:bg-gray-400 flex items-center gap-2"
                     >
                       {sending ? (
                         'Sending...'
@@ -434,12 +540,12 @@ export default function MessagesPage() {
         </div>
 
         {/* Help Section */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h4 className="font-semibold text-blue-900 mb-3">💡 Using the Messaging System</h4>
-          <ul className="text-sm text-blue-800 space-y-2">
-            <li>• Click "New Support Ticket" to contact support</li>
-            <li>• All inquiries from buyers about your listings appear here</li>
-            <li>• Reply directly to messages to maintain conversation history</li>
+        <div className="mt-8 bg-[#01BCDD]/10 border border-[#01BCDD]/30 rounded-lg p-6">
+          <h4 className="font-semibold text-secondary mb-3">💡 Using the Messaging System</h4>
+          <ul className="text-sm text-secondary/80 space-y-2">
+            <li>• Click “New Support Ticket” to contact support</li>
+            <li>• Switch to the <strong>Inquiries</strong> tab to see buyer messages about your listings</li>
+            <li>• Reply directly to support messages to maintain conversation history</li>
             <li>• Tickets are automatically assigned unique tracking numbers</li>
             <li>• You'll receive email notifications for new messages</li>
           </ul>

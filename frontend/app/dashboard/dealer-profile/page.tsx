@@ -23,6 +23,18 @@ import {
 export default function DealerProfileEditPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { router.replace('/login'); return; }
+    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(u => {
+        if (!u || (u.user_type !== 'dealer' && u.user_type !== 'admin')) {
+          router.replace('/dashboard');
+        }
+      });
+  }, []);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState({
     company_name: '',

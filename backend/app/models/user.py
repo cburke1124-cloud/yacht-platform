@@ -59,6 +59,7 @@ class User(Base):
     bio = Column(String)
     title = Column(String)
     specialties = Column(JSON, default=[])
+    social_links = Column(JSON, default={})
 
     wordpress_sites = relationship("WordPressSite", back_populates="dealer")
     

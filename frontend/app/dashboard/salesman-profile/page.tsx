@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Upload, Mail, Phone, Save, ArrowLeft, Briefcase } from 'lucide-react';
+import { User, Upload, Mail, Phone, Save, ArrowLeft, Briefcase, Globe, Instagram, Linkedin, Facebook } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 export default function SalesmanProfileEditPage() {
@@ -16,7 +16,11 @@ export default function SalesmanProfileEditPage() {
     phone: '',
     photo_url: '',
     title: '',
-    bio: ''
+    bio: '',
+    instagram_url: '',
+    linkedin_url: '',
+    facebook_url: '',
+    website: ''
   });
 
   useEffect(() => {
@@ -26,7 +30,7 @@ export default function SalesmanProfileEditPage() {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/users/me'), {
+      const response = await fetch(apiUrl('/salesman-profile'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -39,7 +43,11 @@ export default function SalesmanProfileEditPage() {
           phone: data.phone || '',
           photo_url: data.photo_url || '',
           title: data.title || '',
-          bio: data.bio || ''
+          bio: data.bio || '',
+          instagram_url: data.instagram_url || '',
+          linkedin_url: data.linkedin_url || '',
+          facebook_url: data.facebook_url || '',
+          website: data.website || ''
         });
       }
     } catch (error) {
@@ -282,6 +290,73 @@ export default function SalesmanProfileEditPage() {
               <p className="text-xs text-gray-500 mt-1">
                 {profile.bio.length}/500 characters
               </p>
+            </div>
+          </div>
+
+          {/* Social Links */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-6">Social Links</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Instagram size={16} />
+                    Instagram URL
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={profile.instagram_url}
+                  onChange={(e) => setProfile({...profile, instagram_url: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://instagram.com/yourprofile"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Linkedin size={16} />
+                    LinkedIn URL
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={profile.linkedin_url}
+                  onChange={(e) => setProfile({...profile, linkedin_url: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://linkedin.com/in/yourprofile"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Facebook size={16} />
+                    Facebook URL
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={profile.facebook_url}
+                  onChange={(e) => setProfile({...profile, facebook_url: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://facebook.com/yourprofile"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Globe size={16} />
+                    Website URL
+                  </div>
+                </label>
+                <input
+                  type="url"
+                  value={profile.website}
+                  onChange={(e) => setProfile({...profile, website: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://yourwebsite.com"
+                />
+              </div>
             </div>
           </div>
 

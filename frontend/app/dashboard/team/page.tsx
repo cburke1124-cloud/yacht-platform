@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { UserPlus, Edit, Trash2, Mail, Phone, Shield, X, LayoutDashboard, MessageSquare, ClipboardList, ChevronLeft } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -71,7 +72,22 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export default function TeamManagementPage() {
+  const router = useRouter();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) { router.replace('/login'); return; }
+    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(u => {
+        if (!u) { router.replace('/login'); return; }
+        const perms = (u.permissions || {}) as Record<string, boolean>;
+        const canManage = u.user_type === 'dealer' || u.user_type === 'admin' ||
+          !!(perms.manage_team ?? perms.can_manage_team);
+        if (!canManage) router.replace('/dashboard');
+      });
+  }, []);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
