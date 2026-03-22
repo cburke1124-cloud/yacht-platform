@@ -894,44 +894,43 @@ export default function ListingDetailPage() {
           </div>
         )}
 
-        {/* ══ KEY SPECIFICATIONS (FULL WIDTH) ══════════════════════════════ */}
-        <div className="mb-10">
-          <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Specifications</h3>
-          <div className="h-[1px] bg-[#01BBDC] mb-5" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-5">
-            {[
-              { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
-              { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
-              { icon: <Bed size={28} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
-              { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
-              { icon: <Wrench size={28} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make },
-              { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
-              { icon: <Waves size={28} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
-              { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
-              { icon: <Fuel size={28} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
-              { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
-              { icon: <MapPin size={28} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
-              { icon: <Calendar size={28} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
-            ].filter(s => s.value).map(s => (
-              <div key={s.label} className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white">
-                  {s.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-[#10214F]/60 uppercase tracking-wide font-bahnschrift">{s.label}</p>
-                  <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ══ KEY FEATURES (LEFT) + FINANCE (RIGHT) ════════════════════════ */}
-        {(keyFeatures.length > 0 || listing.price) && (
+        {/* ══ KEY SPECS (LEFT 8) + FINANCE (RIGHT 4) ══════════════════════ */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left column: Key Features — 8 cols */}
-          <div className="lg:col-span-8">
+          {/* Left column: Key Specs + Key Features — 8 cols */}
+          <div className="lg:col-span-8 space-y-8">
+
+            {/* KEY SPECIFICATIONS */}
+            <div>
+              <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Specifications</h3>
+              <div className="h-[1px] bg-[#01BBDC] mb-5" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+                {[
+                  { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
+                  { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
+                  { icon: <Bed size={28} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
+                  { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
+                  { icon: <Wrench size={28} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make },
+                  { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
+                  { icon: <Waves size={28} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
+                  { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
+                  { icon: <Fuel size={28} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
+                  { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
+                  { icon: <MapPin size={28} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
+                  { icon: <Calendar size={28} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
+                ].filter(s => s.value).map(s => (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white">
+                      {s.icon}
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#10214F]/60 uppercase tracking-wide font-bahnschrift">{s.label}</p>
+                      <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
@@ -1033,7 +1032,6 @@ export default function ListingDetailPage() {
           </div>
 
         </div>
-        )}
 
         {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
         {listing.description && (

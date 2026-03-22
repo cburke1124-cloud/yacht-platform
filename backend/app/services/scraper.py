@@ -284,16 +284,22 @@ class OptimizedYachtScraper:
         length_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:ft|feet|foot|')", text, re.IGNORECASE)
         if length_match:
             specs["length_feet"] = float(length_match.group(1))
-        # Prefer year appearing after a label (spec table), fall back to first bare year
-        year_labeled = re.search(r"year\s*[:\-]?\s*(19\d{2}|20\d{2})", text, re.IGNORECASE)
+        # Prefer labeled year (Year: 1996 OR 1996\nYear) over bare year in title
+        year_labeled = re.search(
+            r"year\s*[:\-]?\s*(19\d{2}|20\d{2})"      # Label: Value
+            r"|(19\d{2}|20\d{2})\s+year",              # Value Label (Elementor style)
+            text, re.IGNORECASE
+        )
         year_bare = re.search(r"(19\d{2}|20\d{2})", text)
-        year_match = year_labeled or year_bare
-        if year_match:
-            specs["year"] = int(year_match.group(1))
+        if year_labeled:
+            y = year_labeled.group(1) or year_labeled.group(2)
+            specs["year"] = int(y)
+        elif year_bare:
+            specs["year"] = int(year_bare.group(1))
         cabin_match = re.search(r"(\d+)\s*[-\s]*cabin", text, re.IGNORECASE)
         if cabin_match:
             specs["cabins"] = int(cabin_match.group(1))
-        # Engine hours: "Hours: 900", "Engine Hours: 1200", "900 hours"
+        # Engine hours: "Hours: 900", "900\nHours", "900 hours"
         hours_match = re.search(
             r"(?:engine\s+)?hours?\s*[:\-]?\s*(\d[\d,]*)\b"
             r"|(\d[\d,]*)\s+hours?\b",
@@ -312,15 +318,40 @@ class OptimizedYachtScraper:
             specs["engine_count"] = 3
         elif re.search(r"single\s+engine|one\s+(inboard|outboard|engine)", text, re.IGNORECASE):
             specs["engine_count"] = 1
-        # Location: "City, ST 12345" or "City, State, Country"
-        loc_match = re.search(
-            r"\b([A-Z][a-zA-Z\s]{2,25}),\s*([A-Z]{2})\s*\d{5}",
-            text
-        )
+        # "two [Make]" engines pattern (e.g. "two Crusader 390 inboard engines")
+        two_eng = re.search(r"\btwo\b.{0,30}engines?\b", text, re.IGNORECASE)
+        if two_eng and not specs.get("engine_count"):
+            specs["engine_count"] = 2
+        # Location: "City, ST 12345" or "City, State" zip-optional
+        loc_match = re.search(r"\b([A-Z][a-zA-Z\s]{2,25}),\s*([A-Z]{2})\s*(?:\d{5})?", text)
         if loc_match:
             specs["city"] = loc_match.group(1).strip()
             specs["state"] = loc_match.group(2).strip()
         return specs
+
+    def extract_description_from_text(self, text: str) -> Optional[str]:
+        """Extract the main description block from the clean text."""
+        # Look for content block after a 'Description(s)' heading
+        desc_match = re.search(
+            r"descriptions?\s*\n(.+?)(?:\n(?:features?|contact|gallery|images?|photos?|"
+            r"location|map|specifications?|details|amenities|utilities)\s*\n|\Z)",
+            text, re.IGNORECASE | re.DOTALL
+        )
+        if desc_match:
+            desc = desc_match.group(1).strip()
+            # Remove very short lines that are just UI labels / navigation
+            lines = [l.strip() for l in desc.splitlines() if len(l.strip()) > 20]
+            desc = " ".join(lines)
+            if len(desc) > 50:
+                return desc
+        # Fallback: first big paragraph (>100 chars) that isn't a nav/price line
+        for para in re.split(r"\n{2,}", text):
+            para = para.strip()
+            if (len(para) > 100
+                    and not re.match(r"^[\$\d]", para)
+                    and not re.search(r"(cookie|privacy|copyright|all rights)", para, re.I)):
+                return para
+        return None
 
     # ---------------------------------------------------------
     # HTML SPEC TABLE PARSER
@@ -384,6 +415,58 @@ class OptimizedYachtScraper:
                 if len(parts[0]) < 40:  # labels are short
                     _set(parts[0], parts[1])
 
+        # 4. Elementor / page-builder VALUE-before-LABEL div pattern
+        #    e.g. <div>1996</div><div>Year</div> or "750HP" / "Horsepower"
+        KNOWN_LABELS = {
+            "year", "length", "loa", "beam", "draft", "hours", "hour meter",
+            "engine hours", "horsepower", "hp", "cabins", "staterooms", "berths",
+            "sleeps", "heads", "bathrooms", "make", "manufacturer", "model",
+            "fuel type", "fuel", "hull material", "hull", "hull type",
+            "max speed", "cruise speed", "cruising speed", "type", "boat type",
+            "vessel type", "condition", "engines", "engine count",
+        }
+        val_label_pat = re.compile(
+            r"^([\d,./]+(?:\s*(?:ft|'|\"|\"|HP|kts|knots|gal|nm|mph))?)?\s*"
+            r"(Year|Length|LOA|Beam|Draft|Hours?|Hour\s*Meter|Engine\s*Hours?|"
+            r"Horsepower|HP|Cabins?|Staterooms?|Berths?|Sleeps?|Heads?|Bathrooms?|"
+            r"Make|Manufacturer|Model|Fuel\s*Type|Fuel|Hull\s*Material|Hull\s*Type|"
+            r"Max\s*Speed|Cruise\s*Speed|Cruising\s*Speed|Type|Boat\s*Type|Vessel\s*Type|"
+            r"Condition|Engines?|Engine\s*Count)\s*$",
+            re.IGNORECASE
+        )
+        for tag in soup.find_all(["div", "span", "p", "td", "li"]):
+            # Only look at leaf-like elements (text content, few children)
+            direct_text = " ".join(tag.get_text(" ").split())
+            if len(direct_text) < 60 and direct_text:
+                m = val_label_pat.match(direct_text)
+                if m:
+                    val_part = (m.group(1) or "").strip()
+                    lbl_part = (m.group(2) or "").strip()
+                    if val_part and lbl_part:
+                        _set(lbl_part, val_part)
+
+        # 5. Title from <h1>
+        h1 = soup.find("h1")
+        if h1:
+            raw["_h1_title"] = h1.get_text(strip=True)
+
+        # 6. Location from Google Maps iframe q= parameter
+        from urllib.parse import unquote, urlparse, parse_qs
+        for iframe in soup.find_all("iframe"):
+            src = iframe.get("src", "")
+            if "maps.google.com" in src or "google.com/maps" in src:
+                qs = parse_qs(urlparse(src).query)
+                q = unquote(qs.get("q", [""])[0])
+                if q:
+                    parts = [p.strip() for p in q.split(",") if p.strip()]
+                    if parts and not raw.get("city"):
+                        raw["city"] = parts[0].title()
+                    if len(parts) >= 2 and not raw.get("state"):
+                        raw["state"] = re.sub(r"\s+\d{5}.*", "", parts[1]).strip()
+                    if len(parts) >= 3 and not raw.get("country"):
+                        raw["country"] = parts[2].strip()
+                break
+
         # Convert numeric fields
         specs: Dict = {}
         int_keys = {"year", "cabins", "berths", "heads", "engine_count"}
@@ -410,6 +493,9 @@ class OptimizedYachtScraper:
             # "horsepower" isn't a DB field but include for AI context
             elif k == "horsepower":
                 specs["horsepower_hint"] = v
+            # Pass through h1 title and map-derived location
+            elif k in ("_h1_title", "city", "state", "country"):
+                specs[k] = v
 
         return specs
 
@@ -537,7 +623,7 @@ Content: {content[:12000]}"""
             return {"error": "Failed to load page"}
 
         structured = self.try_structured_extraction(html, url)
-        # Parse spec tables from raw HTML BEFORE text stripping loses structure
+        # Parse spec tables + Elementor divs + map location from raw HTML
         html_specs = self.parse_spec_tables(html)
         text = self.clean_html(html)
         regex_specs = self.extract_specs_from_text(text)
@@ -547,27 +633,51 @@ Content: {content[:12000]}"""
 
         # Merge: regex first, html_specs override, structured last (most authoritative)
         partial = {**regex_specs, **html_specs, **(structured or {})}
-        # Call AI whenever title or make/model are missing, not just when everything is missing.
-        # Without AI, listings with only regex-extracted price/year would have no title.
-        needs_ai = not partial.get("title") or not partial.get("make") or not partial.get("model")
+
+        # Promote h1 title and map-derived location INTO standard field names
+        if not partial.get("title") and partial.get("_h1_title"):
+            partial["title"] = partial.pop("_h1_title")
+        else:
+            partial.pop("_h1_title", None)
+
+        # Extract description deterministically from clean text (works without AI)
+        if not partial.get("description"):
+            det_desc = self.extract_description_from_text(text)
+            if det_desc:
+                partial["description"] = det_desc
+
+        # Try to derive make/model from title "YEAR MAKE MODEL" pattern
+        if partial.get("title") and not partial.get("make"):
+            title_parts = partial["title"].split()
+            if len(title_parts) >= 3 and re.match(r"(19|20)\d{2}", title_parts[0]):
+                partial["make"] = title_parts[1]
+                partial["model"] = " ".join(title_parts[2:])
+            elif len(title_parts) >= 2 and re.match(r"(19|20)\d{2}", title_parts[0]):
+                partial["make"] = title_parts[1]
+
+        # Call AI whenever title, make/model, OR description are missing
+        needs_ai = (not partial.get("title") or not partial.get("make")
+                    or not partial.get("model") or not partial.get("description"))
         if needs_ai:
             yacht_data = self.scrape_with_ai(text, url, partial)
         else:
             yacht_data = partial
 
         # Title fallback: use the HTML <title> tag if AI didn't return one
-        # (handles case where AI is unavailable or returns incomplete data)
         if not yacht_data.get("title"):
             soup_title = BeautifulSoup(html, "html.parser").find("title")
             if soup_title:
                 raw_title = soup_title.get_text(strip=True)
-                # Strip common site suffixes like " - Broker Name" or " | Site"
                 for sep in [" - ", " | ", " — ", " :: "]:
                     if sep in raw_title:
                         raw_title = raw_title.split(sep)[0].strip()
                         break
                 if len(raw_title) > 3:
                     yacht_data["title"] = raw_title
+
+        # Description fallback: if AI still didn't return one, use deterministic extract
+        if not yacht_data.get("description") and partial.get("description"):
+            yacht_data["description"] = partial["description"]
 
         images = self.extract_images(html, url)
         yacht_data.update({
