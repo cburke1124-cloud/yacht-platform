@@ -284,18 +284,133 @@ class OptimizedYachtScraper:
         length_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:ft|feet|foot|')", text, re.IGNORECASE)
         if length_match:
             specs["length_feet"] = float(length_match.group(1))
-        year_match = re.search(r"(19\d{2}|20\d{2})", text)
+        # Prefer year appearing after a label (spec table), fall back to first bare year
+        year_labeled = re.search(r"year\s*[:\-]?\s*(19\d{2}|20\d{2})", text, re.IGNORECASE)
+        year_bare = re.search(r"(19\d{2}|20\d{2})", text)
+        year_match = year_labeled or year_bare
         if year_match:
             specs["year"] = int(year_match.group(1))
         cabin_match = re.search(r"(\d+)\s*[-\s]*cabin", text, re.IGNORECASE)
         if cabin_match:
             specs["cabins"] = int(cabin_match.group(1))
-        if re.search(r"twin\s+engine", text, re.IGNORECASE):
+        # Engine hours: "Hours: 900", "Engine Hours: 1200", "900 hours"
+        hours_match = re.search(
+            r"(?:engine\s+)?hours?\s*[:\-]?\s*(\d[\d,]*)\b"
+            r"|(\d[\d,]*)\s+hours?\b",
+            text, re.IGNORECASE
+        )
+        if hours_match:
+            raw_hr = (hours_match.group(1) or hours_match.group(2)).replace(",", "")
+            try:
+                specs["engine_hours"] = float(raw_hr)
+            except ValueError:
+                pass
+        # Engine count
+        if re.search(r"twin\s+engine|two\s+(inboard|outboard|engine)", text, re.IGNORECASE):
             specs["engine_count"] = 2
-        elif re.search(r"triple\s+engine", text, re.IGNORECASE):
+        elif re.search(r"triple\s+engine|three\s+(inboard|outboard|engine)", text, re.IGNORECASE):
             specs["engine_count"] = 3
-        elif re.search(r"single\s+engine", text, re.IGNORECASE):
+        elif re.search(r"single\s+engine|one\s+(inboard|outboard|engine)", text, re.IGNORECASE):
             specs["engine_count"] = 1
+        # Location: "City, ST 12345" or "City, State, Country"
+        loc_match = re.search(
+            r"\b([A-Z][a-zA-Z\s]{2,25}),\s*([A-Z]{2})\s*\d{5}",
+            text
+        )
+        if loc_match:
+            specs["city"] = loc_match.group(1).strip()
+            specs["state"] = loc_match.group(2).strip()
+        return specs
+
+    # ---------------------------------------------------------
+    # HTML SPEC TABLE PARSER
+    # ---------------------------------------------------------
+    def parse_spec_tables(self, html: str) -> Dict:
+        """
+        Extract labelled spec data from HTML tables, definition lists,
+        and 'Label: Value' list items before text cleaning strips structure.
+        Works well with WordPress/Elementor listing pages.
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        raw: Dict[str, str] = {}
+
+        # Mapping of common label variants → our field names
+        LABEL_MAP = {
+            "year": "year", "make": "make", "manufacturer": "make",
+            "model": "model", "length": "length_feet", "loa": "length_feet",
+            "length overall": "length_feet", "beam": "beam_feet",
+            "draft": "draft_feet", "draft max": "draft_feet",
+            "hours": "engine_hours", "engine hours": "engine_hours",
+            "hour meter": "engine_hours",
+            "cabins": "cabins", "staterooms": "cabins",
+            "berths": "berths", "sleeps": "berths", "guests": "berths",
+            "heads": "heads", "bathrooms": "heads",
+            "fuel type": "fuel_type", "fuel": "fuel_type",
+            "hull material": "hull_material", "hull": "hull_material",
+            "hull type": "hull_type", "hull form": "hull_type",
+            "max speed": "max_speed_knots", "maximum speed": "max_speed_knots",
+            "cruise speed": "cruising_speed_knots", "cruising speed": "cruising_speed_knots",
+            "engines": "engine_count", "engine count": "engine_count",
+            "type": "boat_type", "boat type": "boat_type", "vessel type": "boat_type",
+            "condition": "condition",
+            "city": "city", "state": "state", "country": "country",
+            "horsepower": "horsepower",  # store raw for context even if not a DB field
+        }
+
+        def _set(label: str, value: str):
+            key = LABEL_MAP.get(label.strip().lower())
+            if key and value.strip():
+                raw[key] = value.strip()
+
+        # 1. <table> with th/td or td/td rows
+        for table in soup.find_all("table"):
+            for row in table.find_all("tr"):
+                cells = row.find_all(["th", "td"])
+                if len(cells) == 2:
+                    _set(cells[0].get_text(strip=True), cells[1].get_text(strip=True))
+
+        # 2. <dl><dt>label</dt><dd>value</dd></dl>
+        for dl in soup.find_all("dl"):
+            dts = dl.find_all("dt")
+            dds = dl.find_all("dd")
+            for dt, dd in zip(dts, dds):
+                _set(dt.get_text(strip=True), dd.get_text(strip=True))
+
+        # 3. <li>Label: Value</li> or <li><strong>Label</strong>Value</li>
+        for li in soup.find_all("li"):
+            li_text = li.get_text(strip=True)
+            if ":" in li_text:
+                parts = li_text.split(":", 1)
+                if len(parts[0]) < 40:  # labels are short
+                    _set(parts[0], parts[1])
+
+        # Convert numeric fields
+        specs: Dict = {}
+        int_keys = {"year", "cabins", "berths", "heads", "engine_count"}
+        float_keys = {"length_feet", "beam_feet", "draft_feet", "engine_hours",
+                      "max_speed_knots", "cruising_speed_knots"}
+        str_keys = {"make", "model", "fuel_type", "hull_material", "hull_type",
+                    "boat_type", "condition", "city", "state", "country"}
+
+        for k, v in raw.items():
+            # Strip units: "75 ft" -> "75", "900 hrs" -> "900"
+            num_str = re.sub(r"[^\d.]", "", v.split()[0]) if v else ""
+            if k in int_keys:
+                try:
+                    specs[k] = int(float(num_str))
+                except (ValueError, IndexError):
+                    pass
+            elif k in float_keys:
+                try:
+                    specs[k] = float(num_str)
+                except (ValueError, IndexError):
+                    pass
+            elif k in str_keys:
+                specs[k] = v
+            # "horsepower" isn't a DB field but include for AI context
+            elif k == "horsepower":
+                specs["horsepower_hint"] = v
+
         return specs
 
     # ---------------------------------------------------------
@@ -376,7 +491,7 @@ Content: {content[:12000]}"""
 
             message = self.client.messages.create(
                 model="claude-haiku-4-5",
-                max_tokens=3000,
+                max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
             response_text = message.content[0].text
@@ -422,13 +537,16 @@ Content: {content[:12000]}"""
             return {"error": "Failed to load page"}
 
         structured = self.try_structured_extraction(html, url)
+        # Parse spec tables from raw HTML BEFORE text stripping loses structure
+        html_specs = self.parse_spec_tables(html)
         text = self.clean_html(html)
         regex_specs = self.extract_specs_from_text(text)
         price = self.extract_price_from_text(text)
         if price:
             regex_specs["price"] = price
 
-        partial = {**(structured or {}), **regex_specs}
+        # Merge: regex first, html_specs override, structured last (most authoritative)
+        partial = {**regex_specs, **html_specs, **(structured or {})}
         # Call AI whenever title or make/model are missing, not just when everything is missing.
         # Without AI, listings with only regex-extracted price/year would have no title.
         needs_ai = not partial.get("title") or not partial.get("make") or not partial.get("model")
