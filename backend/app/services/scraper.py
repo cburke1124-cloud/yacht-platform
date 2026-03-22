@@ -724,7 +724,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
         job.listings_updated = stats["updated"]
         job.listings_removed = stats["archived"]
         job.total_runs = (job.total_runs or 0) + 1
-        job.next_run_at = datetime.utcnow() + timedelta(hours=job.schedule_hours or 24)
+        job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
         db.commit()
 
         logger.info(f"[Job {job_id}] Sync complete: {stats}")
