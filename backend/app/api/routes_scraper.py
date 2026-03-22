@@ -318,7 +318,7 @@ def import_single_listing(
         assigned_salesman_id=data.salesman_id,
         source="scraped",
         source_url=data.url,
-        status="active",
+        status="draft",
         bin=_generate_bin(db),
         condition="used",
     )

@@ -295,47 +295,76 @@ export default function AdminListingsTab() {
                         />
                       )}
                       <div>
-                        <input
-                          type="text"
-                          value={quickEdits[listing.id]?.title ?? listing.title}
-                          onChange={(e) => updateQuickEditField(listing.id, 'title', e.target.value)}
-                          readOnly={!quickEditMode}
-                          className="font-medium text-gray-900 border border-gray-300 rounded px-2 py-1 w-72"
-                        />
-                        <div className="text-sm text-gray-500">
-                          {listing.year} {listing.make} {listing.model}
-                        </div>
+                        {quickEditMode ? (
+                          <input
+                            type="text"
+                            value={quickEdits[listing.id]?.title ?? listing.title}
+                            onChange={(e) => updateQuickEditField(listing.id, 'title', e.target.value)}
+                            className="font-medium text-gray-900 border border-gray-300 rounded px-2 py-1 w-72"
+                          />
+                        ) : (
+                          <a
+                            href={`/listings/${listing.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {listing.title || `${listing.year || ''} ${listing.make || ''} ${listing.model || ''}`.trim() || `Listing #${listing.id}`}
+                          </a>
+                        )}
+                        {!quickEditMode && (
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {[listing.year, listing.make, listing.model].filter(Boolean).join(' ')}
+                            {listing.city ? ` · ${listing.city}${listing.state ? ', ' + listing.state : ''}` : ''}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-900">$</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={quickEdits[listing.id]?.price ?? (listing.price != null ? String(listing.price) : '')}
-                        onChange={(e) => updateQuickEditField(listing.id, 'price', e.target.value)}
-                        disabled={!quickEditMode}
-                        className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
-                        placeholder="Price"
-                      />
-                    </div>
+                    {quickEditMode ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-gray-500">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={quickEdits[listing.id]?.price ?? (listing.price != null ? String(listing.price) : '')}
+                          onChange={(e) => updateQuickEditField(listing.id, 'price', e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 w-32"
+                          placeholder="Price"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-900">
+                        {listing.price != null ? `$${Number(listing.price).toLocaleString()}` : <span className="text-gray-400">—</span>}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <select
-                      value={quickEdits[listing.id]?.status ?? listing.status}
-                      onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
-                      disabled={!quickEditMode}
-                      className="text-sm border rounded px-2 py-1"
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="active">Active</option>
-                      <option value="pending">Pending</option>
-                      <option value="sold">Sold</option>
-                      <option value="archived">Archived</option>
-                    </select>
+                    {quickEditMode ? (
+                      <select
+                        value={quickEdits[listing.id]?.status ?? listing.status}
+                        onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
+                        className="text-sm border rounded px-2 py-1"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="pending">Pending</option>
+                        <option value="sold">Sold</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                        listing.status === 'active' ? 'bg-green-100 text-green-800' :
+                        listing.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                        listing.status === 'archived' ? 'bg-gray-100 text-gray-600' :
+                        listing.status === 'sold' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {listing.status}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
@@ -353,19 +382,15 @@ export default function AdminListingsTab() {
                     {listing.views || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => saveQuickEdit(listing.id)}
-                      disabled={!quickEditMode || savingQuickEditId === listing.id}
-                          className="text-primary hover:text-secondary mr-4 disabled:text-gray-400"
-                    >
-                      {savingQuickEditId === listing.id ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      onClick={() => window.open(`/listings/${listing.id}`, '_blank')}
-                      className="text-indigo-600 hover:text-indigo-900 mr-4"
-                    >
-                      View
-                    </button>
+                    {quickEditMode && (
+                      <button
+                        onClick={() => saveQuickEdit(listing.id)}
+                        disabled={savingQuickEditId === listing.id}
+                        className="text-primary hover:text-secondary mr-4 disabled:text-gray-400"
+                      >
+                        {savingQuickEditId === listing.id ? 'Saving...' : 'Save'}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEdit(listing)}
                       className="text-green-600 hover:text-green-900 mr-4"

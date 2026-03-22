@@ -398,7 +398,8 @@ Content: {content[:12000]}"""
             if not src and img.get("srcset"):
                 candidates = [s.strip().split()[0] for s in img["srcset"].split(",") if s.strip()]
                 src = candidates[-1] if candidates else None
-            if src and not any(kw in src.lower() for kw in skip_keywords):
+            alt_text = (img.get("alt") or "").lower()
+            if src and not any(kw in src.lower() for kw in skip_keywords) and not any(kw in alt_text for kw in skip_keywords):
                 absolute = urljoin(base_url, src)
                 if absolute.startswith("http") and any(
                     absolute.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]
@@ -540,14 +541,14 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         existing_scraped.still_active = True
                         stats["updated"] += 1
                 else:
-                    # Create new listing
+                    # Create new listing — start as draft so broker can review before publishing
                     listing = Listing(
                         user_id=job.dealer_id,
                         created_by_user_id=job.created_by_id or job.dealer_id,
                         assigned_salesman_id=job.salesman_id,
                         source="scraped",
                         source_url=url,
-                        status="active",
+                        status="draft",
                         bin=_generate_bin(db),
                         condition="used",
                     )
