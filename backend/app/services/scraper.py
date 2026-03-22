@@ -357,20 +357,26 @@ class OptimizedYachtScraper:
 URL: {url}
 Content: {content[:8000]}
 
-Return ONLY JSON with yacht listing fields. Also include "agent_name" if a listing agent/salesman name is clearly present."""
+Return ONLY JSON with yacht listing fields. Also include "agent_name" if a listing agent/salesman name is clearly present.
+Also extract: features (all notable features/equipment as a multi-line text block, one per line prefixed with "- "), feature_bullets (array of up to 12 short bullet-point strings).
+For country: use the ACTUAL country where the vessel is located — only use "USA" if the vessel is in the United States."""
             else:
                 prompt = f"""Extract yacht listing data from the text below. Return ONLY a JSON object.
 Include: title, make, model, year, price, currency, length_feet, beam_feet, draft_feet,
 cabins, berths, heads, engine_count, engine_hours,
 fuel_type, max_speed_knots, cruising_speed_knots, hull_material, hull_type,
-city, state, country, description, boat_type, agent_name (the listing agent/salesman name if present).
+city, state, country, description, boat_type, agent_name (the listing agent/salesman name if present),
+features (all notable features and equipment as a single multi-line text block, one feature per line prefixed with "- "),
+feature_bullets (array of up to 12 short bullet-point strings highlighting the best features).
+
+For country: use the ACTUAL country where the vessel is located. Be specific (e.g. "Bermuda", "France", "Bahamas", "Australia"). Only use "USA" if the vessel is genuinely located in the United States.
 
 URL: {url}
 Content: {content[:12000]}"""
 
             message = self.client.messages.create(
                 model="claude-haiku-4-5",
-                max_tokens=2000,
+                max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}],
             )
             response_text = message.content[0].text
@@ -617,9 +623,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
 
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     """Copy scraped fields onto a Listing object, preserving manually-set overrides."""
-    str_fields = ["title", "make", "model", "description", "boat_type",
+    str_fields = ["title", "make", "model", "boat_type",
                   "hull_material", "hull_type", "fuel_type", "city", "state", "country",
                   "currency"]
+    # Text fields stored without length limit
+    text_fields = ["description", "features"]
     float_fields = ["price", "length_feet", "beam_feet", "draft_feet",
                     "max_speed_knots", "cruising_speed_knots",
                     "fuel_capacity_gallons", "water_capacity_gallons",
@@ -629,6 +637,12 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     for f in str_fields:
         if raw.get(f):
             setattr(listing, f, str(raw[f])[:500] if isinstance(raw[f], str) else str(raw[f]))
+    for f in text_fields:
+        if raw.get(f):
+            setattr(listing, f, str(raw[f]))
+    # Store feature_bullets as JSON array if provided
+    if raw.get("feature_bullets") and isinstance(raw["feature_bullets"], list):
+        listing.feature_bullets = raw["feature_bullets"]
     for f in float_fields:
         if raw.get(f) is not None:
             try:
