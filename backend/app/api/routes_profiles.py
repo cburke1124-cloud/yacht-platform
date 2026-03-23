@@ -210,6 +210,7 @@ def get_salesman_profile(
         "bio": current_user.bio,
         "user_type": current_user.user_type,
         "parent_dealer_id": current_user.parent_dealer_id,
+        "public_profile": current_user.public_profile or False,
         "instagram_url": social_links.get("instagram_url", ""),
         "linkedin_url": social_links.get("linkedin_url", ""),
         "facebook_url": social_links.get("facebook_url", ""),
@@ -247,6 +248,8 @@ def update_salesman_profile(
         current_user.title = data["title"]
     if "bio" in data:
         current_user.bio = data["bio"]
+    if "public_profile" in data:
+        current_user.public_profile = bool(data["public_profile"])
     # Social links stored in JSON column
     social_keys = ("instagram_url", "linkedin_url", "facebook_url", "website")
     if any(k in data for k in social_keys):
@@ -283,17 +286,22 @@ def get_public_salesman_profile(user_id: int, db: Session = Depends(get_db)):
     """Public salesman profile — no auth required."""
     salesman = db.query(User).filter(
         User.id == user_id,
-        User.user_type == "team_member",
         User.active == True,
         User.deleted_at == None,
     ).first()
+    # Allow team members always; allow dealers only if they opted in to a public profile
     if not salesman:
         raise HTTPException(status_code=404, detail="Salesman not found")
+    if salesman.user_type not in ("team_member",) and not (
+        salesman.user_type == "dealer" and salesman.public_profile
+    ):
+        raise HTTPException(status_code=404, detail="Salesman not found")
 
-    # Fetch parent dealer info
+    # Fetch parent dealer info — if the salesman IS the dealer, use their own profile
     dealer_info = None
-    if salesman.parent_dealer_id:
-        dealer = db.query(User).filter(User.id == salesman.parent_dealer_id).first()
+    dealer_id = salesman.parent_dealer_id if salesman.parent_dealer_id else (salesman.id if salesman.user_type == "dealer" else None)
+    if dealer_id:
+        dealer = db.query(User).filter(User.id == dealer_id).first()
         dealer_profile = (
             db.query(DealerProfile).filter(DealerProfile.user_id == dealer.id).first()
             if dealer else None

@@ -278,6 +278,7 @@ def get_team_members(
             "role": m.role,
             "permissions": m.permissions or {},
             "active": m.active,
+            "public_profile": m.public_profile or False,
             "created_at": m.created_at.isoformat() if m.created_at else None,
         }
         for m in members
@@ -316,9 +317,12 @@ def update_member_permissions(
         # Replace entirely — the frontend sends the full set each time
         member.permissions = data["permissions"]
 
+    if "public_profile" in data:
+        member.public_profile = bool(data["public_profile"])
+
     db.commit()
 
-    return {"success": True, "permissions": member.permissions}
+    return {"success": True, "permissions": member.permissions, "public_profile": member.public_profile or False}
 
 
 @router.delete("/members/{member_id}")

@@ -22,6 +22,7 @@ interface TeamMember {
     can_view_analytics: boolean;
   };
   active: boolean;
+  public_profile: boolean;
   created_at: string;
 }
 
@@ -216,7 +217,7 @@ export default function TeamManagementPage() {
     }
   };
 
-  const handleUpdatePermissions = async (memberId: number, permissions: any) => {
+  const handleUpdatePermissions = async (memberId: number, permissions: any, public_profile: boolean) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl(`/team/members/${memberId}/permissions`), {
@@ -225,7 +226,7 @@ export default function TeamManagementPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ permissions })
+        body: JSON.stringify({ permissions, public_profile })
       });
 
       if (response.ok) {
@@ -535,6 +536,15 @@ export default function TeamManagementPage() {
             </div>
 
             <div className="p-6 space-y-3">
+              <label className="flex items-center gap-3 pb-3 border-b border-gray-100">
+                <input type="checkbox" checked={editingMember.public_profile ?? false}
+                  onChange={(e) => setEditingMember({...editingMember, public_profile: e.target.checked})}
+                  className="rounded text-primary" />
+                <div>
+                  <span className="text-sm font-medium text-gray-800">Public Broker Profile</span>
+                  <p className="text-xs text-gray-500">Appears as a broker on the brokerage's public page</p>
+                </div>
+              </label>
               {Object.entries(editingMember.permissions).map(([key, value]) => (
                 <label key={key} className="flex items-center gap-3">
                   <input
@@ -560,7 +570,7 @@ export default function TeamManagementPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleUpdatePermissions(editingMember.id, editingMember.permissions)}
+                  onClick={() => handleUpdatePermissions(editingMember.id, editingMember.permissions, editingMember.public_profile ?? false)}
                   className="flex-1 px-4 py-2 bg-primary text-light rounded-lg hover-primary"
                 >
                   Save Changes

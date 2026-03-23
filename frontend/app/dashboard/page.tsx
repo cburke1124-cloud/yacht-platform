@@ -158,6 +158,7 @@ interface TeamMember {
     can_view_analytics: boolean;
   };
   active: boolean;
+  public_profile: boolean;
   created_at: string;
 }
 interface MemberMessage {
@@ -909,13 +910,13 @@ export default function EnhancedDealerDashboard() {
     }
   };
 
-  const handleUpdatePermissions = async (memberId: number, permissions: TeamMember['permissions']) => {
+  const handleUpdatePermissions = async (memberId: number, permissions: TeamMember['permissions'], public_profile: boolean) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl(`/team/members/${memberId}/permissions`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ permissions })
+        body: JSON.stringify({ permissions, public_profile })
       });
       if (response.ok) {
         alert('Permissions updated successfully');
@@ -1432,7 +1433,7 @@ export default function EnhancedDealerDashboard() {
     ...(isDealer ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
     { id: 'account', label: 'Account', icon: Settings },
     ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
-    ...(isTeamMember ? [{ id: 'salesman-profile', label: 'My Profile', icon: User }] : []),
+    ...(isTeamMember || isDealer ? [{ id: 'salesman-profile', label: 'My Profile', icon: User }] : []),
     ...(isDealer ? [{ id: 'api-keys', label: 'API Keys', icon: Key }] : []),
   ] as { id: TabId; label: string; icon: any }[];
 
@@ -3362,6 +3363,15 @@ export default function EnhancedDealerDashboard() {
                   <button onClick={() => setEditingMember(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                 </div>
                 <div className="p-6 space-y-3">
+                  <label className="flex items-center gap-3 pb-3 border-b border-gray-100">
+                    <input type="checkbox" checked={editingMember.public_profile ?? false}
+                      onChange={(e) => setEditingMember({...editingMember, public_profile: e.target.checked})}
+                      className="rounded text-primary" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-800">Public Broker Profile</span>
+                      <p className="text-xs text-gray-500">Appears as a broker on the brokerage's public page</p>
+                    </div>
+                  </label>
                   {Object.entries(editingMember.permissions).map(([key, value]) => (
                     <label key={key} className="flex items-center gap-3">
                       <input type="checkbox" checked={value}
@@ -3372,7 +3382,7 @@ export default function EnhancedDealerDashboard() {
                   ))}
                   <div className="flex gap-3 pt-4">
                     <button onClick={() => setEditingMember(null)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                    <button onClick={() => handleUpdatePermissions(editingMember.id, editingMember.permissions)} className="flex-1 px-4 py-2 bg-primary text-light rounded-lg hover-primary">Save Changes</button>
+                    <button onClick={() => handleUpdatePermissions(editingMember.id, editingMember.permissions, editingMember.public_profile ?? false)} className="flex-1 px-4 py-2 bg-primary text-light rounded-lg hover-primary">Save Changes</button>
                   </div>
                 </div>
               </div>
@@ -3625,7 +3635,11 @@ export default function EnhancedDealerDashboard() {
               <div className="text-center mb-6">
                 <User className="mx-auto text-primary mb-4" size={64} />
                 <h2 className="text-2xl font-bold text-secondary mb-2">My Profile</h2>
-                <p className="text-gray-600 mb-6">Manage your public profile, bio, and social links</p>
+                <p className="text-gray-600 mb-6">
+                  {isDealer
+                    ? 'Set up your personal broker profile and optionally appear on your brokerage\'s public page.'
+                    : 'Manage your public profile, bio, and contact info shown to buyers.'}
+                </p>
               </div>
               <button
                 onClick={() => window.location.href = '/dashboard/salesman-profile'}

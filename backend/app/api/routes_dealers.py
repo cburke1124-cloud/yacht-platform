@@ -197,18 +197,34 @@ def get_dealer_team(
 
     members = db.query(User).filter(
         User.parent_dealer_id == dealer_user.id,
-        User.active == True
+        User.active == True,
+        User.public_profile == True
     ).all()
 
-    return [
+    result = []
+
+    # Include the dealer themselves first if they have a public profile enabled
+    if dealer_user.public_profile:
+        result.append({
+            "id": dealer_user.id,
+            "name": f"{dealer_user.first_name or ''} {dealer_user.last_name or ''}".strip() or dealer_user.email,
+            "title": dealer_user.title or "Broker",
+            "photo_url": dealer_user.profile_photo_url,
+            "is_owner": True,
+        })
+
+    result += [
         {
             "id": m.id,
             "name": f"{m.first_name or ''} {m.last_name or ''}".strip() or m.email,
             "title": m.title or "Sales Representative",
             "photo_url": m.profile_photo_url,
+            "is_owner": False,
         }
         for m in members
     ]
+
+    return result
 
 
 @router.get("/locations/states")
