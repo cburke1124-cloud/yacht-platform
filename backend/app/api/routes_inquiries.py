@@ -12,10 +12,14 @@ from sqlalchemy import or_
 from datetime import datetime
 from typing import Optional
 
+import os
+
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from app.models.user import User
-from app.models.misc import Inquiry, LeadNote
+from app.models.user import User, UserPreferences
+from app.models.misc import Inquiry, LeadNote, Message, Notification
+from app.services.email_service import email_service
+from app.core.reply_token import generate_reply_token
 from app.exceptions import (
     ResourceNotFoundException,
     AuthorizationException,
@@ -23,6 +27,8 @@ from app.exceptions import (
 )
 
 router = APIRouter()
+
+REPLY_TO_DOMAIN = os.getenv("REPLY_TO_DOMAIN", "mail.yachtversal.com")
 
 VALID_STAGES = ("new", "contacted", "qualified", "proposal", "won", "lost")
 
@@ -104,6 +110,44 @@ def _serialize_inquiry(inq: Inquiry, db: Session, include_notes: bool = False) -
             }
             for n in inq.lead_notes
         ]
+
+        # Include linked Message thread (root message + replies)
+        root_msgs = (
+            db.query(Message)
+            .filter(
+                Message.ticket_number == f"INQ-{inq.id}",
+                Message.parent_message_id == None,  # noqa: E711
+            )
+            .order_by(Message.created_at.asc())
+            .all()
+        )
+        if root_msgs:
+            root = root_msgs[0]
+            replies = (
+                db.query(Message)
+                .filter(Message.parent_message_id == root.id)
+                .order_by(Message.created_at.asc())
+                .all()
+            )
+            all_msgs = [root] + list(replies)
+            out["message_id"] = root.id
+            out["message_thread"] = [
+                {
+                    "id": m.id,
+                    "body": m.body,
+                    "sender_name": (
+                        f"{m.sender.first_name} {m.sender.last_name}".strip()
+                        if m.sender
+                        else inq.sender_name
+                    ),
+                    "is_from_buyer": m.sender_id is None,
+                    "created_at": m.created_at.isoformat(),
+                }
+                for m in all_msgs
+            ]
+        else:
+            out["message_id"] = None
+            out["message_thread"] = []
 
     return out
 
@@ -198,6 +242,21 @@ async def create_inquiry(
     if not message:
         raise ValidationException("message is required")
     
+    # Resolve who should receive this inquiry (salesman > dealer owner > admin)
+    from app.models.listing import Listing
+    notify_user_id = None
+    listing = None
+    listing_title = "General Inquiry"
+    if listing_id:
+        listing = db.query(Listing).filter(Listing.id == listing_id).first()
+        if listing:
+            notify_user_id = listing.assigned_salesman_id or listing.user_id
+            listing_title = listing.title or listing_title
+    if not notify_user_id:
+        admin = db.query(User).filter(User.user_type == "admin").first()
+        if admin:
+            notify_user_id = admin.id
+
     # Create inquiry
     inquiry = Inquiry(
         sender_name=sender_name,
@@ -205,17 +264,109 @@ async def create_inquiry(
         sender_phone=sender_phone,
         message=message,
         listing_id=listing_id,
+        assigned_to_id=notify_user_id,
         lead_stage="new",
         lead_score=0,
     )
-    
+
     db.add(inquiry)
     db.commit()
     db.refresh(inquiry)
-    
+
+    # Create Message record so inquiry appears in the Messages dashboard
+    if notify_user_id:
+        phone_line = f"Phone: {sender_phone}\n" if sender_phone else ""
+        msg_body = f"From {sender_name} ({sender_email}):\n{phone_line}\n{message}"
+        msg = Message(
+            ticket_number=f"INQ-{inquiry.id}",
+            sender_id=None,
+            recipient_id=notify_user_id,
+            listing_id=listing_id,
+            message_type="inquiry",
+            subject=f"Inquiry from {sender_name}: {listing_title}",
+            body=msg_body,
+            status="new",
+            visible_to_dealer=True,
+            external_sender_email=sender_email,
+            priority="normal",
+            category="inquiry",
+        )
+        db.add(msg)
+        db.commit()
+        db.refresh(msg)
+
+        recipient = db.query(User).filter(User.id == notify_user_id).first()
+        if recipient:
+            prefs = (
+                db.query(UserPreferences)
+                .filter(UserPreferences.user_id == notify_user_id)
+                .first()
+            )
+            allow_email = getattr(prefs, "email_new_inquiry", True) if prefs else True
+            allow_app = getattr(prefs, "app_new_inquiry", True) if prefs else True
+
+            # In-app notification
+            if allow_app:
+                try:
+                    db.add(
+                        Notification(
+                            user_id=notify_user_id,
+                            notification_type="inquiry",
+                            title=f"New inquiry from {sender_name}",
+                            body=message[:160],
+                            link=f"/dashboard/messages/{msg.id}",
+                            read=False,
+                        )
+                    )
+                    db.commit()
+                except Exception:
+                    pass
+
+            # Email notification with reply-to token
+            if allow_email:
+                try:
+                    token = generate_reply_token(msg.id, notify_user_id)
+                    reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
+                    email_service.send_email(
+                        to_email=recipient.email,
+                        subject=f"New Inquiry from {sender_name}: {listing_title}",
+                        html_content=f"""
+                    <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:30px;text-align:center;">
+                        <h1 style="color:white;margin:0;">New Inquiry</h1>
+                      </div>
+                      <div style="padding:30px;background:#f9fafb;">
+                        <h2 style="color:#10214F;">{listing_title}</h2>
+                        <p style="color:#334155;"><strong>From:</strong> {sender_name}</p>
+                        <p style="color:#334155;"><strong>Email:</strong> {sender_email}</p>
+                        {'<p style="color:#334155;"><strong>Phone:</strong> ' + sender_phone + '</p>' if sender_phone else ''}
+                        <div style="background:white;border-left:4px solid #01BBDC;padding:20px;margin:20px 0;">
+                          <p style="white-space:pre-wrap;color:#334155;">{message}</p>
+                        </div>
+                        <p style="color:#64748b;font-size:13px;">
+                          Reply directly to this email to respond &#8212; no login required.
+                        </p>
+                        <div style="text-align:center;margin-top:20px;">
+                          <a href="{email_service.base_url}/dashboard/messages/{msg.id}"
+                             style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;
+                                    border-radius:6px;display:inline-block;font-weight:bold;">
+                            View Inquiry
+                          </a>
+                        </div>
+                      </div>
+                      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                        2026 YachtVersal. Reply to this email to respond directly.
+                      </div>
+                    </body></html>
+                    """,
+                        reply_to=reply_to_addr,
+                    )
+                except Exception:
+                    pass
+
     # Dispatch webhook in background
     background_tasks.add_task(dispatch_webhook_for_inquiry_bg, inquiry.id)
-    
+
     return {
         "success": True,
         "inquiry_id": inquiry.id,

@@ -17,7 +17,8 @@ import {
   Save,
   Eye,
   ArrowLeft,
-  Share2
+  Share2,
+  Users
 } from 'lucide-react';
 
 export default function DealerProfileEditPage() {
@@ -55,7 +56,8 @@ export default function DealerProfileEditPage() {
     twitter_url: '',
     linkedin_url: '',
     slug: '',
-    cobrokering_enabled: true
+    cobrokering_enabled: true,
+    show_team_on_profile: false
   });
 
   useEffect(() => {
@@ -99,7 +101,8 @@ export default function DealerProfileEditPage() {
             twitter_url: profileData.twitter_url || '',
             linkedin_url: profileData.linkedin_url || '',
             slug: profileData.slug || '',
-            cobrokering_enabled: profileData.cobrokering_enabled !== false
+            cobrokering_enabled: profileData.cobrokering_enabled !== false,
+            show_team_on_profile: profileData.show_team_on_profile ?? false
           });
         } else {
           // Initialize with user data
@@ -537,6 +540,53 @@ export default function DealerProfileEditPage() {
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
                   placeholder="https://linkedin.com/company/yourdealership"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Team on Public Page */}
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="p-6 border-b border-primary/10">
+              <div className="flex items-center gap-3">
+                <Users size={20} className="text-primary" />
+                <div>
+                  <h2 className="text-xl font-semibold text-secondary">Team on Broker Page</h2>
+                  <p className="text-sm text-gray-600">Show your team members on your public broker profile</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-secondary mb-1">Show Team Members</p>
+                  <p className="text-sm text-gray-500">
+                    When enabled, your active team members (name and photo) will appear on your public broker profile page.
+                    Each team member card links to their individual profile page with their listings.
+                    <br /><br />
+                    Team members must complete their own <strong>Sales Profile</strong> from the dashboard to appear with a photo and title.
+                  </p>
+                </div>
+                <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProfile(prev => ({ ...prev, show_team_on_profile: !prev.show_team_on_profile }))}
+                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                      profile.show_team_on_profile ? 'bg-primary' : 'bg-gray-300'
+                    }`}
+                    aria-pressed={profile.show_team_on_profile}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        profile.show_team_on_profile ? 'translate-x-8' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-xs font-semibold ${
+                    profile.show_team_on_profile ? 'text-primary' : 'text-gray-400'
+                  }`}>
+                    {profile.show_team_on_profile ? 'Visible' : 'Hidden'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

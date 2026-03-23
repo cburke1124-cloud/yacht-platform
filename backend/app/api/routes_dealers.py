@@ -8,6 +8,7 @@ from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.models.listing import Listing
 from app.exceptions import ResourceNotFoundException
+from app.api.deps import get_current_user
 
 router = APIRouter()
 
@@ -151,6 +152,7 @@ def get_dealer_by_slug(
             "is_featured": user.subscription_tier == "premium",
             "member_since": user.created_at.isoformat() if user.created_at else None,
             "active_listings": listing_stats.active or 0,
+            "show_team_on_profile": profile.show_team_on_profile or False,
         },
         "listings": [
             {
@@ -169,6 +171,44 @@ def get_dealer_by_slug(
             for l in listings
         ]
     }
+
+
+@router.get("/{slug}/team")
+def get_dealer_team(
+    slug: str,
+    db: Session = Depends(get_db)
+):
+    """Get public team members for a dealer (only if show_team_on_profile is True)."""
+
+    profile = db.query(DealerProfile).filter(
+        DealerProfile.slug == slug
+    ).first()
+
+    if not profile or not profile.show_team_on_profile:
+        return []
+
+    dealer_user = db.query(User).filter(
+        User.id == profile.user_id,
+        User.active == True
+    ).first()
+
+    if not dealer_user:
+        return []
+
+    members = db.query(User).filter(
+        User.parent_dealer_id == dealer_user.id,
+        User.active == True
+    ).all()
+
+    return [
+        {
+            "id": m.id,
+            "name": f"{m.first_name or ''} {m.last_name or ''}".strip() or m.email,
+            "title": m.title or "Sales Representative",
+            "photo_url": m.profile_photo_url,
+        }
+        for m in members
+    ]
 
 
 @router.get("/locations/states")

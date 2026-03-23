@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Send, User, StickyNote, Settings2, Trash2 } from "lucide-react";
 import { apiUrl } from "@/app/lib/apiRoot";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -13,6 +14,14 @@ interface LeadNote {
   author_name: string;
   created_at: string;
   updated_at: string;
+}
+
+interface MessageEntry {
+  id: number;
+  body: string;
+  sender_name: string;
+  is_from_buyer: boolean;
+  created_at: string;
 }
 
 interface Inquiry {
@@ -29,7 +38,10 @@ interface Inquiry {
   listing_title: string | null;
   assigned_to_id: number | null;
   assigned_to_name: string | null;
-  lead_notes: LeadNote[];
+  // These are populated only from the detail endpoint (GET /inquiries/{id})
+  lead_notes?: LeadNote[];
+  message_id?: number | null;
+  message_thread?: MessageEntry[];
   created_at: string;
   updated_at: string | null;
 }
@@ -91,7 +103,9 @@ async function apiFetch(path: string, opts?: RequestInit) {
   return res.json();
 }
 
-// ─── Detail Panel ─────────────────────────────────────────────────────────────
+// ─── Detail Panel (CRM-style slide-over) ──────────────────────────────────────
+
+type Tab = "conversation" | "notes" | "details";
 
 function DetailPanel({
   inquiry,
@@ -102,26 +116,83 @@ function DetailPanel({
   onClose: () => void;
   onUpdate: (updated: Partial<Inquiry>) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<Tab>("conversation");
+
+  // CRM fields
   const [stage, setStage] = useState<Stage>(inquiry.lead_stage ?? "new");
   const [score, setScore] = useState(inquiry.lead_score ?? 0);
-  const [notes, setNotes] = useState(inquiry.notes ?? "");
-  const [newNote, setNewNote] = useState("");
-  const [noteList, setNoteList] = useState<LeadNote[]>(inquiry.lead_notes ?? []);
   const [saving, setSaving] = useState(false);
+
+  // Notes
+  const [noteList, setNoteList] = useState<LeadNote[]>(inquiry.lead_notes ?? []);
+  const [newNote, setNewNote] = useState("");
   const [noteError, setNoteError] = useState("");
+
+  // Conversation
+  const [messageThread, setMessageThread] = useState<MessageEntry[]>(inquiry.message_thread ?? []);
+  const [messageId, setMessageId] = useState<number | null>(inquiry.message_id ?? null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [replyError, setReplyError] = useState("");
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const threadEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch full detail on mount
+  useEffect(() => {
+    async function fetchDetail() {
+      setLoadingDetail(true);
+      try {
+        const data = await apiFetch(`/api/inquiries/${inquiry.id}`);
+        if (data.lead_notes) setNoteList(data.lead_notes);
+        if (data.message_thread !== undefined) setMessageThread(data.message_thread);
+        if (data.message_id !== undefined) setMessageId(data.message_id);
+      } catch (e) {
+        console.error("Failed to load inquiry detail", e);
+      } finally {
+        setLoadingDetail(false);
+      }
+    }
+    fetchDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inquiry.id]);
+
+  useEffect(() => {
+    if (activeTab === "conversation") {
+      threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messageThread, activeTab]);
 
   async function saveChanges() {
     setSaving(true);
     try {
       await apiFetch(`/api/inquiries/${inquiry.id}`, {
         method: "PUT",
-        body: JSON.stringify({ lead_stage: stage, lead_score: score, notes }),
+        body: JSON.stringify({ lead_stage: stage, lead_score: score }),
       });
-      onUpdate({ lead_stage: stage, lead_score: score, notes });
-    } catch (e: unknown) {
+      onUpdate({ lead_stage: stage, lead_score: score });
+    } catch (e) {
       console.error(e);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function sendReply() {
+    if (!replyText.trim() || !messageId) return;
+    setSendingReply(true);
+    setReplyError("");
+    try {
+      await apiFetch(`/api/messages/${messageId}/reply`, {
+        method: "POST",
+        body: JSON.stringify({ body: replyText.trim() }),
+      });
+      const data = await apiFetch(`/api/inquiries/${inquiry.id}`);
+      if (data.message_thread !== undefined) setMessageThread(data.message_thread);
+      setReplyText("");
+    } catch (e: unknown) {
+      setReplyError("Failed to send reply");
+    } finally {
+      setSendingReply(false);
     }
   }
 
@@ -142,168 +213,262 @@ function DetailPanel({
 
   async function deleteNote(noteId: number) {
     try {
-      await apiFetch(`/api/inquiries/${inquiry.id}/notes/${noteId}`, {
-        method: "DELETE",
-      });
+      await apiFetch(`/api/inquiries/${inquiry.id}/notes/${noteId}`, { method: "DELETE" });
       setNoteList((prev) => prev.filter((n) => n.id !== noteId));
     } catch (e: unknown) {
       console.error(e);
     }
   }
 
+  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "conversation", label: "Conversation", icon: <Send size={13} /> },
+    { id: "notes",        label: `Notes (${noteList.length})`, icon: <StickyNote size={13} /> },
+    { id: "details",      label: "Details",      icon: <Settings2 size={13} /> },
+  ];
+
   return (
     <div className="fixed top-16 inset-x-0 bottom-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div
-        className="relative w-full max-w-xl h-full bg-white shadow-2xl overflow-y-auto flex flex-col border-l border-gray-200"
+        className="relative w-full max-w-xl h-full bg-white shadow-2xl flex flex-col border-l border-gray-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-secondary">
-          <h2 className="text-lg font-semibold text-white truncate">
-            {inquiry.sender_name}
-          </h2>
-          <button onClick={onClose} className="text-white/70 hover:text-white text-xl font-bold">
-            ×
-          </button>
-        </div>
-
-        <div className="flex-1 p-4 space-y-5 overflow-y-auto">
-          {/* Contact info */}
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact</h3>
-            <div className="text-sm space-y-1">
-              {inquiry.sender_email && (
-                <p>
-                  <span className="text-gray-400">Email: </span>
-                  <a href={`mailto:${inquiry.sender_email}`} className="text-primary hover:underline">
+        {/* ── Slide-over header ── */}
+        <div className="flex-shrink-0 bg-secondary px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-white truncate">{inquiry.sender_name}</h2>
+              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                {inquiry.sender_email && (
+                  <a href={`mailto:${inquiry.sender_email}`} className="text-xs text-white/70 hover:text-white truncate">
                     {inquiry.sender_email}
                   </a>
-                </p>
-              )}
-              {inquiry.sender_phone && (
-                <p>
-                  <span className="text-gray-400">Phone: </span>
-                  <a href={`tel:${inquiry.sender_phone}`} className="text-primary hover:underline">
+                )}
+                {inquiry.sender_phone && (
+                  <a href={`tel:${inquiry.sender_phone}`} className="text-xs text-white/70 hover:text-white">
                     {inquiry.sender_phone}
                   </a>
-                </p>
+                )}
+              </div>
+              {inquiry.listing_title && (
+                <p className="text-xs text-white/50 mt-0.5 truncate">Re: {inquiry.listing_title}</p>
               )}
             </div>
-          </section>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <StageBadge stage={inquiry.lead_stage ?? "new"} />
+              <button onClick={onClose} className="text-white/60 hover:text-white text-xl font-bold leading-none">×</button>
+            </div>
+          </div>
+        </div>
 
-          {inquiry.listing_title && (
-            <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Listing</h3>
-              <p className="text-sm text-gray-700">{inquiry.listing_title}</p>
-            </section>
-          )}
-
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Message</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{inquiry.message}</p>
-          </section>
-
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Stage</h3>
-            <select
-              value={stage}
-              onChange={(e) => setStage(e.target.value as Stage)}
-              className="w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BCDD]"
+        {/* ── Tab bar ── */}
+        <div className="flex-shrink-0 flex border-b bg-white">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
             >
-              {ALL_STAGES.map((s) => (
-                <option key={s} value={s}>{STAGE_META[s].label}</option>
-              ))}
-            </select>
-          </section>
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Lead Score</h3>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={score}
-              onChange={(e) => setScore(Number(e.target.value))}
-              className="w-full"
-            />
-            <ScoreBar score={score} />
-          </section>
+        {/* ── Tab content ── */}
+        {activeTab === "conversation" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {loadingDetail ? (
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
+            ) : messageThread.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 px-6">
+                <Send size={36} className="mb-3 text-gray-200" />
+                <p className="text-sm font-medium">No messages yet</p>
+                <p className="text-xs mt-1 text-center">The buyer&apos;s initial inquiry will appear here once you receive one.</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                {messageThread.map((entry) => (
+                  <div key={entry.id} className={`flex gap-2 ${entry.is_from_buyer ? "" : "flex-row-reverse"}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${entry.is_from_buyer ? "bg-gray-200" : "bg-primary"}`}>
+                      <User size={12} className={entry.is_from_buyer ? "text-gray-500" : "text-white"} />
+                    </div>
+                    <div className={`max-w-[78%] ${entry.is_from_buyer ? "" : "items-end flex flex-col"}`}>
+                      <div className={`flex items-baseline gap-2 mb-1 ${entry.is_from_buyer ? "" : "flex-row-reverse"}`}>
+                        <span className="text-xs font-semibold text-gray-700">{entry.sender_name}</span>
+                        <span className="text-[10px] text-gray-400">{new Date(entry.created_at).toLocaleString()}</span>
+                      </div>
+                      <div className={`rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                        entry.is_from_buyer
+                          ? "bg-gray-100 text-gray-800 rounded-tl-sm"
+                          : "bg-primary text-white rounded-tr-sm"
+                      }`}>
+                        {entry.body}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={threadEndRef} />
+              </div>
+            )}
 
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quick Note</h3>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Short inline note (visible on list view)…"
-              className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BCDD]"
-            />
-          </section>
+            {/* Reply box */}
+            <div className="flex-shrink-0 px-4 py-3 border-t bg-gray-50">
+              {messageId ? (
+                <>
+                  <div className="flex gap-2 items-end">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
+                      rows={3}
+                      placeholder="Type your reply… (Ctrl+Enter to send)"
+                      className="flex-1 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                    />
+                    <button
+                      onClick={sendReply}
+                      disabled={sendingReply || !replyText.trim()}
+                      className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover-primary disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <Send size={13} />
+                      {sendingReply ? "…" : "Send"}
+                    </button>
+                  </div>
+                  {replyError && <p className="text-red-500 text-xs mt-1">{replyError}</p>}
+                </>
+              ) : (
+                <p className="text-xs text-gray-400 text-center italic">No linked message thread — reply once an inquiry is received.</p>
+              )}
+            </div>
+          </div>
+        )}
 
-          <button
-            onClick={saveChanges}
-            disabled={saving}
-            className="w-full py-2 bg-primary text-white rounded-md text-sm font-semibold hover-primary disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Notes ({noteList.length})
-            </h3>
-            <div className="space-y-2 mb-3 max-h-60 overflow-y-auto">
+        {activeTab === "notes" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {noteList.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No notes yet.</p>
+                <p className="text-xs text-gray-400 italic text-center mt-8">No notes yet. Add your first note below.</p>
               ) : (
                 noteList.map((n) => (
-                  <div key={n.id} className="bg-gray-50 rounded-md p-3 text-sm">
+                  <div key={n.id} className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-sm">
                     <div className="flex justify-between items-start gap-2">
                       <p className="text-gray-700 flex-1 whitespace-pre-wrap">{n.content}</p>
-                      <button
-                        onClick={() => deleteNote(n.id)}
-                        className="text-red-400 hover:text-red-600 text-xs shrink-0"
-                      >
-                        Delete
+                      <button onClick={() => deleteNote(n.id)} className="text-red-300 hover:text-red-500 flex-shrink-0">
+                        <Trash2 size={13} />
                       </button>
                     </div>
-                    <p className="text-gray-400 text-xs mt-1">
+                    <p className="text-gray-400 text-[10px] mt-1.5">
                       {n.author_name} · {new Date(n.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 ))
               )}
             </div>
-            <div className="flex gap-2">
-              <textarea
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                rows={2}
-                placeholder="Add a note…"
-                className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BCDD]"
-              />
-              <button
-                onClick={addNote}
-                className="self-end px-3 py-2 bg-secondary text-white rounded-md text-sm hover:bg-secondary/90"
-              >
-                Add
-              </button>
+            <div className="flex-shrink-0 px-4 py-3 border-t bg-gray-50">
+              <div className="flex gap-2">
+                <textarea
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  rows={3}
+                  placeholder="Add a note…"
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                />
+                <button
+                  onClick={addNote}
+                  disabled={!newNote.trim()}
+                  className="self-end px-3 py-2 bg-secondary text-white rounded-lg text-sm font-medium hover:bg-secondary/90 disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+              {noteError && <p className="text-red-500 text-xs mt-1">{noteError}</p>}
             </div>
-            {noteError && <p className="text-red-500 text-xs mt-1">{noteError}</p>}
-          </section>
+          </div>
+        )}
 
-          <section className="border-t pt-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Paperwork</h3>
-            <p className="text-xs text-gray-400 italic">
-              Status: {inquiry.paperwork_status ?? "none"} · Paperwork management coming soon.
-            </p>
-          </section>
-        </div>
+        {activeTab === "details" && (
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pipeline Stage</h3>
+              <select
+                value={stage}
+                onChange={(e) => setStage(e.target.value as Stage)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {ALL_STAGES.map((s) => (
+                  <option key={s} value={s}>{STAGE_META[s].label}</option>
+                ))}
+              </select>
+            </section>
+
+            <section>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Lead Score <span className="ml-1 font-bold text-gray-700">{score}</span>
+              </h3>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={score}
+                onChange={(e) => setScore(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <ScoreBar score={score} />
+            </section>
+
+            <button
+              onClick={saveChanges}
+              disabled={saving}
+              className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover-primary disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+
+            <section className="border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact</h3>
+              <div className="text-sm space-y-1.5">
+                <p><span className="text-gray-400 w-16 inline-block">Name</span> {inquiry.sender_name}</p>
+                {inquiry.sender_email && (
+                  <p>
+                    <span className="text-gray-400 w-16 inline-block">Email</span>
+                    <a href={`mailto:${inquiry.sender_email}`} className="text-primary hover:underline">{inquiry.sender_email}</a>
+                  </p>
+                )}
+                {inquiry.sender_phone && (
+                  <p>
+                    <span className="text-gray-400 w-16 inline-block">Phone</span>
+                    <a href={`tel:${inquiry.sender_phone}`} className="text-primary hover:underline">{inquiry.sender_phone}</a>
+                  </p>
+                )}
+                {inquiry.assigned_to_name && (
+                  <p><span className="text-gray-400 w-16 inline-block">Assigned</span> {inquiry.assigned_to_name}</p>
+                )}
+              </div>
+            </section>
+
+            {inquiry.listing_title && (
+              <section className="border-t pt-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Listing</h3>
+                <p className="text-sm text-gray-700">{inquiry.listing_title}</p>
+              </section>
+            )}
+
+            <section className="border-t pt-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Paperwork</h3>
+              <p className="text-xs text-gray-400 italic">
+                Status: {inquiry.paperwork_status ?? "none"} · Paperwork management coming soon.
+              </p>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
+  
 // ─── LeadsManager (embeddable) ────────────────────────────────────────────────
 
 export default function LeadsManager() {

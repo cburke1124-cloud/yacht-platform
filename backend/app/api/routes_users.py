@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User, UserPreferences
-from app.models.dealer import DealerProfile
+from app.models.dealer import DealerProfile, ActivityLog
 from app.exceptions import ResourceNotFoundException, ValidationException
 
 router = APIRouter()
@@ -193,3 +193,85 @@ def get_deletion_status(
         "recovery_expired": is_expired,
         "days_remaining": (current_user.recovery_deadline - datetime.utcnow()).days if current_user.recovery_deadline and not is_expired else 0
     }
+
+
+# ============= User Settings (notification preferences) =============
+
+@router.get("/user/settings")
+def get_user_settings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == current_user.id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+        db.commit()
+        db.refresh(prefs)
+
+    return {
+        "email_new_message": bool(prefs.email_new_message),
+        "email_new_inquiry": bool(prefs.email_new_inquiry),
+        "email_price_alert": bool(prefs.email_price_alert),
+        "email_new_listing_match": bool(prefs.email_new_listing_match),
+        "email_marketing": bool(prefs.email_marketing),
+        "language": prefs.language or "en",
+        "currency": prefs.currency or "USD",
+        "units": prefs.units or "imperial",
+        "timezone": prefs.timezone or "America/New_York",
+    }
+
+
+@router.put("/user/settings")
+def update_user_settings(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == current_user.id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=current_user.id)
+        db.add(prefs)
+
+    bool_fields = [
+        "email_new_message", "email_new_inquiry", "email_price_alert",
+        "email_new_listing_match", "email_marketing",
+    ]
+    for field in bool_fields:
+        if field in data:
+            setattr(prefs, field, bool(data[field]))
+
+    for field in ["language", "currency", "units", "timezone"]:
+        if field in data:
+            setattr(prefs, field, data[field])
+
+    db.commit()
+    return {"success": True, "message": "Settings saved successfully"}
+
+
+# ============= Activity Log =============
+
+@router.get("/activity-log")
+def get_activity_log(
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    logs = (
+        db.query(ActivityLog)
+        .filter(ActivityLog.user_id == current_user.id)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": log.id,
+            "action": log.action,
+            "details": log.details or {},
+            "ip_address": log.ip_address,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
+

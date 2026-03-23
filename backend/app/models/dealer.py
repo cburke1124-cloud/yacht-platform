@@ -57,6 +57,9 @@ class DealerProfile(Base):
     # individual listing settings.
     # cobrokering_enabled = Column(Boolean, default=True)
 
+    # Team Display
+    show_team_on_profile = Column(Boolean, default=False)
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

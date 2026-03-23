@@ -94,10 +94,13 @@ def get_messages(
             "listing_id": m.listing_id,
             "sender_id": m.sender_id,
             "recipient_id": m.recipient_id,
-            "sender_name": f"{m.sender.first_name} {m.sender.last_name}"
-            if m.sender
-            else "Unknown",
-            "sender_email": m.sender.email if m.sender else None,
+            "sender_name": (
+                f"{m.sender.first_name} {m.sender.last_name}".strip()
+                if m.sender
+                else m.external_sender_email or "Unknown"
+            ),
+            "sender_email": m.sender.email if m.sender else m.external_sender_email,
+            "external_sender_email": m.external_sender_email,
             "created_at": m.created_at.isoformat(),
         }
         for m in messages
@@ -144,10 +147,13 @@ def get_message_detail(
             "listing_id": message.listing_id,
             "sender_id": message.sender_id,
             "recipient_id": message.recipient_id,
-            "sender_name": f"{message.sender.first_name} {message.sender.last_name}"
-            if message.sender
-            else "Unknown",
-            "sender_email": message.sender.email if message.sender else None,
+            "sender_name": (
+                f"{message.sender.first_name} {message.sender.last_name}".strip()
+                if message.sender
+                else message.external_sender_email or "Unknown"
+            ),
+            "sender_email": message.sender.email if message.sender else message.external_sender_email,
+            "external_sender_email": message.external_sender_email,
             "created_at": message.created_at.isoformat(),
         },
         "replies": [
@@ -396,6 +402,23 @@ def reply_to_message(
                 except Exception:
                     pass
 
+            # --- In-app notification -----------------------------------------
+            if allow["app"]:
+                try:
+                    db.add(
+                        Notification(
+                            user_id=recipient_id,
+                            notification_type="message",
+                            title=f"Reply from {sender_name}: {parent.subject}",
+                            body=data["body"][:160],
+                            link=f"/dashboard/messages/{parent.id}",
+                            read=False,
+                        )
+                    )
+                    db.commit()
+                except Exception:
+                    pass
+
             # --- SMS reply notification --------------------------------------
             if allow["sms"] and recipient.phone and sms_service.is_configured():
                 try:
@@ -415,6 +438,39 @@ def reply_to_message(
                         )
                 except Exception:
                     pass
+
+    # --- Email to external buyer (no registered recipient) -------------------
+    elif parent.external_sender_email:
+        try:
+            ext_sender_name = f"{current_user.first_name} {current_user.last_name}"
+            # Token points back to this reply so buyer can continue the thread
+            token = generate_reply_token(reply.id, current_user.id)
+            reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
+            email_service.send_email(
+                to_email=parent.external_sender_email,
+                subject=f"Re: {parent.subject}",
+                html_content=f"""
+            <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+              <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+                <h1 style="color:white;margin:0;font-size:22px;">Reply from {ext_sender_name}</h1>
+              </div>
+              <div style="padding:30px;background:#f9fafb;">
+                <div style="background:white;border-left:4px solid #01BBDC;padding:20px;border-radius:4px;margin-bottom:20px;">
+                  <p style="white-space:pre-wrap;color:#334155;margin:0;">{data['body']}</p>
+                </div>
+                <p style="color:#64748b;font-size:13px;">
+                  Reply directly to this email to respond &#8212; no login required.
+                </p>
+              </div>
+              <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                2026 YachtVersal. Reply to this email to respond directly.
+              </div>
+            </body></html>
+            """,
+                reply_to=reply_to_addr,
+            )
+        except Exception:
+            pass
 
     return {"success": True, "reply_id": reply.id}
 

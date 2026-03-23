@@ -2,15 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { MapPin, Phone, Mail, Globe, Facebook, Instagram, CheckCircle, Star, Building2 } from 'lucide-react';
+import Link from 'next/link';
+import { MapPin, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, CheckCircle, Star, Building2, Users, ExternalLink } from 'lucide-react';
 import ListingCard from '@/app/components/ListingCard';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+
+interface TeamMember {
+  id: number;
+  name: string;
+  title: string;
+  photo_url?: string;
+}
 
 export default function DealerProfilePage() {
   const params = useParams();
   const [dealer, setDealer] = useState<any>(null);
   const [listings, setListings] = useState([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +32,15 @@ export default function DealerProfilePage() {
       const data = await response.json();
       setDealer(data.dealer);
       setListings(data.listings);
+
+      if (data.dealer?.show_team_on_profile) {
+        try {
+          const teamRes = await fetch(apiUrl(`/dealers/${params.slug}/team`));
+          if (teamRes.ok) setTeam(await teamRes.json());
+        } catch {
+          // team is non-critical
+        }
+      }
     } catch (error) {
       console.error('Error fetching dealer:', error);
     } finally {
@@ -156,7 +174,7 @@ export default function DealerProfilePage() {
               </div>
 
               {/* Social Media */}
-              {(dealer.facebook_url || dealer.instagram_url) && (
+              {(dealer.facebook_url || dealer.instagram_url || dealer.twitter_url || dealer.linkedin_url) && (
                 <div className="flex gap-4">
                   {dealer.facebook_url && (
                     <a 
@@ -178,11 +196,72 @@ export default function DealerProfilePage() {
                       <Instagram size={20} />
                     </a>
                   )}
+                  {dealer.twitter_url && (
+                    <a
+                      href={dealer.twitter_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-10 h-10 rounded-xl bg-sky-500 text-white flex items-center justify-center hover:bg-sky-600 transition-colors"
+                    >
+                      <Twitter size={20} />
+                    </a>
+                  )}
+                  {dealer.linkedin_url && (
+                    <a
+                      href={dealer.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-10 h-10 rounded-xl bg-blue-700 text-white flex items-center justify-center hover:bg-blue-800 transition-colors"
+                    >
+                      <Linkedin size={20} />
+                    </a>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Team Section */}
+        {dealer.show_team_on_profile && team.length > 0 && (
+          <div className="mb-16">
+            <div className="flex items-center gap-3 mb-8">
+              <Users className="text-primary" size={28} />
+              <h2 className="text-3xl font-bold text-secondary">Meet Our Team</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              {team.map((member) => (
+                <Link
+                  key={member.id}
+                  href={`/salesmen/${member.id}`}
+                  className="group bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary/30 transition-all p-5 flex flex-col items-center text-center"
+                >
+                  {member.photo_url ? (
+                    <img
+                      src={mediaUrl(member.photo_url)}
+                      alt={member.name}
+                      className="w-20 h-20 rounded-full object-cover border-2 border-primary/20 group-hover:border-primary/50 transition-colors mb-3"
+                      onError={onImgError}
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center mb-3">
+                      <span className="text-2xl font-bold text-primary">
+                        {member.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <p className="font-semibold text-secondary text-sm group-hover:text-primary transition-colors line-clamp-2 leading-tight mb-1">
+                    {member.name}
+                  </p>
+                  <p className="text-xs text-dark/60 line-clamp-1">{member.title}</p>
+                  <div className="mt-3 flex items-center gap-1 text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    View Profile <ExternalLink size={11} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Listings Section */}
         <div className="mb-16">
