@@ -240,7 +240,7 @@ function DetailPanel({
   ];
 
   return (
-    <div className="fixed top-20 inset-x-0 bottom-0 z-50 flex justify-end" style={{ background: 'rgba(16,33,79,0.4)' }} onClick={onClose}>
+    <div className="fixed top-20 inset-x-0 bottom-0 flex justify-end" style={{ zIndex: 9999, background: 'rgba(16,33,79,0.4)' }} onClick={onClose}>
       <div
         className="relative w-full max-w-xl h-full bg-white shadow-2xl flex flex-col border-l border-gray-200"
         onClick={(e) => e.stopPropagation()}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { Bell, X, TrendingDown } from 'lucide-react';
@@ -90,7 +90,7 @@ export default function PriceAlertButton({
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">

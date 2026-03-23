@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import type { CSSProperties } from 'react';
 
@@ -369,7 +369,7 @@ export const shimmerStyles = `
 // Full Page Loading Overlay
 export function FullPageLoader({ message = 'Loading...' }: { message?: string }) {
   return (
-    <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center" style={{ zIndex: 9999 }}>
       <div className="text-center space-y-4">
         <div className="relative w-16 h-16 mx-auto">
           <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>

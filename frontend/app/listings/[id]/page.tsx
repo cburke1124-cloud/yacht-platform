@@ -370,7 +370,8 @@ export default function ListingDetailPage() {
 
       {/* ══ LIGHTBOX ════════════════════════════════════════════════════════ */}
       {lightbox !== null && imageLightboxItems.length > 0 && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center"
+          style={{ zIndex: 9999 }}
           onClick={() => setLightbox(null)}>
           <button className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all" aria-label="Close">
             <X size={22} className="text-white" />
@@ -428,7 +429,8 @@ export default function ListingDetailPage() {
 
       {/* ══ MESSAGE MODAL ════════════════════════════════════════════════════ */}
       {showMsg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm"
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm"
+          style={{ zIndex: 9999 }}
           onClick={() => setShowMsg(false)}>
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">

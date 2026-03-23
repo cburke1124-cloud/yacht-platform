@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import { Upload, Folder, FolderPlus, Image, Video, Trash2, X, Check, Search, Grid3x3, List, Move, FolderOpen, ChevronRight, MoreVertical, Edit2, Download, Star } from 'lucide-react';
 
@@ -643,7 +643,7 @@ export default function DealerMediaGallery({
 
       {/* New Folder Modal */}
       {showNewFolderModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <h3 className="text-xl font-bold mb-4">Create New Folder</h3>
             <input
@@ -679,7 +679,7 @@ export default function DealerMediaGallery({
 
       {/* Move Modal */}
       {showMoveModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <h3 className="text-xl font-bold mb-4">Move {selectedMedia.size} item(s) to...</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto mb-4">

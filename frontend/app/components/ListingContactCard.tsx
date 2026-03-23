@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { Mail, Phone, User, Building2, MessageSquare } from 'lucide-react';
@@ -228,7 +228,7 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
 
       {/* Message Modal */}
       {showMessageModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
             <div className="p-6 border-b">
               <h3 className="text-xl font-bold">

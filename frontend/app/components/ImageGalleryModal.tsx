@@ -177,7 +177,7 @@ export default function ImageGalleryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
+    <div className="fixed inset-0 bg-black" style={{ zIndex: 9999 }}>
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
         <div className="flex items-center justify-between">

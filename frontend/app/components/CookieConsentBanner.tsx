@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from 'react';
 import { Cookie, X, Settings, Check } from 'lucide-react';
@@ -73,7 +73,7 @@ export default function CookieConsentBanner() {
     <>
       {/* Main Banner */}
       {!showSettings && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t-2 border-primary/20 shadow-2xl animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t-2 border-primary/20 shadow-2xl animate-slide-up">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-start gap-4">
               {/* Cookie Icon */}
@@ -134,7 +134,7 @@ export default function CookieConsentBanner() {
 
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 animate-fade-in">
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black bg-opacity-50 animate-fade-in" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-primary/20 p-6 flex items-center justify-between">
