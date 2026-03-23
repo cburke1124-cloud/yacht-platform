@@ -15,8 +15,6 @@ import {
   Loader2, AlertCircle, ExternalLink, Ruler, Clock, Copy, AlertTriangle
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
 
@@ -184,59 +182,11 @@ type Preferences = {
 };
 type CurrencyRate = { [key: string]: number };
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
 const sortApiKeys = (keys: APIKey[]) =>
   [...keys].sort((a, b) => {
     if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
-
-function CheckoutForm({ tier }: { tier: string }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setCheckoutLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/payments/create-subscription'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ tier })
-      });
-      const { client_secret } = await response.json();
-      const result = await stripe.confirmCardPayment(client_secret, {
-        payment_method: { card: elements.getElement(CardElement)! }
-      });
-      if (result.error) {
-        alert(result.error.message);
-      } else {
-        alert('Subscription activated!');
-        window.location.reload();
-      }
-    } catch {
-      alert('Payment failed');
-    } finally {
-      setCheckoutLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-4 border-2 border-gray-200 rounded-xl bg-white">
-        <CardElement options={{ style: { base: { fontSize: '16px', color: '#2E2E2E', '::placeholder': { color: '#9CA3AF' } } } }} />
-      </div>
-      <button type="submit" disabled={!stripe || checkoutLoading}
-        className="w-full px-6 py-4 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition-all shadow-lg">
-        {checkoutLoading ? <span className="flex items-center justify-center gap-2"><Loader2 className="animate-spin h-5 w-5" />Processing...</span> : 'Subscribe Now'}
-      </button>
-    </form>
-  );
-}
 
 export default function EnhancedDealerDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('listings');
@@ -481,24 +431,6 @@ export default function EnhancedDealerDashboard() {
     }
   };
 
-  const handleBrokerSave = async () => {
-    setBrokerProfileSaving(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(apiUrl('/dealer-profile'), {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(brokerProfile)
-      });
-      if (res.ok) {
-        setBrokerProfileSaved(true);
-        setTimeout(() => setBrokerProfileSaved(false), 3000);
-      }
-    } catch { /* non-fatal */ } finally {
-      setBrokerProfileSaving(false);
-    }
-  };
-
   // ── Media Manager functions ─────────────────────────────────────────────────
 
   const fetchMediaFiles = useCallback(async () => {
@@ -645,7 +577,7 @@ export default function EnhancedDealerDashboard() {
     });
   };
 
-
+  const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl('/listings/my-listings'), {
@@ -2423,12 +2355,13 @@ export default function EnhancedDealerDashboard() {
                           </p>
                         </div>
                       </div>
-                      <Elements stripe={stripePromise}>
-                        <CheckoutForm tier={selectedTier} />
-                      </Elements>
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <p className="text-xs text-gray-500 text-center">🔒 Secure payment powered by Stripe. Cancel anytime. No hidden fees.</p>
-                      </div>
+                      <button
+                        onClick={() => { window.location.href = '/dashboard/billing'; }}
+                        className="w-full px-6 py-4 bg-primary text-white rounded-xl hover:bg-primary/90 font-semibold transition-all shadow-lg"
+                      >
+                        Continue to Checkout
+                      </button>
+                      <p className="text-xs text-gray-500 text-center mt-4">Secure payment powered by Stripe. Cancel anytime.</p>
                     </div>
                   )}
 
