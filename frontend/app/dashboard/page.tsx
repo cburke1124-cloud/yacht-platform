@@ -13,6 +13,7 @@ import {
   MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2,
   Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter
 } from 'lucide-react';
+import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 
 type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
 
@@ -206,10 +207,19 @@ export default function EnhancedDealerDashboard() {
     sync_contacts: true,
     sync_messages: true
   });
+  const [crmSubTab, setCrmSubTab] = useState<'crm' | 'webhook'>('crm');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookFormat, setWebhookFormat] = useState<'json' | 'adf_xml'>('json');
+  const [webhookAuthType, setWebhookAuthType] = useState<'none' | 'api_key' | 'bearer' | 'basic'>('none');
+  const [webhookAuthToken, setWebhookAuthToken] = useState('');
+  const [webhookConfigured, setWebhookConfigured] = useState(false);
+  const [webhookTestPassed, setWebhookTestPassed] = useState(false);
+  const [webhookTesting, setWebhookTesting] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
     fetchCRMStatus();
+    fetchWebhookConfig();
     const token = localStorage.getItem('token');
     if (token) {
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
@@ -859,6 +869,89 @@ export default function EnhancedDealerDashboard() {
     }
   };
 
+  const fetchWebhookConfig = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/webhooks/config'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWebhookUrl(data.url || '');
+        setWebhookFormat(data.format || 'json');
+        setWebhookAuthType(data.auth_type || 'none');
+        setWebhookAuthToken(data.auth_token || '');
+        setWebhookConfigured(!!data.url);
+      }
+    } catch (err) {
+      console.error('Failed to fetch webhook config:', err);
+    }
+  };
+
+  const handleSaveWebhook = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/webhooks/config'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webhookUrl, format: webhookFormat, auth_type: webhookAuthType, auth_token: webhookAuthToken })
+      });
+      if (res.ok) {
+        setWebhookConfigured(true);
+        setWebhookTestPassed(false);
+        alert('Webhook saved!');
+      } else {
+        alert('Failed to save webhook');
+      }
+    } catch (err) {
+      console.error('Save webhook error:', err);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setWebhookTesting(true);
+    setWebhookTestPassed(false);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/webhooks/test'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setWebhookTestPassed(true);
+        alert('Webhook test successful!');
+      } else {
+        alert('Webhook test failed. Check your URL and settings.');
+      }
+    } catch (err) {
+      console.error('Test webhook error:', err);
+    } finally {
+      setWebhookTesting(false);
+    }
+  };
+
+  const handleDeleteWebhook = async () => {
+    if (!confirm('Remove webhook configuration?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/webhooks/config'), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setWebhookUrl('');
+        setWebhookFormat('json');
+        setWebhookAuthType('none');
+        setWebhookAuthToken('');
+        setWebhookConfigured(false);
+        setWebhookTestPassed(false);
+        alert('Webhook removed');
+      }
+    } catch (err) {
+      console.error('Delete webhook error:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-soft flex items-center justify-center">
@@ -1503,48 +1596,34 @@ export default function EnhancedDealerDashboard() {
 
           {/* Bulk Tools Tab */}
           {activeTab === 'bulk' && (
-            <div className="glass-card p-6">
-              <h2 className="text-2xl font-bold text-secondary mb-6">Bulk Import/Export Tools</h2>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Import */}
-                <div className="border-2 border-dashed border-primary/30 rounded-lg p-8 text-center hover:border-primary transition-colors">
-                  <Upload className="text-primary mx-auto mb-4" size={48} />
-                  <h3 className="font-bold text-lg text-secondary mb-2">Import Listings</h3>
-                  <p className="text-gray-600 mb-4">Upload a CSV file to create multiple listings at once</p>
-                  <button 
-                    onClick={() => window.location.href = '/dashboard/bulk-tools'}
-                    className="px-6 py-2 bg-primary text-light rounded-lg hover-primary transition-colors"
-                  >
-                    Import CSV
-                  </button>
-                </div>
-
-                {/* Export */}
-                <div className="border-2 border-dashed border-secondary/30 rounded-lg p-8 text-center hover:border-secondary transition-colors">
-                  <Archive className="text-secondary mx-auto mb-4" size={48} />
-                  <h3 className="font-bold text-lg text-secondary mb-2">Export Listings</h3>
-                  <p className="text-gray-600 mb-4">Download all your listings as a CSV file</p>
-                  <button 
-                    onClick={() => window.location.href = '/dashboard/bulk-tools'}
-                    className="px-6 py-2 bg-secondary text-light rounded-lg hover-secondary transition-colors"
-                  >
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-6 bg-cyan-50 border border-primary/20 rounded-lg p-4">
-                <p className="text-sm text-secondary">
-                  <strong>💡 Tip:</strong> Use bulk tools to quickly import yacht inventory from other platforms or export for backup purposes.
-                </p>
-              </div>
-            </div>
+            <BulkImportExportTools mode="standalone" userRole="dealer" />
           )}
 
           {/* CRM Tab */}
           {activeTab === 'crm' && (
             <div className="space-y-6">
+              {/* Sub-tab navigation */}
+              <div className="flex gap-2 border-b border-gray-200">
+                {[
+                  { id: 'crm', label: 'CRM Integration' },
+                  { id: 'webhook', label: 'Direct Webhook', indicator: webhookConfigured }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setCrmSubTab(tab.id as 'crm' | 'webhook')}
+                    className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 -mb-px ${
+                      crmSubTab === tab.id
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-gray-600 hover:text-secondary'
+                    }`}
+                  >
+                    {tab.label}
+                    {tab.indicator && <span className="w-2 h-2 rounded-full bg-green-500" title="Configured" />}
+                  </button>
+                ))}
+              </div>
+
+              {crmSubTab === 'crm' && (<>
               {crmConnected ? (
                 <div className="glass-card p-8">
                   <div className="flex items-center justify-between mb-6 pb-6 border-b border-primary/10">
@@ -1796,6 +1875,117 @@ export default function EnhancedDealerDashboard() {
                   </li>
                 </ul>
               </div>
+              </>)}
+
+              {/* Direct Webhook Sub-tab */}
+              {crmSubTab === 'webhook' && (
+                <div className="space-y-6">
+                  <div className="glass-card p-8">
+                    <h2 className="text-2xl font-bold text-secondary mb-2 flex items-center gap-3">
+                      <Zap size={28} className="text-primary" />
+                      Direct Webhook
+                      {webhookConfigured && <span className="inline-flex items-center gap-1 text-green-600 text-base font-semibold"><CheckCircle size={18} /> Configured</span>}
+                    </h2>
+                    <p className="text-gray-600 mb-8">Send lead data directly to any URL when a buyer submits an inquiry</p>
+                    <div className="space-y-6">
+                      <div>
+                        <label className="block text-sm font-semibold text-secondary mb-2">Webhook URL *</label>
+                        <input
+                          type="url"
+                          value={webhookUrl}
+                          onChange={(e) => setWebhookUrl(e.target.value)}
+                          placeholder="https://your-crm.com/webhook"
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-secondary mb-2">Payload Format</label>
+                        <select
+                          value={webhookFormat}
+                          onChange={(e) => setWebhookFormat(e.target.value as 'json' | 'adf_xml')}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                        >
+                          <option value="json">JSON — standard REST integration</option>
+                          <option value="adf_xml">ADF XML — compatible with most DMS systems</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-secondary mb-2">Authentication</label>
+                        <select
+                          value={webhookAuthType}
+                          onChange={(e) => setWebhookAuthType(e.target.value as 'none' | 'api_key' | 'bearer' | 'basic')}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                        >
+                          <option value="none">None</option>
+                          <option value="api_key">API Key (header)</option>
+                          <option value="bearer">Bearer Token</option>
+                          <option value="basic">Basic Auth</option>
+                        </select>
+                      </div>
+                      {webhookAuthType !== 'none' && (
+                        <div>
+                          <label className="block text-sm font-semibold text-secondary mb-2">
+                            {webhookAuthType === 'basic' ? 'Username:Password' : 'Token / Key'}
+                          </label>
+                          <input
+                            type="password"
+                            value={webhookAuthToken}
+                            onChange={(e) => setWebhookAuthToken(e.target.value)}
+                            placeholder={webhookAuthType === 'basic' ? 'user:password' : 'your-token-here'}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          />
+                        </div>
+                      )}
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={handleSaveWebhook}
+                          disabled={!webhookUrl}
+                          className="flex-1 px-6 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition-all"
+                        >
+                          Save Webhook
+                        </button>
+                        {webhookConfigured && (
+                          <>
+                            <button
+                              onClick={handleTestWebhook}
+                              disabled={webhookTesting}
+                              className="px-5 py-3 border-2 border-primary text-primary rounded-xl hover:bg-primary/5 font-semibold transition-all flex items-center gap-2"
+                            >
+                              {webhookTesting ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
+                              {webhookTesting ? 'Testing...' : 'Test'}
+                            </button>
+                            <button
+                              onClick={handleDeleteWebhook}
+                              className="px-5 py-3 border-2 border-red-300 text-red-600 rounded-xl hover:bg-red-50 font-semibold transition-all"
+                            >
+                              Remove
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      {webhookTestPassed && (
+                        <div className="flex items-center gap-2 text-green-600 font-semibold">
+                          <CheckCircle size={18} /> Test passed — webhook is working
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* Webhook Info Box */}
+                  <div className="glass-card p-6 bg-gradient-to-br from-primary/10 to-soft">
+                    <h3 className="font-bold text-secondary mb-4 flex items-center gap-2">
+                      <Zap size={22} className="text-primary" />
+                      How Webhooks Work
+                    </h3>
+                    <ul className="space-y-3 text-sm text-gray-700">
+                      <li className="flex items-start gap-3"><span className="text-primary flex-shrink-0 mt-0.5">✓</span><span>When a buyer submits an inquiry, we POST the lead data to your webhook URL</span></li>
+                      <li className="flex items-start gap-3"><span className="text-primary flex-shrink-0 mt-0.5">✓</span><span>Choose JSON format for custom integrations, or ADF XML for DMS compatibility</span></li>
+                      <li className="flex items-start gap-3"><span className="text-primary flex-shrink-0 mt-0.5">✓</span><span>Includes buyer contact info (name, email, phone) and yacht listing details</span></li>
+                      <li className="flex items-start gap-3"><span className="text-primary flex-shrink-0 mt-0.5">✓</span><span>Authenticate with API key, Bearer token, or Basic auth if needed</span></li>
+                      <li className="flex items-start gap-3"><span className="text-primary flex-shrink-0 mt-0.5">✓</span><span>Real-time delivery with automatic retry on failure</span></li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
