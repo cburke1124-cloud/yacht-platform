@@ -53,21 +53,22 @@ interface StageSummary {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const STAGE_META: Record<Stage, { label: string; color: string; bg: string }> = {
-  new:       { label: "New",       color: "text-gray-700",   bg: "bg-gray-100" },
-  contacted: { label: "Contacted", color: "text-blue-700",   bg: "bg-blue-100" },
-  qualified: { label: "Qualified", color: "text-yellow-700", bg: "bg-yellow-100" },
-  proposal:  { label: "Proposal",  color: "text-orange-700", bg: "bg-orange-100" },
-  won:       { label: "Won",       color: "text-green-700",  bg: "bg-green-100" },
-  lost:      { label: "Lost",      color: "text-red-700",    bg: "bg-red-100" },
+const STAGE_META: Record<Stage, { label: string; color: string; bg: string; dot: string }> = {
+  new:       { label: "New",       color: "text-[#10214F]",  bg: "bg-[#10214F]/10",  dot: "bg-[#10214F]" },
+  contacted: { label: "Contacted", color: "text-[#01BBDC]",  bg: "bg-[#01BBDC]/10",  dot: "bg-[#01BBDC]" },
+  qualified: { label: "Qualified", color: "text-amber-700",  bg: "bg-amber-50",       dot: "bg-amber-500" },
+  proposal:  { label: "Proposal",  color: "text-purple-700", bg: "bg-purple-50",      dot: "bg-purple-500" },
+  won:       { label: "Won",       color: "text-emerald-700",bg: "bg-emerald-50",     dot: "bg-emerald-500" },
+  lost:      { label: "Lost",      color: "text-red-600",    bg: "bg-red-50",         dot: "bg-red-400" },
 };
 
 const ALL_STAGES: Stage[] = ["new", "contacted", "qualified", "proposal", "won", "lost"];
 
 function StageBadge({ stage }: { stage: Stage }) {
-  const { label, color, bg } = STAGE_META[stage] ?? STAGE_META.new;
+  const { label, color, bg, dot } = STAGE_META[stage] ?? STAGE_META.new;
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${bg} ${color}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${bg} ${color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
       {label}
     </span>
   );
@@ -226,50 +227,65 @@ function DetailPanel({
     { id: "details",      label: "Details",      icon: <Settings2 size={13} /> },
   ];
 
+  // Build display thread: prepend the original inquiry message if we have it
+  const displayThread: MessageEntry[] = [
+    ...(inquiry.message ? [{
+      id: -1,
+      body: inquiry.message,
+      sender_name: inquiry.sender_name,
+      is_from_buyer: true,
+      created_at: inquiry.created_at,
+    }] : []),
+    ...messageThread,
+  ];
+
   return (
-    <div className="fixed top-16 inset-x-0 bottom-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+    <div className="fixed top-20 inset-x-0 bottom-0 z-50 flex justify-end" style={{ background: 'rgba(16,33,79,0.4)' }} onClick={onClose}>
       <div
         className="relative w-full max-w-xl h-full bg-white shadow-2xl flex flex-col border-l border-gray-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Slide-over header ── */}
-        <div className="flex-shrink-0 bg-secondary px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-white truncate">{inquiry.sender_name}</h2>
-              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+        {/* ── Header ── */}
+        <div className="flex-shrink-0 px-5 py-4" style={{ background: '#10214F' }}>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-bold text-white truncate font-bahnschrift">{inquiry.sender_name}</h2>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
                 {inquiry.sender_email && (
-                  <a href={`mailto:${inquiry.sender_email}`} className="text-xs text-white/70 hover:text-white truncate">
+                  <a href={`mailto:${inquiry.sender_email}`} className="text-xs text-[#01BBDC] hover:text-white transition-colors truncate">
                     {inquiry.sender_email}
                   </a>
                 )}
                 {inquiry.sender_phone && (
-                  <a href={`tel:${inquiry.sender_phone}`} className="text-xs text-white/70 hover:text-white">
+                  <a href={`tel:${inquiry.sender_phone}`} className="text-xs text-white/60 hover:text-white transition-colors">
                     {inquiry.sender_phone}
                   </a>
                 )}
               </div>
               {inquiry.listing_title && (
-                <p className="text-xs text-white/50 mt-0.5 truncate">Re: {inquiry.listing_title}</p>
+                <p className="text-xs text-white/40 mt-1 truncate">Re: {inquiry.listing_title}</p>
               )}
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <StageBadge stage={inquiry.lead_stage ?? "new"} />
-              <button onClick={onClose} className="text-white/60 hover:text-white text-xl font-bold leading-none">×</button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all flex-shrink-0"
+            >
+              ×
+            </button>
           </div>
+          <StageBadge stage={inquiry.lead_stage ?? "new"} />
         </div>
 
         {/* ── Tab bar ── */}
-        <div className="flex-shrink-0 flex border-b bg-white">
+        <div className="flex-shrink-0 flex border-b border-gray-100 bg-white">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold border-b-2 transition-colors ${
                 activeTab === tab.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-[#01BBDC] text-[#01BBDC]"
+                  : "border-transparent text-gray-400 hover:text-[#10214F]"
               }`}
             >
               {tab.icon}
@@ -283,28 +299,30 @@ function DetailPanel({
           <div className="flex-1 flex flex-col overflow-hidden">
             {loadingDetail ? (
               <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
-            ) : messageThread.length === 0 ? (
+            ) : displayThread.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-400 px-6">
                 <Send size={36} className="mb-3 text-gray-200" />
                 <p className="text-sm font-medium">No messages yet</p>
-                <p className="text-xs mt-1 text-center">The buyer&apos;s initial inquiry will appear here once you receive one.</p>
+                <p className="text-xs mt-1 text-center">The buyer&apos;s initial inquiry will appear here once submitted.</p>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-                {messageThread.map((entry) => (
-                  <div key={entry.id} className={`flex gap-2 ${entry.is_from_buyer ? "" : "flex-row-reverse"}`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${entry.is_from_buyer ? "bg-gray-200" : "bg-primary"}`}>
-                      <User size={12} className={entry.is_from_buyer ? "text-gray-500" : "text-white"} />
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                {displayThread.map((entry) => (
+                  <div key={entry.id} className={`flex gap-2.5 ${entry.is_from_buyer ? "" : "flex-row-reverse"}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold ${
+                      entry.is_from_buyer ? "bg-[#10214F]/10 text-[#10214F]" : "bg-[#01BBDC] text-white"
+                    }`}>
+                      {entry.sender_name?.charAt(0).toUpperCase() || '?'}
                     </div>
                     <div className={`max-w-[78%] ${entry.is_from_buyer ? "" : "items-end flex flex-col"}`}>
-                      <div className={`flex items-baseline gap-2 mb-1 ${entry.is_from_buyer ? "" : "flex-row-reverse"}`}>
-                        <span className="text-xs font-semibold text-gray-700">{entry.sender_name}</span>
+                      <div className={`flex items-baseline gap-2 mb-1.5 ${entry.is_from_buyer ? "" : "flex-row-reverse"}`}>
+                        <span className="text-xs font-semibold text-[#10214F]">{entry.sender_name}</span>
                         <span className="text-[10px] text-gray-400">{new Date(entry.created_at).toLocaleString()}</span>
                       </div>
-                      <div className={`rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                      <div className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
                         entry.is_from_buyer
-                          ? "bg-gray-100 text-gray-800 rounded-tl-sm"
-                          : "bg-primary text-white rounded-tr-sm"
+                          ? "bg-gray-100 text-[#10214F] rounded-tl-md"
+                          : "bg-[#01BBDC] text-white rounded-tr-md"
                       }`}>
                         {entry.body}
                       </div>
@@ -316,7 +334,7 @@ function DetailPanel({
             )}
 
             {/* Reply box */}
-            <div className="flex-shrink-0 px-4 py-3 border-t bg-gray-50">
+            <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 bg-gray-50">
               {messageId ? (
                 <>
                   <div className="flex gap-2 items-end">
@@ -326,12 +344,13 @@ function DetailPanel({
                       onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
                       rows={3}
                       placeholder="Type your reply… (Ctrl+Enter to send)"
-                      className="flex-1 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
                     />
                     <button
                       onClick={sendReply}
                       disabled={sendingReply || !replyText.trim()}
-                      className="px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover-primary disabled:opacity-50 flex items-center gap-1.5"
+                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-1.5 transition-opacity"
+                      style={{ background: '#01BBDC' }}
                     >
                       <Send size={13} />
                       {sendingReply ? "…" : "Send"}
@@ -350,36 +369,40 @@ function DetailPanel({
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
               {noteList.length === 0 ? (
-                <p className="text-xs text-gray-400 italic text-center mt-8">No notes yet. Add your first note below.</p>
+                <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                  <StickyNote size={32} className="mb-2 text-gray-200" />
+                  <p className="text-xs italic">No notes yet. Add your first note below.</p>
+                </div>
               ) : (
                 noteList.map((n) => (
-                  <div key={n.id} className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-sm">
+                  <div key={n.id} className="rounded-xl p-3.5 text-sm" style={{ background: 'rgba(204,175,139,0.12)', border: '1px solid rgba(204,175,139,0.3)' }}>
                     <div className="flex justify-between items-start gap-2">
-                      <p className="text-gray-700 flex-1 whitespace-pre-wrap">{n.content}</p>
-                      <button onClick={() => deleteNote(n.id)} className="text-red-300 hover:text-red-500 flex-shrink-0">
+                      <p className="text-[#10214F] flex-1 whitespace-pre-wrap leading-relaxed">{n.content}</p>
+                      <button onClick={() => deleteNote(n.id)} className="text-gray-300 hover:text-red-500 flex-shrink-0 transition-colors">
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <p className="text-gray-400 text-[10px] mt-1.5">
+                    <p className="text-gray-400 text-[10px] mt-2">
                       {n.author_name} · {new Date(n.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 ))
               )}
             </div>
-            <div className="flex-shrink-0 px-4 py-3 border-t bg-gray-50">
+            <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 bg-gray-50">
               <div className="flex gap-2">
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   rows={3}
                   placeholder="Add a note…"
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
                 />
                 <button
                   onClick={addNote}
                   disabled={!newNote.trim()}
-                  className="self-end px-3 py-2 bg-secondary text-white rounded-lg text-sm font-medium hover:bg-secondary/90 disabled:opacity-50"
+                  className="self-end px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
+                  style={{ background: '#10214F' }}
                 >
                   Add
                 </button>
@@ -392,11 +415,11 @@ function DetailPanel({
         {activeTab === "details" && (
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pipeline Stage</h3>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Pipeline Stage</h3>
               <select
                 value={stage}
                 onChange={(e) => setStage(e.target.value as Stage)}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white text-[#10214F] font-medium"
               >
                 {ALL_STAGES.map((s) => (
                   <option key={s} value={s}>{STAGE_META[s].label}</option>
@@ -405,8 +428,8 @@ function DetailPanel({
             </section>
 
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Lead Score <span className="ml-1 font-bold text-gray-700">{score}</span>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Lead Score <span className="ml-1 font-bold text-[#10214F]">{score}</span>
               </h3>
               <input
                 type="range"
@@ -422,43 +445,44 @@ function DetailPanel({
             <button
               onClick={saveChanges}
               disabled={saving}
-              className="w-full py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover-primary disabled:opacity-50"
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity"
+              style={{ background: '#01BBDC' }}
             >
               {saving ? "Saving…" : "Save Changes"}
             </button>
 
-            <section className="border-t pt-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Contact</h3>
-              <div className="text-sm space-y-1.5">
-                <p><span className="text-gray-400 w-16 inline-block">Name</span> {inquiry.sender_name}</p>
+            <section className="border-t border-gray-100 pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Contact</h3>
+              <div className="text-sm space-y-2 bg-gray-50 rounded-xl p-3">
+                <p className="flex gap-2"><span className="text-gray-400 w-16 shrink-0">Name</span> <span className="font-medium text-[#10214F]">{inquiry.sender_name}</span></p>
                 {inquiry.sender_email && (
-                  <p>
-                    <span className="text-gray-400 w-16 inline-block">Email</span>
-                    <a href={`mailto:${inquiry.sender_email}`} className="text-primary hover:underline">{inquiry.sender_email}</a>
+                  <p className="flex gap-2">
+                    <span className="text-gray-400 w-16 shrink-0">Email</span>
+                    <a href={`mailto:${inquiry.sender_email}`} className="text-[#01BBDC] hover:underline truncate">{inquiry.sender_email}</a>
                   </p>
                 )}
                 {inquiry.sender_phone && (
-                  <p>
-                    <span className="text-gray-400 w-16 inline-block">Phone</span>
-                    <a href={`tel:${inquiry.sender_phone}`} className="text-primary hover:underline">{inquiry.sender_phone}</a>
+                  <p className="flex gap-2">
+                    <span className="text-gray-400 w-16 shrink-0">Phone</span>
+                    <a href={`tel:${inquiry.sender_phone}`} className="text-[#01BBDC] hover:underline">{inquiry.sender_phone}</a>
                   </p>
                 )}
                 {inquiry.assigned_to_name && (
-                  <p><span className="text-gray-400 w-16 inline-block">Assigned</span> {inquiry.assigned_to_name}</p>
+                  <p className="flex gap-2"><span className="text-gray-400 w-16 shrink-0">Assigned</span> <span className="text-[#10214F]">{inquiry.assigned_to_name}</span></p>
                 )}
               </div>
             </section>
 
             {inquiry.listing_title && (
-              <section className="border-t pt-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Listing</h3>
-                <p className="text-sm text-gray-700">{inquiry.listing_title}</p>
+              <section className="border-t border-gray-100 pt-4">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Listing</h3>
+                <p className="text-sm font-medium text-[#10214F] bg-gray-50 rounded-xl px-3 py-2.5">{inquiry.listing_title}</p>
               </section>
             )}
 
-            <section className="border-t pt-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Paperwork</h3>
-              <p className="text-xs text-gray-400 italic">
+            <section className="border-t border-gray-100 pt-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Paperwork</h3>
+              <p className="text-xs text-gray-400 italic bg-gray-50 rounded-xl px-3 py-2.5">
                 Status: {inquiry.paperwork_status ?? "none"} · Paperwork management coming soon.
               </p>
             </section>
@@ -517,56 +541,55 @@ export default function LeadsManager() {
   const stageTotal = (stage: Stage) => summary.find((s) => s.stage === stage)?.count ?? 0;
 
   return (
-    <div className="bg-gray-50 rounded-xl">
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#F5F7FA' }}>
       {/* Header */}
-      <div className="bg-white border-b rounded-t-xl px-6 py-4">
-        <h2 className="text-xl font-bold text-gray-900">Leads</h2>
-        <p className="text-sm text-gray-500 mt-0.5">Manage inquiries, track pipeline progress, and add notes.</p>
+      <div className="bg-white border-b border-gray-100 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-[#10214F] font-bahnschrift">Leads</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Manage inquiries, track pipeline progress, and add notes.</p>
+        </div>
+        <input
+          type="text"
+          placeholder="Search by name, email, or listing…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:w-64 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-gray-50"
+        />
       </div>
 
       {/* Stage pipeline bar */}
-      <div className="px-6 py-4 overflow-x-auto">
+      <div className="px-6 pt-4 pb-2 overflow-x-auto">
         <div className="flex gap-2 min-w-max">
           <button
             onClick={() => setActiveStage("all")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
               activeStage === "all"
-                ? "bg-gray-800 text-white border-gray-800"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                ? "bg-[#10214F] text-white shadow-sm"
+                : "bg-white text-gray-500 border border-gray-200 hover:border-[#01BBDC] hover:text-[#01BBDC]"
             }`}
           >
             All ({summary.reduce((a, s) => a + s.count, 0)})
           </button>
           {ALL_STAGES.map((stage) => {
-            const { label, bg, color } = STAGE_META[stage];
+            const { label, bg, color, dot } = STAGE_META[stage];
             const cnt = stageTotal(stage);
             const active = activeStage === stage;
             return (
               <button
                 key={stage}
                 onClick={() => setActiveStage(stage)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
                   active
-                    ? `${bg} ${color} border-current`
-                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    ? `${bg} ${color} shadow-sm border border-current/20`
+                    : "bg-white text-gray-500 border border-gray-200 hover:border-[#01BBDC] hover:text-[#01BBDC]"
                 }`}
               >
+                <span className={`w-1.5 h-1.5 rounded-full ${active ? dot : 'bg-gray-300'}`} />
                 {label} ({cnt})
               </button>
             );
           })}
         </div>
-      </div>
-
-      {/* Search */}
-      <div className="px-6 pb-3">
-        <input
-          type="text"
-          placeholder="Search by name, email, or listing…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-md border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
       </div>
 
       {/* Table */}
@@ -578,12 +601,12 @@ export default function LeadsManager() {
         ) : inquiries.length === 0 ? (
           <div className="text-center py-16 text-gray-400">No inquiries found.</div>
         ) : (
-          <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
             <table className="min-w-full divide-y divide-gray-100 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
+              <thead>
+                <tr style={{ background: '#10214F' }}>
                   {["Contact", "Listing", "Stage", "Score", "Note", "Assigned To", "Date"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-white/70 uppercase tracking-wider">
                       {h}
                     </th>
                   ))}
@@ -593,29 +616,29 @@ export default function LeadsManager() {
                 {inquiries.map((inq) => (
                   <tr
                     key={inq.id}
-                    className="hover:bg-blue-50 cursor-pointer transition-colors"
+                    className="hover:bg-[#01BBDC]/5 cursor-pointer transition-colors"
                     onClick={() => setSelected(inq)}
                   >
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{inq.sender_name}</p>
-                      <p className="text-gray-500 text-xs">{inq.sender_email}</p>
+                    <td className="px-4 py-3.5">
+                      <p className="font-semibold text-[#10214F] text-sm">{inq.sender_name}</p>
+                      <p className="text-gray-400 text-xs mt-0.5">{inq.sender_email}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[150px] truncate">
+                    <td className="px-4 py-3.5 text-gray-600 text-sm max-w-[150px] truncate font-medium">
                       {inq.listing_title ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3.5">
                       <StageBadge stage={inq.lead_stage ?? "new"} />
                     </td>
-                    <td className="px-4 py-3 min-w-[100px]">
+                    <td className="px-4 py-3.5 min-w-[100px]">
                       <ScoreBar score={inq.lead_score ?? 0} />
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate">
-                      {inq.notes || <span className="text-gray-300 italic">—</span>}
+                    <td className="px-4 py-3.5 text-gray-400 text-xs max-w-[160px] truncate">
+                      {inq.notes || <span className="italic">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">
+                    <td className="px-4 py-3.5 text-gray-500 text-xs">
                       {inq.assigned_to_name ?? <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
+                    <td className="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">
                       {new Date(inq.created_at).toLocaleDateString()}
                     </td>
                   </tr>

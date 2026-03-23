@@ -635,61 +635,6 @@ export default function EnhancedDealerDashboard() {
           </div>
         </div>
 
-        {/* Quick Action Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <button
-            onClick={() => window.location.href = '/dashboard/media'}
-            className="glass-card p-4 text-left hover-lift"
-          >
-            <div className="flex items-center gap-3">
-              <Image className="text-primary" size={24} />
-              <div>
-                <p className="text-sm text-gray-600">Media</p>
-                <p className="text-lg font-bold text-secondary">Gallery</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('listings')}
-            className="glass-card p-4 text-left hover-lift"
-          >
-            <div className="flex items-center gap-3">
-              <BarChart3 className="text-primary" size={24} />
-              <div>
-                <p className="text-sm text-gray-600">My</p>
-                <p className="text-lg font-bold text-secondary">Listings</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className="glass-card p-4 text-left hover-lift"
-          >
-            <div className="flex items-center gap-3">
-              <BarChart3 className="text-secondary" size={24} />
-              <div>
-                <p className="text-sm text-gray-600">Performance</p>
-                <p className="text-lg font-bold text-secondary">Analytics</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('leads')}
-            className="glass-card p-4 text-left hover-lift"
-          >
-            <div className="flex items-center gap-3">
-              <MessageSquare className="text-accent" size={24} />
-              <div>
-                <p className="text-sm text-gray-600">Inbound</p>
-                <p className="text-lg font-bold text-secondary">Leads</p>
-              </div>
-            </div>
-          </button>
-        </div>
-
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="glass-card p-6">
