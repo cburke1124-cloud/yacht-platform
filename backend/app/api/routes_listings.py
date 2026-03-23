@@ -107,7 +107,7 @@ class ListingCreate(BaseModel):
     # Location
     city: Optional[str] = None
     state: Optional[str] = None
-    country: str = "USA"
+    country: Optional[str] = None
     zip_code: Optional[str] = None
     continent: Optional[str] = None
     # Condition / status

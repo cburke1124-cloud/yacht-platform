@@ -25,6 +25,151 @@ logger = logging.getLogger(__name__)
 
 
 class OptimizedYachtScraper:
+
+    # ── Location normalization tables ─────────────────────────────────────────
+    _COUNTRY_ALIASES: Dict[str, str] = {
+        "usa": "United States", "us": "United States",
+        "u.s.a.": "United States", "u.s.": "United States",
+        "united states of america": "United States",
+        "uk": "United Kingdom", "great britain": "United Kingdom", "gb": "United Kingdom",
+        "uae": "United Arab Emirates",
+        "trinidad": "Trinidad and Tobago",
+        "st martin": "St. Martin", "saint martin": "St. Martin",
+        "st lucia": "St. Lucia", "saint lucia": "St. Lucia",
+        "st kitts": "St. Kitts and Nevis", "saint kitts": "St. Kitts and Nevis",
+        "st vincent": "St. Vincent and the Grenadines",
+        "antigua": "Antigua and Barbuda",
+        "bvi": "British Virgin Islands", "british vi": "British Virgin Islands",
+        "usvi": "US Virgin Islands", "us vi": "US Virgin Islands",
+        "turks & caicos": "Turks and Caicos", "t&c": "Turks and Caicos",
+        "curacao": "Curacao", "curaçao": "Curacao",
+        "reunion": "Réunion",
+        "tahiti": "French Polynesia",
+    }
+
+    _US_STATE_ABBR: Dict[str, str] = {
+        "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+        "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+        "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho",
+        "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+        "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+        "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+        "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+        "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+        "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+        "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+        "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+        "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
+        "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+        "PR": "Puerto Rico", "VI": "US Virgin Islands", "GU": "Guam",
+        "AS": "American Samoa", "MP": "Northern Mariana Islands",
+    }
+
+    _CA_PROVINCE_ABBR: Dict[str, str] = {
+        "AB": "Alberta", "BC": "British Columbia", "MB": "Manitoba",
+        "NB": "New Brunswick", "NL": "Newfoundland and Labrador",
+        "NT": "Northwest Territories", "NS": "Nova Scotia", "NU": "Nunavut",
+        "ON": "Ontario", "PE": "Prince Edward Island", "QC": "Quebec",
+        "SK": "Saskatchewan", "YT": "Yukon",
+    }
+
+    # Canonical country names matching the frontend COUNTRIES list
+    _KNOWN_COUNTRIES: frozenset = frozenset({
+        "United States", "Canada", "Mexico", "Bahamas", "Bermuda",
+        "Cayman Islands", "British Virgin Islands", "US Virgin Islands",
+        "Puerto Rico", "Barbados", "Trinidad and Tobago", "Aruba", "Curacao",
+        "Antigua and Barbuda", "St. Martin", "Martinique", "Guadeloupe",
+        "St. Lucia", "Grenada", "St. Kitts and Nevis", "St. Vincent and the Grenadines",
+        "Turks and Caicos", "Jamaica", "Dominican Republic", "Haiti", "Cuba",
+        "Belize", "Guatemala", "Honduras", "Panama", "Colombia", "Venezuela",
+        "Guyana", "Suriname", "Brazil", "Uruguay", "Argentina", "Chile",
+        "Peru", "Ecuador", "United Kingdom", "Ireland", "France", "Spain",
+        "Portugal", "Italy", "Greece", "Croatia", "Montenegro", "Albania",
+        "Slovenia", "Malta", "Cyprus", "Monaco", "Corsica", "Sardinia",
+        "Sicily", "Netherlands", "Belgium", "Germany", "Denmark", "Sweden",
+        "Norway", "Finland", "Estonia", "Latvia", "Lithuania", "Poland",
+        "Switzerland", "Austria", "Turkey", "Israel", "Lebanon", "Egypt",
+        "Libya", "Tunisia", "Algeria", "Morocco", "United Arab Emirates",
+        "Oman", "Qatar", "Bahrain", "Kuwait", "Saudi Arabia", "Yemen",
+        "Maldives", "India", "Sri Lanka", "Thailand", "Malaysia", "Singapore",
+        "Indonesia", "Philippines", "Vietnam", "Cambodia", "Myanmar", "Brunei",
+        "Hong Kong", "Japan", "Taiwan", "South Korea", "China", "Australia",
+        "New Zealand", "Fiji", "Vanuatu", "Tonga", "Samoa", "French Polynesia",
+        "New Caledonia", "Papua New Guinea", "South Africa", "Mozambique",
+        "Tanzania", "Kenya", "Seychelles", "Mauritius", "Réunion", "Madagascar",
+        "Namibia", "Nigeria", "Ghana", "Senegal", "Ivory Coast",
+    })
+
+    @classmethod
+    def normalize_location(
+        cls,
+        city: Optional[str],
+        state: Optional[str],
+        country: Optional[str],
+    ) -> tuple:
+        """
+        Normalize and infer city / state / country from partial or raw scraped data.
+        - Expands state/province abbreviations to full names
+        - Resolves country aliases to canonical names (e.g. 'USA' → 'United States')
+        - When 'state' is actually a country name (e.g. 'Bermuda'), promotes it
+        - Infers missing country from known state/province
+        Returns (city, state, country) — any may be None if not determinable.
+        """
+        # ── normalize country ────────────────────────────────────────────────
+        if country:
+            key = country.strip().lower().rstrip('.')
+            country = cls._COUNTRY_ALIASES.get(key, country.strip())
+            # Snap to canonical casing
+            c_low = country.lower()
+            for known in cls._KNOWN_COUNTRIES:
+                if known.lower() == c_low:
+                    country = known
+                    break
+
+        # ── normalize state ──────────────────────────────────────────────────
+        if state:
+            s = state.strip()
+            s_up = s.upper()
+            if s_up in cls._US_STATE_ABBR:
+                state = cls._US_STATE_ABBR[s_up]
+                if not country:
+                    country = "United States"
+            elif s_up in cls._CA_PROVINCE_ABBR:
+                state = cls._CA_PROVINCE_ABBR[s_up]
+                if not country:
+                    country = "Canada"
+            else:
+                # Check if "state" is really a country name
+                s_low = s.lower()
+                matched_country = None
+                for known in cls._KNOWN_COUNTRIES:
+                    if known.lower() == s_low:
+                        matched_country = known
+                        break
+                if matched_country:
+                    if not country:
+                        country = matched_country
+                    state = None  # was country, not a sub-national region
+                else:
+                    # Check if it's a full US state or Canadian province name
+                    all_us = set(cls._US_STATE_ABBR.values())
+                    all_ca = set(cls._CA_PROVINCE_ABBR.values())
+                    if s in all_us and not country:
+                        country = "United States"
+                    elif s in all_ca and not country:
+                        country = "Canada"
+
+        # ── city = country? (only city provided, e.g. city="Bermuda") ────────
+        if city and not country and not state:
+            c_low = city.lower()
+            for known in cls._KNOWN_COUNTRIES:
+                if known.lower() == c_low:
+                    country = known
+                    city = None
+                    break
+
+        return city or None, state or None, country or None
+
     def __init__(self, api_key: str = ""):
         self.api_key = api_key
         if api_key:
@@ -585,6 +730,14 @@ Content: {content[:12000]}"""
             yacht_data = json.loads(response_text)
             if partial_data:
                 yacht_data = {**partial_data, **yacht_data}
+            # Normalize location from AI output
+            nc, ns, nco = self.normalize_location(
+                yacht_data.get("city"), yacht_data.get("state"), yacht_data.get("country")
+            )
+            if nc  is not None: yacht_data["city"]    = nc
+            if ns  is not None: yacht_data["state"]   = ns
+            elif "state"   in yacht_data: yacht_data.pop("state", None)
+            if nco is not None: yacht_data["country"] = nco
             return yacht_data
         except Exception as e:
             logger.warning(f"AI extraction failed for {url}: {e}")
@@ -654,6 +807,15 @@ Content: {content[:12000]}"""
                 partial["model"] = " ".join(title_parts[2:])
             elif len(title_parts) >= 2 and re.match(r"(19|20)\d{2}", title_parts[0]):
                 partial["make"] = title_parts[1]
+
+        # Normalize location fields so AI context includes clean values
+        norm_city, norm_state, norm_country = self.normalize_location(
+            partial.get("city"), partial.get("state"), partial.get("country")
+        )
+        if norm_city   is not None: partial["city"]    = norm_city
+        if norm_state  is not None: partial["state"]   = norm_state
+        elif "state"   in partial:  partial.pop("state", None)
+        if norm_country is not None: partial["country"] = norm_country
 
         # Call AI whenever title, make/model, OR description are missing
         needs_ai = (not partial.get("title") or not partial.get("make")
@@ -852,8 +1014,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     """Copy scraped fields onto a Listing object, preserving manually-set overrides."""
     str_fields = ["title", "make", "model", "boat_type",
-                  "hull_material", "hull_type", "fuel_type", "city", "state", "country",
-                  "currency"]
+                  "hull_material", "hull_type", "fuel_type", "currency"]
     # Text fields stored without length limit
     text_fields = ["description", "features"]
     float_fields = ["price", "length_feet", "beam_feet", "draft_feet",
@@ -883,6 +1044,19 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
                 setattr(listing, f, int(raw[f]))
             except (ValueError, TypeError):
                 pass
+
+    # Normalize and infer location fields
+    city, state, country = OptimizedYachtScraper.normalize_location(
+        raw.get("city"), raw.get("state"), raw.get("country")
+    )
+    if city is not None:
+        listing.city = city
+    if state is not None:
+        listing.state = state
+    elif raw.get("state") is not None:
+        listing.state = None  # explicitly cleared (was actually a country)
+    if country is not None:
+        listing.country = country
 
     # Always keep dealer / salesman linkage
     listing.user_id = job.dealer_id

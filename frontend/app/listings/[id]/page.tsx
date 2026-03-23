@@ -321,15 +321,17 @@ export default function ListingDetailPage() {
   const locationParts = [listing?.city, listing?.state, listing?.country].filter(Boolean);
   const locationString = locationParts.join(', ');
 
-  // Parse key features from features text (first 5-6 bullet points)
+  // Parse key features — only use explicit bullet-point lines from features fallback
   const keyFeatures = listing?.feature_bullets?.length
     ? listing.feature_bullets.filter(Boolean).slice(0, 8)
     : (listing?.features
       ? listing.features
           .replace(/<[^>]*>/g, '\n')
           .split('\n')
-          .map(line => line.replace(/^[-•\s]+/, '').trim())
-          .filter(line => line && !line.match(/^[A-Z\s]+$/))
+          .map(line => line.trim())
+          .filter(line => line.startsWith('- ') || line.startsWith('• '))
+          .map(line => line.replace(/^[-•]\s+/, '').trim())
+          .filter(line => line.length > 0 && line.length < 150)
           .slice(0, 8)
       : []);
 

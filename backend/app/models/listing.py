@@ -60,7 +60,7 @@ class Listing(Base):
     # Location
     city = Column(String)
     state = Column(String)
-    country = Column(String, default="USA")
+    country = Column(String)
     zip_code = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
