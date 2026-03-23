@@ -11,9 +11,12 @@ import {
   Building2, Link2, Link, Upload, CreditCard, Key, CheckCircle,
   XCircle, Check, Zap,
   MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2,
-  Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter
+  Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter,
+  Loader2, AlertCircle, ExternalLink, Ruler, Clock, Copy, AlertTriangle
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
 
@@ -138,6 +141,103 @@ type TeamPerformanceData = {
   members: TeamPerformanceMember[];
 };
 
+// ─── Billing types ──────────────────────────────────────────────────────────
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  interval: string;
+  features: string[];
+  popular?: boolean;
+  custom_price?: boolean;
+}
+interface SubscriptionInfo {
+  active: boolean;
+  tier: string;
+  status?: string;
+  current_period_end?: string;
+  cancel_at_period_end?: boolean;
+  trial_active?: boolean;
+  trial_end?: string;
+}
+// ─── API Keys types ───────────────────────────────────────────────────────────
+interface APIKey {
+  id: number;
+  name: string;
+  key_prefix: string;
+  is_active: boolean;
+  rate_limit: number;
+  created_at: string;
+  last_used_at?: string;
+  expires_at?: string;
+}
+// ─── Preferences types ────────────────────────────────────────────────────────
+type Preferences = {
+  language: string;
+  currency: string;
+  units: string;
+  timezone: string;
+  marketing_opt_in: boolean;
+  communication_email: boolean;
+  communication_sms: boolean;
+  communication_push: boolean;
+};
+type CurrencyRate = { [key: string]: number };
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+const sortApiKeys = (keys: APIKey[]) =>
+  [...keys].sort((a, b) => {
+    if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
+function CheckoutForm({ tier }: { tier: string }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setCheckoutLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/payments/create-subscription'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ tier })
+      });
+      const { client_secret } = await response.json();
+      const result = await stripe.confirmCardPayment(client_secret, {
+        payment_method: { card: elements.getElement(CardElement)! }
+      });
+      if (result.error) {
+        alert(result.error.message);
+      } else {
+        alert('Subscription activated!');
+        window.location.reload();
+      }
+    } catch {
+      alert('Payment failed');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="p-4 border-2 border-gray-200 rounded-xl bg-white">
+        <CardElement options={{ style: { base: { fontSize: '16px', color: '#2E2E2E', '::placeholder': { color: '#9CA3AF' } } } }} />
+      </div>
+      <button type="submit" disabled={!stripe || checkoutLoading}
+        className="w-full px-6 py-4 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition-all shadow-lg">
+        {checkoutLoading ? <span className="flex items-center justify-center gap-2"><Loader2 className="animate-spin h-5 w-5" />Processing...</span> : 'Subscribe Now'}
+      </button>
+    </form>
+  );
+}
+
 export default function EnhancedDealerDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const [listings, setListings] = useState<Listing[]>([]);
@@ -216,10 +316,42 @@ export default function EnhancedDealerDashboard() {
   const [webhookTestPassed, setWebhookTestPassed] = useState(false);
   const [webhookTesting, setWebhookTesting] = useState(false);
 
+  // Billing state
+  const [billingPlans, setBillingPlans] = useState<Plan[]>([]);
+  const [currentTier, setCurrentTier] = useState('free');
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [selectedTier, setSelectedTier] = useState('');
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState('');
+  const [managingBilling, setManagingBilling] = useState(false);
+
+  // Preferences state
+  const [preferences, setPreferences] = useState<Preferences>({
+    language: 'en', currency: 'USD', units: 'imperial', timezone: 'America/New_York',
+    marketing_opt_in: false, communication_email: true, communication_sms: false, communication_push: true
+  });
+  const [prefRates, setPrefRates] = useState<CurrencyRate>({});
+  const [prefLoading, setPrefLoading] = useState(false);
+  const [prefSaving, setPrefSaving] = useState(false);
+
+  // API Keys state
+  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
+  const [newKeyName, setNewKeyName] = useState('Primary API Key');
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [fullKeys, setFullKeys] = useState<Record<number, string>>({});
+  const [regeneratingKeyId, setRegeneratingKeyId] = useState<number | null>(null);
+  const [togglingKeyId, setTogglingKeyId] = useState<number | null>(null);
+
   useEffect(() => {
     fetchDashboardData();
     fetchCRMStatus();
     fetchWebhookConfig();
+    fetchBillingData();
+    fetchPreferences();
+    fetchPrefRates();
+    fetchAPIKeys();
     const token = localStorage.getItem('token');
     if (token) {
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
@@ -949,6 +1081,195 @@ export default function EnhancedDealerDashboard() {
       }
     } catch (err) {
       console.error('Delete webhook error:', err);
+    }
+  };
+
+  // ─── Billing handlers ────────────────────────────────────────────────────
+  const fetchBillingData = async () => {
+    setBillingLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [plansRes, subRes] = await Promise.all([
+        fetch(apiUrl('/payments/plans'), { headers }),
+        fetch(apiUrl('/payments/subscription'), { headers }),
+      ]);
+      if (plansRes.ok) {
+        const d = await plansRes.json();
+        setBillingPlans(d.plans || []);
+        setCurrentTier(d.current_tier || 'free');
+        setSelectedTier(d.current_tier !== 'free' ? d.current_tier : (d.plans?.[0]?.id || ''));
+      }
+      if (subRes.ok) setSubscription(await subRes.json());
+    } catch {
+      setBillingError('Failed to load billing information.');
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const openStripePortal = async () => {
+    setManagingBilling(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/payments/billing-portal'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        window.location.href = url;
+      } else {
+        alert('Unable to open billing portal.');
+      }
+    } catch {
+      alert('Unable to open billing portal.');
+    } finally {
+      setManagingBilling(false);
+    }
+  };
+
+  // ─── Preferences handlers ────────────────────────────────────────────────
+  const fetchPreferences = async () => {
+    setPrefLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/preferences'), { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setPreferences(prev => ({ ...prev, ...data }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch preferences:', err);
+    } finally {
+      setPrefLoading(false);
+    }
+  };
+
+  const fetchPrefRates = async () => {
+    try {
+      const res = await fetch(apiUrl('/currencies/rates'));
+      if (res.ok) {
+        const data = await res.json();
+        setPrefRates(data.rates || {});
+      }
+    } catch (err) {
+      console.error('Failed to fetch rates:', err);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    setPrefSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/preferences'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(preferences)
+      });
+      if (res.ok) {
+        alert('✅ Preferences saved! Reload the page to see changes.');
+      } else {
+        alert('Failed to save preferences');
+      }
+    } catch {
+      alert('Failed to save preferences');
+    } finally {
+      setPrefSaving(false);
+    }
+  };
+
+  // ─── API Keys handlers ────────────────────────────────────────────────────
+  const fetchAPIKeys = async () => {
+    setApiKeysLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/api-keys'), { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      setApiKeys(sortApiKeys(data));
+    } catch (err) {
+      console.error('Failed to fetch API keys:', err);
+    } finally {
+      setApiKeysLoading(false);
+    }
+  };
+
+  const copyKeyToClipboard = (text: string, id: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKeyId(id);
+    setTimeout(() => setCopiedKeyId(null), 2000);
+  };
+
+  const handleCreateKey = async () => {
+    if (!newKeyName.trim()) { alert('Please enter a key name'); return; }
+    setCreatingKey(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/api-keys'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name: newKeyName.trim() })
+      });
+      const result = await res.json();
+      if (!res.ok) { alert(result.detail || 'Failed to create API key'); return; }
+      const created: APIKey = {
+        id: result.id, name: result.name, key_prefix: result.key_prefix,
+        is_active: true, rate_limit: 1000, created_at: result.created_at,
+      };
+      setApiKeys(prev => sortApiKeys([created, ...prev]));
+      setFullKeys(prev => ({ ...prev, [result.id]: result.key }));
+      alert('New API key created. Copy it now—this is the only time the full key is shown.');
+    } catch {
+      alert('Failed to create API key');
+    } finally {
+      setCreatingKey(false);
+    }
+  };
+
+  const handleRegenerateKey = async (key: APIKey) => {
+    if (!confirm(`Regenerate "${key.name}"? The old key will be deactivated immediately.`)) return;
+    setRegeneratingKeyId(key.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/api-keys/${key.id}/regenerate`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await res.json();
+      if (!res.ok) { alert(result.detail || 'Failed to regenerate API key'); return; }
+      setApiKeys(prev => {
+        const updated = prev.map(k => k.id === result.old_key_id ? { ...k, is_active: false } : k);
+        const newEntry: APIKey = {
+          id: result.id, name: result.name, key_prefix: result.key_prefix,
+          is_active: result.is_active, rate_limit: result.rate_limit,
+          created_at: result.created_at, expires_at: result.expires_at,
+        };
+        return sortApiKeys([newEntry, ...updated]);
+      });
+      setFullKeys(prev => ({ ...prev, [result.id]: result.key }));
+      alert('API key regenerated. Copy the new full key now.');
+    } catch {
+      alert('Failed to regenerate API key');
+    } finally {
+      setRegeneratingKeyId(null);
+    }
+  };
+
+  const handleToggleKeyActive = async (key: APIKey) => {
+    setTogglingKeyId(key.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/api-keys/${key.id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ is_active: !key.is_active })
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(result.detail || 'Failed to update key status'); return; }
+      setApiKeys(prev => sortApiKeys(prev.map(k => k.id === key.id ? { ...k, is_active: !k.is_active } : k)));
+    } catch {
+      alert('Failed to update key status');
+    } finally {
+      setTogglingKeyId(null);
     }
   };
 
@@ -1991,80 +2312,315 @@ export default function EnhancedDealerDashboard() {
 
           {/* Billing Tab */}
           {activeTab === 'billing' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <CreditCard className="mx-auto text-primary mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">Subscription & Billing</h2>
-                <p className="text-gray-600 mb-6">Manage your subscription plan and payment methods</p>
-              </div>
-              <div className="space-y-4 mb-6">
-                <div className="border border-primary/10 rounded-lg p-6 hover-lift">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="font-bold text-lg text-secondary">Current Plan</h3>
-                      <p className="text-gray-600">Premium Broker - $99/month</p>
-                    </div>
-                    <span className="px-4 py-2 bg-emerald-100 text-emerald-800 rounded-full text-sm font-semibold">
-                      Active
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-center pt-4 border-t border-primary/10">
-                    <div>
-                      <p className="text-2xl font-bold text-primary">∞</p>
-                      <p className="text-sm text-gray-600">Listings</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-primary">50GB</p>
-                      <p className="text-sm text-gray-600">Storage</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-primary">5</p>
-                      <p className="text-sm text-gray-600">Team Members</p>
-                    </div>
-                  </div>
+            <div className="max-w-5xl mx-auto">
+              {billingLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="animate-spin h-10 w-10 text-primary" />
                 </div>
-              </div>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => window.location.href = '/dashboard/billing'}
-                  className="flex-1 px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors hover-lift"
-                >
-                  Manage Billing
-                </button>
-              </div>
+              ) : billingError ? (
+                <div className="bg-red-50 text-red-700 p-4 rounded-xl flex items-center gap-3">
+                  <AlertCircle size={20} />{billingError}
+                </div>
+              ) : (
+                <>
+                  {/* Header */}
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold text-secondary mb-3">Choose Your Plan</h2>
+                    <p className="text-gray-600">Select the perfect plan for your yacht dealership</p>
+                  </div>
+
+                  {/* Active subscription banner */}
+                  {subscription?.active && subscription?.status === 'active' && (
+                    <div className="mb-8 bg-primary/10 border border-primary/30 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="font-semibold text-secondary">
+                          Current Plan: <span className="text-primary capitalize">{currentTier}</span>
+                          {subscription.cancel_at_period_end && <span className="ml-2 text-sm text-orange-600 font-medium">(cancels at period end)</span>}
+                        </p>
+                        {subscription.current_period_end && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            Next billing: {new Date(Number(subscription.current_period_end) * 1000).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      <button onClick={openStripePortal} disabled={managingBilling}
+                        className="flex items-center gap-2 px-5 py-2.5 border-2 border-primary text-primary rounded-xl font-semibold hover:bg-primary hover:text-white transition-all">
+                        {managingBilling ? <Loader2 className="animate-spin h-4 w-4" /> : <ExternalLink size={16} />}
+                        Manage Billing
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Plan cards */}
+                  <div className={`grid gap-6 mb-10 ${billingPlans.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+                    {billingPlans.map(plan => {
+                      const isCurrent = plan.id === currentTier;
+                      const isSelected = plan.id === selectedTier;
+                      return (
+                        <div key={plan.id} onClick={() => setSelectedTier(plan.id)}
+                          className={`relative p-8 border-2 rounded-2xl cursor-pointer transition-all ${
+                            isSelected ? 'border-primary bg-primary/5 shadow-xl scale-[1.02]'
+                                       : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-lg'
+                          }`}>
+                          {plan.popular && (
+                            <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                              <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">Most Popular</span>
+                            </div>
+                          )}
+                          {isCurrent && (
+                            <div className="absolute top-4 right-4">
+                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Current Plan</span>
+                            </div>
+                          )}
+                          {isSelected && !isCurrent && (
+                            <div className="absolute top-6 right-6">
+                              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                                <Check className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          )}
+                          <div className="mb-6">
+                            <h3 className="text-2xl font-bold text-secondary mb-2">{plan.name}</h3>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-5xl font-bold text-primary">${plan.price}</span>
+                              <span className="text-gray-500 text-lg">/{plan.interval}</span>
+                            </div>
+                            {plan.custom_price && <p className="text-xs text-primary font-medium mt-1">Custom pricing applied</p>}
+                          </div>
+                          <ul className="space-y-3 mb-6">
+                            {plan.features.map((f, i) => (
+                              <li key={i} className="flex items-start gap-3">
+                                <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                                <span className="text-gray-700">{f}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <button className={`w-full py-3 rounded-lg font-semibold transition-all ${
+                            isCurrent ? 'bg-green-50 text-green-700 border border-green-200'
+                                      : isSelected ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}>
+                            {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Checkout form */}
+                  {selectedTier !== currentTier && billingPlans.find(p => p.id === selectedTier) && (
+                    <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg mb-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <CreditCard className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold text-secondary">Payment Details</h3>
+                          <p className="text-sm text-gray-500">
+                            {subscription?.active ? 'Upgrade' : 'Subscribe'} to:{' '}
+                            <span className="font-semibold text-primary">
+                              {billingPlans.find(p => p.id === selectedTier)?.name} — ${billingPlans.find(p => p.id === selectedTier)?.price}/{billingPlans.find(p => p.id === selectedTier)?.interval}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <Elements stripe={stripePromise}>
+                        <CheckoutForm tier={selectedTier} />
+                      </Elements>
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 text-center">🔒 Secure payment powered by Stripe. Cancel anytime. No hidden fees.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All plans include */}
+                  <div className="bg-soft border-2 border-gray-200 rounded-2xl p-8">
+                    <h3 className="text-lg font-bold text-secondary mb-4 text-center">All Plans Include</h3>
+                    <div className="grid md:grid-cols-3 gap-6">
+                      <div className="text-center"><div className="text-3xl mb-2">📊</div><h4 className="font-semibold text-secondary mb-1">Analytics Dashboard</h4><p className="text-sm text-gray-500">Track views and performance</p></div>
+                      <div className="text-center"><div className="text-3xl mb-2">📧</div><h4 className="font-semibold text-secondary mb-1">Lead Management</h4><p className="text-sm text-gray-500">Manage inquiries easily</p></div>
+                      <div className="text-center"><div className="text-3xl mb-2">🔒</div><h4 className="font-semibold text-secondary mb-1">Secure Platform</h4><p className="text-sm text-gray-500">Your data is protected</p></div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
           {/* Account Settings Tab */}
           {activeTab === 'account' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <Settings className="mx-auto text-primary mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">Account Settings</h2>
-                <p className="text-gray-600 mb-6">Update your business information and credentials</p>
+            <div className="max-w-4xl mx-auto space-y-6">
+              <div className="mb-6">
+                <h2 className="text-3xl font-bold text-secondary mb-2">Regional Preferences</h2>
+                <p className="text-gray-600">Customize language, currency, and units for your region</p>
               </div>
-              <div className="space-y-4 mb-6">
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">Password</p>
-                    <p className="text-sm text-gray-600">Change your password</p>
-                  </div>
-                  <Edit className="text-primary" size={20} />
+              {prefLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
                 </div>
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">Logo & Branding</p>
-                    <p className="text-sm text-gray-600">Upload your company logo</p>
+              ) : (
+                <>
+                  {/* Language */}
+                  <div className="glass-card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Globe className="text-primary" size={24} />
+                      <h3 className="text-xl font-semibold text-secondary">Language</h3>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { code: 'en', name: 'English', flag: '🇺🇸' },
+                        { code: 'es', name: 'Español', flag: '🇪🇸' },
+                        { code: 'fr', name: 'Français', flag: '🇫🇷' },
+                        { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+                        { code: 'it', name: 'Italiano', flag: '🇮🇹' },
+                        { code: 'pt', name: 'Português', flag: '🇵🇹' },
+                        { code: 'zh', name: '中文', flag: '🇨🇳' }
+                      ].map(lang => (
+                        <button key={lang.code} onClick={() => setPreferences({ ...preferences, language: lang.code })}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            preferences.language === lang.code ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
+                          }`}>
+                          <div className="text-3xl mb-2">{lang.flag}</div>
+                          <div className="font-medium text-sm">{lang.name}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <Upload className="text-primary" size={20} />
-                </div>
-              </div>
-              <button 
-                onClick={() => window.location.href = '/settings'}
-                className="w-full px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors hover-lift"
-              >
-                Edit Account Settings
-              </button>
+
+                  {/* Currency */}
+                  <div className="glass-card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <DollarSign className="text-green-600" size={24} />
+                      <h3 className="text-xl font-semibold text-secondary">Currency</h3>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                      {[
+                        { code: 'USD', symbol: '$', name: 'US Dollar' },
+                        { code: 'EUR', symbol: '€', name: 'Euro' },
+                        { code: 'GBP', symbol: '£', name: 'British Pound' },
+                        { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
+                        { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
+                        { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
+                        { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
+                        { code: 'MXN', symbol: '$', name: 'Mexican Peso' }
+                      ].map(curr => (
+                        <button key={curr.code} onClick={() => setPreferences({ ...preferences, currency: curr.code })}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            preferences.currency === curr.code ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                          }`}>
+                          <div className="text-2xl font-bold mb-1">{curr.symbol}</div>
+                          <div className="font-medium text-sm">{curr.code}</div>
+                          <div className="text-xs text-gray-600">{curr.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {preferences.currency !== 'USD' && prefRates[preferences.currency] && (
+                      <div className="mt-4 p-4 bg-soft rounded-lg">
+                        <p className="text-sm text-gray-700 mb-2">💱 Currency Conversion Example:</p>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="font-semibold">$100,000 USD</span>
+                          <span className="text-gray-500">→</span>
+                          <span className="font-semibold text-green-600">
+                            {(100000 * prefRates[preferences.currency]).toFixed(2)} {preferences.currency}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Exchange rate: 1 USD = {prefRates[preferences.currency]?.toFixed(4)} {preferences.currency}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Units */}
+                  <div className="glass-card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Ruler className="text-purple-600" size={24} />
+                      <h3 className="text-xl font-semibold text-secondary">Measurement Units</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[{value:'imperial',emoji:'📏',label:'Imperial',desc:'Feet, Gallons, Knots',note:'Common in USA'},
+                        {value:'metric',emoji:'📐',label:'Metric',desc:'Meters, Liters, Km/h',note:'International standard'}].map(opt => (
+                        <button key={opt.value} onClick={() => setPreferences({ ...preferences, units: opt.value })}
+                          className={`p-6 rounded-lg border-2 transition-all ${
+                            preferences.units === opt.value ? 'border-purple-600 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+                          }`}>
+                          <div className="text-3xl mb-2">{opt.emoji}</div>
+                          <div className="font-semibold text-lg mb-2">{opt.label}</div>
+                          <div className="text-sm text-gray-600">{opt.desc}</div>
+                          <div className="text-xs text-gray-500 mt-2">{opt.note}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Timezone */}
+                  <div className="glass-card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Clock className="text-orange-600" size={24} />
+                      <h3 className="text-xl font-semibold text-secondary">Timezone</h3>
+                    </div>
+                    <select value={preferences.timezone}
+                      onChange={(e) => setPreferences({ ...preferences, timezone: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary">
+                      {['America/New_York','America/Chicago','America/Denver','America/Los_Angeles',
+                        'Europe/London','Europe/Paris','Asia/Tokyo','Australia/Sydney'].map(tz => (
+                        <option key={tz} value={tz}>{tz}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Communication */}
+                  <div className="glass-card p-6">
+                    <h3 className="text-xl font-semibold text-secondary mb-4">Communication Preferences</h3>
+                    <p className="text-sm text-gray-600 mb-5">Manage how YachtVersal can contact you about account activity and updates.</p>
+                    <div className="space-y-4">
+                      {[
+                        { key: 'communication_email' as const, label: 'Account Emails', desc: 'Receive important account and marketplace emails.' },
+                        { key: 'communication_sms' as const, label: 'Text Messages (SMS)', desc: 'Allow SMS notifications for urgent account updates.' },
+                        { key: 'communication_push' as const, label: 'Push Notifications', desc: 'Enable push notifications for the web and future mobile app.' },
+                      ].map(item => (
+                        <label key={item.key} className="flex items-start gap-3 cursor-pointer">
+                          <input type="checkbox" checked={preferences[item.key]}
+                            onChange={(e) => setPreferences({ ...preferences, [item.key]: e.target.checked })}
+                            className="mt-1 h-4 w-4 rounded border-gray-300" />
+                          <div>
+                            <p className="font-medium text-secondary">{item.label}</p>
+                            <p className="text-sm text-gray-600">{item.desc}</p>
+                          </div>
+                        </label>
+                      ))}
+                      <label className="flex items-start gap-3 pt-2 border-t border-gray-100 cursor-pointer">
+                        <input type="checkbox" checked={preferences.marketing_opt_in}
+                          onChange={(e) => setPreferences({ ...preferences, marketing_opt_in: e.target.checked })}
+                          className="mt-1 h-4 w-4 rounded border-gray-300" />
+                        <div>
+                          <p className="font-medium text-secondary">Marketing Emails (Optional)</p>
+                          <p className="text-sm text-gray-600">Product updates, promotions, and listing growth tips.</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Save */}
+                  <div className="glass-card p-6">
+                    <button onClick={handleSavePreferences} disabled={prefSaving}
+                      className="w-full px-6 py-4 bg-primary text-white rounded-xl hover:bg-primary/90 disabled:bg-gray-400 font-semibold text-lg flex items-center justify-center gap-3">
+                      {prefSaving ? 'Saving...' : <><Save size={20} />Save Preferences</>}
+                    </button>
+                    <p className="text-sm text-gray-600 text-center mt-3">Changes will take effect after you reload the page</p>
+                  </div>
+
+                  <div className="bg-primary/5 border border-primary/20 rounded-xl p-6">
+                    <h4 className="font-semibold text-secondary mb-3">💡 How Preferences Work</h4>
+                    <ul className="text-sm text-gray-700 space-y-2">
+                      <li>• All yacht prices will be converted to your selected currency automatically</li>
+                      <li>• Measurements (length, capacity, speed) will display in your chosen units</li>
+                      <li>• The interface will display in your selected language</li>
+                      <li>• Exchange rates are updated daily for accurate pricing</li>
+                      <li>• Your preferences are saved across all devices</li>
+                    </ul>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2556,29 +3112,130 @@ export default function EnhancedDealerDashboard() {
 
           {/* API Keys Tab */}
           {activeTab === 'api-keys' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <Key className="mx-auto text-primary mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">API Keys</h2>
-                <p className="text-gray-600 mb-6">Manage your API keys for programmatic access</p>
+            <div className="max-w-4xl mx-auto">
+              <div className="mb-6">
+                <h2 className="text-3xl font-bold text-secondary mb-2">API Keys</h2>
+                <p className="text-secondary/70">Manage your YachtVersal API keys for programmatic access</p>
               </div>
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
-                <button
-                  onClick={() => window.location.href = '/dashboard/api-keys'}
-                  className="border border-primary/10 rounded-lg p-6 text-center hover-lift"
-                >
-                  <div className="text-4xl mb-3">🔑</div>
-                  <h3 className="font-bold text-secondary mb-2">Access Keys</h3>
-                  <p className="text-sm text-gray-600">View and manage your API keys</p>
-                </button>
-                <button
-                  onClick={() => window.location.href = '/api/docs'}
-                  className="border border-primary/10 rounded-lg p-6 text-center hover-lift"
-                >
-                  <div className="text-4xl mb-3">📚</div>
-                  <h3 className="font-bold text-secondary mb-2">Documentation</h3>
-                  <p className="text-sm text-gray-600">Learn how to use the API</p>
-                </button>
+
+              <div className="glass-card p-4 mb-6">
+                <p className="text-sm text-gray-600 mb-3">Create a new key (full key shown once at creation)</p>
+                <div className="flex flex-col md:flex-row gap-3">
+                  <input type="text" value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                    placeholder="Key name" />
+                  <button onClick={handleCreateKey} disabled={creatingKey}
+                    className="px-6 py-2 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400">
+                    {creatingKey ? 'Creating...' : 'Create API Key'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 rounded-r-lg">
+                <div className="flex">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mr-3 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-secondary/80">
+                    <strong>Important:</strong> Full API keys are only shown once when created. Existing keys are stored securely and can only be displayed by prefix.
+                  </p>
+                </div>
+              </div>
+
+              {apiKeysLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                </div>
+              ) : apiKeys.length === 0 ? (
+                <div className="text-center py-12 bg-soft rounded-2xl border-2 border-gray-200">
+                  <Key className="w-12 h-12 text-secondary/40 mx-auto mb-4" />
+                  <p className="text-secondary/70 font-medium">No API keys found</p>
+                  <p className="text-sm text-secondary/50 mt-2">API keys are automatically generated when you create an account</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {apiKeys.map(key => (
+                    <div key={key.id} className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:shadow-lg hover:border-primary/30 transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-3 mb-4">
+                            <div className="flex items-center min-w-0">
+                              <h3 className="text-lg font-semibold text-secondary truncate">{key.name}</h3>
+                              <span className={`ml-3 px-3 py-1 rounded-full text-xs font-semibold ${
+                                key.is_active ? 'bg-primary/10 text-primary border border-primary/20'
+                                              : 'bg-gray-100 text-secondary/60 border border-gray-200'
+                              }`}>{key.is_active ? 'Active' : 'Inactive'}</span>
+                            </div>
+                            <button onClick={() => handleRegenerateKey(key)} disabled={regeneratingKeyId === key.id}
+                              className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-soft border border-gray-200 text-secondary rounded-lg hover:bg-primary/10 disabled:opacity-60">
+                              <RefreshCw size={14} className={regeneratingKeyId === key.id ? 'animate-spin' : ''} />
+                              {regeneratingKeyId === key.id ? 'Regenerating...' : 'Regenerate'}
+                            </button>
+                            <button onClick={() => handleToggleKeyActive(key)} disabled={togglingKeyId === key.id}
+                              className={`inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border disabled:opacity-60 ${
+                                key.is_active ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
+                                             : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                              }`}>
+                              {togglingKeyId === key.id ? 'Saving...' : key.is_active ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </div>
+                          <div className="mb-4">
+                            <label className="text-xs font-semibold text-secondary/60 uppercase tracking-wide block mb-2">API Key</label>
+                            <div className="flex items-center gap-2">
+                              <code className="bg-soft px-4 py-3 rounded-lg font-mono text-sm flex-1 text-secondary border border-gray-200">
+                                {fullKeys[key.id] || `${key.key_prefix}••••••••••••••••••••••••••`}
+                              </code>
+                              <button onClick={() => copyKeyToClipboard(fullKeys[key.id] || key.key_prefix, key.id)}
+                                className="p-3 text-secondary/60 hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-gray-200" title="Copy key">
+                                {copiedKeyId === key.id ? <Check className="w-5 h-5 text-primary" /> : <Copy className="w-5 h-5" />}
+                              </button>
+                            </div>
+                            {copiedKeyId === key.id && <p className="text-xs text-emerald-700 mt-2">Copied to clipboard.</p>}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-soft p-3 rounded-lg border border-gray-200">
+                              <span className="text-secondary/60 block mb-1 text-xs font-medium">Created:</span>
+                              <p className="text-secondary font-semibold">{new Date(key.created_at).toLocaleDateString()}</p>
+                            </div>
+                            <div className="bg-soft p-3 rounded-lg border border-gray-200">
+                              <span className="text-secondary/60 block mb-1 text-xs font-medium">Rate Limit:</span>
+                              <p className="text-secondary font-semibold">{key.rate_limit.toLocaleString()} req/hr</p>
+                            </div>
+                            {key.last_used_at && (
+                              <div className="bg-soft p-3 rounded-lg border border-gray-200">
+                                <span className="text-secondary/60 block mb-1 text-xs font-medium">Last Used:</span>
+                                <p className="text-secondary font-semibold">{new Date(key.last_used_at).toLocaleDateString()}</p>
+                              </div>
+                            )}
+                            {key.expires_at && (
+                              <div className="bg-soft p-3 rounded-lg border border-gray-200">
+                                <span className="text-secondary/60 block mb-1 text-xs font-medium">Expires:</span>
+                                <p className="text-secondary font-semibold">{new Date(key.expires_at).toLocaleDateString()}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-8 bg-primary/5 border-2 border-primary/20 rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-secondary mb-2 flex items-center gap-2"><span className="text-2xl">📚</span>API Documentation</h3>
+                <p className="text-secondary/70 mb-4">Learn how to use your API key to access YachtVersal programmatically</p>
+                <a href="/api/docs" target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center text-primary hover:text-primary/80 font-semibold transition-colors">
+                  View API Documentation
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
+              </div>
+
+              <div className="mt-6 bg-secondary rounded-2xl p-6">
+                <h4 className="text-white font-semibold mb-3 flex items-center gap-2"><span className="text-xl">💻</span>Usage Example</h4>
+                <pre className="text-primary text-sm overflow-x-auto bg-secondary/80 p-4 rounded-lg">{`curl https://api.yachtversal.com/api/listings \\
+  -H "Authorization: Bearer YOUR_API_KEY"`}</pre>
               </div>
             </div>
           )}
