@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import MediaUpload from '@/app/components/MediaUpload';
+import MediaLibraryPicker from '@/app/components/MediaLibraryPicker';
 import ScraperModal from '@/app/components/ScraperModal';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film } from 'lucide-react';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
@@ -82,6 +83,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [loading, setLoading]           = useState(false);
   const [initializing, setInitializing] = useState(isEditMode);
   const [uploadedMedia, setUploadedMedia] = useState<any[]>([]);
+  const [showLibraryPicker, setShowLibraryPicker] = useState(false);
   const [activeTab, setActiveTab]       = useState<Tab>('basic');
   const [autosaveInfo, setAutosaveInfo] = useState<{ restored: boolean; savedAt: string | null }>({ restored: false, savedAt: null });
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -1461,16 +1463,47 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {/* ─── MEDIA ──────────────────────────────────────────────────── */}
             {activeTab === 'media' && (
               <div className="space-y-6">
-                <MediaUpload
-                  onUploadComplete={(m: any[]) => setUploadedMedia(p => [...p, ...m])}
-                  maxFiles={20}
-                  maxFileSize={50}
-                  acceptImages
-                  acceptVideos
-                  acceptDocuments
-                  showAltText={false}
-                  showCaption={false}
-                />
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <MediaUpload
+                      onUploadComplete={(m: any[]) => setUploadedMedia(p => [...p, ...m])}
+                      maxFiles={20}
+                      maxFileSize={50}
+                      acceptImages
+                      acceptVideos
+                      acceptDocuments
+                      showAltText={false}
+                      showCaption={false}
+                    />
+                  </div>
+                </div>
+
+                <div className="text-center -mt-2">
+                  <span className="text-xs text-gray-400">— or —</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLibraryPicker(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-[#01BBDC]/40 rounded-xl text-sm font-medium hover:border-[#01BBDC] hover:bg-cyan-50 transition"
+                  style={{ color: '#01BBDC' }}
+                >
+                  Choose from Media Library
+                </button>
+
+                {showLibraryPicker && (
+                  <MediaLibraryPicker
+                    multiple
+                    accept="all"
+                    onSelect={picked => {
+                      setUploadedMedia(prev => {
+                        const existingIds = new Set(prev.map((m: any) => m.id));
+                        return [...prev, ...picked.filter(p => !existingIds.has(p.id))];
+                      });
+                    }}
+                    onClose={() => setShowLibraryPicker(false)}
+                  />
+                )}
 
                 {uploadedMedia.length > 0 && (
                   <div>

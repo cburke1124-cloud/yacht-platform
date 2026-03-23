@@ -13,7 +13,7 @@ import tempfile
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.media import MediaFile
+from app.models.media import MediaFile, MediaFolder
 from app.models.listing import Listing
 from app.exceptions import ValidationException, ResourceNotFoundException
 from app.services.media_storage import store_media_bytes, delete_media_by_url
@@ -365,8 +365,10 @@ async def bulk_upload_media(
 @router.get("/my-media")
 def get_my_media(
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 100,
     file_type: Optional[str] = None,
+    folder_id: Optional[int] = None,
+    unfoldered: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -393,6 +395,11 @@ def get_my_media(
     if file_type:
         query = query.filter(MediaFile.file_type == file_type)
     
+    if folder_id is not None:
+        query = query.filter(MediaFile.folder_id == folder_id)
+    elif unfoldered:
+        query = query.filter(MediaFile.folder_id == None)
+    
     total = query.count()
     media = query.order_by(MediaFile.created_at.desc()).offset(skip).limit(limit).all()
     
@@ -406,6 +413,7 @@ def get_my_media(
                 "thumbnail_url": m.thumbnail_url,
                 "file_type": m.file_type,
                 "file_size_mb": m.file_size_mb,
+                "folder_id": m.folder_id,
                 "width": m.width,
                 "height": m.height,
                 "created_at": m.created_at.isoformat() if m.created_at else None
@@ -468,3 +476,170 @@ def get_media_stats(
         "videos": stats.videos or 0,
         "pdfs": stats.pdfs or 0
     }
+
+
+# ── Folder endpoints ──────────────────────────────────────────────────────────
+
+@router.get("/folders")
+def get_folders(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all folders for the current user's organisation."""
+    root_dealer_id = current_user.parent_dealer_id or current_user.id
+    team_ids = (
+        db.query(User.id)
+        .filter(
+            (User.id == root_dealer_id) |
+            (User.parent_dealer_id == root_dealer_id)
+        )
+        .all()
+    )
+    org_ids = [row[0] for row in team_ids] or [current_user.id]
+
+    folders = (
+        db.query(MediaFolder)
+        .filter(
+            MediaFolder.user_id.in_(org_ids),
+            MediaFolder.deleted_at == None
+        )
+        .order_by(MediaFolder.name)
+        .all()
+    )
+
+    return {
+        "folders": [
+            {
+                "id": f.id,
+                "name": f.name,
+                "file_count": db.query(MediaFile).filter(
+                    MediaFile.folder_id == f.id,
+                    MediaFile.deleted_at == None
+                ).count()
+            }
+            for f in folders
+        ]
+    }
+
+
+@router.post("/folders")
+def create_folder(
+    name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new folder."""
+    name = name.strip()
+    if not name:
+        raise ValidationException("Folder name cannot be empty")
+    if len(name) > 100:
+        raise ValidationException("Folder name too long (max 100 characters)")
+
+    folder = MediaFolder(
+        name=name,
+        user_id=current_user.id
+    )
+    db.add(folder)
+    db.commit()
+    db.refresh(folder)
+
+    return {"id": folder.id, "name": folder.name, "file_count": 0}
+
+
+@router.put("/folders/{folder_id}")
+def rename_folder(
+    folder_id: int,
+    name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Rename a folder."""
+    root_dealer_id = current_user.parent_dealer_id or current_user.id
+    team_ids = [row[0] for row in db.query(User.id).filter(
+        (User.id == root_dealer_id) | (User.parent_dealer_id == root_dealer_id)
+    ).all()] or [current_user.id]
+
+    folder = db.query(MediaFolder).filter(
+        MediaFolder.id == folder_id,
+        MediaFolder.user_id.in_(team_ids),
+        MediaFolder.deleted_at == None
+    ).first()
+
+    if not folder:
+        raise ResourceNotFoundException("Folder", folder_id)
+
+    name = name.strip()
+    if not name:
+        raise ValidationException("Folder name cannot be empty")
+
+    folder.name = name
+    db.commit()
+
+    return {"id": folder.id, "name": folder.name}
+
+
+@router.delete("/folders/{folder_id}")
+def delete_folder(
+    folder_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a folder and unassign its files."""
+    root_dealer_id = current_user.parent_dealer_id or current_user.id
+    team_ids = [row[0] for row in db.query(User.id).filter(
+        (User.id == root_dealer_id) | (User.parent_dealer_id == root_dealer_id)
+    ).all()] or [current_user.id]
+
+    folder = db.query(MediaFolder).filter(
+        MediaFolder.id == folder_id,
+        MediaFolder.user_id.in_(team_ids),
+        MediaFolder.deleted_at == None
+    ).first()
+
+    if not folder:
+        raise ResourceNotFoundException("Folder", folder_id)
+
+    # Unassign all files from this folder
+    db.query(MediaFile).filter(MediaFile.folder_id == folder_id).update({"folder_id": None})
+
+    folder.deleted_at = datetime.utcnow()
+    db.commit()
+
+    return {"success": True}
+
+
+@router.patch("/{media_id}/folder")
+def move_to_folder(
+    media_id: int,
+    folder_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Move a media file to a folder (or to root if folder_id is null)."""
+    media = db.query(MediaFile).filter(
+        MediaFile.id == media_id,
+        MediaFile.user_id == current_user.id,
+        MediaFile.deleted_at == None
+    ).first()
+
+    if not media:
+        raise ResourceNotFoundException("Media", media_id)
+
+    if folder_id is not None:
+        root_dealer_id = current_user.parent_dealer_id or current_user.id
+        team_ids = [row[0] for row in db.query(User.id).filter(
+            (User.id == root_dealer_id) | (User.parent_dealer_id == root_dealer_id)
+        ).all()] or [current_user.id]
+
+        folder = db.query(MediaFolder).filter(
+            MediaFolder.id == folder_id,
+            MediaFolder.user_id.in_(team_ids),
+            MediaFolder.deleted_at == None
+        ).first()
+        if not folder:
+            raise ResourceNotFoundException("Folder", folder_id)
+
+    media.folder_id = folder_id
+    db.commit()
+
+    return {"success": True, "media_id": media_id, "folder_id": folder_id}

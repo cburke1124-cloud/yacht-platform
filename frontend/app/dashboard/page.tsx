@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
 import LeadsManager from '@/app/dashboard/inquiries/LeadsManager';
@@ -10,10 +10,30 @@ import {
   CheckSquare, X, Archive, RefreshCw, Image, DollarSign,
   Building2, Link2, Link, Upload, CreditCard, Key, CheckCircle,
   XCircle, Check, Zap,
-  MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2
+  MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2,
+  Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter
 } from 'lucide-react';
 
 type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
+
+interface MediaFileItem {
+  id: number;
+  filename: string;
+  url: string;
+  thumbnail_url?: string;
+  file_type: string;
+  file_size_mb: number;
+  folder_id?: number | null;
+  width?: number;
+  height?: number;
+  created_at?: string;
+}
+
+interface MediaFolderItem {
+  id: number;
+  name: string;
+  file_count: number;
+}
 
 interface Listing {
   id: number;
@@ -133,6 +153,22 @@ export default function EnhancedDealerDashboard() {
   });
   const [brokerProfileSaving, setBrokerProfileSaving] = useState(false);
   const [brokerProfileSaved, setBrokerProfileSaved] = useState(false);
+
+  // Media manager inline state
+  const [mediaFiles, setMediaFiles] = useState<MediaFileItem[]>([]);
+  const [mediaFolders, setMediaFolders] = useState<MediaFolderItem[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video' | 'pdf'>('all');
+  const [mediaSearch, setMediaSearch] = useState('');
+  const [mediaCurrentFolder, setMediaCurrentFolder] = useState<number | null | 'all'>('all');
+  const [mediaSelected, setMediaSelected] = useState<Set<number>>(new Set());
+  const [mediaStorageStats, setMediaStorageStats] = useState({ total_files: 0, total_size_gb: 0, images: 0, videos: 0, pdfs: 0 });
+  const [mediaNewFolderName, setMediaNewFolderName] = useState('');
+  const [mediaShowNewFolder, setMediaShowNewFolder] = useState(false);
+  const [mediaDragging, setMediaDragging] = useState(false);
+  const [mediaMovingId, setMediaMovingId] = useState<number | null>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
@@ -219,6 +255,12 @@ export default function EnhancedDealerDashboard() {
     fetchTeamPerformance(days);
   }, [analyticsRange]);
 
+  useEffect(() => {
+    if (activeTab === 'media') {
+      fetchMediaFiles();
+    }
+  }, [activeTab, mediaFilter, mediaCurrentFolder]);
+
   const fetchBrokerProfile = async (tok?: string) => {
     const token = tok || localStorage.getItem('token') || '';
     try {
@@ -297,7 +339,171 @@ export default function EnhancedDealerDashboard() {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const handleBrokerSave = async () => {
+    setBrokerProfileSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/dealer-profile'), {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(brokerProfile)
+      });
+      if (res.ok) {
+        setBrokerProfileSaved(true);
+        setTimeout(() => setBrokerProfileSaved(false), 3000);
+      }
+    } catch { /* non-fatal */ } finally {
+      setBrokerProfileSaving(false);
+    }
+  };
+
+  // ── Media Manager functions ─────────────────────────────────────────────────
+
+  const fetchMediaFiles = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setMediaLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (mediaFilter !== 'all') params.set('file_type', mediaFilter);
+      if (mediaCurrentFolder !== 'all' && mediaCurrentFolder !== null) {
+        params.set('folder_id', String(mediaCurrentFolder));
+      }
+      params.set('limit', '200');
+
+      const [filesRes, statsRes, foldersRes] = await Promise.all([
+        fetch(apiUrl(`/media/my-media?${params}`), { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(apiUrl('/media/stats'), { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(apiUrl('/media/folders'), { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+
+      if (filesRes.ok) {
+        const data = await filesRes.json();
+        setMediaFiles(data.media || []);
+      }
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        setMediaStorageStats(stats);
+      }
+      if (foldersRes.ok) {
+        const data = await foldersRes.json();
+        setMediaFolders(data.folders || []);
+      }
+    } catch { /* non-fatal */ } finally {
+      setMediaLoading(false);
+    }
+  }, [mediaFilter, mediaCurrentFolder]);
+
+  const handleMediaUploadFiles = async (files: FileList | File[]) => {
+    const token = localStorage.getItem('token');
+    if (!token || !files || files.length === 0) return;
+    setMediaUploading(true);
+    try {
+      const fileArr = Array.from(files);
+      if (fileArr.length === 1) {
+        const fd = new FormData();
+        fd.append('file', fileArr[0]);
+        if (mediaCurrentFolder !== 'all' && mediaCurrentFolder !== null) {
+          fd.append('folder_id', String(mediaCurrentFolder));
+        }
+        await fetch(apiUrl('/media/upload'), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd
+        });
+      } else {
+        const fd = new FormData();
+        fileArr.forEach(f => fd.append('files', f));
+        if (mediaCurrentFolder !== 'all' && mediaCurrentFolder !== null) {
+          fd.append('folder_id', String(mediaCurrentFolder));
+        }
+        await fetch(apiUrl('/media/bulk-upload'), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd
+        });
+      }
+      await fetchMediaFiles();
+    } catch { /* non-fatal */ } finally {
+      setMediaUploading(false);
+    }
+  };
+
+  const handleMediaDelete = async (id: number) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(apiUrl(`/media/${id}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setMediaFiles(prev => prev.filter(f => f.id !== id));
+    setMediaSelected(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+
+  const handleMediaBulkDelete = async () => {
+    if (mediaSelected.size === 0) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await Promise.all(Array.from(mediaSelected).map(id =>
+      fetch(apiUrl(`/media/${id}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    ));
+    setMediaFiles(prev => prev.filter(f => !mediaSelected.has(f.id)));
+    setMediaSelected(new Set());
+  };
+
+  const handleCreateFolder = async () => {
+    const name = mediaNewFolderName.trim();
+    if (!name) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const res = await fetch(apiUrl(`/media/folders?name=${encodeURIComponent(name)}`), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const folder = await res.json();
+      setMediaFolders(prev => [...prev, folder].sort((a, b) => a.name.localeCompare(b.name)));
+      setMediaNewFolderName('');
+      setMediaShowNewFolder(false);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: number) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(apiUrl(`/media/folders/${folderId}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setMediaFolders(prev => prev.filter(f => f.id !== folderId));
+    if (mediaCurrentFolder === folderId) setMediaCurrentFolder('all');
+    // files unfoldered on backend, refresh
+    await fetchMediaFiles();
+  };
+
+  const handleMoveToFolder = async (mediaId: number, folderId: number | null) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const url = folderId != null
+      ? apiUrl(`/media/${mediaId}/folder?folder_id=${folderId}`)
+      : apiUrl(`/media/${mediaId}/folder`);
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    setMediaMovingId(null);
+    await fetchMediaFiles();
+  };
+
+  const toggleMediaSelect = (id: number) => {
+    setMediaSelected(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl('/listings/my-listings'), {
@@ -1002,35 +1208,296 @@ export default function EnhancedDealerDashboard() {
 
           {/* Media Gallery Tab */}
           {activeTab === 'media' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <Image className="mx-auto text-primary mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">Media Gallery</h2>
-                <p className="text-gray-600 mb-6">Manage your photos, videos, and documents in one place</p>
+            <div className="space-y-4">
+              {/* Header bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: '#10214F' }}>Media Library</h2>
+                  <p className="text-sm text-gray-500">
+                    {mediaStorageStats.total_files} files · {mediaStorageStats.total_size_gb.toFixed(2)} GB used
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {mediaSelected.size > 0 && (
+                    <button
+                      onClick={handleMediaBulkDelete}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition"
+                    >
+                      <Trash2 size={14} />
+                      Delete ({mediaSelected.size})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => mediaFileInputRef.current?.click()}
+                    disabled={mediaUploading}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-60 transition"
+                    style={{ background: '#01BBDC' }}
+                  >
+                    <Upload size={14} />
+                    {mediaUploading ? 'Uploading…' : 'Upload Files'}
+                  </button>
+                  <input
+                    ref={mediaFileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,video/*,application/pdf"
+                    className="hidden"
+                    onChange={e => { if (e.target.files) handleMediaUploadFiles(e.target.files); e.target.value = ''; }}
+                  />
+                </div>
               </div>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
-                  <Image className="mx-auto text-primary mb-2" size={32} />
-                  <p className="font-semibold text-secondary">Images</p>
-                  <p className="text-sm text-gray-600">Upload & organize yacht photos</p>
+
+              <div className="flex gap-4">
+                {/* Folder sidebar */}
+                <div className="w-52 flex-shrink-0 space-y-1">
+                  <button
+                    onClick={() => setMediaCurrentFolder('all')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      mediaCurrentFolder === 'all' ? 'text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    style={mediaCurrentFolder === 'all' ? { background: '#10214F' } : {}}
+                  >
+                    <FolderOpen size={15} />
+                    <span className="flex-1 text-left">All Files</span>
+                    <span className="text-xs opacity-70">{mediaStorageStats.total_files}</span>
+                  </button>
+
+                  {mediaFolders.map(folder => (
+                    <div key={folder.id} className="group relative">
+                      <button
+                        onClick={() => setMediaCurrentFolder(folder.id)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
+                          mediaCurrentFolder === folder.id ? 'text-white font-medium' : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                        style={mediaCurrentFolder === folder.id ? { background: '#10214F' } : {}}
+                      >
+                        <Folder size={15} />
+                        <span className="flex-1 text-left truncate">{folder.name}</span>
+                        <span className="text-xs opacity-70">{folder.file_count}</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFolder(folder.id)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+                        title="Delete folder"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* New folder input */}
+                  {mediaShowNewFolder ? (
+                    <div className="flex gap-1 pt-1">
+                      <input
+                        autoFocus
+                        value={mediaNewFolderName}
+                        onChange={e => setMediaNewFolderName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setMediaShowNewFolder(false); setMediaNewFolderName(''); } }}
+                        placeholder="Folder name"
+                        className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:border-[#01BBDC]"
+                      />
+                      <button onClick={handleCreateFolder} className="px-2 py-1 bg-[#01BBDC] text-white rounded text-xs">+</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setMediaShowNewFolder(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition"
+                    >
+                      <FolderPlus size={15} />
+                      New Folder
+                    </button>
+                  )}
+
+                  {/* Type filters */}
+                  <div className="pt-3 border-t mt-3 space-y-1">
+                    {(['all', 'image', 'video', 'pdf'] as const).map(type => (
+                      <button
+                        key={type}
+                        onClick={() => setMediaFilter(type)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
+                          mediaFilter === type ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                        style={mediaFilter === type ? { color: '#01BBDC' } : {}}
+                      >
+                        {type === 'all' && <Filter size={14} />}
+                        {type === 'image' && <Image size={14} />}
+                        {type === 'video' && <Film size={14} />}
+                        {type === 'pdf' && <FileText size={14} />}
+                        {type === 'all' ? 'All types' : type.charAt(0).toUpperCase() + type.slice(1) + 's'}
+                        {type !== 'all' && (
+                          <span className="ml-auto text-xs text-gray-400">
+                            {type === 'image' ? mediaStorageStats.images : type === 'video' ? mediaStorageStats.videos : mediaStorageStats.pdfs}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
-                  <Globe className="mx-auto text-secondary mb-2" size={32} />
-                  <p className="font-semibold text-secondary">Videos</p>
-                  <p className="text-sm text-gray-600">Add video tours & walkthroughs</p>
-                </div>
-                <div className="border border-primary/10 rounded-lg p-4 text-center hover-lift">
-                  <Archive className="mx-auto text-primary mb-2" size={32} />
-                  <p className="font-semibold text-secondary">Documents</p>
-                  <p className="text-sm text-gray-600">Store brochures & PDFs</p>
+
+                {/* Main content area */}
+                <div className="flex-1 min-w-0">
+                  {/* Search bar */}
+                  <div className="relative mb-4">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search files…"
+                      value={mediaSearch}
+                      onChange={e => setMediaSearch(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#01BBDC]"
+                    />
+                  </div>
+
+                  {/* Drag-drop upload zone */}
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-6 text-center mb-4 transition ${
+                      mediaDragging ? 'border-[#01BBDC] bg-cyan-50' : 'border-gray-200 hover:border-[#01BBDC]'
+                    }`}
+                    onDragOver={e => { e.preventDefault(); setMediaDragging(true); }}
+                    onDragLeave={() => setMediaDragging(false)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setMediaDragging(false);
+                      if (e.dataTransfer.files.length > 0) handleMediaUploadFiles(e.dataTransfer.files);
+                    }}
+                    onClick={() => mediaFileInputRef.current?.click()}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {mediaUploading ? (
+                      <div className="flex items-center justify-center gap-2 text-[#01BBDC]">
+                        <RefreshCw size={20} className="animate-spin" />
+                        <span className="text-sm font-medium">Uploading…</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload size={24} className="mx-auto text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium text-[#01BBDC]">Click to upload</span> or drag & drop
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP, MP4, MOV, PDF · Up to 50 MB each</p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* File grid */}
+                  {mediaLoading ? (
+                    <div className="flex items-center justify-center py-16">
+                      <RefreshCw size={24} className="animate-spin text-gray-400" />
+                    </div>
+                  ) : (() => {
+                    const filtered = mediaFiles.filter(f => {
+                      if (mediaSearch && !f.filename.toLowerCase().includes(mediaSearch.toLowerCase())) return false;
+                      return true;
+                    });
+                    return filtered.length === 0 ? (
+                      <div className="text-center py-16">
+                        <Image size={40} className="mx-auto text-gray-300 mb-3" />
+                        <p className="text-gray-400 text-sm">No files here yet</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+                        {filtered.map(file => {
+                          const isImg = file.file_type === 'image';
+                          const isVideo = file.file_type === 'video';
+                          const isSelected = mediaSelected.has(file.id);
+                          const isMoving = mediaMovingId === file.id;
+                          return (
+                            <div
+                              key={file.id}
+                              className={`relative group rounded-xl overflow-hidden border-2 transition-all ${
+                                isSelected ? 'border-[#01BBDC] ring-2 ring-[#01BBDC]/30' : 'border-transparent hover:border-gray-200'
+                              }`}
+                            >
+                              {/* Thumbnail */}
+                              {isImg ? (
+                                <img
+                                  src={mediaUrl(file.thumbnail_url || file.url)}
+                                  alt={file.filename}
+                                  className="w-full h-24 sm:h-28 object-cover bg-gray-100"
+                                />
+                              ) : isVideo ? (
+                                <div className="w-full h-24 sm:h-28 bg-gray-900 flex flex-col items-center justify-center gap-1">
+                                  <Film size={22} className="text-gray-400" />
+                                  <span className="text-xs text-gray-500 px-2 truncate max-w-full">{file.filename}</span>
+                                </div>
+                              ) : (
+                                <div className="w-full h-24 sm:h-28 bg-gray-100 flex flex-col items-center justify-center gap-1">
+                                  <FileText size={22} className="text-gray-400" />
+                                  <span className="text-xs text-gray-500 px-2 truncate max-w-full">{file.filename}</span>
+                                </div>
+                              )}
+
+                              {/* Selection checkbox */}
+                              <button
+                                onClick={() => toggleMediaSelect(file.id)}
+                                className={`absolute top-1.5 left-1.5 w-5 h-5 rounded border-2 flex items-center justify-center transition ${
+                                  isSelected
+                                    ? 'bg-[#01BBDC] border-[#01BBDC]'
+                                    : 'bg-white/80 border-gray-300 opacity-0 group-hover:opacity-100'
+                                }`}
+                              >
+                                {isSelected && <Check size={11} className="text-white" />}
+                              </button>
+
+                              {/* Move to folder button */}
+                              <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition">
+                                {isMoving ? (
+                                  <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 min-w-[120px]" style={{ zIndex: 10 }}>
+                                    <p className="text-xs font-medium text-gray-700 px-2 py-1">Move to folder</p>
+                                    <button
+                                      onClick={() => handleMoveToFolder(file.id, null)}
+                                      className="w-full text-left text-xs px-2 py-1 hover:bg-gray-100 rounded"
+                                    >
+                                      No folder
+                                    </button>
+                                    {mediaFolders.map(f => (
+                                      <button
+                                        key={f.id}
+                                        onClick={() => handleMoveToFolder(file.id, f.id)}
+                                        className={`w-full text-left text-xs px-2 py-1 hover:bg-gray-100 rounded ${file.folder_id === f.id ? 'text-[#01BBDC] font-medium' : ''}`}
+                                      >
+                                        {f.name}
+                                      </button>
+                                    ))}
+                                    <button
+                                      onClick={() => setMediaMovingId(null)}
+                                      className="w-full text-left text-xs px-2 py-1 text-gray-400 hover:bg-gray-100 rounded"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setMediaMovingId(isMoving ? null : file.id)}
+                                    className="w-6 h-6 rounded bg-white/90 shadow flex items-center justify-center hover:bg-white transition"
+                                    title="Move to folder"
+                                  >
+                                    <Move size={12} className="text-gray-600" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Delete button */}
+                              <button
+                                onClick={() => handleMediaDelete(file.id)}
+                                className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
+                              >
+                                <X size={10} />
+                              </button>
+
+                              {/* File size label */}
+                              <div className="px-2 py-1 bg-white border-t border-gray-100">
+                                <p className="text-xs text-gray-500 truncate">{file.filename}</p>
+                                <p className="text-[10px] text-gray-400">{file.file_size_mb.toFixed(1)} MB</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
-              <button
-                onClick={() => window.location.href = '/dashboard/media'}
-                className="mt-6 w-full px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors"
-              >
-                Open Media Manager
-              </button>
             </div>
           )}
 
