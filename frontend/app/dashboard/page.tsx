@@ -2182,7 +2182,7 @@ export default function EnhancedDealerDashboard() {
                           value={credentials.access_token}
                           onChange={(e) => setCredentials({ ...credentials, access_token: e.target.value })}
                           placeholder="pat-na1-..."
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         />
                         <p className="text-xs text-gray-600 mt-2 flex items-start gap-2">
                           <span>💡</span>
@@ -2197,7 +2197,7 @@ export default function EnhancedDealerDashboard() {
                           value={credentials.api_key}
                           onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                           placeholder="Your GoHighLevel API key"
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         />
                         <p className="text-xs text-gray-600 mt-2 flex items-start gap-2">
                           <span>💡</span>
@@ -2212,7 +2212,7 @@ export default function EnhancedDealerDashboard() {
                           value={credentials.api_key}
                           onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                           placeholder="Your Pipedrive API token"
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         />
                         <p className="text-xs text-gray-600 mt-2 flex items-start gap-2">
                           <span>💡</span>
@@ -2227,7 +2227,7 @@ export default function EnhancedDealerDashboard() {
                           value={credentials.api_key}
                           onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                           placeholder="Your Zoho OAuth token"
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         />
                         <p className="text-xs text-gray-600 mt-2 flex items-start gap-2">
                           <span>💡</span>
@@ -2242,7 +2242,7 @@ export default function EnhancedDealerDashboard() {
                           value={credentials.api_key}
                           onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                           placeholder="Your ActiveCampaign API token"
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         />
                         <p className="text-xs text-gray-600 mt-2 flex items-start gap-2">
                           <span>💡</span>
@@ -2258,7 +2258,7 @@ export default function EnhancedDealerDashboard() {
                             value={credentials.instance_url}
                             onChange={(e) => setCredentials({ ...credentials, instance_url: e.target.value })}
                             placeholder="https://yourinstance.salesforce.com"
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                           />
                         </div>
                         <div>
@@ -2268,7 +2268,7 @@ export default function EnhancedDealerDashboard() {
                             value={credentials.access_token}
                             onChange={(e) => setCredentials({ ...credentials, access_token: e.target.value })}
                             placeholder="Your Salesforce access token"
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                           />
                         </div>
                         <p className="text-xs text-gray-600 flex items-start gap-2">
@@ -2344,7 +2344,7 @@ export default function EnhancedDealerDashboard() {
                           value={webhookUrl}
                           onChange={(e) => setWebhookUrl(e.target.value)}
                           placeholder="https://your-crm.com/webhook"
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         />
                       </div>
                       <div>
@@ -2352,7 +2352,7 @@ export default function EnhancedDealerDashboard() {
                         <select
                           value={webhookFormat}
                           onChange={(e) => setWebhookFormat(e.target.value as 'json' | 'adf_xml')}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         >
                           <option value="json">JSON — standard REST integration</option>
                           <option value="adf_xml">ADF XML — compatible with most DMS systems</option>
@@ -2363,7 +2363,7 @@ export default function EnhancedDealerDashboard() {
                         <select
                           value={webhookAuthType}
                           onChange={(e) => setWebhookAuthType(e.target.value as 'none' | 'api_key' | 'bearer' | 'basic')}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                         >
                           <option value="none">None</option>
                           <option value="api_key">API Key (header)</option>
@@ -2381,7 +2381,7 @@ export default function EnhancedDealerDashboard() {
                             value={webhookAuthToken}
                             onChange={(e) => setWebhookAuthToken(e.target.value)}
                             placeholder={webhookAuthType === 'basic' ? 'user:password' : 'your-token-here'}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-secondary"
                           />
                         </div>
                       )}
@@ -3299,7 +3299,7 @@ export default function EnhancedDealerDashboard() {
           {/* Invite Modal */}
           {showInviteModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-primary/10">
+              <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-primary/10">
                 <div className="p-6 border-b border-primary/10 flex items-center justify-between">
                   <h2 className="text-2xl font-bold text-secondary">Invite Team Member</h2>
                   <button onClick={() => setShowInviteModal(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
@@ -3356,7 +3356,7 @@ export default function EnhancedDealerDashboard() {
           {/* Edit Permissions Modal */}
           {editingMember && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-2xl max-w-md w-full border border-primary/10">
+              <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-primary/10">
                 <div className="p-6 border-b border-primary/10 flex items-center justify-between">
                   <h2 className="text-xl font-bold text-secondary">Edit Permissions — {editingMember.first_name} {editingMember.last_name}</h2>
                   <button onClick={() => setEditingMember(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>

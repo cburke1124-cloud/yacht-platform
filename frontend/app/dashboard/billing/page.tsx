@@ -75,7 +75,7 @@ function CheckoutForm({ tier }: { tier: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-4 border-2 border-gray-200 rounded-xl bg-white">
+      <div className="p-4 border border-gray-200 rounded-lg bg-white">
         <CardElement options={{
           style: {
             base: {

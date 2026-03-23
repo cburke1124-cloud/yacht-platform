@@ -524,7 +524,7 @@ export default function CRMSettings() {
                   value={credentials.access_token}
                   onChange={(e) => setCredentials({ ...credentials, access_token: e.target.value })}
                   placeholder="pat-na1-..."
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                 />
                 <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
                   <span className="text-primary">💡</span>
@@ -539,7 +539,7 @@ export default function CRMSettings() {
                   value={credentials.api_key}
                   onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                   placeholder="Your GoHighLevel API key"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                 />
                 <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
                   <span className="text-primary">💡</span>
@@ -554,7 +554,7 @@ export default function CRMSettings() {
                   value={credentials.api_key}
                   onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                   placeholder="Your Pipedrive API token"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                 />
                 <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
                   <span className="text-primary">💡</span>
@@ -569,7 +569,7 @@ export default function CRMSettings() {
                   value={credentials.api_key}
                   onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                   placeholder="Your Zoho OAuth token"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                 />
                 <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
                   <span className="text-primary">💡</span>
@@ -584,7 +584,7 @@ export default function CRMSettings() {
                   value={credentials.api_key}
                   onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
                   placeholder="Your ActiveCampaign API token"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                 />
                 <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
                   <span className="text-primary">💡</span>
@@ -600,7 +600,7 @@ export default function CRMSettings() {
                     value={credentials.instance_url}
                     onChange={(e) => setCredentials({ ...credentials, instance_url: e.target.value })}
                     placeholder="https://yourinstance.salesforce.com"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                   />
                 </div>
                 <div>
@@ -610,7 +610,7 @@ export default function CRMSettings() {
                     value={credentials.access_token}
                     onChange={(e) => setCredentials({ ...credentials, access_token: e.target.value })}
                     placeholder="Your Salesforce access token"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                   />
                 </div>
                 <p className="text-xs text-dark/60 flex items-start gap-2">
@@ -667,7 +667,7 @@ export default function CRMSettings() {
                   value={webhookUrl}
                   onChange={(e) => setWebhookUrl(e.target.value)}
                   placeholder="https://your-dms.com/webhook/leads"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                 />
                 <p className="text-xs text-dark/60 mt-2 flex items-start gap-2">
                   <span className="text-primary">💡</span>
@@ -681,7 +681,7 @@ export default function CRMSettings() {
                   <select
                     value={webhookFormat}
                     onChange={(e) => setWebhookFormat(e.target.value as 'json' | 'adf_xml')}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                   >
                     <option value="json">JSON (Standard)</option>
                     <option value="adf_xml">ADF XML (DMS Standard)</option>
@@ -693,7 +693,7 @@ export default function CRMSettings() {
                   <select
                     value={webhookAuthType}
                     onChange={(e) => setWebhookAuthType(e.target.value as any)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                   >
                     <option value="none">None</option>
                     <option value="api_key">API Key (X-API-Key header)</option>
@@ -719,7 +719,7 @@ export default function CRMSettings() {
                         ? 'Bearer token'
                         : 'base64 encoded credentials'
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-white text-dark"
                   />
                 </div>
               )}
