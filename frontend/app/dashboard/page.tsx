@@ -9,7 +9,8 @@ import {
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
   CheckSquare, X, Archive, RefreshCw, Image, DollarSign,
   Building2, Link2, Link, Upload, CreditCard, Key, CheckCircle,
-  XCircle, Check, Zap
+  XCircle, Check, Zap,
+  MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2
 } from 'lucide-react';
 
 type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
@@ -121,6 +122,17 @@ export default function EnhancedDealerDashboard() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
   const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null);
+
+  // Broker profile inline state
+  const [brokerProfile, setBrokerProfile] = useState({
+    company_name: '', name: '', email: '', phone: '',
+    address: '', city: '', state: '', zip_code: '', country: 'USA',
+    website: '', description: '', logo_url: '', banner_url: '',
+    facebook_url: '', instagram_url: '', twitter_url: '', linkedin_url: '',
+    slug: '', cobrokering_enabled: true, show_team_on_profile: false
+  });
+  const [brokerProfileSaving, setBrokerProfileSaving] = useState(false);
+  const [brokerProfileSaved, setBrokerProfileSaved] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
@@ -173,6 +185,8 @@ export default function EnhancedDealerDashboard() {
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data?.logo_url) setDealerLogoUrl(data.logo_url); })
         .catch(() => {});
+      // Fetch broker profile for inline editor
+      fetchBrokerProfile(token);
     }
 
     // Confirm Stripe checkout session immediately when redirected back from Stripe
@@ -204,6 +218,84 @@ export default function EnhancedDealerDashboard() {
     const days = analyticsRange === '7d' ? 7 : analyticsRange === '90d' ? 90 : 30;
     fetchTeamPerformance(days);
   }, [analyticsRange]);
+
+  const fetchBrokerProfile = async (tok?: string) => {
+    const token = tok || localStorage.getItem('token') || '';
+    try {
+      const [userRes, profileRes] = await Promise.all([
+        fetch(apiUrl('/users/me'), { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      const userData = userRes.ok ? await userRes.json() : {};
+      if (profileRes.ok) {
+        const p = await profileRes.json();
+        setBrokerProfile({
+          company_name: p.company_name || userData.company_name || '',
+          name: p.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+          email: p.email || userData.email || '',
+          phone: p.phone || userData.phone || '',
+          address: p.address || '', city: p.city || '', state: p.state || '',
+          zip_code: p.zip_code || '', country: p.country || 'USA',
+          website: p.website || '', description: p.description || '',
+          logo_url: p.logo_url || '', banner_url: p.banner_url || '',
+          facebook_url: p.facebook_url || '', instagram_url: p.instagram_url || '',
+          twitter_url: p.twitter_url || '', linkedin_url: p.linkedin_url || '',
+          slug: p.slug || '',
+          cobrokering_enabled: p.cobrokering_enabled !== false,
+          show_team_on_profile: p.show_team_on_profile ?? false
+        });
+      } else {
+        setBrokerProfile(prev => ({
+          ...prev,
+          company_name: userData.company_name || '',
+          name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+          email: userData.email || '',
+          phone: userData.phone || ''
+        }));
+      }
+    } catch { /* non-fatal */ }
+  };
+
+  const handleBrokerImageUpload = async (field: 'logo_url' | 'banner_url', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/media/upload'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data?.media?.url ?? data?.url;
+        if (url) {
+          setBrokerProfile(prev => ({ ...prev, [field]: url }));
+          if (field === 'logo_url') setDealerLogoUrl(url);
+        }
+      }
+    } catch { /* non-fatal */ }
+  };
+
+  const handleBrokerSave = async () => {
+    setBrokerProfileSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/dealer-profile'), {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(brokerProfile)
+      });
+      if (res.ok) {
+        setBrokerProfileSaved(true);
+        setTimeout(() => setBrokerProfileSaved(false), 3000);
+      }
+    } catch { /* non-fatal */ } finally {
+      setBrokerProfileSaving(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -1321,62 +1413,282 @@ export default function EnhancedDealerDashboard() {
 
           {/* Broker Profile Tab */}
           {activeTab === 'profile' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <Building2 className="mx-auto text-primary mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">Customize Broker Page</h2>
-                <p className="text-gray-600 mb-6">Customize how your dealership appears to potential buyers</p>
-              </div>
-              <div className="space-y-4 mb-6">
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">Cover Photo</p>
-                    <p className="text-sm text-gray-600">Hero image for your broker page</p>
-                  </div>
-                  <Upload className="text-primary" size={20} />
+            <div className="space-y-6">
+              {/* Header row */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-secondary">Broker Page</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">Customize how your dealership appears to buyers</p>
                 </div>
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">About Your Business</p>
-                    <p className="text-sm text-gray-600">Tell buyers about your dealership</p>
-                  </div>
-                  <Edit className="text-primary" size={20} />
-                </div>
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">Contact Information</p>
-                    <p className="text-sm text-gray-600">Phone, email, website</p>
-                  </div>
-                  <Edit className="text-primary" size={20} />
-                </div>
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">Location & Hours</p>
-                    <p className="text-sm text-gray-600">Address and business hours</p>
-                  </div>
-                  <Edit className="text-primary" size={20} />
-                </div>
-                <div className="border border-primary/10 rounded-lg p-4 flex items-center justify-between hover:bg-soft transition-colors hover-lift">
-                  <div>
-                    <p className="font-semibold text-secondary">Social Media Links</p>
-                    <p className="text-sm text-gray-600">Facebook, Instagram, etc.</p>
-                  </div>
-                  <Link2 className="text-primary" size={20} />
+                <div className="flex items-center gap-3">
+                  {brokerProfile.slug && (
+                    <button
+                      onClick={() => window.open(`/dealers/${brokerProfile.slug}`, '_blank')}
+                      className="flex items-center gap-2 px-4 py-2 border border-primary/20 text-secondary rounded-lg hover:bg-soft text-sm"
+                    >
+                      <Eye size={16} />
+                      Preview
+                    </button>
+                  )}
+                  <button
+                    onClick={handleBrokerSave}
+                    disabled={brokerProfileSaving}
+                    className="flex items-center gap-2 px-5 py-2 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400 font-semibold text-sm"
+                  >
+                    {brokerProfileSaved ? <CheckCircle size={16} /> : <Save size={16} />}
+                    {brokerProfileSaving ? 'Saving…' : brokerProfileSaved ? 'Saved!' : 'Save Changes'}
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => window.location.href = '/dashboard/dealer-profile'}
-                  className="flex-1 px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors"
+
+              {/* Banner */}
+              <div className="glass-card rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-primary/10">
+                  <h3 className="text-base font-semibold text-secondary">Cover Photo</h3>
+                  <p className="text-sm text-gray-500">Hero image shown at the top of your public broker page</p>
+                </div>
+                <div className="p-5">
+                  <div className="relative h-52 bg-soft rounded-lg overflow-hidden border-2 border-dashed border-primary/20">
+                    {brokerProfile.banner_url ? (
+                      <img src={mediaUrl(brokerProfile.banner_url)} alt="Banner" className="w-full h-full object-cover" onError={onImgError} />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <Upload className="mx-auto text-gray-400 mb-2" size={36} />
+                          <p className="text-gray-500 text-sm">Click to upload cover photo</p>
+                        </div>
+                      </div>
+                    )}
+                    <label className="absolute inset-0 cursor-pointer hover:bg-black/10 transition-all">
+                      <input type="file" accept="image/*" onChange={(e) => handleBrokerImageUpload('banner_url', e)} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Company Info */}
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-base font-semibold text-secondary mb-5">Company Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Company Logo</label>
+                    <div className="relative w-28 h-28 bg-soft rounded-lg overflow-hidden border-2 border-dashed border-primary/20">
+                      {brokerProfile.logo_url ? (
+                        <img src={mediaUrl(brokerProfile.logo_url)} alt="Logo" className="w-full h-full object-cover" onError={onImgError} />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Building2 className="text-gray-400" size={36} />
+                        </div>
+                      )}
+                      <label className="absolute inset-0 cursor-pointer hover:bg-black/10 transition-all flex items-center justify-center">
+                        <input type="file" accept="image/*" onChange={(e) => handleBrokerImageUpload('logo_url', e)} className="hidden" />
+                        <Upload className="text-white opacity-0 hover:opacity-100" size={20} />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">Company Name *</label>
+                      <input type="text" value={brokerProfile.company_name}
+                        onChange={(e) => setBrokerProfile(p => ({...p, company_name: e.target.value}))}
+                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        placeholder="Your Company Name" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">Contact Person</label>
+                      <input type="text" value={brokerProfile.name}
+                        onChange={(e) => setBrokerProfile(p => ({...p, name: e.target.value}))}
+                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        placeholder="John Doe" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-1">About Your Business</label>
+                  <textarea value={brokerProfile.description}
+                    onChange={(e) => setBrokerProfile(p => ({...p, description: e.target.value}))}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                    placeholder="Tell buyers about your dealership, experience, and what makes you unique…" />
+                </div>
+              </div>
+
+              {/* Contact */}
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-base font-semibold text-secondary mb-5">Contact Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">
+                      <span className="flex items-center gap-1.5"><Mail size={14} /> Email *</span>
+                    </label>
+                    <input type="email" value={brokerProfile.email}
+                      onChange={(e) => setBrokerProfile(p => ({...p, email: e.target.value}))}
+                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="contact@yourdealership.com" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">
+                      <span className="flex items-center gap-1.5"><Phone size={14} /> Phone *</span>
+                    </label>
+                    <input type="tel" value={brokerProfile.phone}
+                      onChange={(e) => setBrokerProfile(p => ({...p, phone: e.target.value}))}
+                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="(555) 123-4567" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-secondary mb-1">
+                      <span className="flex items-center gap-1.5"><Globe size={14} /> Website</span>
+                    </label>
+                    <input type="url" value={brokerProfile.website}
+                      onChange={(e) => setBrokerProfile(p => ({...p, website: e.target.value}))}
+                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="https://www.yourdealership.com" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-base font-semibold text-secondary mb-5 flex items-center gap-2">
+                  <MapPin size={18} className="text-primary" /> Location
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">Street Address</label>
+                    <input type="text" value={brokerProfile.address}
+                      onChange={(e) => setBrokerProfile(p => ({...p, address: e.target.value}))}
+                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="123 Marina Boulevard" />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-secondary mb-1">City *</label>
+                      <input type="text" value={brokerProfile.city}
+                        onChange={(e) => setBrokerProfile(p => ({...p, city: e.target.value}))}
+                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        placeholder="Miami" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">State *</label>
+                      <input type="text" value={brokerProfile.state}
+                        onChange={(e) => setBrokerProfile(p => ({...p, state: e.target.value}))}
+                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        placeholder="FL" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">ZIP</label>
+                      <input type="text" value={brokerProfile.zip_code}
+                        onChange={(e) => setBrokerProfile(p => ({...p, zip_code: e.target.value}))}
+                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        placeholder="33139" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">Country</label>
+                    <input type="text" value={brokerProfile.country}
+                      onChange={(e) => setBrokerProfile(p => ({...p, country: e.target.value}))}
+                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="USA" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Social Media */}
+              <div className="glass-card rounded-xl p-5">
+                <h3 className="text-base font-semibold text-secondary mb-5">Social Media</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {([
+                    { field: 'facebook_url' as const, Icon: Facebook, color: 'text-blue-600', label: 'Facebook', placeholder: 'https://facebook.com/yourdealership' },
+                    { field: 'instagram_url' as const, Icon: Instagram, color: 'text-pink-500', label: 'Instagram', placeholder: 'https://instagram.com/yourdealership' },
+                    { field: 'twitter_url' as const, Icon: Twitter, color: 'text-sky-400', label: 'Twitter / X', placeholder: 'https://twitter.com/yourdealership' },
+                    { field: 'linkedin_url' as const, Icon: Linkedin, color: 'text-blue-700', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourdealership' },
+                  ]).map(({ field, Icon, color, label, placeholder }) => (
+                    <div key={field}>
+                      <label className="block text-sm font-medium text-secondary mb-1">
+                        <span className="flex items-center gap-1.5"><Icon size={14} className={color} /> {label}</span>
+                      </label>
+                      <input type="url" value={brokerProfile[field]}
+                        onChange={(e) => setBrokerProfile(p => ({...p, [field]: e.target.value}))}
+                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        placeholder={placeholder} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Show Team toggle */}
+              <div className="glass-card rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-primary/10 flex items-center gap-3">
+                  <Users size={18} className="text-primary" />
+                  <div>
+                    <h3 className="text-base font-semibold text-secondary">Team on Broker Page</h3>
+                    <p className="text-sm text-gray-500">Show your team members on your public broker profile</p>
+                  </div>
+                </div>
+                <div className="p-5 flex items-start justify-between gap-6">
+                  <p className="text-sm text-gray-500 flex-1">
+                    When enabled, your active team members will appear on your public broker profile. Each card links to their individual profile and listings.
+                    Team members must complete their <strong>My Profile</strong> in their dashboard to show a photo and title.
+                  </p>
+                  <div className="flex flex-col items-center gap-1.5 shrink-0">
+                    <button type="button"
+                      onClick={() => setBrokerProfile(p => ({...p, show_team_on_profile: !p.show_team_on_profile}))}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${brokerProfile.show_team_on_profile ? 'bg-primary' : 'bg-gray-300'}`}
+                      aria-pressed={brokerProfile.show_team_on_profile}>
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${brokerProfile.show_team_on_profile ? 'translate-x-8' : 'translate-x-1'}`} />
+                    </button>
+                    <span className={`text-xs font-semibold ${brokerProfile.show_team_on_profile ? 'text-primary' : 'text-gray-400'}`}>
+                      {brokerProfile.show_team_on_profile ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Co-brokering toggle */}
+              <div className="glass-card rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-primary/10 flex items-center gap-3">
+                  <Share2 size={18} className="text-accent" />
+                  <div>
+                    <h3 className="text-base font-semibold text-secondary">Co-Brokering &amp; API Access</h3>
+                    <p className="text-sm text-gray-500">Control whether your listings are accessible to other brokers via the platform API</p>
+                  </div>
+                </div>
+                <div className="p-5 flex items-start justify-between gap-6">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-secondary mb-1">Enable Co-Brokering</p>
+                    <p className="text-sm text-gray-500">
+                      When enabled, your active listings appear in the platform&apos;s co-brokering API so other licensed brokers can present them to their clients.
+                      When <strong>disabled</strong>, none of your listings will be accessible via the API regardless of individual listing settings.
+                    </p>
+                    {!brokerProfile.cobrokering_enabled && (
+                      <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                        <strong>Co-brokering is off for your entire account.</strong> Save Changes to apply.
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5 shrink-0">
+                    <button type="button"
+                      onClick={() => setBrokerProfile(p => ({...p, cobrokering_enabled: !p.cobrokering_enabled}))}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${brokerProfile.cobrokering_enabled ? 'bg-accent' : 'bg-gray-300'}`}
+                      aria-pressed={brokerProfile.cobrokering_enabled}>
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${brokerProfile.cobrokering_enabled ? 'translate-x-8' : 'translate-x-1'}`} />
+                    </button>
+                    <span className={`text-xs font-semibold ${brokerProfile.cobrokering_enabled ? 'text-accent' : 'text-gray-400'}`}>
+                      {brokerProfile.cobrokering_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom save */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleBrokerSave}
+                  disabled={brokerProfileSaving}
+                  className="flex items-center gap-2 px-8 py-3 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400 font-semibold"
                 >
-                  Open Customize Page
-                </button>
-                <button 
-                  onClick={() => window.location.href = '/dashboard/dealer-profile'}
-                  className="flex-1 px-6 py-3 bg-soft text-secondary rounded-lg hover:bg-primary/10 font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Eye size={20} />
-                  Preview Broker Page
+                  {brokerProfileSaved ? <CheckCircle size={18} /> : <Save size={18} />}
+                  {brokerProfileSaving ? 'Saving…' : brokerProfileSaved ? 'Saved!' : 'Save All Changes'}
                 </button>
               </div>
             </div>
