@@ -674,7 +674,7 @@ export default function ListingDetailPage() {
                   <div className="flex flex-col gap-3">
                     <button onClick={() => setShowMsg(true)}
                       className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#01BBDC] hover:opacity-90">
-                      <Mail size={18} /> Contact Seller
+                      <Mail size={18} /> Contact Broker
                     </button>
                     {primaryPhone && (
                       <a href={`tel:${primaryPhone}`}

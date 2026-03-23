@@ -271,8 +271,8 @@ function RegisterContent() {
                       : 'bg-white border border-gray-100'
                   }`}>
                     {key === 'plus' && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                        <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
+                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
+                        <span className="bg-primary text-white px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap shadow-md">MOST POPULAR</span>
                       </div>
                     )}
                     {isUltimate && (
