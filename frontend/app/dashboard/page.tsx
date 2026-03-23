@@ -120,6 +120,7 @@ export default function EnhancedDealerDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
+  const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
@@ -166,6 +167,11 @@ export default function EnhancedDealerDashboard() {
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setCurrentUser(data); })
+        .catch(() => {});
+      // Fetch logo_url for the sidebar brand area
+      fetch(apiUrl('/users/me'), { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.logo_url) setDealerLogoUrl(data.logo_url); })
         .catch(() => {});
     }
 
@@ -616,25 +622,6 @@ export default function EnhancedDealerDashboard() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-secondary">Dashboard</h1>
-            <p className="text-gray-600 mt-1">Manage your yacht listings and business</p>
-          </div>
-          <div className="flex gap-3 flex-wrap">
-            {(isDealer || teamMemberCan('create_listings')) && (
-              <button
-                onClick={() => window.location.href = '/listings/create'}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-light rounded-lg hover-primary transition-colors hover-lift font-semibold"
-              >
-                <PlusCircle size={20} />
-                Create Listing
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="glass-card p-6">
@@ -692,6 +679,27 @@ export default function EnhancedDealerDashboard() {
         <div className="mb-20 flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-64 xl:w-72 shrink-0">
             <div className="glass-card p-3 lg:sticky lg:top-6">
+              {/* Brand logo area */}
+              <div className="mb-3 px-2 pt-2 pb-3 border-b border-gray-100">
+                {dealerLogoUrl ? (
+                  <img
+                    src={mediaUrl(dealerLogoUrl)}
+                    alt="Company logo"
+                    className="max-h-14 max-w-full object-contain"
+                    onError={onImgError}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-full flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+                  >
+                    <Upload size={20} className="text-gray-400 group-hover:text-primary transition-colors" />
+                    <span className="text-xs text-gray-400 group-hover:text-primary text-center leading-tight transition-colors">
+                      Add your logo
+                    </span>
+                  </button>
+                )}
+              </div>
               <div className="space-y-2">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;

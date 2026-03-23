@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 import {
   Menu, X, Ship, User, PlusCircle, Bell, MessageSquare, 
   Heart, Search, Settings, ChevronDown, DollarSign, BarChart3
@@ -98,6 +98,7 @@ export default function Navbar() {
   const [logoError, setLogoError] = useState(false);
   const [mobileSellOpen, setMobileSellOpen] = useState(false);
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -157,6 +158,15 @@ export default function Navbar() {
       setUser(normalizedUser);
       setIsLoggedIn(true);
       fetchUnreadCount(token);
+
+      // Fetch profile photo for dealer/team_member/salesman
+      const utype = normalizedUser.user_type;
+      if (utype === 'dealer' || utype === 'team_member' || utype === 'salesman') {
+        fetch(apiUrl('/users/me'), { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data?.photo_url) setProfilePhoto(data.photo_url); })
+          .catch(() => {});
+      }
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('token');
@@ -305,6 +315,18 @@ export default function Navbar() {
               <div className="w-32 h-10 bg-gray-100 animate-pulse rounded" />
             ) : isLoggedIn && user ? (
               <>
+                {/* Create Listing — brokers & team members with permission */}
+                {canCreateListings() && (user.user_type === 'dealer' || user.user_type === 'team_member') && (
+                  <Link
+                    href="/listings/create"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    <PlusCircle size={15} />
+                    New Listing
+                  </Link>
+                )}
+
                 {/* Messages */}
                 <Link
                   href="/messages"
@@ -336,8 +358,17 @@ export default function Navbar() {
                     aria-label="User menu"
                     aria-expanded={showUserMenu}
                   >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User size={16} className="text-primary" />
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                      {profilePhoto ? (
+                        <img
+                          src={mediaUrl(profilePhoto)}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                          onError={() => setProfilePhoto(null)}
+                        />
+                      ) : (
+                        <User size={16} className="text-primary" />
+                      )}
                     </div>
                     <span className="text-sm font-medium text-dark">{getUserDisplayName()}</span>
                     <ChevronDown
