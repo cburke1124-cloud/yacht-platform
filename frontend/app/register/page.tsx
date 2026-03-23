@@ -229,7 +229,7 @@ function RegisterContent() {
         return;
       }
 
-      router.push(formData.user_type === 'buyer' ? '/account' : '/dashboard');
+      router.push(formData.user_type === 'buyer' ? '/account' : '/dashboard/welcome');
     } catch (err: any) {
       setError(err.message || 'Failed to register. Please try again.');
       setStripeRedirecting(false);
