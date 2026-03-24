@@ -64,7 +64,7 @@ interface Inquiry {
   message_thread?: MessageEntry[];
 }
 
-export default function MessagingCenter() {
+export default function MessagingCenter({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedDetail, setSelectedDetail] = useState<MessageDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -403,8 +403,8 @@ export default function MessagingCenter() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className={embedded ? '' : 'min-h-screen bg-gray-50'}>
+      <div className={embedded ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'}>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

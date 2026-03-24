@@ -13,11 +13,14 @@ import {
   MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2,
   Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter,
   Loader2, AlertCircle, ExternalLink, Ruler, Clock, Copy, AlertTriangle,
-  UserPlus, Shield, LayoutDashboard, ClipboardList, ChevronLeft
+  UserPlus, Shield, LayoutDashboard, ClipboardList, ChevronLeft,
+  EyeOff, Briefcase, ChevronDown, ChevronUp
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
+import MessagingCenter from '@/app/messages/page';
+import SalesmanProfileForm from '@/app/dashboard/components/SalesmanProfileForm';
 
-type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
+type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages';
 
 interface MediaFileItem {
   id: number;
@@ -261,6 +264,7 @@ export default function EnhancedDealerDashboard() {
   });
   const [brokerProfileSaving, setBrokerProfileSaving] = useState(false);
   const [brokerProfileSaved, setBrokerProfileSaved] = useState(false);
+  const [showPersonalProfile, setShowPersonalProfile] = useState(false);
 
   // Media manager inline state
   const [mediaFiles, setMediaFiles] = useState<MediaFileItem[]>([]);
@@ -1433,7 +1437,6 @@ export default function EnhancedDealerDashboard() {
     ...(isDealer ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
     { id: 'account', label: 'Account', icon: Settings },
     ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
-    ...(isTeamMember || isDealer ? [{ id: 'salesman-profile', label: 'My Profile', icon: User }] : []),
     ...(isDealer ? [{ id: 'api-keys', label: 'API Keys', icon: Key }] : []),
   ] as { id: TabId; label: string; icon: any }[];
 
@@ -1560,8 +1563,12 @@ export default function EnhancedDealerDashboard() {
                   );
                 })}
                 <button
-                  onClick={() => router.push('/messages')}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left text-gray-600 hover:bg-soft hover:text-secondary"
+                  onClick={() => setActiveTab('messages')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left ${
+                    activeTab === 'messages'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                  }`}
                 >
                   <Mail size={18} />
                   <span>Inquiries</span>
@@ -2783,15 +2790,17 @@ export default function EnhancedDealerDashboard() {
                   <p className="text-sm text-gray-500 mt-0.5">Customize how your dealership appears to buyers</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  {brokerProfile.slug && (
-                    <button
-                      onClick={() => window.open(`/dealers/${brokerProfile.slug}`, '_blank')}
-                      className="flex items-center gap-2 px-4 py-2 border border-primary/20 text-secondary rounded-lg hover:bg-soft text-sm"
-                    >
-                      <Eye size={16} />
-                      Preview
-                    </button>
-                  )}
+                  <button
+                    onClick={() => brokerProfile.slug
+                      ? window.open(`/dealers/${brokerProfile.slug}`, '_blank')
+                      : alert('Save your broker page first to generate a preview link.')
+                    }
+                    title={brokerProfile.slug ? `View /dealers/${brokerProfile.slug}` : 'Save first to unlock preview'}
+                    className="flex items-center gap-2 px-4 py-2 border border-primary/20 text-secondary rounded-lg hover:bg-soft text-sm"
+                  >
+                    <Eye size={16} />
+                    Preview Page
+                  </button>
                   <button
                     onClick={handleBrokerSave}
                     disabled={brokerProfileSaving}
@@ -3515,6 +3524,35 @@ export default function EnhancedDealerDashboard() {
                   </div>
                 )}
               </div>
+
+              {/* Personal Profile Section */}
+              {isDealer && (
+                <div className="glass-card rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setShowPersonalProfile(p => !p)}
+                    className="w-full flex items-center justify-between p-5 hover:bg-soft transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <User size={18} className="text-primary" />
+                      <div className="text-left">
+                        <p className="font-semibold text-secondary">My Personal Profile</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${showPersonalProfile ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}>
+                        {showPersonalProfile ? 'Editing' : 'Hidden'}
+                      </span>
+                      {showPersonalProfile ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+                    </div>
+                  </button>
+                  {showPersonalProfile && (
+                    <div className="p-5 border-t border-gray-100">
+                      <SalesmanProfileForm />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -3648,25 +3686,9 @@ export default function EnhancedDealerDashboard() {
             </div>
           )}
 
-          {/* Salesman Profile Tab */}
-          {activeTab === 'salesman-profile' && (
-            <div className="glass-card p-8">
-              <div className="text-center mb-6">
-                <User className="mx-auto text-primary mb-4" size={64} />
-                <h2 className="text-2xl font-bold text-secondary mb-2">My Profile</h2>
-                <p className="text-gray-600 mb-6">
-                  {isDealer
-                    ? 'Set up your personal broker profile and optionally appear on your brokerage\'s public page.'
-                    : 'Manage your public profile, bio, and contact info shown to buyers.'}
-                </p>
-              </div>
-              <button
-                onClick={() => window.location.href = '/dashboard/salesman-profile'}
-                className="w-full px-6 py-3 bg-primary text-light rounded-lg hover-primary font-medium transition-colors"
-              >
-                Edit My Profile
-              </button>
-            </div>
+          {/* Messages / Inquiries Tab */}
+          {activeTab === 'messages' && (
+            <MessagingCenter embedded />
           )}
           </div>
         </div>
