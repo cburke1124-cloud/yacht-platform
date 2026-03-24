@@ -1542,7 +1542,7 @@ export default function EnhancedDealerDashboard() {
                 )}
               </div>
               <div className="space-y-2">
-                {tabs.map((tab) => {
+                {tabs.slice(0, 1).map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <button
@@ -1566,6 +1566,23 @@ export default function EnhancedDealerDashboard() {
                   <Mail size={18} />
                   <span>Inquiries</span>
                 </button>
+                {tabs.slice(1).map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as TabId)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left ${
+                        activeTab === tab.id
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </aside>

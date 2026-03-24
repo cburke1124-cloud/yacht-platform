@@ -68,7 +68,6 @@ def get_notification_count(
     messages = db.query(func.count(Message.id)).filter(
         Message.recipient_id == current_user.id,
         Message.status == "new",
-        Message.parent_message_id == None,  # noqa: E711
     ).scalar() or 0
 
     return {"notifications": notifications, "messages": messages}
