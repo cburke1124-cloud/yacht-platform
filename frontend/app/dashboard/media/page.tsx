@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Upload, X, Video, FileText, Folder, Trash2, Search, Image } from 'lucide-react';
+import { Upload, X, Video, FileText, Folder, Trash2, Search, Image, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 // Type definitions
@@ -30,11 +30,25 @@ export default function MediaGallery() {
   const [searchTerm, setSearchTerm] = useState('');
   const [storageUsed, setStorageUsed] = useState(0);
   const [totalFiles, setTotalFiles] = useState(0);
+  const [lightboxFile, setLightboxFile] = useState<MediaFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchMedia();
   }, [filter]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setLightboxFile(null); return; }
+      if (!lightboxFile) return;
+      const imgs = filteredMedia.filter(m => m.file_type === 'image');
+      const idx = imgs.findIndex(m => m.id === lightboxFile.id);
+      if (e.key === 'ArrowLeft' && idx > 0) setLightboxFile(imgs[idx - 1]);
+      if (e.key === 'ArrowRight' && idx < imgs.length - 1) setLightboxFile(imgs[idx + 1]);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [lightboxFile, filteredMedia]);
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = localStorage.getItem('token');
@@ -202,6 +216,9 @@ export default function MediaGallery() {
     return true;
   });
 
+  const imageFiles = filteredMedia.filter(m => m.file_type === 'image');
+  const lightboxIndex = lightboxFile ? imageFiles.findIndex(m => m.id === lightboxFile.id) : -1;
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-6">
@@ -320,7 +337,15 @@ export default function MediaGallery() {
                 )}
               </div>
 
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2">
+                {file.file_type === 'image' && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setLightboxFile(file); }}
+                    className="opacity-0 group-hover:opacity-100 p-2 bg-white/80 text-gray-800 rounded-full hover:bg-white transition-opacity"
+                  >
+                    <ZoomIn size={16} />
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteMedia(file.id); }}
                   className="opacity-0 group-hover:opacity-100 p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-opacity"
@@ -343,6 +368,66 @@ export default function MediaGallery() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+
+      {/* Lightbox */}
+      {lightboxFile && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightboxFile(null)}
+        >
+          {/* Top bar: filename + controls */}
+          <div className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center p-4 bg-gradient-to-b from-black/60 to-transparent">
+            <span className="text-white/80 text-sm truncate max-w-sm">
+              {lightboxFile.filename} &middot; {lightboxFile.file_size_mb.toFixed(1)} MB
+              {lightboxIndex >= 0 && ` · ${lightboxIndex + 1} / ${imageFiles.length}`}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); deleteMedia(lightboxFile.id); setLightboxFile(null); }}
+                className="p-2 bg-red-600/80 text-white rounded-full hover:bg-red-600 transition-colors"
+              >
+                <Trash2 size={20} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxFile(null); }}
+                className="p-2 bg-white/20 text-white rounded-full hover:bg-white/40 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Prev arrow */}
+          {lightboxIndex > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxFile(imageFiles[lightboxIndex - 1]); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-50 p-3 bg-white/20 text-white rounded-full hover:bg-white/40 transition-colors"
+            >
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+          {/* Next arrow */}
+          {lightboxIndex < imageFiles.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxFile(imageFiles[lightboxIndex + 1]); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-50 p-3 bg-white/20 text-white rounded-full hover:bg-white/40 transition-colors"
+            >
+              <ChevronRight size={28} />
+            </button>
+          )}
+
+          {/* Image */}
+          <img
+            src={mediaUrl(lightboxFile.url)}
+            alt={lightboxFile.filename}
+            className="max-w-[90vw] max-h-[85vh] object-contain select-none rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            onError={onImgError}
+          />
         </div>
       )}
     </div>
