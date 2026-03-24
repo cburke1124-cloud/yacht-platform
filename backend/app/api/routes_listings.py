@@ -269,6 +269,7 @@ def _serialize_listing(listing: Listing, db: Session = None) -> dict:
         "user_id": listing.user_id,
         "created_by_user_id": listing.created_by_user_id,
         "assigned_salesman_id": listing.assigned_salesman_id,
+        "guest_salesman_id": getattr(listing, "guest_salesman_id", None),
         "title": listing.title,
         "price": listing.price,
         "currency": listing.currency or "USD",

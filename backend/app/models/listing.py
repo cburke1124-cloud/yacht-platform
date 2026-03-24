@@ -15,6 +15,7 @@ class Listing(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     created_by_user_id = Column(Integer, ForeignKey("users.id"))
     assigned_salesman_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    guest_salesman_id = Column(Integer, ForeignKey('guest_brokers.id'), nullable=True)
     external_id = Column(String(255), index=True)
 
 

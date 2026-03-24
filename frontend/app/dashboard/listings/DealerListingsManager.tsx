@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye } from 'lucide-react';
+import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye, User, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ListingPreviewModal from '@/app/components/ListingPreviewModal';
@@ -18,6 +18,7 @@ interface Listing {
   inquiries: number;
   featured: boolean;
   assigned_salesman_id?: number;
+  guest_salesman_id?: number;
   created_at: string;
   images: Array<{ url: string }>;
   city?: string;
@@ -29,6 +30,16 @@ interface TeamMember {
   first_name: string;
   last_name: string;
   email: string;
+}
+
+interface GuestBroker {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  title?: string;
+  photo_url?: string;
 }
 
 interface QuickEditDraft {
@@ -44,6 +55,7 @@ interface DealerListingsManagerProps {
 export default function DealerListingsManager({ onStatsUpdate }: DealerListingsManagerProps) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [guestBrokers, setGuestBrokers] = useState<GuestBroker[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assigningSalesman, setAssigningSalesman] = useState<number | null>(null);
@@ -52,9 +64,15 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
 
+  // Quick-create guest broker inside the assign modal
+  const [showAddGuest, setShowAddGuest] = useState(false);
+  const [newGuest, setNewGuest] = useState({ first_name: '', last_name: '', email: '', phone: '', title: '' });
+  const [savingGuest, setSavingGuest] = useState(false);
+
   useEffect(() => {
     fetchListings();
     fetchTeamMembers();
+    fetchGuestBrokers();
   }, [statusFilter]);
 
   const fetchListings = async () => {
@@ -101,13 +119,27 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       const response = await fetch(apiUrl('/team/members'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
       if (response.ok) {
         const data = await response.json();
         setTeamMembers(data);
       }
     } catch (error) {
       console.error('Failed to fetch team:', error);
+    }
+  };
+
+  const fetchGuestBrokers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/team/guest-brokers'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setGuestBrokers(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch guest brokers:', error);
     }
   };
 
@@ -136,30 +168,61 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     }
   };
 
-  const assignSalesman = async (listingId: number, salesmanId: number | null) => {
+  const assignSalesman = async (listingId: number, salesmanId: number | null, isGuest = false) => {
     try {
       const token = localStorage.getItem('token');
+      const body = isGuest
+        ? { guest_salesman_id: salesmanId }
+        : { salesman_id: salesmanId };
       const response = await fetch(apiUrl(`/listings/${listingId}/assign-salesman`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ salesman_id: salesmanId })
+        body: JSON.stringify(body)
       });
 
       if (response.ok) {
-        setListings(listings.map(l => 
-          l.id === listingId ? { ...l, assigned_salesman_id: salesmanId || undefined } : l
+        setListings(listings.map(l =>
+          l.id === listingId
+            ? {
+                ...l,
+                assigned_salesman_id: isGuest ? undefined : (salesmanId || undefined),
+                guest_salesman_id: isGuest ? (salesmanId || undefined) : undefined,
+              }
+            : l
         ));
         setAssigningSalesman(null);
-        alert('Salesman assigned successfully!');
       } else {
         alert('Failed to assign salesman');
       }
     } catch (error) {
       console.error('Failed to assign salesman:', error);
       alert('Failed to assign salesman');
+    }
+  };
+
+  const createAndAssignGuest = async (listingId: number) => {
+    if (!newGuest.first_name.trim()) { alert('First name is required'); return; }
+    setSavingGuest(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/team/guest-brokers'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(newGuest),
+      });
+      if (!res.ok) { alert('Failed to create broker'); return; }
+      const created: GuestBroker = await res.json();
+      setGuestBrokers(prev => [...prev, created]);
+      await assignSalesman(listingId, created.id, true);
+      setNewGuest({ first_name: '', last_name: '', email: '', phone: '', title: '' });
+      setShowAddGuest(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingGuest(false);
     }
   };
 
@@ -267,8 +330,15 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   };
 
   const getAssignedSalesman = (listing: Listing) => {
-    if (!listing.assigned_salesman_id) return null;
-    return teamMembers.find(m => m.id === listing.assigned_salesman_id);
+    if (listing.guest_salesman_id) {
+      const g = guestBrokers.find(b => b.id === listing.guest_salesman_id);
+      if (g) return { name: `${g.first_name} ${g.last_name}`.trim(), isGuest: true };
+    }
+    if (listing.assigned_salesman_id) {
+      const m = teamMembers.find(m => m.id === listing.assigned_salesman_id);
+      if (m) return { name: `${m.first_name} ${m.last_name}`, isGuest: false };
+    }
+    return null;
   };
 
   if (loading) {
@@ -455,42 +525,98 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                         />
                       </div>
                       {assigningSalesman === listing.id ? (
-                        <div className="space-y-2">
-                          <select
-                            className="text-sm border border-gray-300 rounded px-2 py-1"
-                            onChange={(e) => {
-                              const salesmanId = e.target.value ? parseInt(e.target.value) : null;
-                              assignSalesman(listing.id, salesmanId);
-                            }}
-                            defaultValue={listing.assigned_salesman_id || ''}
-                          >
-                            <option value="">Unassigned</option>
-                            {teamMembers.map(member => (
-                              <option key={member.id} value={member.id}>
-                                {member.first_name} {member.last_name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => setAssigningSalesman(null)}
-                            className="text-xs text-gray-600 hover:text-gray-800"
-                          >
-                            <X size={14} className="inline" /> Cancel
-                          </button>
+                        <div className="space-y-2 min-w-[190px]">
+                          {/* Team member accounts */}
+                          {teamMembers.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Team Members</p>
+                              {teamMembers.map(member => (
+                                <button key={member.id}
+                                  onClick={() => assignSalesman(listing.id, member.id, false)}
+                                  className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                >
+                                  {member.first_name} {member.last_name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {/* Guest / external brokers */}
+                          {guestBrokers.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 mt-2">External Brokers</p>
+                              {guestBrokers.map(broker => (
+                                <button key={broker.id}
+                                  onClick={() => assignSalesman(listing.id, broker.id, true)}
+                                  className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                >
+                                  {broker.first_name} {broker.last_name}
+                                  {broker.title && <span className="text-gray-400 ml-1">· {broker.title}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {/* Quick-add new guest broker */}
+                          {showAddGuest ? (
+                            <div className="border-t pt-2 space-y-1.5">
+                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">New External Broker</p>
+                              <input placeholder="First name *" value={newGuest.first_name}
+                                onChange={e => setNewGuest(g => ({ ...g, first_name: e.target.value }))}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1" />
+                              <input placeholder="Last name" value={newGuest.last_name}
+                                onChange={e => setNewGuest(g => ({ ...g, last_name: e.target.value }))}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1" />
+                              <input placeholder="Email" value={newGuest.email}
+                                onChange={e => setNewGuest(g => ({ ...g, email: e.target.value }))}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1" />
+                              <input placeholder="Phone" value={newGuest.phone}
+                                onChange={e => setNewGuest(g => ({ ...g, phone: e.target.value }))}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1" />
+                              <input placeholder="Title (e.g. Senior Broker)" value={newGuest.title}
+                                onChange={e => setNewGuest(g => ({ ...g, title: e.target.value }))}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1" />
+                              <div className="flex gap-1.5">
+                                <button onClick={() => createAndAssignGuest(listing.id)} disabled={savingGuest}
+                                  className="flex-1 text-xs bg-primary text-white rounded px-2 py-1 disabled:opacity-60">
+                                  {savingGuest ? 'Saving…' : 'Save & Assign'}
+                                </button>
+                                <button onClick={() => setShowAddGuest(false)} className="text-xs text-gray-500 hover:text-gray-700 px-1">
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button onClick={() => setShowAddGuest(true)}
+                              className="w-full text-left text-xs text-primary hover:underline mt-1 flex items-center gap-1 px-2">
+                              <UserPlus size={12} /> Add external broker…
+                            </button>
+                          )}
+                          <div className="flex gap-2 border-t pt-2">
+                            <button onClick={() => assignSalesman(listing.id, null)}
+                              className="text-xs text-red-500 hover:text-red-700">
+                              Unassign
+                            </button>
+                            <button onClick={() => { setAssigningSalesman(null); setShowAddGuest(false); }}
+                              className="ml-auto text-xs text-gray-500 hover:text-gray-700">
+                              <X size={12} className="inline" /> Close
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
                           {assignedSalesman ? (
-                            <span className="text-sm text-gray-900">
-                              {assignedSalesman.first_name} {assignedSalesman.last_name}
-                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-gray-900">{assignedSalesman.name}</span>
+                              {assignedSalesman.isGuest && (
+                                <span className="text-[10px] text-emerald-600 font-medium">External</span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-sm text-gray-500">Unassigned</span>
                           )}
                           <button
-                            onClick={() => setAssigningSalesman(listing.id)}
+                            onClick={() => { setAssigningSalesman(listing.id); setShowAddGuest(false); }}
                             className="text-blue-600 hover:text-blue-700"
-                            title="Assign salesman"
+                            title="Assign broker"
                           >
                             <UserPlus size={16} />
                           </button>

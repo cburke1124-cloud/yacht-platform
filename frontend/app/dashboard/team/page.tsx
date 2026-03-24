@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserPlus, Edit, Trash2, Mail, Phone, Shield, X, LayoutDashboard, MessageSquare, ClipboardList, ChevronLeft } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { UserPlus, Edit, Trash2, Mail, Phone, Shield, X, LayoutDashboard, MessageSquare, ClipboardList, ChevronLeft, User } from 'lucide-react';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 interface TeamMember {
   id: number;
@@ -63,6 +63,17 @@ interface MemberOverview {
   messages: { total: number; pending: number };
 }
 
+interface GuestBroker {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  title?: string;
+  bio?: string;
+  photo_url?: string;
+}
+
 const STAGE_COLORS: Record<string, string> = {
   new:       'bg-gray-100 text-gray-700',
   contacted: 'bg-blue-100 text-blue-700',
@@ -75,6 +86,11 @@ const STAGE_COLORS: Record<string, string> = {
 export default function TeamManagementPage() {
   const router = useRouter();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [guestBrokers, setGuestBrokers] = useState<GuestBroker[]>([]);
+  const [editingGuest, setEditingGuest] = useState<GuestBroker | null>(null);
+  const [showAddGuestModal, setShowAddGuestModal] = useState(false);
+  const [guestForm, setGuestForm] = useState({ first_name: '', last_name: '', email: '', phone: '', title: '', bio: '', photo_url: '' });
+  const [savingGuest, setSavingGuest] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -120,6 +136,7 @@ export default function TeamManagementPage() {
 
   useEffect(() => {
     fetchTeamMembers();
+    fetchGuestBrokers();
   }, []);
 
   const fetchTeamMembers = async () => {
@@ -138,6 +155,51 @@ export default function TeamManagementPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchGuestBrokers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/team/guest-brokers'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setGuestBrokers(await res.json());
+    } catch (e) { console.error('Failed to fetch guest brokers:', e); }
+  };
+
+  const handleSaveGuest = async () => {
+    if (!guestForm.first_name.trim()) { alert('First name is required'); return; }
+    setSavingGuest(true);
+    try {
+      const token = localStorage.getItem('token');
+      const isEdit = editingGuest !== null;
+      const url = isEdit ? apiUrl(`/team/guest-brokers/${editingGuest!.id}`) : apiUrl('/team/guest-brokers');
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(guestForm),
+      });
+      if (res.ok) {
+        await fetchGuestBrokers();
+        setShowAddGuestModal(false);
+        setEditingGuest(null);
+        setGuestForm({ first_name: '', last_name: '', email: '', phone: '', title: '', bio: '', photo_url: '' });
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to save');
+      }
+    } catch (e) { console.error(e); }
+    finally { setSavingGuest(false); }
+  };
+
+  const handleDeleteGuest = async (id: number) => {
+    if (!confirm('Delete this external broker? They will be unassigned from all listings.')) return;
+    const token = localStorage.getItem('token');
+    const res = await fetch(apiUrl(`/team/guest-brokers/${id}`), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) await fetchGuestBrokers();
+    else alert('Failed to delete');
   };
 
   const openMemberDashboard = async (memberId: number) => {
@@ -420,7 +482,142 @@ export default function TeamManagementPage() {
             )}
           </div>
         </div>
+
+        {/* External Brokers (no account needed) */}
+        <div className="glass-card overflow-hidden mt-8">
+          <div className="p-6 border-b border-primary/10 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-secondary">External Brokers</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Named broker profiles for salespeople who don't have a YachtVersal account. You can assign them to listings just like a team member.</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingGuest(null);
+                setGuestForm({ first_name: '', last_name: '', email: '', phone: '', title: '', bio: '', photo_url: '' });
+                setShowAddGuestModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-light rounded-lg hover-primary text-sm transition-colors"
+            >
+              <UserPlus size={16} /> Add Broker
+            </button>
+          </div>
+          <div className="divide-y">
+            {guestBrokers.length === 0 ? (
+              <div className="p-10 text-center text-gray-400">
+                <User size={36} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No external brokers yet. Add one to tag them on listings.</p>
+              </div>
+            ) : (
+              guestBrokers.map(broker => (
+                <div key={broker.id} className="p-5 flex items-center gap-4 hover:bg-soft transition-colors">
+                  <div className="w-11 h-11 rounded-full bg-emerald-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    {broker.photo_url
+                      ? <img src={mediaUrl(broker.photo_url)} alt="" className="w-full h-full object-cover" onError={onImgError} />
+                      : <span className="text-emerald-700 font-semibold">{broker.first_name[0]}{broker.last_name?.[0] || ''}</span>
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-secondary">{broker.first_name} {broker.last_name}</p>
+                    <div className="text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+                      {broker.title && <span>{broker.title}</span>}
+                      {broker.email && <span>{broker.email}</span>}
+                      {broker.phone && <span>{broker.phone}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingGuest(broker);
+                        setGuestForm({
+                          first_name: broker.first_name,
+                          last_name: broker.last_name || '',
+                          email: broker.email || '',
+                          phone: broker.phone || '',
+                          title: broker.title || '',
+                          bio: broker.bio || '',
+                          photo_url: broker.photo_url || '',
+                        });
+                        setShowAddGuestModal(true);
+                      }}
+                      className="p-2 text-gray-500 hover:bg-soft rounded"
+                    >
+                      <Edit size={16} />
+                    </button>
+                    <button onClick={() => handleDeleteGuest(broker.id)} className="p-2 text-red-500 hover:bg-red-50 rounded">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Add / Edit External Broker Modal */}
+      {showAddGuestModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-primary/10">
+            <div className="p-6 border-b border-primary/10 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-secondary">{editingGuest ? 'Edit External Broker' : 'Add External Broker'}</h2>
+              <button onClick={() => setShowAddGuestModal(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">This broker doesn't need a YachtVersal account. Their profile will appear on listings they're assigned to.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name *</label>
+                  <input type="text" value={guestForm.first_name}
+                    onChange={e => setGuestForm(f => ({ ...f, first_name: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name</label>
+                  <input type="text" value={guestForm.last_name}
+                    onChange={e => setGuestForm(f => ({ ...f, last_name: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Title</label>
+                <input type="text" value={guestForm.title}
+                  onChange={e => setGuestForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="e.g. Senior Broker"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                  <input type="email" value={guestForm.email}
+                    onChange={e => setGuestForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                  <input type="tel" value={guestForm.phone}
+                    onChange={e => setGuestForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Bio</label>
+                <textarea value={guestForm.bio} rows={3} maxLength={400}
+                  onChange={e => setGuestForm(f => ({ ...f, bio: e.target.value }))}
+                  placeholder="Short professional bio shown to buyers..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary resize-none" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowAddGuestModal(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancel</button>
+                <button onClick={handleSaveGuest} disabled={savingGuest}
+                  className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover-primary text-sm font-medium disabled:opacity-60">
+                  {savingGuest ? 'Saving…' : editingGuest ? 'Save Changes' : 'Add Broker'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite Modal */}
       {showInviteModal && (

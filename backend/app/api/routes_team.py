@@ -9,6 +9,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing
 from app.models.misc import Message, Inquiry
+from app.models.guest_broker import GuestBroker
 from app.exceptions import AuthorizationException, ValidationException, ResourceNotFoundException
 from app.services.permissions import Permission, has_permission, TEAM_ROLE_PERMISSIONS, TeamMemberRole
 from app.security.auth import get_password_hash
@@ -702,4 +703,110 @@ def bulk_reassign_team_member_listings(
         "new_owner_name": f"{new_owner.first_name or ''} {new_owner.last_name or ''}".strip() or new_owner.email,
         "listings_reassigned": updated_count,
         "message": f"{updated_count} listing(s) reassigned from {member.first_name or member.email} to {new_owner.first_name or new_owner.email}"
+    }
+
+# --- Guest Broker CRUD --------------------------------------------------------
+# "Guest brokers" are named salesperson profiles owned by a dealer but NOT
+# linked to any YachtVersal user account. An office admin can create/manage
+# them and then assign them to listings just like a registered team member.
+
+@router.get("/guest-brokers")
+def list_guest_brokers(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all guest brokers belonging to this dealer."""
+    dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
+    if not dealer_id:
+        raise AuthorizationException("Only dealers can manage guest brokers")
+    brokers = db.query(GuestBroker).filter(GuestBroker.dealer_id == dealer_id).order_by(GuestBroker.first_name).all()
+    return [_serialize_guest_broker(b) for b in brokers]
+
+
+@router.post("/guest-brokers")
+def create_guest_broker(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new guest broker for this dealer."""
+    dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
+    if not dealer_id:
+        raise AuthorizationException("Only dealers can create guest brokers")
+    if not data.get("first_name"):
+        raise ValidationException("first_name is required")
+
+    broker = GuestBroker(
+        dealer_id=dealer_id,
+        first_name=data["first_name"].strip(),
+        last_name=(data.get("last_name") or "").strip(),
+        email=data.get("email"),
+        phone=data.get("phone"),
+        title=data.get("title"),
+        bio=data.get("bio"),
+        photo_url=data.get("photo_url"),
+        social_links=data.get("social_links") or {},
+    )
+    db.add(broker)
+    db.commit()
+    db.refresh(broker)
+    return _serialize_guest_broker(broker)
+
+
+@router.put("/guest-brokers/{broker_id}")
+def update_guest_broker(
+    broker_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a guest broker profile."""
+    dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
+    broker = db.query(GuestBroker).filter(GuestBroker.id == broker_id, GuestBroker.dealer_id == dealer_id).first()
+    if not broker:
+        raise ResourceNotFoundException("GuestBroker", broker_id)
+
+    for field in ("first_name", "last_name", "email", "phone", "title", "bio", "photo_url", "social_links"):
+        if field in data:
+            setattr(broker, field, data[field])
+    db.commit()
+    db.refresh(broker)
+    return _serialize_guest_broker(broker)
+
+
+@router.delete("/guest-brokers/{broker_id}")
+def delete_guest_broker(
+    broker_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a guest broker and unassign them from all listings."""
+    dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
+    broker = db.query(GuestBroker).filter(GuestBroker.id == broker_id, GuestBroker.dealer_id == dealer_id).first()
+    if not broker:
+        raise ResourceNotFoundException("GuestBroker", broker_id)
+
+    # Cascade already handled by DB (SET NULL), but be explicit just in case
+    from app.models.listing import Listing
+    db.query(Listing).filter(Listing.guest_salesman_id == broker_id).update(
+        {"guest_salesman_id": None}, synchronize_session=False
+    )
+    db.delete(broker)
+    db.commit()
+    return {"success": True}
+
+
+def _serialize_guest_broker(broker: GuestBroker) -> dict:
+    return {
+        "id": broker.id,
+        "dealer_id": broker.dealer_id,
+        "first_name": broker.first_name,
+        "last_name": broker.last_name or "",
+        "email": broker.email,
+        "phone": broker.phone,
+        "title": broker.title,
+        "bio": broker.bio,
+        "photo_url": broker.photo_url,
+        "social_links": broker.social_links or {},
+        "created_at": broker.created_at.isoformat() if broker.created_at else None,
     }

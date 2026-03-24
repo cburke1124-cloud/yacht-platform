@@ -53,6 +53,8 @@ from app.models.blog import (
     BlogPostTag
 )
 
+from app.models.guest_broker import GuestBroker
+
 from app.models.partner_growth import (
     AffiliateAccount,
     PartnerDeal,

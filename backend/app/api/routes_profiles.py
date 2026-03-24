@@ -8,6 +8,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.models.listing import Listing
+from app.models.guest_broker import GuestBroker
 from app.exceptions import ResourceNotFoundException, AuthorizationException
 
 router = APIRouter()
@@ -101,9 +102,40 @@ def assign_salesman_to_listing(
             raise AuthorizationException("You don't have permission to assign salesmen to this listing")
     
     salesman_id = data.get("salesman_id")
-    if not salesman_id:
-        # Unassign salesman
+    guest_salesman_id = data.get("guest_salesman_id")
+
+    if not salesman_id and not guest_salesman_id:
+        # Unassign both
         listing.assigned_salesman_id = None
+        listing.guest_salesman_id = None
+        db.commit()
+        return {"success": True, "message": "Salesman unassigned"}
+
+    if guest_salesman_id:
+        # Assign to a guest broker (no account needed)
+        guest = db.query(GuestBroker).filter(GuestBroker.id == guest_salesman_id).first()
+        if not guest:
+            raise ResourceNotFoundException("GuestBroker", guest_salesman_id)
+        # Verify the guest broker belongs to this dealer
+        dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
+        if guest.dealer_id != dealer_id:
+            raise AuthorizationException("This guest broker is not part of your team")
+        listing.guest_salesman_id = guest_salesman_id
+        listing.assigned_salesman_id = None  # clear account-based assignment
+        db.commit()
+        return {
+            "success": True,
+            "assigned_to": {
+                "id": guest.id,
+                "name": f"{guest.first_name} {guest.last_name}".strip(),
+                "email": guest.email,
+                "is_guest": True,
+            }
+        }
+
+    if not salesman_id:
+        listing.assigned_salesman_id = None
+        listing.guest_salesman_id = None
         db.commit()
         return {"success": True, "message": "Salesman unassigned"}
     
@@ -117,6 +149,7 @@ def assign_salesman_to_listing(
         raise AuthorizationException("This salesman is not part of your team")
     
     listing.assigned_salesman_id = salesman_id
+    listing.guest_salesman_id = None  # clear guest assignment
     db.commit()
     
     return {
