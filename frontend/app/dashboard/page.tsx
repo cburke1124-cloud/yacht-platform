@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
-import LeadsManager from '@/app/dashboard/inquiries/LeadsManager';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, User,
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 
-type TabId = 'listings' | 'leads' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
+type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'salesman-profile';
 
 interface MediaFileItem {
   id: number;
@@ -245,6 +245,7 @@ const sortApiKeys = (keys: APIKey[]) =>
   });
 
 export default function EnhancedDealerDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
@@ -1424,7 +1425,6 @@ export default function EnhancedDealerDashboard() {
 
   const tabs = [
     { id: 'listings', label: 'My Listings', icon: BarChart3 },
-    { id: 'leads', label: 'Leads', icon: MessageSquare },
     { id: 'media', label: 'Media Gallery', icon: Image },
     ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
     ...(isDealer || teamMemberCan('view_analytics') ? [{ id: 'analytics', label: 'Analytics', icon: BarChart3 }] : []),
@@ -1559,6 +1559,13 @@ export default function EnhancedDealerDashboard() {
                     </button>
                   );
                 })}
+                <button
+                  onClick={() => router.push('/messages')}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left text-gray-600 hover:bg-soft hover:text-secondary"
+                >
+                  <Mail size={18} />
+                  <span>Inquiries</span>
+                </button>
               </div>
             </div>
           </aside>
@@ -1740,11 +1747,6 @@ export default function EnhancedDealerDashboard() {
                 </table>
               </div>
             </div>
-          )}
-
-          {/* Leads Tab */}
-          {activeTab === 'leads' && (
-            <LeadsManager />
           )}
 
           {/* Featured Tab — hidden until feature is ready */}
