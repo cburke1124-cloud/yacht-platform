@@ -349,7 +349,6 @@ def reply_to_message(
         subject=f"Re: {parent.subject}",
         body=data["body"],
         message_type=parent.message_type,
-        ticket_number=parent.ticket_number,
         priority=parent.priority,
         category=parent.category,
         status="new",

@@ -480,7 +480,6 @@ def reply_to_inquiry(
         subject=f"Re: {root.subject}",
         body=body,
         message_type=root.message_type,
-        ticket_number=root.ticket_number,
         priority=root.priority,
         category=root.category,
         status="new",

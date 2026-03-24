@@ -191,6 +191,7 @@ function DetailPanel({
       if (data.message_id !== undefined) setMessageId(data.message_id);
       setReplyText("");
     } catch (e: unknown) {
+      console.error("sendReply error:", e);
       setReplyError("Failed to send reply");
     } finally {
       setSendingReply(false);
