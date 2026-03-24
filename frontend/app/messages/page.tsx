@@ -89,7 +89,7 @@ export default function MessagingCenter() {
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedDetail]);
+  }, [selectedDetail, selectedInquiry?.message_thread?.length]);
 
   const fetchMessages = async () => {
     try {

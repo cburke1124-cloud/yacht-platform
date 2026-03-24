@@ -227,17 +227,22 @@ function DetailPanel({
     { id: "details",      label: "Details",      icon: <Settings2 size={13} /> },
   ];
 
-  // Build display thread: prepend the original inquiry message if we have it
-  const displayThread: MessageEntry[] = [
-    ...(inquiry.message ? [{
-      id: -1,
-      body: inquiry.message,
-      sender_name: inquiry.sender_name,
-      is_from_buyer: true,
-      created_at: inquiry.created_at,
-    }] : []),
-    ...messageThread,
-  ];
+  // Build display thread.
+  // If we have a message thread from the DB, use it directly (it already
+  // includes the root message that mirrors inquiry.message).
+  // Only fall back to the raw inquiry text when no thread exists yet.
+  const displayThread: MessageEntry[] =
+    messageThread.length > 0
+      ? messageThread
+      : inquiry.message
+      ? [{
+          id: -1,
+          body: inquiry.message,
+          sender_name: inquiry.sender_name,
+          is_from_buyer: true,
+          created_at: inquiry.created_at,
+        }]
+      : [];
 
   return (
     <div className="fixed top-20 inset-x-0 bottom-0 flex justify-end" style={{ zIndex: 9999, background: 'rgba(16,33,79,0.4)' }} onClick={onClose}>
@@ -333,34 +338,28 @@ function DetailPanel({
               </div>
             )}
 
-            {/* Reply box */}
+            {/* Reply box — always visible */}
             <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100 bg-gray-50">
-              {messageId ? (
-                <>
-                  <div className="flex gap-2 items-end">
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
-                      rows={3}
-                      placeholder="Type your reply… (Ctrl+Enter to send)"
-                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
-                    />
-                    <button
-                      onClick={sendReply}
-                      disabled={sendingReply || !replyText.trim()}
-                      className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-1.5 transition-opacity"
-                      style={{ background: '#01BBDC' }}
-                    >
-                      <Send size={13} />
-                      {sendingReply ? "…" : "Send"}
-                    </button>
-                  </div>
-                  {replyError && <p className="text-red-500 text-xs mt-1">{replyError}</p>}
-                </>
-              ) : (
-                <p className="text-xs text-gray-400 text-center italic">No linked message thread — reply once an inquiry is received.</p>
-              )}
+              <div className="flex gap-2 items-end">
+                <textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
+                  rows={3}
+                  placeholder="Type your reply… (Ctrl+Enter to send)"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
+                />
+                <button
+                  onClick={sendReply}
+                  disabled={sendingReply || !replyText.trim()}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-1.5 transition-opacity"
+                  style={{ background: '#01BBDC' }}
+                >
+                  <Send size={13} />
+                  {sendingReply ? "…" : "Send"}
+                </button>
+              </div>
+              {replyError && <p className="text-red-500 text-xs mt-1">{replyError}</p>}
             </div>
           </div>
         )}

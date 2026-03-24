@@ -494,11 +494,12 @@ def reply_to_inquiry(
     # Email the buyer
     if inq.sender_email:
         try:
-            token = generate_reply_token(reply.id, current_user.id)
-            reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
             from app.models.listing import Listing as _Listing
             listing = db.query(_Listing).filter(_Listing.id == inq.listing_id).first() if inq.listing_id else None
             listing_title = (listing.title if listing else None) or "General Inquiry"
+            # Use the dealer's actual email as reply-to so buyer replies land
+            # in their inbox (external buyers have no platform account, so the
+            # token-based inbound chain can't identify them correctly).
             email_service.send_email(
                 to_email=inq.sender_email,
                 subject=f"Re: Inquiry about {listing_title}",
@@ -520,7 +521,7 @@ def reply_to_inquiry(
               </div>
             </body></html>
                 """,
-                reply_to=reply_to_addr,
+                reply_to=current_user.email,
             )
         except Exception:
             pass
