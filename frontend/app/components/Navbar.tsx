@@ -94,6 +94,7 @@ export default function Navbar() {
   const [user, setUser] = useState<NavUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [mobileSellOpen, setMobileSellOpen] = useState(false);
@@ -119,6 +120,16 @@ export default function Navbar() {
     window.addEventListener('authChange', handler);
     return () => window.removeEventListener('authChange', handler);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll for unread counts every 30 s (updates badge without page reload)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const interval = setInterval(() => {
+      const token = localStorage.getItem('token');
+      if (token) fetchUnreadCount(token);
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close user menu on outside click
   useEffect(() => {
@@ -187,12 +198,13 @@ export default function Navbar() {
 
   const fetchUnreadCount = async (token: string) => {
     try {
-      const response = await fetch(apiUrl('/notifications?unread_only=true'), {
+      const response = await fetch(apiUrl('/notifications/count'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const data = await response.json();
-        setUnreadCount(Array.isArray(data) ? data.length : 0);
+        setUnreadCount(data.notifications ?? 0);
+        setUnreadMessages(data.messages ?? 0);
       }
     } catch (error) {
       console.error('Failed to fetch unread count:', error);
@@ -334,6 +346,11 @@ export default function Navbar() {
                   aria-label="Messages"
                 >
                   <MessageSquare size={20} />
+                  {unreadMessages > 0 && (
+                    <span className="absolute top-0 right-0 w-4 h-4 text-xs flex items-center justify-center text-white bg-red-500 rounded-full">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
 
                 {/* Notifications */}
@@ -495,8 +512,13 @@ export default function Navbar() {
                     </span>
                   )}
                 </Link>
-                <Link href="/messages" aria-label="Messages" className="p-2 text-dark/70">
+                <Link href="/messages" aria-label="Messages" className="relative p-2 text-dark/70">
                   <MessageSquare size={20} />
+                  {unreadMessages > 0 && (
+                    <span className="absolute top-0 right-0 w-4 h-4 text-xs flex items-center justify-center text-white bg-red-500 rounded-full">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
               </>
             )}

@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Mail, MailOpen, CheckCircle, Clock, Search, ChevronRight, User, Users } from 'lucide-react';
+import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface Message {
@@ -27,6 +27,7 @@ interface Reply {
   body: string;
   sender_name: string;
   created_at: string;
+  attachments?: Attachment[];
 }
 
 interface MessageDetail {
@@ -40,6 +41,14 @@ interface MessageEntry {
   sender_name: string;
   is_from_buyer: boolean;
   created_at: string;
+  attachments?: Attachment[];
+}
+
+interface Attachment {
+  url: string;
+  filename: string;
+  content_type: string;
+  size: number;
 }
 
 interface Inquiry {
@@ -71,6 +80,14 @@ export default function MessagingCenter() {
   const [inquiryReplyText, setInquiryReplyText] = useState('');
   const [sendingInquiryReply, setSendingInquiryReply] = useState(false);
 
+  // Attachment state
+  const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
+  const [inquiryAttachments, setInquiryAttachments] = useState<Attachment[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const replyFileRef = useRef<HTMLInputElement>(null);
+  const inquiryFileRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [newMessageForm, setNewMessageForm] = useState({
     subject: '',
     body: '',
@@ -81,7 +98,13 @@ export default function MessagingCenter() {
 
   useEffect(() => {
     fetchInquiries();
-  }, []);
+    // Set up 30-second background polling for both lists
+    pollRef.current = setInterval(() => {
+      fetchMessagesSilent();
+      fetchInquiriesSilent();
+    }, 30_000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (filter === 'inquiries') {
@@ -111,6 +134,26 @@ export default function MessagingCenter() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Silent versions for background polling — don't trigger loading spinner
+  const fetchMessagesSilent = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/messages'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMessages(await res.json());
+    } catch {}
+  };
+
+  const fetchInquiriesSilent = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/inquiries'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setInquiries(data.items ?? data);
+      }
+    } catch {}
   };
 
   const fetchInquiries = async () => {
@@ -153,12 +196,13 @@ export default function MessagingCenter() {
       const res = await fetch(apiUrl(`/inquiries/${selectedInquiry.id}/reply`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ body: inquiryReplyText.trim() }),
+        body: JSON.stringify({ body: inquiryReplyText.trim(), attachments: inquiryAttachments }),
       });
       if (res.ok) {
         const data = await res.json();
         setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
         setInquiryReplyText('');
+        setInquiryAttachments([]);
       }
     } catch (e) {
       console.error('Failed to send inquiry reply:', e);
@@ -198,10 +242,11 @@ export default function MessagingCenter() {
       const res = await fetch(apiUrl(`/messages/${selectedDetail.message.id}/reply`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ body: replyText }),
+        body: JSON.stringify({ body: replyText, attachments: replyAttachments }),
       });
       if (res.ok) {
         setReplyText('');
+        setReplyAttachments([]);
         // Reload detail to show new reply
         await openMessage(selectedDetail.message);
         setMessages((prev) =>
@@ -212,6 +257,30 @@ export default function MessagingCenter() {
       console.error('Failed to send reply:', e);
     } finally {
       setSending(false);
+    }
+  };
+
+  const uploadAttachment = async (file: File, onDone: (att: Attachment) => void) => {
+    setUploadingFile(true);
+    try {
+      const token = localStorage.getItem('token');
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(apiUrl('/messages/upload-attachment'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      if (res.ok) {
+        onDone(await res.json());
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail ?? 'Upload failed');
+      }
+    } catch (e) {
+      console.error('Attachment upload failed:', e);
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -283,6 +352,40 @@ export default function MessagingCenter() {
     replied: 'bg-green-500',
     closed: 'bg-gray-300',
   };
+
+  const renderAttachments = (attachments: Attachment[] | undefined) => {
+    if (!attachments?.length) return null;
+    return (
+      <div className="mt-2 flex flex-wrap gap-2">
+        {attachments.map((att, i) =>
+          att.content_type.startsWith('image/') ? (
+            <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+              <img src={att.url} alt={att.filename} className="max-w-[180px] max-h-[130px] rounded-lg object-cover border border-gray-200 hover:opacity-90 transition-opacity" />
+            </a>
+          ) : (
+            <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
+               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-primary hover:bg-gray-50 transition-colors max-w-[200px]">
+              <FileText size={13} className="flex-shrink-0" />
+              <span className="truncate">{att.filename}</span>
+            </a>
+          )
+        )}
+      </div>
+    );
+  };
+
+  const AttachmentChips = ({ atts, onRemove }: { atts: Attachment[]; onRemove: (i: number) => void }) => (
+    atts.length > 0 ? (
+      <div className="flex flex-wrap gap-1.5 px-1 pt-1">
+        {atts.map((att, i) => (
+          <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-700">
+            {att.content_type.startsWith('image/') ? att.filename : <><FileText size={11} /> {att.filename}</>}
+            <button type="button" onClick={() => onRemove(i)} className="ml-0.5 text-gray-400 hover:text-red-500"><X size={11} /></button>
+          </span>
+        ))}
+      </div>
+    ) : null
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -529,6 +632,7 @@ export default function MessagingCenter() {
                           }`}>
                             {entry.body}
                           </div>
+                          {renderAttachments(entry.attachments)}
                         </div>
                       </div>
                     ))
@@ -550,7 +654,15 @@ export default function MessagingCenter() {
 
                 {/* Inquiry reply box */}
                 <div className="px-6 py-4 border-t bg-gray-50">
-                  <div className="flex gap-3 items-end">
+                  <AttachmentChips atts={inquiryAttachments} onRemove={(i) => setInquiryAttachments(prev => prev.filter((_, idx) => idx !== i))} />
+                  <div className="flex gap-3 items-end mt-2">
+                    <input ref={inquiryFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) uploadAttachment(f, (att) => setInquiryAttachments(prev => [...prev, att]));
+                        e.target.value = '';
+                      }}
+                    />
                     <textarea
                       value={inquiryReplyText}
                       onChange={(e) => setInquiryReplyText(e.target.value)}
@@ -560,8 +672,17 @@ export default function MessagingCenter() {
                       className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none bg-white"
                     />
                     <button
+                      type="button"
+                      onClick={() => inquiryFileRef.current?.click()}
+                      disabled={uploadingFile}
+                      className="p-2.5 border border-gray-200 rounded-xl text-gray-500 hover:text-primary hover:border-primary transition-colors flex-shrink-0 disabled:opacity-50"
+                      title="Attach image or PDF"
+                    >
+                      <Paperclip size={15} />
+                    </button>
+                    <button
                       onClick={sendInquiryReply}
-                      disabled={sendingInquiryReply || !inquiryReplyText.trim()}
+                      disabled={sendingInquiryReply || (!inquiryReplyText.trim() && inquiryAttachments.length === 0)}
                       className="px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 font-medium flex items-center gap-2 text-sm disabled:opacity-50 flex-shrink-0"
                     >
                       <Send size={15} />
@@ -659,6 +780,7 @@ export default function MessagingCenter() {
                           }`}>
                             {reply.body}
                           </div>
+                          {renderAttachments(reply.attachments)}
                         </div>
                       </div>
                     );
@@ -669,7 +791,15 @@ export default function MessagingCenter() {
                 {/* Reply box */}
                 {selectedDetail.message.status !== 'closed' && (
                   <div className="px-6 py-4 border-t bg-gray-50">
-                    <div className="flex gap-3 items-end">
+                    <AttachmentChips atts={replyAttachments} onRemove={(i) => setReplyAttachments(prev => prev.filter((_, idx) => idx !== i))} />
+                    <div className="flex gap-3 items-end mt-2">
+                      <input ref={replyFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadAttachment(f, (att) => setReplyAttachments(prev => [...prev, att]));
+                          e.target.value = '';
+                        }}
+                      />
                       <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
@@ -679,8 +809,17 @@ export default function MessagingCenter() {
                         className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none bg-white"
                       />
                       <button
+                        type="button"
+                        onClick={() => replyFileRef.current?.click()}
+                        disabled={uploadingFile}
+                        className="p-2.5 border border-gray-200 rounded-xl text-gray-500 hover:text-primary hover:border-primary transition-colors flex-shrink-0 disabled:opacity-50"
+                        title="Attach image or PDF"
+                      >
+                        <Paperclip size={15} />
+                      </button>
+                      <button
                         onClick={sendReply}
-                        disabled={sending || !replyText.trim()}
+                        disabled={sending || (!replyText.trim() && replyAttachments.length === 0)}
                         className="px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 font-medium flex items-center gap-2 text-sm disabled:opacity-50 flex-shrink-0"
                       >
                         <Send size={15} />

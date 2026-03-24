@@ -142,6 +142,7 @@ def _serialize_inquiry(inq: Inquiry, db: Session, include_notes: bool = False) -
                     ),
                     "is_from_buyer": m.sender_id is None,
                     "created_at": m.created_at.isoformat(),
+                    "attachments": m.attachments or [],
                 }
                 for m in all_msgs
             ]
@@ -484,6 +485,7 @@ def reply_to_inquiry(
         priority=root.priority,
         category=root.category,
         status="new",
+        attachments=data.get("attachments") or None,
     )
     db.add(reply)
     root.status = "replied"
@@ -550,6 +552,7 @@ def reply_to_inquiry(
             ),
             "is_from_buyer": m.sender_id is None,
             "created_at": m.created_at.isoformat(),
+            "attachments": m.attachments or [],
         }
         for m in all_msgs
     ]

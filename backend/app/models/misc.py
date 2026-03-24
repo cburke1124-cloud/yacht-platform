@@ -41,6 +41,8 @@ class Message(Base):
     visible_to_sales_rep = Column(Boolean, default=False)
     # For anonymous inquiries: stores the external buyer's email for reply routing
     external_sender_email = Column(String, nullable=True)
+    # JSON array of {url, filename, content_type, size} — message/reply attachments
+    attachments = Column(JSON, nullable=True)
 
 
 class SmsConversation(Base):

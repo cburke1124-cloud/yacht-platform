@@ -1,6 +1,7 @@
 import os
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 from typing import Optional
 import secrets
@@ -16,6 +17,7 @@ from app.exceptions import (
 )
 from app.services.email_service import email_service
 from app.services.sms_service import sms_service
+from app.services.media_storage import store_media_bytes
 from app.core.reply_token import generate_reply_token
 from app.models.user import UserPreferences
 
@@ -47,6 +49,55 @@ def _prefs_allow(
     }
 
 router = APIRouter()
+
+# ─── Fast count endpoint for real-time badge polling ─────────────────────────
+
+@router.get("/notifications/count")
+def get_notification_count(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lightweight endpoint for navbar badge polling (called every 30s)."""
+    notifications = db.query(func.count(Notification.id)).filter(
+        Notification.user_id == current_user.id,
+        Notification.read == False,  # noqa: E712
+    ).scalar() or 0
+
+    messages = db.query(func.count(Message.id)).filter(
+        Message.recipient_id == current_user.id,
+        Message.status == "new",
+        Message.parent_message_id == None,  # noqa: E711
+    ).scalar() or 0
+
+    return {"notifications": notifications, "messages": messages}
+
+
+# ─── Attachment upload ────────────────────────────────────────────────────────
+
+_ATTACHMENT_ALLOWED = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+@router.post("/messages/upload-attachment")
+async def upload_message_attachment(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload an image or PDF to attach to a message/reply. Returns {url, filename, content_type, size}."""
+    content = await file.read()
+    if len(content) > _ATTACHMENT_MAX_BYTES:
+        raise ValidationException("Attachment too large. Maximum 10 MB.")
+    if file.content_type not in _ATTACHMENT_ALLOWED:
+        raise ValidationException("Only JPEG, PNG, WebP images and PDFs are allowed.")
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    safe_name = f"msg-attachments/{timestamp}_{(file.filename or 'file').replace(' ', '_')}"
+    url = store_media_bytes(safe_name, content, file.content_type)
+    return {
+        "url": url,
+        "filename": file.filename or "file",
+        "content_type": file.content_type,
+        "size": len(content),
+    }
 
 
 # ─── Messages ─────────────────────────────────────────────────────────────────
@@ -104,6 +155,7 @@ def get_messages(
             "sender_email": m.sender.email if m.sender else m.external_sender_email,
             "external_sender_email": m.external_sender_email,
             "created_at": m.created_at.isoformat(),
+            "attachments": m.attachments or [],
         }
         for m in messages
     ]
@@ -157,6 +209,7 @@ def get_message_detail(
             "sender_email": message.sender.email if message.sender else message.external_sender_email,
             "external_sender_email": message.external_sender_email,
             "created_at": message.created_at.isoformat(),
+            "attachments": message.attachments or [],
         },
         "replies": [
             {
@@ -166,6 +219,7 @@ def get_message_detail(
                 if r.sender
                 else "Unknown",
                 "created_at": r.created_at.isoformat(),
+                "attachments": r.attachments or [],
             }
             for r in replies
         ],
@@ -352,6 +406,7 @@ def reply_to_message(
         priority=parent.priority,
         category=parent.category,
         status="new",
+        attachments=data.get("attachments") or None,
     )
     db.add(reply)
     parent.status = "replied"
