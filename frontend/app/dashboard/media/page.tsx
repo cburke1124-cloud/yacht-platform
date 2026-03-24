@@ -41,14 +41,14 @@ export default function MediaGallery() {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setLightboxFile(null); return; }
       if (!lightboxFile) return;
-      const imgs = filteredMedia.filter(m => m.file_type === 'image');
+      const imgs = media.filter(m => m.file_type === 'image');
       const idx = imgs.findIndex(m => m.id === lightboxFile.id);
       if (e.key === 'ArrowLeft' && idx > 0) setLightboxFile(imgs[idx - 1]);
       if (e.key === 'ArrowRight' && idx < imgs.length - 1) setLightboxFile(imgs[idx + 1]);
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [lightboxFile, filteredMedia]);
+  }, [lightboxFile, media]);
 
   const getAuthHeaders = (): Record<string, string> => {
     const token = localStorage.getItem('token');
