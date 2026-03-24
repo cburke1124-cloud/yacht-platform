@@ -370,9 +370,8 @@ export default function MediaGallery() {
           ))}
         </div>
       )}
-    </div>
 
-    {/* Lightbox */
+    {/* Lightbox */}
     {lightboxFile && (
       <div
         className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
