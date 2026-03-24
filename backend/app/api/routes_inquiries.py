@@ -497,6 +497,10 @@ def reply_to_inquiry(
             from app.models.listing import Listing as _Listing
             listing = db.query(_Listing).filter(_Listing.id == inq.listing_id).first() if inq.listing_id else None
             listing_title = (listing.title if listing else None) or "General Inquiry"
+            # Generate a token so the buyer can reply back through the platform.
+            # user_id=0 is the sentinel for "external buyer reply" in routes_email_inbound.
+            buyer_reply_token = generate_reply_token(root.id, 0)
+            buyer_reply_to = f"reply+{buyer_reply_token}@{REPLY_TO_DOMAIN}"
             # Use the dealer's actual email as reply-to so buyer replies land
             # in their inbox (external buyers have no platform account, so the
             # token-based inbound chain can't identify them correctly).
@@ -521,7 +525,7 @@ def reply_to_inquiry(
               </div>
             </body></html>
                 """,
-                reply_to=current_user.email,
+                reply_to=buyer_reply_to,
                 from_email=email_service.notifications_email,
             )
         except Exception:

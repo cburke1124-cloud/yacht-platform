@@ -60,7 +60,7 @@ export default function MessagingCenter() {
   const [selectedDetail, setSelectedDetail] = useState<MessageDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'direct' | 'inquiries'>('all');
+  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'inquiries'>('all');
   const [showNewMessage, setShowNewMessage] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -93,7 +93,8 @@ export default function MessagingCenter() {
   }, [filter]);
 
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = threadEndRef.current?.parentElement;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [selectedDetail, selectedInquiry?.message_thread?.length]);
 
   const fetchMessages = async () => {
@@ -250,8 +251,11 @@ export default function MessagingCenter() {
     }
   };
 
+  // Backend timestamps are naive UTC (no 'Z'); append it so JS parses correctly.
+  const toUtc = (s: string) => new Date(s.includes('Z') || s.includes('+') ? s : s + 'Z');
+
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = toUtc(dateString);
     const now = new Date();
     const diffH = (now.getTime() - date.getTime()) / 3_600_000;
     if (diffH < 1) return 'Just now';
@@ -304,7 +308,6 @@ export default function MessagingCenter() {
             { id: 'all', label: 'All Messages', count: messages.length + inquiries.length },
             { id: 'inquiries', label: 'Inquiries', count: inquiries.length, icon: Users },
             { id: 'support_ticket', label: 'Support', count: messages.filter((m) => m.message_type === 'support_ticket').length },
-            { id: 'direct', label: 'Direct', count: messages.filter((m) => m.message_type === 'direct').length },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -487,7 +490,7 @@ export default function MessagingCenter() {
                       {selectedInquiry.sender_phone && (
                         <a href={`tel:${selectedInquiry.sender_phone}`} className="hover:text-white">{selectedInquiry.sender_phone}</a>
                       )}
-                      <span>{new Date(selectedInquiry.created_at).toLocaleString()}</span>
+                      <span>{toUtc(selectedInquiry.created_at).toLocaleString()}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -517,7 +520,7 @@ export default function MessagingCenter() {
                         <div className={`flex-1 min-w-0 ${entry.is_from_buyer ? '' : 'items-end flex flex-col'}`}>
                           <div className={`flex items-baseline gap-2 mb-1 ${entry.is_from_buyer ? '' : 'flex-row-reverse'}`}>
                             <span className="text-sm font-semibold text-gray-800">{entry.sender_name}</span>
-                            <span className="text-xs text-gray-400">{new Date(entry.created_at).toLocaleString()}</span>
+                            <span className="text-xs text-gray-400">{toUtc(entry.created_at).toLocaleString()}</span>
                           </div>
                           <div className={`rounded-xl px-4 py-3 text-sm whitespace-pre-wrap border max-w-[85%] ${
                             entry.is_from_buyer
@@ -589,7 +592,7 @@ export default function MessagingCenter() {
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock size={12} />
-                        {new Date(selectedDetail.message.created_at).toLocaleString()}
+                        {toUtc(selectedDetail.message.created_at).toLocaleString()}
                       </span>
                       {selectedDetail.message.ticket_number && (
                         <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">
@@ -628,7 +631,7 @@ export default function MessagingCenter() {
                         <span className="text-sm font-semibold text-gray-800">
                           {selectedDetail.message.sender_name || selectedDetail.message.external_sender_email || 'Unknown'}
                         </span>
-                        <span className="text-xs text-gray-400">{new Date(selectedDetail.message.created_at).toLocaleString()}</span>
+                        <span className="text-xs text-gray-400">{toUtc(selectedDetail.message.created_at).toLocaleString()}</span>
                       </div>
                       <div className="bg-gray-50 rounded-xl rounded-tl-sm px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
                         {selectedDetail.message.body}
@@ -647,7 +650,7 @@ export default function MessagingCenter() {
                         <div className={`flex-1 min-w-0 ${isMine ? 'items-end flex flex-col' : ''}`}>
                           <div className={`flex items-baseline gap-2 mb-1 ${isMine ? 'flex-row-reverse' : ''}`}>
                             <span className="text-sm font-semibold text-gray-800">{reply.sender_name}</span>
-                            <span className="text-xs text-gray-400">{new Date(reply.created_at).toLocaleString()}</span>
+                            <span className="text-xs text-gray-400">{toUtc(reply.created_at).toLocaleString()}</span>
                           </div>
                           <div className={`rounded-xl px-4 py-3 text-sm whitespace-pre-wrap border max-w-[85%] ${
                             isMine

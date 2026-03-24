@@ -118,6 +118,86 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
         logger.info("email_inbound: empty body after stripping — discarding")
         return {"ok": True}
 
+    # -----------------------------------------------------------------------
+    # CASE 0: External buyer reply — token was generated with user_id=0 sentinel.
+    # The buyer received a dealer-reply email and hit Reply in their email client.
+    # Store their message in the thread and notify the dealer.
+    # -----------------------------------------------------------------------
+    if reply_from_user_id == 0:
+        # Extract buyer's email from the From field (handles "Name <email>" format)
+        m_email = re.search(r"<([^>@\s]+@[^>]+)>", from_field)
+        buyer_email = m_email.group(1).strip() if m_email else from_field.strip()
+
+        buyer_reply = Message(
+            sender_id=None,
+            recipient_id=parent.recipient_id,
+            parent_message_id=parent.id,
+            listing_id=parent.listing_id,
+            subject=f"Re: {parent.subject}",
+            body=body,
+            message_type=parent.message_type,
+            priority=parent.priority,
+            category=parent.category,
+            status="new",
+            external_sender_email=buyer_email or parent.external_sender_email,
+        )
+        db.add(buyer_reply)
+        parent.status = "new"  # mark thread as needing dealer attention
+        db.commit()
+        db.refresh(buyer_reply)
+
+        # Notify dealer via in-app notification and email
+        dealer = db.query(User).filter(User.id == parent.recipient_id).first()
+        if dealer:
+            notif = Notification(
+                user_id=dealer.id,
+                message=f"New reply from {buyer_email or 'buyer'}: {parent.subject}",
+                link="/dashboard/inquiries",
+                notification_type="inquiry",
+            )
+            db.add(notif)
+            db.commit()
+
+            new_token = generate_reply_token(parent.id, dealer.id)
+            new_reply_to = f"reply+{new_token}@{REPLY_TO_DOMAIN}"
+            try:
+                email_service.send_email(
+                    to_email=dealer.email,
+                    subject=f"Re: {parent.subject}",
+                    html_content=f"""
+                    <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                      <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+                        <h1 style="color:white;margin:0;font-size:22px;">New reply from buyer</h1>
+                      </div>
+                      <div style="padding:30px;background:#f9fafb;">
+                        <p style="color:#334155;font-size:13px;margin-bottom:16px;">
+                          <strong>{buyer_email}</strong> replied to your message:
+                        </p>
+                        <div style="background:white;border-left:4px solid #01BBDC;padding:20px;border-radius:4px;margin-bottom:20px;">
+                          <p style="white-space:pre-wrap;color:#334155;margin:0;">{body}</p>
+                        </div>
+                        <p style="color:#64748b;font-size:13px;">Reply directly to this email to respond — no login required.</p>
+                        <div style="text-align:center;margin-top:20px;">
+                          <a href="{email_service.base_url}/dashboard/inquiries"
+                             style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
+                            View in Dashboard
+                          </a>
+                        </div>
+                      </div>
+                      <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                        &#169; 2026 YachtVersal. Reply to this email to respond directly.
+                      </div>
+                    </body></html>
+                    """,
+                    reply_to=new_reply_to,
+                    from_email=email_service.notifications_email,
+                )
+            except Exception as exc:
+                logger.error(f"email_inbound: failed to notify dealer of buyer reply: {exc}")
+
+        logger.info(f"email_inbound: stored buyer reply to thread {parent.id} from {buyer_email}")
+        return {"ok": True}
+
     # --- verify sender is a party to the conversation ----------------------
     sender = db.query(User).filter(User.id == reply_from_user_id).first()
     if not sender:
