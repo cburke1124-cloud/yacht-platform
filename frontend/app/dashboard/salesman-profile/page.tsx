@@ -1,4 +1,4 @@
-'use client';
+ï»¿'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -138,7 +138,7 @@ export default function SalesmanProfileEditPage() {
               <h1 className="text-3xl font-bold text-secondary">My Profile</h1>
               <p className="text-dark/60 mt-1">
                 {isDealer
-                  ? 'Your personal broker profile — visible to buyers when you enable it'
+                  ? 'Your personal broker profile â€” visible to buyers when you enable it'
                   : 'Your public sales profile shown to buyers on your listings'}
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function SalesmanProfileEditPage() {
               className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold transition-all shadow-sm"
             >
               <Save size={18} />
-              {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
+              {saving ? 'Savingâ€¦' : saved ? 'Saved!' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function SalesmanProfileEditPage() {
               </p>
               <p className="text-sm text-dark/60 mt-1">
                 {isDealer
-                  ? "When enabled, your name, photo, bio, and contact details appear in the Brokers section of your company's public profile page — ideal for solo brokers who manage the account themselves."
+                  ? "When enabled, your name, photo, bio, and contact details appear in the Brokers section of your company's public profile page â€” ideal for solo brokers who manage the account themselves."
                   : 'When enabled, your profile appears on the brokerage public page and buyers can view your listings under your name.'}
               </p>
             </div>
@@ -305,7 +305,7 @@ export default function SalesmanProfileEditPage() {
               rows={5}
               maxLength={600}
               className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary resize-none"
-              placeholder="Tell buyers about your experience, specialties, and what makes you a great yacht broker…"
+              placeholder="Tell buyers about your experience, specialties, and what makes you a great yacht brokerâ€¦"
             />
             <p className="text-xs text-dark/50 mt-1">{profile.bio.length}/600 characters</p>
           </div>
@@ -350,7 +350,7 @@ export default function SalesmanProfileEditPage() {
               className="flex items-center gap-2 px-8 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold transition-all shadow-sm"
             >
               <Save size={18} />
-              {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
+              {saving ? 'Savingâ€¦' : saved ? 'Saved!' : 'Save Changes'}
             </button>
           </div>
         </div>
