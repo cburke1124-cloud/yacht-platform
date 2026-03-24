@@ -171,18 +171,18 @@ export default function DealerProfilePage() {
                 {dealer.email && (
                   <a
                     href={`mailto:${dealer.email}`}
-                    className="flex items-center gap-2 px-5 py-2.5 border border-secondary/30 text-secondary rounded-xl hover:bg-secondary hover:text-light transition-all font-semibold"
+                    className="flex items-center gap-2 px-5 py-2.5 border border-secondary/30 text-secondary rounded-xl hover:bg-secondary hover:text-white transition-all font-semibold"
                   >
                     <Mail size={17} />
                     Email Us
                   </a>
                 )}
-                {dealer.website && (
+                {dealer.website?.trim() && (
                   <a
-                    href={dealer.website}
+                    href={dealer.website.trim()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-5 py-2.5 border border-secondary/30 text-secondary rounded-xl hover:bg-secondary hover:text-light transition-all font-semibold"
+                    className="flex items-center gap-2 px-5 py-2.5 border border-secondary/30 text-secondary rounded-xl hover:bg-secondary hover:text-white transition-all font-semibold"
                   >
                     <Globe size={17} />
                     Website
