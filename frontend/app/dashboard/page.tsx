@@ -264,7 +264,8 @@ export default function EnhancedDealerDashboard() {
   });
   const [brokerProfileSaving, setBrokerProfileSaving] = useState(false);
   const [brokerProfileSaved, setBrokerProfileSaved] = useState(false);
-  const [showPersonalProfile, setShowPersonalProfile] = useState(false);
+  const [showPersonalProfile, setShowPersonalProfile] = useState(true);
+  const brokerProfileDirtyRef = useRef(false);
 
   // Media manager inline state
   const [mediaFiles, setMediaFiles] = useState<MediaFileItem[]>([]);
@@ -384,6 +385,17 @@ export default function EnhancedDealerDashboard() {
   const [togglingKeyId, setTogglingKeyId] = useState<number | null>(null);
 
   useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (brokerProfileDirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  useEffect(() => {
     fetchDashboardData();
     fetchTeamMembers();
     fetchCRMStatus();
@@ -431,6 +443,19 @@ export default function EnhancedDealerDashboard() {
       window.history.replaceState({}, '', clean);
     }
   }, []);
+
+  // Track unsaved changes on the broker page form
+  const brokerProfileInitializedRef = useRef(false);
+  useEffect(() => {
+    if (!brokerProfileInitializedRef.current) {
+      // Skip the first render (initialization from fetch)
+      if (brokerProfile.slug || brokerProfile.company_name) {
+        brokerProfileInitializedRef.current = true;
+      }
+      return;
+    }
+    brokerProfileDirtyRef.current = true;
+  }, [brokerProfile]);
 
   useEffect(() => {
     const days = analyticsRange === '7d' ? 7 : analyticsRange === '90d' ? 90 : 30;
@@ -503,18 +528,22 @@ export default function EnhancedDealerDashboard() {
     } catch { /* non-fatal */ }
   };
 
-  const handleBrokerSave = async () => {
+  const handleBrokerSave = async (overrideData?: Partial<typeof brokerProfile>) => {
     setBrokerProfileSaving(true);
+    const payload = overrideData ? { ...brokerProfile, ...overrideData } : brokerProfile;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl('/dealer-profile'), {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(brokerProfile)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
+        brokerProfileDirtyRef.current = false;
         setBrokerProfileSaved(true);
         setTimeout(() => setBrokerProfileSaved(false), 3000);
+        // Re-fetch to get slug and any server-generated fields
+        await fetchBrokerProfile();
       }
     } catch { /* non-fatal */ } finally {
       setBrokerProfileSaving(false);
@@ -2802,7 +2831,7 @@ export default function EnhancedDealerDashboard() {
                     Preview Page
                   </button>
                   <button
-                    onClick={handleBrokerSave}
+                    onClick={() => handleBrokerSave()}
                     disabled={brokerProfileSaving}
                     className="flex items-center gap-2 px-5 py-2 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400 font-semibold text-sm"
                   >
@@ -3003,7 +3032,11 @@ export default function EnhancedDealerDashboard() {
                   </p>
                   <div className="flex flex-col items-center gap-1.5 shrink-0">
                     <button type="button"
-                      onClick={() => setBrokerProfile(p => ({...p, show_team_on_profile: !p.show_team_on_profile}))}
+                      onClick={() => {
+                        const next = !brokerProfile.show_team_on_profile;
+                        setBrokerProfile(p => ({...p, show_team_on_profile: next}));
+                        handleBrokerSave({ show_team_on_profile: next });
+                      }}
                       className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${brokerProfile.show_team_on_profile ? 'bg-primary' : 'bg-gray-300'}`}
                       aria-pressed={brokerProfile.show_team_on_profile}>
                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${brokerProfile.show_team_on_profile ? 'translate-x-8' : 'translate-x-1'}`} />
@@ -3039,7 +3072,11 @@ export default function EnhancedDealerDashboard() {
                   </div>
                   <div className="flex flex-col items-center gap-1.5 shrink-0">
                     <button type="button"
-                      onClick={() => setBrokerProfile(p => ({...p, cobrokering_enabled: !p.cobrokering_enabled}))}
+                      onClick={() => {
+                        const next = !brokerProfile.cobrokering_enabled;
+                        setBrokerProfile(p => ({...p, cobrokering_enabled: next}));
+                        handleBrokerSave({ cobrokering_enabled: next });
+                      }}
                       className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${brokerProfile.cobrokering_enabled ? 'bg-accent' : 'bg-gray-300'}`}
                       aria-pressed={brokerProfile.cobrokering_enabled}>
                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${brokerProfile.cobrokering_enabled ? 'translate-x-8' : 'translate-x-1'}`} />
@@ -3054,7 +3091,7 @@ export default function EnhancedDealerDashboard() {
               {/* Bottom save */}
               <div className="flex justify-end">
                 <button
-                  onClick={handleBrokerSave}
+                  onClick={() => handleBrokerSave()}
                   disabled={brokerProfileSaving}
                   className="flex items-center gap-2 px-8 py-3 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400 font-semibold"
                 >
@@ -3526,7 +3563,7 @@ export default function EnhancedDealerDashboard() {
               </div>
 
               {/* Personal Profile Section */}
-              {isDealer && (
+              {(isDealer || isTeamMember) && (
                 <div className="glass-card rounded-xl overflow-hidden">
                   <button
                     onClick={() => setShowPersonalProfile(p => !p)}
