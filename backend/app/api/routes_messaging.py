@@ -58,9 +58,11 @@ def get_notification_count(
     db: Session = Depends(get_db),
 ):
     """Lightweight endpoint for navbar badge polling (called every 30s)."""
+    # Bell counts only system/billing notifications — message threads have their own badge
     notifications = db.query(func.count(Notification.id)).filter(
         Notification.user_id == current_user.id,
         Notification.read == False,  # noqa: E712
+        ~Notification.notification_type.in_(["message", "inquiry"]),
     ).scalar() or 0
 
     messages = db.query(func.count(Message.id)).filter(
@@ -386,8 +388,10 @@ def reply_to_message(
         and current_user.user_type != "admin"
     ):
         raise AuthorizationException("Not authorized")
-    if "body" not in data:
-        raise ValidationException("Reply body is required")
+    body = data.get("body") or ""
+    attachments = data.get("attachments") or []
+    if not body and not attachments:
+        raise ValidationException("Reply body or attachment is required")
 
     recipient_id = (
         parent.sender_id
@@ -401,7 +405,7 @@ def reply_to_message(
         parent_message_id=message_id,
         listing_id=parent.listing_id,
         subject=f"Re: {parent.subject}",
-        body=data["body"],
+        body=body,
         message_type=parent.message_type,
         priority=parent.priority,
         category=parent.category,

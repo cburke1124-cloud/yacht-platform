@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 import {
-  Menu, X, Ship, User, PlusCircle, Bell, MessageSquare, 
+  Menu, X, Ship, User, PlusCircle, Bell, Mail,
   Heart, Search, Settings, ChevronDown, DollarSign, BarChart3
 } from 'lucide-react';
 
@@ -345,7 +345,7 @@ export default function Navbar() {
                   className="relative p-2 text-dark/70 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
                   aria-label="Messages"
                 >
-                  <MessageSquare size={20} />
+                  <Mail size={20} />
                   {unreadMessages > 0 && (
                     <span className="absolute top-0 right-0 w-4 h-4 text-xs flex items-center justify-center text-white bg-red-500 rounded-full">
                       {unreadMessages > 9 ? '9+' : unreadMessages}
@@ -513,7 +513,7 @@ export default function Navbar() {
                   )}
                 </Link>
                 <Link href="/messages" aria-label="Messages" className="relative p-2 text-dark/70">
-                  <MessageSquare size={20} />
+                <Mail size={20} />
                   {unreadMessages > 0 && (
                     <span className="absolute top-0 right-0 w-4 h-4 text-xs flex items-center justify-center text-white bg-red-500 rounded-full">
                       {unreadMessages > 9 ? '9+' : unreadMessages}

@@ -44,20 +44,30 @@ export default function LeadsPage() {
     lead.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-soft flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
+  // Coming soon — full CRM paused for launch
   return (
-    <div className="min-h-screen bg-soft">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
+    <div className="min-h-screen bg-soft flex items-center justify-center px-4">
+      <div className="text-center max-w-md">
+        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+          <Search size={36} className="text-primary" />
+        </div>
+        <h1 className="text-3xl font-bold text-secondary mb-4">Enhanced CRM Coming Soon</h1>
+        <p className="text-gray-600 text-lg mb-6">
+          We&apos;re building a powerful leads and CRM system to help you track and manage every buyer conversation.
+        </p>
+        <p className="text-gray-500 text-sm mb-8">
+          In the meantime, all buyer inquiries and messages are available in your inbox.
+        </p>
+        <a
+          href="/messages"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium text-sm"
+        >
+          <Mail size={18} />
+          View Messages &amp; Inquiries
+        </a>
+      </div>
+    </div>
+  );
             <h1 className="text-3xl font-bold text-secondary">Inbound Leads</h1>
             <p className="text-gray-600 mt-1">
               {leads.length} lead{leads.length !== 1 ? 's' : ''} total

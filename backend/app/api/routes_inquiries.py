@@ -433,8 +433,9 @@ def reply_to_inquiry(
     _assert_can_access_inquiry(inq, current_user, db)
 
     body = (data.get("body") or "").strip()
-    if not body:
-        raise ValidationException("Reply body is required")
+    attachments_data = data.get("attachments") or []
+    if not body and not attachments_data:
+        raise ValidationException("Reply body or attachment is required")
 
     # Find or create the root message for this inquiry
     root = (

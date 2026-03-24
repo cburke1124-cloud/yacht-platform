@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText } from 'lucide-react';
+import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface Message {
@@ -79,6 +79,7 @@ export default function MessagingCenter() {
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [inquiryReplyText, setInquiryReplyText] = useState('');
   const [sendingInquiryReply, setSendingInquiryReply] = useState(false);
+  const [sendError, setSendError] = useState('');
 
   // Attachment state
   const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
@@ -176,6 +177,7 @@ export default function MessagingCenter() {
     setSelectedInquiry(inq);
     setSelectedDetail(null);
     setInquiryReplyText('');
+    setSendError('');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/inquiries/${inq.id}`), { headers: { Authorization: `Bearer ${token}` } });
@@ -189,8 +191,10 @@ export default function MessagingCenter() {
   };
 
   const sendInquiryReply = async () => {
-    if (!inquiryReplyText.trim() || !selectedInquiry) return;
+    if (!selectedInquiry) return;
+    if (!inquiryReplyText.trim() && inquiryAttachments.length === 0) return;
     setSendingInquiryReply(true);
+    setSendError('');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/inquiries/${selectedInquiry.id}/reply`), {
@@ -203,8 +207,12 @@ export default function MessagingCenter() {
         setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
         setInquiryReplyText('');
         setInquiryAttachments([]);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setSendError(err.detail ?? 'Failed to send. Please try again.');
       }
     } catch (e) {
+      setSendError('Message failed to send. Please check your connection.');
       console.error('Failed to send inquiry reply:', e);
     } finally {
       setSendingInquiryReply(false);
@@ -214,6 +222,7 @@ export default function MessagingCenter() {
   const openMessage = async (msg: Message) => {
     setLoadingDetail(true);
     setSelectedDetail(null);
+    setSendError('');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/messages/${msg.id}`), {
@@ -235,8 +244,10 @@ export default function MessagingCenter() {
   };
 
   const sendReply = async () => {
-    if (!selectedDetail || !replyText.trim()) return;
+    if (!selectedDetail) return;
+    if (!replyText.trim() && replyAttachments.length === 0) return;
     setSending(true);
+    setSendError('');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/messages/${selectedDetail.message.id}/reply`), {
@@ -252,8 +263,12 @@ export default function MessagingCenter() {
         setMessages((prev) =>
           prev.map((m) => (m.id === selectedDetail.message.id ? { ...m, status: 'replied' } : m))
         );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setSendError(err.detail ?? 'Failed to send. Please try again.');
       }
     } catch (e) {
+      setSendError('Message failed to send. Please check your connection.');
       console.error('Failed to send reply:', e);
     } finally {
       setSending(false);
@@ -400,8 +415,8 @@ export default function MessagingCenter() {
             onClick={() => setShowNewMessage(true)}
             className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium flex items-center gap-2 text-sm"
           >
-            <Mail size={16} />
-            New Message
+            <HelpCircle size={16} />
+            Contact Support
           </button>
         </div>
 
@@ -655,6 +670,7 @@ export default function MessagingCenter() {
                 {/* Inquiry reply box */}
                 <div className="px-6 py-4 border-t bg-gray-50">
                   <AttachmentChips atts={inquiryAttachments} onRemove={(i) => setInquiryAttachments(prev => prev.filter((_, idx) => idx !== i))} />
+                  {sendError && <p className="text-xs text-red-600 mt-1 mb-0.5">{sendError}</p>}
                   <div className="flex gap-3 items-end mt-2">
                     <input ref={inquiryFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden"
                       onChange={(e) => {
@@ -792,6 +808,7 @@ export default function MessagingCenter() {
                 {selectedDetail.message.status !== 'closed' && (
                   <div className="px-6 py-4 border-t bg-gray-50">
                     <AttachmentChips atts={replyAttachments} onRemove={(i) => setReplyAttachments(prev => prev.filter((_, idx) => idx !== i))} />
+                    {sendError && <p className="text-xs text-red-600 mt-1 mb-0.5">{sendError}</p>}
                     <div className="flex gap-3 items-end mt-2">
                       <input ref={replyFileRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden"
                         onChange={(e) => {
@@ -834,42 +851,27 @@ export default function MessagingCenter() {
         </div>
       </div>
 
-      {/* New Message Modal */}
+      {/* Contact Support Modal */}
       {showNewMessage && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
             <div className="p-6 border-b flex items-center justify-between">
-              <h2 className="text-xl font-bold text-secondary">New Message</h2>
-              <button onClick={() => setShowNewMessage(false)} className="text-gray-400 hover:text-gray-600">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <HelpCircle size={20} className="text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-secondary">Contact Support</h2>
+                  <p className="text-xs text-gray-500">We typically respond within 24 hours</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNewMessage(false)} className="text-gray-400 hover:text-gray-600 ml-4">
                 <X size={22} />
               </button>
             </div>
-            <form onSubmit={createNewMessage} className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
-                  <select
-                    value={newMessageForm.message_type}
-                    onChange={(e) => setNewMessageForm({ ...newMessageForm, message_type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="support_ticket">Support Ticket</option>
-                    <option value="direct">Direct Message</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Priority</label>
-                  <select
-                    value={newMessageForm.priority}
-                    onChange={(e) => setNewMessageForm({ ...newMessageForm, priority: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="low">Low</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
+            <form onSubmit={createNewMessage} className="p-6 space-y-4">
+              <div className="px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700">
+                Your message will go directly to the YachtVersal support team.
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Subject *</label>
@@ -879,7 +881,7 @@ export default function MessagingCenter() {
                   value={newMessageForm.subject}
                   onChange={(e) => setNewMessageForm({ ...newMessageForm, subject: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary"
-                  placeholder="Brief description"
+                  placeholder="Brief description of your question or issue"
                 />
               </div>
               <div>
@@ -889,7 +891,7 @@ export default function MessagingCenter() {
                   value={newMessageForm.body}
                   onChange={(e) => setNewMessageForm({ ...newMessageForm, body: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary min-h-[140px] resize-none"
-                  placeholder="Describe your issue or question…"
+                  placeholder="How can we help you?"
                 />
               </div>
               <div className="flex gap-3 pt-1">
@@ -905,7 +907,7 @@ export default function MessagingCenter() {
                   className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium text-sm flex items-center justify-center gap-2"
                 >
                   <Send size={15} />
-                  Send Message
+                  Send to Support
                 </button>
               </div>
             </form>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, MessageSquare } from 'lucide-react';
+import { Bell, Mail } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface AdminLayoutProps {
@@ -104,7 +104,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             className="relative p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Messages"
           >
-            <MessageSquare size={20} />
+            <Mail size={20} />
             {unreadMessages > 0 && (
               <span className="absolute top-0 right-0 w-4 h-4 text-xs flex items-center justify-center text-white bg-red-500 rounded-full">
                 {unreadMessages > 9 ? '9+' : unreadMessages}
