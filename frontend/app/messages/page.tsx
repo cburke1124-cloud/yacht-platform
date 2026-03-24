@@ -80,7 +80,12 @@ export default function MessagingCenter() {
   });
 
   useEffect(() => {
+    fetchInquiries();
+  }, []);
+
+  useEffect(() => {
     if (filter === 'inquiries') {
+      // already loaded on mount, refresh in case
       fetchInquiries();
     } else {
       fetchMessages();
@@ -296,7 +301,7 @@ export default function MessagingCenter() {
         {/* Filter tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {[
-            { id: 'all', label: 'All Messages', count: messages.length },
+            { id: 'all', label: 'All Messages', count: messages.length + inquiries.length },
             { id: 'inquiries', label: 'Inquiries', count: inquiries.length, icon: Users },
             { id: 'support_ticket', label: 'Support', count: messages.filter((m) => m.message_type === 'support_ticket').length },
             { id: 'direct', label: 'Direct', count: messages.filter((m) => m.message_type === 'direct').length },
@@ -366,6 +371,70 @@ export default function MessagingCenter() {
                     </button>
                   ))
                 )
+              ) : (filter === 'all' && inquiries.length > 0 && filteredMessages.length === 0) || filter === 'all' ? (
+                /* All tab: show inquiries first, then other messages */
+                [...inquiries.map(inq => ({ _type: 'inquiry' as const, inq })),
+                 ...filteredMessages.map(msg => ({ _type: 'message' as const, msg }))]
+                  .filter(item => {
+                    if (!searchQuery) return true;
+                    if (item._type === 'inquiry') {
+                      const i = item.inq;
+                      return i.sender_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                             i.message?.toLowerCase().includes(searchQuery.toLowerCase());
+                    } else {
+                      const m = item.msg;
+                      return m.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                             m.body?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                             m.sender_name?.toLowerCase().includes(searchQuery.toLowerCase());
+                    }
+                  })
+                  .map(item =>
+                    item._type === 'inquiry' ? (
+                      <button
+                        key={`inq-${item.inq.id}`}
+                        onClick={() => openInquiry(item.inq)}
+                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                          selectedInquiry?.id === item.inq.id ? 'bg-primary/5 border-l-2 border-primary' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-teal-500" />
+                            <span className="text-sm font-semibold text-gray-900 truncate">{item.inq.sender_name}</span>
+                          </div>
+                          <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(item.inq.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 font-medium truncate ml-4">{item.inq.listing_title ?? 'General Inquiry'}</p>
+                        <p className="text-xs text-gray-500 line-clamp-1 ml-4 mt-0.5">{item.inq.message}</p>
+                        <span className="ml-4 mt-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">inquiry</span>
+                      </button>
+                    ) : (
+                      <button
+                        key={`msg-${item.msg.id}`}
+                        onClick={() => { openMessage(item.msg); setSelectedInquiry(null); }}
+                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                          selectedDetail?.message.id === item.msg.id ? 'bg-primary/5 border-l-2 border-primary' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`flex-shrink-0 w-2 h-2 rounded-full ${statusDot[item.msg.status] ?? 'bg-gray-300'}`} />
+                            <span className="text-sm font-semibold text-gray-900 truncate">
+                              {item.msg.sender_name || item.msg.sender_email || 'Unknown'}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(item.msg.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 font-medium truncate ml-4">{item.msg.subject}</p>
+                        <p className="text-xs text-gray-500 line-clamp-1 ml-4 mt-0.5">{item.msg.body}</p>
+                        <div className="flex items-center gap-2 mt-2 ml-4">
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[item.msg.message_type] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {item.msg.message_type.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  )}
               ) : filteredMessages.length === 0 ? (
                 <div className="p-8 text-center text-gray-400">
                   <Mail size={40} className="mx-auto mb-3 text-gray-300" />

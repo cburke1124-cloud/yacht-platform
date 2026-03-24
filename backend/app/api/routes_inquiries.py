@@ -360,6 +360,7 @@ async def create_inquiry(
                     </body></html>
                     """,
                         reply_to=reply_to_addr,
+                        from_email=email_service.notifications_email,
                     )
                 except Exception:
                     pass
@@ -521,6 +522,7 @@ def reply_to_inquiry(
             </body></html>
                 """,
                 reply_to=current_user.email,
+                from_email=email_service.notifications_email,
             )
         except Exception:
             pass
