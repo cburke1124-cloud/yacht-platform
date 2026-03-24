@@ -616,9 +616,14 @@ export default function ListingDetailPage() {
                         </div>
                       )}
                       <div className="min-w-0 pt-1">
-                        <p className="font-bold text-lg text-[#01BBDC] mb-0.5">
-                          {sc.name}
-                        </p>
+                        {sc.id ? (
+                          <Link href={`/salesmen/${sc.id}`}
+                            className="font-bold text-lg text-[#01BBDC] mb-0.5 hover:underline block">
+                            {sc.name}
+                          </Link>
+                        ) : (
+                          <p className="font-bold text-lg text-[#01BBDC] mb-0.5">{sc.name}</p>
+                        )}
                         {sc.title && (
                           <p className="text-sm text-gray-600 mb-1">{sc.title}</p>
                         )}
@@ -649,9 +654,14 @@ export default function ListingDetailPage() {
                           </div>
                         )}
                         <div className="min-w-0 pt-1">
-                          <p className="font-bold text-lg text-[#01BBDC] mb-1">
-                            {dealer.company_name || dealer.name}
-                          </p>
+                          {dealer.slug ? (
+                            <Link href={`/dealers/${dealer.slug}`}
+                              className="font-bold text-lg text-[#01BBDC] mb-1 hover:underline block">
+                              {dealer.company_name || dealer.name}
+                            </Link>
+                          ) : (
+                            <p className="font-bold text-lg text-[#01BBDC] mb-1">{dealer.company_name || dealer.name}</p>
+                          )}
                           {(dealer.city || dealer.state) && (
                             <p className="text-sm text-gray-600 flex items-center gap-1">
                               <MapPin size={12} />
@@ -713,9 +723,14 @@ export default function ListingDetailPage() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="font-bold text-[#10214F] truncate text-sm">
-                        {dealer.company_name || dealer.name}
-                      </p>
+                      {dealer.slug ? (
+                        <Link href={`/dealers/${dealer.slug}`}
+                          className="font-bold text-[#10214F] truncate text-sm hover:text-[#01BBDC] hover:underline block">
+                          {dealer.company_name || dealer.name}
+                        </Link>
+                      ) : (
+                        <p className="font-bold text-[#10214F] truncate text-sm">{dealer.company_name || dealer.name}</p>
+                      )}
                       {(dealer.city || dealer.state) && (
                         <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                           <MapPin size={10} /> {[dealer.city, dealer.state].filter(Boolean).join(', ')}

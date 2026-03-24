@@ -94,7 +94,7 @@ export default function DealerProfilePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Broker Header Card */}
-        <div className="glass-card rounded-2xl -mt-24 mb-8 p-8 relative z-10">
+        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl -mt-16 mb-8 p-8 relative z-10">
           <div className="flex flex-col md:flex-row items-start gap-8">
             {/* Logo */}
             <div className="flex-shrink-0">
