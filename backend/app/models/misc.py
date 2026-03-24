@@ -33,6 +33,8 @@ class Message(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     replies = relationship("Message", remote_side=[parent_message_id])
+    sender = relationship("User", foreign_keys=[sender_id], lazy="joined")
+    recipient = relationship("User", foreign_keys=[recipient_id], lazy="joined")
 
     visibility = Column(String, default="private")  # private, dealer_visible, company_wide
     visible_to_dealer = Column(Boolean, default=False)

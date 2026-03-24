@@ -314,7 +314,7 @@ async def create_inquiry(
                             notification_type="inquiry",
                             title=f"New inquiry from {sender_name}",
                             body=message[:160],
-                            link=f"/dashboard/messages/{msg.id}",
+                            link=f"/dashboard/inquiries",
                             read=False,
                         )
                     )
@@ -347,7 +347,7 @@ async def create_inquiry(
                           Reply directly to this email to respond &#8212; no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
-                          <a href="{email_service.base_url}/dashboard/messages/{msg.id}"
+                          <a href="{email_service.base_url}/dashboard/inquiries"
                              style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;
                                     border-radius:6px;display:inline-block;font-weight:bold;">
                             View Inquiry
