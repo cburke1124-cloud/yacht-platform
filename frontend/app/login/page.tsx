@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { Suspense, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiUrl } from '@/app/lib/apiRoot';
@@ -10,8 +10,10 @@ import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
 
 function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [sessionExpired] = useState(() => searchParams?.get('expired') === '1');
   const [loading, setLoading] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState<string>('/dashboard');
@@ -102,6 +104,11 @@ function LoginContent() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-8">
+            {sessionExpired && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-700 font-medium">Your session has expired. Please sign in again.</p>
+              </div>
+            )}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">{error}</p>

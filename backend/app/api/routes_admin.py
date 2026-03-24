@@ -3108,3 +3108,54 @@ def resend_broker_setup_email(
             else "Email delivery failed — copy the setup_url and send it manually."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Manual subscription tier override (support tool — bypasses Stripe)
+# ---------------------------------------------------------------------------
+
+VALID_TIERS = {"free", "basic", "plus", "pro", "ultimate"}
+
+
+@router.post("/admin/users/{user_id}/set-tier")
+def admin_set_user_tier(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Manually override a user's subscription tier without going through Stripe.
+    Use this to fix billing issues, grant comps, or unblock users on launch day.
+
+    Body: { "tier": "basic" | "plus" | "pro" | "ultimate" | "free", "note": "optional reason" }
+    """
+    new_tier = (body.get("tier") or "").strip().lower()
+    if new_tier not in VALID_TIERS:
+        raise ValidationException(f"Invalid tier '{new_tier}'. Must be one of: {', '.join(sorted(VALID_TIERS))}")
+
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException(f"User {user_id} not found")
+
+    old_tier = target.subscription_tier
+    target.subscription_tier = new_tier
+    db.commit()
+
+    logger.info(
+        "Admin %s manually set user %s (%s) tier: %s → %s. Note: %s",
+        current_user.email,
+        target.id,
+        target.email,
+        old_tier,
+        new_tier,
+        body.get("note", ""),
+    )
+
+    return {
+        "success": True,
+        "user_id": target.id,
+        "email": target.email,
+        "old_tier": old_tier,
+        "new_tier": new_tier,
+    }

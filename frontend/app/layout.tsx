@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import CookieConsentBanner from "./components/CookieConsentBanner";
 import LayoutShell from "./components/LayoutShell";
+import AuthGuard from "./components/AuthGuard";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -40,6 +41,7 @@ export default function RootLayout({
           </main>
         </LayoutShell>
         <CookieConsentBanner />
+        <AuthGuard />
       </body>
     </html>
   );
