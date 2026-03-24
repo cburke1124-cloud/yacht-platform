@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Building2, Anchor, ArrowRight } from 'lucide-react';
+import { Building2, Anchor, ArrowRight, User } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function WelcomePage() {
   const router = useRouter();
+  const [userType, setUserType] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -17,12 +18,15 @@ export default function WelcomePage() {
       .then(r => r.ok ? r.json() : null)
       .then(u => {
         if (!u) { router.replace('/login'); return; }
-        if (u.user_type === 'user') router.replace('/account');
-        else if (u.user_type === 'admin') router.replace('/admin');
-        else if (u.user_type === 'salesman') router.replace('/sales-rep/dashboard');
+        if (u.user_type === 'user') { router.replace('/account'); return; }
+        if (u.user_type === 'admin') { router.replace('/admin'); return; }
+        setUserType(u.user_type);
       })
       .catch(() => {});
   }, []);
+
+  const isSalesman = userType === 'salesman';
+  const dashboardHref = isSalesman ? '/sales-rep/dashboard' : '/dashboard';
 
   return (
     <div className="min-h-screen section-light flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -55,68 +59,130 @@ export default function WelcomePage() {
 
             {/* Copy */}
             <div className="space-y-4 text-dark/70 text-base leading-relaxed">
-              <p>
-                Thank you for joining YachtVersal. We're excited to have your brokerage on the platform and appreciate the opportunity to help market your company and your yacht listings to a broader audience.
-              </p>
-              <p>
-                Our goal is to make it easy for buyers to discover your brand, explore your inventory, and connect with you through a modern marketplace built for visibility, credibility, and growth.
-              </p>
-              <p>
-                The next steps will guide you through setting up your brokerage profile and adding your listings so you can begin showcasing your business with confidence.
-              </p>
-              <p className="font-bold text-dark text-lg">Let's get started!</p>
+              {isSalesman ? (
+                <>
+                  <p>
+                    Welcome to YachtVersal! You've been added as a team member on this brokerage account.
+                  </p>
+                  <p>
+                    Set up your personal sales profile so buyers can find you, and explore the listings you've been assigned.
+                  </p>
+                  <p className="font-bold text-dark text-lg">Let's get you set up!</p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Thank you for joining YachtVersal. We're excited to have your brokerage on the platform and appreciate the opportunity to help market your company and your yacht listings to a broader audience.
+                  </p>
+                  <p>
+                    Our goal is to make it easy for buyers to discover your brand, explore your inventory, and connect with you through a modern marketplace built for visibility, credibility, and growth.
+                  </p>
+                  <p>
+                    The next steps will guide you through setting up your brokerage profile and adding your listings so you can begin showcasing your business with confidence.
+                  </p>
+                  <p className="font-bold text-dark text-lg">Let's get started!</p>
+                </>
+              )}
             </div>
           </div>
 
           {/* CTA cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-8 md:px-12 pb-8">
-            <Link
-              href="/dashboard/dealer-profile"
-              className="group flex flex-col items-center gap-3 p-6 border border-gray-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-center"
-            >
-              <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <Building2 size={28} className="text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-secondary tracking-widest text-xs uppercase mb-1">
-                  Setup Company Profile
-                </p>
-                <p className="text-xs text-dark/55">
-                  Add your logo, branding, and company details.
-                </p>
-              </div>
-              <ArrowRight
-                size={16}
-                className="text-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity"
-              />
-            </Link>
+            {isSalesman ? (
+              <>
+                <Link
+                  href="/dashboard/salesman-profile"
+                  className="group flex flex-col items-center gap-3 p-6 border border-gray-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-center"
+                >
+                  <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <User size={28} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-secondary tracking-widest text-xs uppercase mb-1">
+                      Setup Your Profile
+                    </p>
+                    <p className="text-xs text-dark/55">
+                      Add your photo, bio, and contact details.
+                    </p>
+                  </div>
+                  <ArrowRight
+                    size={16}
+                    className="text-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </Link>
 
-            <Link
-              href="/dashboard/listings"
-              className="group flex flex-col items-center gap-3 p-6 border border-gray-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-center"
-            >
-              <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <Anchor size={28} className="text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-secondary tracking-widest text-xs uppercase mb-1">
-                  Setup Your Listings
-                </p>
-                <p className="text-xs text-dark/55">
-                  Add your listings, yacht details, pricing, and photos.
-                </p>
-              </div>
-              <ArrowRight
-                size={16}
-                className="text-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity"
-              />
-            </Link>
+                <Link
+                  href="/sales-rep/dashboard"
+                  className="group flex flex-col items-center gap-3 p-6 border border-gray-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-center"
+                >
+                  <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Anchor size={28} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-secondary tracking-widest text-xs uppercase mb-1">
+                      View Your Listings
+                    </p>
+                    <p className="text-xs text-dark/55">
+                      See your assigned listings and manage inquiries.
+                    </p>
+                  </div>
+                  <ArrowRight
+                    size={16}
+                    className="text-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/dashboard/dealer-profile"
+                  className="group flex flex-col items-center gap-3 p-6 border border-gray-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-center"
+                >
+                  <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Building2 size={28} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-secondary tracking-widest text-xs uppercase mb-1">
+                      Setup Company Profile
+                    </p>
+                    <p className="text-xs text-dark/55">
+                      Add your logo, branding, and company details.
+                    </p>
+                  </div>
+                  <ArrowRight
+                    size={16}
+                    className="text-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </Link>
+
+                <Link
+                  href="/dashboard/listings"
+                  className="group flex flex-col items-center gap-3 p-6 border border-gray-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-center"
+                >
+                  <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Anchor size={28} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-secondary tracking-widest text-xs uppercase mb-1">
+                      Setup Your Listings
+                    </p>
+                    <p className="text-xs text-dark/55">
+                      Add your listings, yacht details, pricing, and photos.
+                    </p>
+                  </div>
+                  <ArrowRight
+                    size={16}
+                    className="text-primary mt-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Skip */}
           <div className="text-center pb-8">
             <Link
-              href="/dashboard"
+              href={dashboardHref}
               className="text-sm text-dark/45 hover:text-primary transition-colors"
             >
               Skip for now — take me to the dashboard →

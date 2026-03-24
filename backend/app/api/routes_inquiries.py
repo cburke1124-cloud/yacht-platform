@@ -412,6 +412,144 @@ def get_inquiry(
     return _serialize_inquiry(inq, db, include_notes=True)
 
 
+# ── Reply to an inquiry ───────────────────────────────────────────────────────
+
+@router.post("/inquiries/{inquiry_id}/reply")
+def reply_to_inquiry(
+    inquiry_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Send a reply to an inquiry from the dealer/salesman side.
+    Creates the root message thread if one does not already exist.
+    """
+    inq = db.query(Inquiry).filter(Inquiry.id == inquiry_id).first()
+    if not inq:
+        raise ResourceNotFoundException("Inquiry", inquiry_id)
+    _assert_can_access_inquiry(inq, current_user, db)
+
+    body = (data.get("body") or "").strip()
+    if not body:
+        raise ValidationException("Reply body is required")
+
+    # Find or create the root message for this inquiry
+    root = (
+        db.query(Message)
+        .filter(
+            Message.ticket_number == f"INQ-{inq.id}",
+            Message.parent_message_id == None,  # noqa: E711
+        )
+        .order_by(Message.created_at.asc())
+        .first()
+    )
+
+    if not root:
+        # Inquiry predates the Message integration — create root now
+        phone_line = f"Phone: {inq.sender_phone}\n" if inq.sender_phone else ""
+        msg_body = f"From {inq.sender_name} ({inq.sender_email}):\n{phone_line}\n{inq.message}"
+        from app.models.listing import Listing
+        listing = db.query(Listing).filter(Listing.id == inq.listing_id).first() if inq.listing_id else None
+        listing_title = (listing.title if listing else None) or "General Inquiry"
+        root = Message(
+            ticket_number=f"INQ-{inq.id}",
+            sender_id=None,
+            recipient_id=inq.assigned_to_id,
+            listing_id=inq.listing_id,
+            message_type="inquiry",
+            subject=f"Inquiry from {inq.sender_name}: {listing_title}",
+            body=msg_body,
+            status="replied",
+            visible_to_dealer=True,
+            external_sender_email=inq.sender_email,
+            priority="normal",
+            category="inquiry",
+        )
+        db.add(root)
+        db.commit()
+        db.refresh(root)
+
+    # Create the reply message
+    sender_name = f"{current_user.first_name} {current_user.last_name}".strip()
+    reply = Message(
+        sender_id=current_user.id,
+        recipient_id=None,  # going to external buyer
+        parent_message_id=root.id,
+        listing_id=root.listing_id,
+        subject=f"Re: {root.subject}",
+        body=body,
+        message_type=root.message_type,
+        ticket_number=root.ticket_number,
+        priority=root.priority,
+        category=root.category,
+        status="new",
+    )
+    db.add(reply)
+    root.status = "replied"
+    root.replied_at = datetime.utcnow()
+    db.commit()
+    db.refresh(reply)
+
+    # Email the buyer
+    if inq.sender_email:
+        try:
+            token = generate_reply_token(reply.id, current_user.id)
+            reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
+            from app.models.listing import Listing as _Listing
+            listing = db.query(_Listing).filter(_Listing.id == inq.listing_id).first() if inq.listing_id else None
+            listing_title = (listing.title if listing else None) or "General Inquiry"
+            email_service.send_email(
+                to_email=inq.sender_email,
+                subject=f"Re: Inquiry about {listing_title}",
+                html_content=f"""
+            <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+              <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+                <h1 style="color:white;margin:0;font-size:22px;">Reply from {sender_name}</h1>
+              </div>
+              <div style="padding:30px;background:#f9fafb;">
+                <div style="background:white;border-left:4px solid #01BBDC;padding:20px;border-radius:4px;margin-bottom:20px;">
+                  <p style="white-space:pre-wrap;color:#334155;margin:0;">{body}</p>
+                </div>
+                <p style="color:#64748b;font-size:13px;">
+                  Reply directly to this email to respond &#8212; no login required.
+                </p>
+              </div>
+              <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                2026 YachtVersal. Reply to this email to respond directly.
+              </div>
+            </body></html>
+                """,
+                reply_to=reply_to_addr,
+            )
+        except Exception:
+            pass
+
+    # Re-serialize the updated thread and return it
+    replies_list = (
+        db.query(Message)
+        .filter(Message.parent_message_id == root.id)
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    all_msgs = [root] + list(replies_list)
+    message_thread = [
+        {
+            "id": m.id,
+            "body": m.body,
+            "sender_name": (
+                f"{m.sender.first_name} {m.sender.last_name}".strip()
+                if m.sender
+                else inq.sender_name
+            ),
+            "is_from_buyer": m.sender_id is None,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in all_msgs
+    ]
+    return {"message_id": root.id, "message_thread": message_thread}
+
+
 # ── Update inquiry (stage / score / assignment / quick note) ─────────────────
 
 @router.put("/inquiries/{inquiry_id}")

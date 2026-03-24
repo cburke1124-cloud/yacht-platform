@@ -179,16 +179,16 @@ function DetailPanel({
   }
 
   async function sendReply() {
-    if (!replyText.trim() || !messageId) return;
+    if (!replyText.trim()) return;
     setSendingReply(true);
     setReplyError("");
     try {
-      await apiFetch(`/api/messages/${messageId}/reply`, {
+      const data = await apiFetch(`/api/inquiries/${inquiry.id}/reply`, {
         method: "POST",
         body: JSON.stringify({ body: replyText.trim() }),
       });
-      const data = await apiFetch(`/api/inquiries/${inquiry.id}`);
       if (data.message_thread !== undefined) setMessageThread(data.message_thread);
+      if (data.message_id !== undefined) setMessageId(data.message_id);
       setReplyText("");
     } catch (e: unknown) {
       setReplyError("Failed to send reply");

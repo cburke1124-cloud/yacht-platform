@@ -32,6 +32,14 @@ type MessageDetail = {
   replies: Reply[];
 };
 
+type MessageEntry = {
+  id: number;
+  body: string;
+  sender_name: string;
+  is_from_buyer: boolean;
+  created_at: string;
+};
+
 type Inquiry = {
   id: number;
   sender_name: string;
@@ -41,6 +49,8 @@ type Inquiry = {
   lead_stage: string;
   listing_title: string | null;
   created_at: string;
+  message_id?: number | null;
+  message_thread?: MessageEntry[];
 };
 
 export default function MessagesPage() {
@@ -54,6 +64,8 @@ export default function MessagesPage() {
   const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'inquiries'>('all');
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [inquiryReplyText, setInquiryReplyText] = useState('');
+  const [sendingInquiryReply, setSendingInquiryReply] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -114,6 +126,46 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error('Failed to fetch inquiries:', error);
+    }
+  };
+
+  const loadInquiryDetail = async (inquiry: Inquiry) => {
+    setSelectedInquiry(inquiry);
+    setSelectedMessage(null);
+    setInquiryReplyText('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/inquiries/${inquiry.id}`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
+      }
+    } catch (error) {
+      console.error('Failed to load inquiry detail:', error);
+    }
+  };
+
+  const handleInquiryReply = async () => {
+    if (!inquiryReplyText.trim() || !selectedInquiry) return;
+    setSendingInquiryReply(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/inquiries/${selectedInquiry.id}/reply`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ body: inquiryReplyText.trim() }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
+        setInquiryReplyText('');
+      }
+    } catch (error) {
+      console.error('Failed to send inquiry reply:', error);
+    } finally {
+      setSendingInquiryReply(false);
     }
   };
 
@@ -329,7 +381,7 @@ export default function MessagesPage() {
                     inquiries.map((inquiry) => (
                       <button
                         key={inquiry.id}
-                        onClick={() => { setSelectedInquiry(inquiry); setSelectedMessage(null); }}
+                        onClick={() => loadInquiryDetail(inquiry)}
                         className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
                           selectedInquiry?.id === inquiry.id ? 'bg-[#01BCDD]/10' : ''
                         }`}
@@ -423,13 +475,47 @@ export default function MessagesPage() {
                     </p>
                   )}
                 </div>
-                <div className="p-6">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Message</span>
-                  <div className="bg-gray-50 rounded-lg p-4 mt-2 border">
-                    <p className="text-gray-800 whitespace-pre-wrap">{selectedInquiry.message}</p>
-                  </div>
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm text-gray-500">Manage pipeline stage, add notes, and track progress in the <a href="/dashboard" className="text-primary hover:underline font-medium">Leads Manager</a>.</p>
+
+                {/* Message thread */}
+                <div className="p-6 space-y-4 max-h-[360px] overflow-y-auto">
+                  {(selectedInquiry.message_thread && selectedInquiry.message_thread.length > 0) ? (
+                    selectedInquiry.message_thread.map((entry) => (
+                      <div key={entry.id} className={`flex ${entry.is_from_buyer ? 'justify-start' : 'justify-end'}`}>
+                        <div className={`max-w-[80%] rounded-xl px-4 py-3 ${entry.is_from_buyer ? 'bg-gray-100 text-gray-800' : 'bg-primary text-white'}`}>
+                          <p className={`text-xs font-semibold mb-1 ${entry.is_from_buyer ? 'text-gray-500' : 'text-white/70'}`}>{entry.sender_name}</p>
+                          <p className="text-sm whitespace-pre-wrap">{entry.body}</p>
+                          <p className={`text-xs mt-1 ${entry.is_from_buyer ? 'text-gray-400' : 'text-white/50'}`}>{formatDate(entry.created_at)}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="bg-gray-50 rounded-lg p-4 border">
+                      <p className="text-gray-800 whitespace-pre-wrap">{selectedInquiry.message}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Reply box */}
+                <div className="p-6 border-t">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Reply to {selectedInquiry.sender_name}</h4>
+                  <textarea
+                    value={inquiryReplyText}
+                    onChange={(e) => setInquiryReplyText(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#01BCDD] mb-4"
+                    rows={3}
+                    placeholder="Type your reply..."
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <a href={`/dashboard/inquiries`} className="text-xs text-gray-500 hover:text-primary transition-colors">
+                      Manage pipeline in Leads Manager →
+                    </a>
+                    <button
+                      onClick={handleInquiryReply}
+                      disabled={sendingInquiryReply || !inquiryReplyText.trim()}
+                      className="px-5 py-2 bg-primary text-white rounded-lg hover-primary disabled:bg-gray-400 flex items-center gap-2 text-sm"
+                    >
+                      {sendingInquiryReply ? 'Sending...' : (<><Send size={14} />Send Reply</>)}
+                    </button>
                   </div>
                 </div>
               </div>

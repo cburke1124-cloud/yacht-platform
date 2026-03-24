@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Check, Trash2, Mail, DollarSign, Heart, MessageSquare, X, CheckCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bell, Check, Trash2, Mail, DollarSign, Heart, MessageSquare, X, CheckCheck, Users } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface Notification {
@@ -16,6 +17,7 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -271,7 +273,24 @@ export default function NotificationsPage() {
 
                     {/* Actions */}
                     <div className="flex-shrink-0 flex items-center gap-2">
-                      {notification.link && (
+                      {notification.notification_type === 'inquiry' ? (
+                        <>
+                          <button
+                            onClick={() => { markAsRead(notification.id); router.push('/dashboard/messages'); }}
+                            className="p-2 text-primary hover:bg-primary/5 rounded-lg transition-colors"
+                            title="View in Messages"
+                          >
+                            <MessageSquare size={18} />
+                          </button>
+                          <button
+                            onClick={() => { markAsRead(notification.id); router.push('/dashboard/inquiries'); }}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="View in Leads"
+                          >
+                            <Users size={18} />
+                          </button>
+                        </>
+                      ) : notification.link ? (
                         <button
                           onClick={() => handleNotificationClick(notification)}
                           className="p-2 text-primary hover:bg-primary/5 rounded-lg transition-colors"
@@ -279,7 +298,7 @@ export default function NotificationsPage() {
                         >
                           <Mail size={18} />
                         </button>
-                      )}
+                      ) : null}
                       {!notification.read && (
                         <button
                           onClick={() => markAsRead(notification.id)}
