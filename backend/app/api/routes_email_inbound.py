@@ -131,13 +131,29 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
 
     # -----------------------------------------------------------------------
     # CASE A: Inquiry reply — parent has no registered sender (anonymous buyer).
-    # Email the buyer directly using external_sender_email and do NOT try to
-    # create a user-to-user Message or Notification for a non-existent user.
+    # Store the dealer's reply in the DB so the thread is visible in the platform,
+    # then email the buyer directly.
     # -----------------------------------------------------------------------
     if parent.sender_id is None and parent.external_sender_email:
+        # Create reply Message so the thread shows dealer's email reply
+        ext_reply = Message(
+            sender_id=reply_from_user_id,
+            recipient_id=None,
+            parent_message_id=parent.id,
+            listing_id=parent.listing_id,
+            subject=f"Re: {parent.subject}",
+            body=body,
+            message_type=parent.message_type,
+            ticket_number=parent.ticket_number,
+            priority=parent.priority,
+            category=parent.category,
+            status="new",
+        )
+        db.add(ext_reply)
         parent.status = "replied"
         parent.replied_at = datetime.utcnow()
         db.commit()
+        db.refresh(ext_reply)
 
         try:
             email_service.send_email(
@@ -177,7 +193,7 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
                 from_email=email_service.notifications_email,
             )
             logger.info(
-                f"email_inbound: forwarded broker reply to external buyer "
+                f"email_inbound: stored dealer reply + forwarded to external buyer "
                 f"{parent.external_sender_email} (message {parent.id})"
             )
         except Exception as exc:
@@ -213,16 +229,17 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
     parent.status = "replied"
     parent.replied_at = datetime.utcnow()
 
-    db.add(
-        Notification(
-            user_id=recipient_id,
-            notification_type="message",
-            title=f"Reply from {sender.first_name} {sender.last_name}",
-            body=body[:160],
-            link=f"/dashboard/messages/{parent.id}",
-            read=False,
+    if recipient_id is not None:
+        db.add(
+            Notification(
+                user_id=recipient_id,
+                notification_type="message",
+                title=f"Reply from {sender.first_name} {sender.last_name}",
+                body=body[:160],
+                link=f"/messages",
+                read=False,
+            )
         )
-    )
     db.commit()
     db.refresh(reply)
 

@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Mail, MailOpen, CheckCircle, Clock, Search, ChevronRight, User } from 'lucide-react';
+import { X, Send, Mail, MailOpen, CheckCircle, Clock, Search, ChevronRight, User, Users } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface Message {
@@ -34,17 +34,42 @@ interface MessageDetail {
   replies: Reply[];
 }
 
+interface MessageEntry {
+  id: number;
+  body: string;
+  sender_name: string;
+  is_from_buyer: boolean;
+  created_at: string;
+}
+
+interface Inquiry {
+  id: number;
+  sender_name: string;
+  sender_email: string;
+  sender_phone: string | null;
+  message: string;
+  lead_stage: string;
+  listing_title: string | null;
+  created_at: string;
+  message_id?: number | null;
+  message_thread?: MessageEntry[];
+}
+
 export default function MessagingCenter() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedDetail, setSelectedDetail] = useState<MessageDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'direct'>('all');
+  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'direct' | 'inquiries'>('all');
   const [showNewMessage, setShowNewMessage] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+  const [inquiryReplyText, setInquiryReplyText] = useState('');
+  const [sendingInquiryReply, setSendingInquiryReply] = useState(false);
 
   const [newMessageForm, setNewMessageForm] = useState({
     subject: '',
@@ -54,7 +79,13 @@ export default function MessagingCenter() {
     category: 'general',
   });
 
-  useEffect(() => { fetchMessages(); }, [filter]);
+  useEffect(() => {
+    if (filter === 'inquiries') {
+      fetchInquiries();
+    } else {
+      fetchMessages();
+    }
+  }, [filter]);
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,6 +104,60 @@ export default function MessagingCenter() {
       console.error('Failed to fetch messages:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInquiries = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/inquiries'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setInquiries(data.items ?? data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch inquiries:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openInquiry = async (inq: Inquiry) => {
+    setSelectedInquiry(inq);
+    setSelectedDetail(null);
+    setInquiryReplyText('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/inquiries/${inq.id}`), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
+      }
+    } catch (e) {
+      console.error('Failed to load inquiry detail:', e);
+    }
+  };
+
+  const sendInquiryReply = async () => {
+    if (!inquiryReplyText.trim() || !selectedInquiry) return;
+    setSendingInquiryReply(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/inquiries/${selectedInquiry.id}/reply`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: inquiryReplyText.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
+        setInquiryReplyText('');
+      }
+    } catch (e) {
+      console.error('Failed to send inquiry reply:', e);
+    } finally {
+      setSendingInquiryReply(false);
     }
   };
 
@@ -211,18 +296,28 @@ export default function MessagingCenter() {
         {/* Filter tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {[
-            { id: 'all', label: 'All', count: messages.length },
-            { id: 'inquiry', label: 'Inquiries', count: messages.filter((m) => m.message_type === 'inquiry').length },
+            { id: 'all', label: 'All Messages', count: messages.length },
+            { id: 'inquiries', label: 'Inquiries', count: inquiries.length, icon: Users },
             { id: 'support_ticket', label: 'Support', count: messages.filter((m) => m.message_type === 'support_ticket').length },
             { id: 'direct', label: 'Direct', count: messages.filter((m) => m.message_type === 'direct').length },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setFilter(tab.id as typeof filter)}
+              onClick={() => {
+                setFilter(tab.id as typeof filter);
+                setSelectedDetail(null);
+                setSelectedInquiry(null);
+              }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 filter === tab.id
                   ? 'bg-primary text-white border-primary'
                   : 'bg-white text-dark border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              {tab.label} <span className="opacity-70">({tab.count})</span>
+            </button>
+          ))}
+        </div>
               }`}
             >
               {tab.label} <span className="opacity-70">({tab.count})</span>
@@ -239,7 +334,7 @@ export default function MessagingCenter() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input
                   type="text"
-                  placeholder="Searchâ€¦"
+                  placeholder="Search…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -249,7 +344,34 @@ export default function MessagingCenter() {
 
             <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
               {loading ? (
-                <div className="p-8 text-center text-gray-400 text-sm">Loadingâ€¦</div>
+                <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
+              ) : filter === 'inquiries' ? (
+                inquiries.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">
+                    <Users size={40} className="mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No inquiries yet</p>
+                  </div>
+                ) : (
+                  inquiries.map((inq) => (
+                    <button
+                      key={inq.id}
+                      onClick={() => openInquiry(inq)}
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                        selectedInquiry?.id === inq.id ? 'bg-primary/5 border-l-2 border-primary' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-semibold text-gray-900 truncate">{inq.sender_name}</span>
+                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(inq.created_at)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">{inq.listing_title ?? 'General Inquiry'}</p>
+                      <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{inq.message}</p>
+                      <span className="mt-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">
+                        {inq.lead_stage ?? 'new'}
+                      </span>
+                    </button>
+                  ))
+                )
               ) : filteredMessages.length === 0 ? (
                 <div className="p-8 text-center text-gray-400">
                   <Mail size={40} className="mx-auto mb-3 text-gray-300" />
@@ -259,7 +381,7 @@ export default function MessagingCenter() {
                 filteredMessages.map((msg) => (
                   <button
                     key={msg.id}
-                    onClick={() => openMessage(msg)}
+                    onClick={() => { openMessage(msg); setSelectedInquiry(null); }}
                     className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
                       selectedDetail?.message.id === msg.id ? 'bg-primary/5 border-l-2 border-primary' : ''
                     }`}
@@ -286,10 +408,102 @@ export default function MessagingCenter() {
             </div>
           </div>
 
-          {/* â”€â”€ Right: conversation thread â”€â”€ */}
+          {/* ── Right: conversation thread ── */}
           <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
             {loadingDetail ? (
-              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loadingâ€¦</div>
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
+            ) : selectedInquiry ? (
+              <>
+                {/* Inquiry thread header */}
+                <div className="px-6 py-4 border-b flex items-start justify-between gap-4 bg-secondary">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-bold text-white truncate">{selectedInquiry.sender_name}</h2>
+                    <p className="text-sm text-white/70 mt-0.5">{selectedInquiry.listing_title ?? 'General Inquiry'}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-white/60 flex-wrap">
+                      <a href={`mailto:${selectedInquiry.sender_email}`} className="hover:text-white">{selectedInquiry.sender_email}</a>
+                      {selectedInquiry.sender_phone && (
+                        <a href={`tel:${selectedInquiry.sender_phone}`} className="hover:text-white">{selectedInquiry.sender_phone}</a>
+                      )}
+                      <span>{new Date(selectedInquiry.created_at).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/20 text-white">
+                      {selectedInquiry.lead_stage ?? 'new'}
+                    </span>
+                    <a
+                      href="/dashboard/inquiries"
+                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors"
+                    >
+                      Open in Leads
+                    </a>
+                    <button onClick={() => setSelectedInquiry(null)} className="text-white/50 hover:text-white ml-1">
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inquiry message thread */}
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                  {(selectedInquiry.message_thread && selectedInquiry.message_thread.length > 0) ? (
+                    selectedInquiry.message_thread.map((entry) => (
+                      <div key={entry.id} className={`flex gap-3 ${entry.is_from_buyer ? '' : 'flex-row-reverse'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${entry.is_from_buyer ? 'bg-gray-200' : 'bg-primary text-white'}`}>
+                          <User size={14} className={entry.is_from_buyer ? 'text-gray-500' : 'text-white'} />
+                        </div>
+                        <div className={`flex-1 min-w-0 ${entry.is_from_buyer ? '' : 'items-end flex flex-col'}`}>
+                          <div className={`flex items-baseline gap-2 mb-1 ${entry.is_from_buyer ? '' : 'flex-row-reverse'}`}>
+                            <span className="text-sm font-semibold text-gray-800">{entry.sender_name}</span>
+                            <span className="text-xs text-gray-400">{new Date(entry.created_at).toLocaleString()}</span>
+                          </div>
+                          <div className={`rounded-xl px-4 py-3 text-sm whitespace-pre-wrap border max-w-[85%] ${
+                            entry.is_from_buyer
+                              ? 'bg-gray-50 text-gray-700 border-gray-100 rounded-tl-sm'
+                              : 'bg-primary text-white border-primary/20 rounded-tr-sm'
+                          }`}>
+                            {entry.body}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <User size={14} className="text-gray-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-800 mb-1">{selectedInquiry.sender_name}</p>
+                        <div className="bg-gray-50 rounded-xl rounded-tl-sm px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
+                          {selectedInquiry.message}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={threadEndRef} />
+                </div>
+
+                {/* Inquiry reply box */}
+                <div className="px-6 py-4 border-t bg-gray-50">
+                  <div className="flex gap-3 items-end">
+                    <textarea
+                      value={inquiryReplyText}
+                      onChange={(e) => setInquiryReplyText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendInquiryReply(); }}
+                      rows={3}
+                      placeholder={`Reply to ${selectedInquiry.sender_name}… (Ctrl+Enter to send)`}
+                      className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none bg-white"
+                    />
+                    <button
+                      onClick={sendInquiryReply}
+                      disabled={sendingInquiryReply || !inquiryReplyText.trim()}
+                      className="px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 font-medium flex items-center gap-2 text-sm disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Send size={15} />
+                      {sendingInquiryReply ? 'Sending…' : 'Send'}
+                    </button>
+                  </div>
+                </div>
+              </>
             ) : !selectedDetail ? (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
                 <Mail size={56} className="mb-4 text-gray-200" />
@@ -395,7 +609,7 @@ export default function MessagingCenter() {
                         onChange={(e) => setReplyText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendReply(); }}
                         rows={3}
-                        placeholder="Type your replyâ€¦ (Ctrl+Enter to send)"
+                        placeholder="Type your reply… (Ctrl+Enter to send)"
                         className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none bg-white"
                       />
                       <button
@@ -404,7 +618,7 @@ export default function MessagingCenter() {
                         className="px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 font-medium flex items-center gap-2 text-sm disabled:opacity-50 flex-shrink-0"
                       >
                         <Send size={15} />
-                        {sending ? 'Sendingâ€¦' : 'Send'}
+                        {sending ? 'Sending…' : 'Send'}
                       </button>
                     </div>
                   </div>
@@ -470,7 +684,7 @@ export default function MessagingCenter() {
                   value={newMessageForm.body}
                   onChange={(e) => setNewMessageForm({ ...newMessageForm, body: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary min-h-[140px] resize-none"
-                  placeholder="Describe your issue or questionâ€¦"
+                  placeholder="Describe your issue or question…"
                 />
               </div>
               <div className="flex gap-3 pt-1">

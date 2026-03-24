@@ -76,6 +76,8 @@ def get_messages(
             )
 
     query = db.query(Message).filter(visibility_filter)
+    # Only show root messages (thread starters) — replies are loaded via GET /messages/{id}
+    query = query.filter(Message.parent_message_id == None)  # noqa: E711
     if message_type:
         query = query.filter(Message.message_type == message_type)
     if status:
@@ -257,7 +259,7 @@ def create_message(
                           Reply directly to this email to respond - no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
-                          <a href="{email_service.base_url}/dashboard/messages/{message.id}"
+                          <a href="{email_service.base_url}/messages"
                              style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;
                                     border-radius:6px;display:inline-block;font-weight:bold;">
                             View Conversation
@@ -283,7 +285,7 @@ def create_message(
                             notification_type="message",
                             title=f"New message: {data['subject']}",
                             body=data["body"][:160],
-                            link=f"/dashboard/messages/{message.id}",
+                            link=f"/messages",
                             read=False,
                         )
                     )
@@ -385,7 +387,7 @@ def reply_to_message(
                           Reply directly to this email to respond - no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
-                          <a href="{email_service.base_url}/dashboard/messages/{parent.id}"
+                          <a href="{email_service.base_url}/messages"
                              style="background:#10214F;color:white;padding:12px 28px;
                                     text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
                             View Conversation
@@ -411,7 +413,7 @@ def reply_to_message(
                             notification_type="message",
                             title=f"Reply from {sender_name}: {parent.subject}",
                             body=data["body"][:160],
-                            link=f"/dashboard/messages/{parent.id}",
+                            link=f"/messages",
                             read=False,
                         )
                     )
