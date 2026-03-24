@@ -615,12 +615,6 @@ export default function MessagingCenter() {
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/20 text-white">
                       {selectedInquiry.lead_stage ?? 'new'}
                     </span>
-                    <a
-                      href="/dashboard/inquiries"
-                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors"
-                    >
-                      Open in Leads
-                    </a>
                     <button onClick={() => setSelectedInquiry(null)} className="text-white/50 hover:text-white ml-1">
                       <X size={18} />
                     </button>
