@@ -9,6 +9,7 @@ from app.models.dealer import DealerProfile
 from app.models.listing import Listing
 from app.exceptions import ResourceNotFoundException
 from app.api.deps import get_current_user
+from app.api.routes_listings import _get_primary_images_for_listings
 
 router = APIRouter()
 
@@ -117,7 +118,11 @@ def get_dealer_by_slug(
         Listing.user_id == user.id,
         Listing.status == "active"
     ).order_by(Listing.created_at.desc()).limit(12).all()
-    
+
+    # Batch-fetch primary images using the new media system (fell back to legacy)
+    listing_ids = [l.id for l in listings]
+    primary_images = _get_primary_images_for_listings(db, listing_ids)
+
     # Get stats
     listing_stats = db.query(
         func.count(Listing.id).label('total'),
@@ -166,7 +171,7 @@ def get_dealer_by_slug(
                 "length_feet": l.length_feet,
                 "city": l.city,
                 "state": l.state,
-                "images": [{"url": img.url} for img in l.images[:1]]
+                "images": (primary_images.get(l.id) or [{"url": img.url} for img in l.images[:1]])[:1]
             }
             for l in listings
         ]
