@@ -318,12 +318,6 @@ export default function MessagingCenter() {
             </button>
           ))}
         </div>
-              }`}
-            >
-              {tab.label} <span className="opacity-70">({tab.count})</span>
-            </button>
-          ))}
-        </div>
 
         {/* Split pane */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-260px)] min-h-[500px]">
