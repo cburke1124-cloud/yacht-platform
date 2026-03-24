@@ -434,7 +434,7 @@ export default function MessagingCenter() {
                         </div>
                       </button>
                     )
-                  )}
+                  )
               ) : filteredMessages.length === 0 ? (
                 <div className="p-8 text-center text-gray-400">
                   <Mail size={40} className="mx-auto mb-3 text-gray-300" />
