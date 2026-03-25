@@ -63,8 +63,8 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
   const progress = Math.round((stepIndex[step] / totalSteps) * 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-secondary/80 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+      <div className="relative w-full max-w-3xl mx-auto min-h-full flex flex-col py-10 px-4">
 
         {/* Progress bar */}
         {step !== 'welcome' && (
@@ -419,7 +419,7 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
   );
 
   return (
-    <div className="p-8 max-h-[85vh] overflow-y-auto">
+    <div className="p-8">
       <div className="flex items-center gap-3 mb-2">
         <button onClick={onBack} className="text-gray-400 hover:text-secondary transition-colors">
           <ArrowLeft size={20} />
