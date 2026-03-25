@@ -125,7 +125,7 @@ export default function AISearchComponent() {
     setShowSuggestions(false);
 
     try {
-      const response = await fetch(apiUrl('/search/ai'), {
+      const response = await fetch(apiUrl('/ai'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

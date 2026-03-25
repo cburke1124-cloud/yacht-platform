@@ -323,10 +323,10 @@ export default function SellPrivatePage() {
           </div>
 
           {/* ── PRICING CARDS — same Figma style as brokers page ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 24 }}>
+          <div className="flex flex-wrap justify-center" style={{ gap: 24 }}>
             {tiersLoading
               ? [0, 1, 2].map((i) => (
-                  <div key={i} className="animate-pulse" style={{ paddingTop: 24 }}>
+                  <div key={i} className="animate-pulse" style={{ paddingTop: 24, flex: '0 1 390px', minWidth: 280, width: '100%' }}>
                     <div className="flex justify-center" style={{ marginBottom: -1 }}>
                       <div className="rounded-xl bg-gray-200" style={{ width: 118, height: 48 }} />
                     </div>
@@ -343,7 +343,7 @@ export default function SellPrivatePage() {
                   const ctaLabel = 'Get Started';
 
                   return (
-                    <div key={tier.key} className="relative flex flex-col" style={{ paddingTop: 24 }}>
+                    <div key={tier.key} className="relative flex flex-col" style={{ paddingTop: 24, flex: '0 1 390px', minWidth: 280, width: '100%' }}>
                       {/* Badge tab — Figma: #01BBDC, 118×48, radius 12, overlapping card top */}
                       <div
                         className="absolute left-1/2 flex items-center justify-center"
