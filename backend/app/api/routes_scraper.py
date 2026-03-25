@@ -1,7 +1,11 @@
 ﻿"""
-Scraper management routes — admin only (except /parse-text).
+Scraper management routes.
 
-Endpoints:
+Broker-facing endpoints (require dealer/salesman auth):
+  POST /scraper/dealer/preview       — validate URL + scrape single listing (no DB write)
+  POST /scraper/dealer/import        — validate URL + scrape + save as draft listing
+
+Admin-only endpoints:
   POST /scraper/parse-text           — extract fields from raw text (any auth)
   POST /scraper/single               — test-scrape a single listing URL (admin)
   POST /scraper/broker               — discover listing URLs on an inventory page (admin)
@@ -18,6 +22,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Any, List
+from urllib.parse import urlparse
 import os
 import re
 import json
@@ -208,7 +213,202 @@ def _require_admin(current_user: User):
 
 
 # -----------------------------------------------------------------------
-# BROKER: self-service import request (single or bulk URL)
+# DOMAIN VALIDATION — broker-facing scraper safety controls
+# -----------------------------------------------------------------------
+
+# Yacht marketplace/aggregator domains brokers must NOT scrape from.
+# Brokers may only pull from their own registered website.
+MARKETPLACE_BLACKLIST = frozenset({
+    "yachtworld.com",
+    "yachtbuyer.com",
+    "yachtr.com",
+    "boattrader.com",
+    "boats.com",
+    "rightboat.com",
+    "apolloduck.com",
+    "ybw.com",
+    "yachtcloud.com",
+    "boatshop24.com",
+    "theyachtmarket.com",
+    "globalyachtbroker.com",
+    "iboats.com",
+    "yachting24.com",
+})
+
+
+def _extract_hostname(url: str) -> str:
+    """Return the lowercase hostname with no www. prefix."""
+    if not url:
+        return ""
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    host = urlparse(url).netloc.split(":")[0].lower().strip()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
+def _validate_dealer_scrape_url(url: str, dealer_website: str) -> None:
+    """
+    Raise HTTPException if the URL is not safe for this broker to scrape:
+    - Must be http/https
+    - Domain must not be in MARKETPLACE_BLACKLIST
+    - Domain must match or be a subdomain of the dealer's registered website
+    """
+    if not url or not url.strip():
+        raise HTTPException(status_code=400, detail="URL is required")
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL must begin with http:// or https://")
+
+    url_host = _extract_hostname(url)
+    if not url_host:
+        raise HTTPException(status_code=400, detail="Could not parse a hostname from the URL")
+
+    # Blacklist check
+    for blocked in MARKETPLACE_BLACKLIST:
+        if url_host == blocked or url_host.endswith("." + blocked):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"Scraping is not permitted from marketplace sites ({blocked}). "
+                    "Please only import listings from your own brokerage website."
+                ),
+            )
+
+    # Website match check
+    dealer_host = _extract_hostname(dealer_website)
+    if not dealer_host:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Your dealer profile does not have a valid website on file. "
+                "Please update your Dealer Profile before using the scraper."
+            ),
+        )
+
+    if url_host != dealer_host and not url_host.endswith("." + dealer_host):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"The URL domain '{url_host}' does not match your registered website "
+                f"'{dealer_host}'. You may only import listings from your own website."
+            ),
+        )
+
+
+# -----------------------------------------------------------------------
+# DEALER-FACING: preview + import a single listing from their own website
+# -----------------------------------------------------------------------
+
+class DealerScrapeRequest(BaseModel):
+    url: str
+
+
+def _get_dealer_profile(current_user: User, db: Session):
+    """Return (dealer_id, DealerProfile) for the current broker/salesman."""
+    from app.models.dealer import DealerProfile
+
+    if current_user.user_type == "dealer":
+        dealer_id = current_user.id
+    elif current_user.user_type == "salesman":
+        dealer_id = current_user.parent_dealer_id
+        if not dealer_id:
+            raise HTTPException(status_code=400, detail="No broker account associated with this salesman")
+    else:
+        raise AuthorizationException("Broker account required")
+
+    dp = db.query(DealerProfile).filter(DealerProfile.user_id == dealer_id).first()
+    if not dp or not dp.website:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Please add your brokerage website to your Dealer Profile before "
+                "using the listing scraper."
+            ),
+        )
+    return dealer_id, dp
+
+
+@router.post("/scraper/dealer/preview")
+def dealer_preview_listing(
+    data: DealerScrapeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Validate a listing URL against the broker's registered website,
+    scrape it, and return the extracted data — no DB write.
+    """
+    _, dp = _get_dealer_profile(current_user, db)
+    _validate_dealer_scrape_url(data.url, dp.website)
+
+    from app.services.scraper import OptimizedYachtScraper
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+    scraper = OptimizedYachtScraper(api_key=api_key)
+    raw = scraper.scrape_single_listing(data.url.strip())
+
+    if "error" in raw:
+        raise HTTPException(status_code=422, detail=raw["error"])
+
+    return {"success": True, "data": raw}
+
+
+@router.post("/scraper/dealer/import")
+def dealer_import_listing(
+    data: DealerScrapeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Validate, scrape, and save a single listing as a draft owned by the
+    current broker (or the broker the salesman belongs to).
+    """
+    dealer_id, dp = _get_dealer_profile(current_user, db)
+    _validate_dealer_scrape_url(data.url, dp.website)
+
+    from app.services.scraper import OptimizedYachtScraper, _generate_bin, _apply_scraped_data
+    from types import SimpleNamespace
+
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+    scraper = OptimizedYachtScraper(api_key=api_key)
+    raw = scraper.scrape_single_listing(data.url.strip())
+
+    if "error" in raw:
+        raise HTTPException(status_code=422, detail=raw["error"])
+
+    salesman_id = current_user.id if current_user.user_type == "salesman" else None
+    job_like = SimpleNamespace(dealer_id=dealer_id, salesman_id=salesman_id)
+
+    listing = Listing(
+        user_id=dealer_id,
+        created_by_user_id=current_user.id,
+        assigned_salesman_id=salesman_id,
+        source="scraped",
+        source_url=data.url.strip(),
+        status="draft",
+        bin=_generate_bin(db),
+        condition="used",
+    )
+    _apply_scraped_data(listing, raw, job_like)
+    db.add(listing)
+    db.flush()
+
+    for img_url in raw.get("images", [])[:10]:
+        db.add(ListingImage(listing_id=listing.id, url=img_url))
+
+    db.add(ScrapedListing(job_id=None, listing_id=listing.id, source_url=data.url.strip()))
+    db.commit()
+    db.refresh(listing)
+
+    return {
+        "success": True,
+        "listing_id": listing.id,
+        "title": listing.title,
+        "data": raw,
+    }
+
+
 # Brokers submit a URL during onboarding; creates a ScraperJob for admin
 # processing. The listing will appear under "Needs Approval" once processed.
 # -----------------------------------------------------------------------

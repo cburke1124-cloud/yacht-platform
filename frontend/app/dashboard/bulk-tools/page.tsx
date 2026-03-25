@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/app/lib/apiRoot';
 import BulkImportExportTools from "@/app/components/BulkImportExportTools";
+import SingleListingScraper from "@/app/dashboard/components/SingleListingScraper";
+import { Globe, FileSpreadsheet } from 'lucide-react';
+
+type Tab = 'scraper' | 'bulk';
 
 export default function BulkToolsPage() {
   const router = useRouter();
+  const [tab, setTab] = useState<Tab>('scraper');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -21,22 +26,56 @@ export default function BulkToolsPage() {
         if (!canCreate) router.replace('/dashboard');
       });
   }, []);
+
   return (
     <div className="p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-dark mb-2">Bulk Import & Export Tools</h1>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-dark mb-2">Listing Import Tools</h1>
           <p className="text-dark/70">
-            Manage your listings in bulk with our powerful import and export tools
+            Import listings directly from your website or upload a spreadsheet in bulk.
           </p>
         </div>
 
-        {/* Component */}
-        <BulkImportExportTools 
-          mode="standalone"
-          userRole="dealer"
-        />
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit mb-6">
+          <button
+            onClick={() => setTab('scraper')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'scraper'
+                ? 'bg-white text-dark shadow-sm'
+                : 'text-dark/60 hover:text-dark'
+            }`}
+          >
+            <Globe size={15} />
+            Import from Website
+          </button>
+          <button
+            onClick={() => setTab('bulk')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === 'bulk'
+                ? 'bg-white text-dark shadow-sm'
+                : 'text-dark/60 hover:text-dark'
+            }`}
+          >
+            <FileSpreadsheet size={15} />
+            Bulk CSV Import / Export
+          </button>
+        </div>
+
+        {/* Content */}
+        {tab === 'scraper' ? (
+          <div className="max-w-2xl">
+            <SingleListingScraper />
+          </div>
+        ) : (
+          <BulkImportExportTools
+            mode="standalone"
+            userRole="dealer"
+          />
+        )}
+      </div>
       </div>
     </div>
   );
