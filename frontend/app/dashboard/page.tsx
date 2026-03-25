@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import NextLink from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, User,
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
   CheckSquare, X, Archive, RefreshCw, Image, DollarSign,
-  Building2, Link2, Link, Upload, CreditCard, Key, CheckCircle,
+  Building2, Link2, LinkIcon, Upload, CreditCard, Key, CheckCircle,
   XCircle, Check, Zap,
   MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2,
   Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter,
@@ -1575,7 +1576,40 @@ export default function EnhancedDealerDashboard() {
           </div>
         </div>
 
-        {/* Tabs + Content */}
+        {/* Horizontal Tab Nav */}
+        <div className="mb-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 border-b border-gray-200 overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as TabId)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
+                  }`}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setActiveTab('messages')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === 'messages'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
+              }`}
+            >
+              <Mail size={15} />
+              Inquiries
+            </button>
+          </div>
+        </div>
+
         {/* Content */}
         <div className="mb-20">
           {/* Listings Tab */}
@@ -1585,13 +1619,13 @@ export default function EnhancedDealerDashboard() {
                 <div>
                   <h3 className="text-lg font-semibold text-secondary">Listings</h3>
                 </div>
-                <Link
+                <NextLink
                   href="/listings/create"
                   className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
                   <PlusCircle size={15} />
                   Create a Listing
-                </Link>
+                </NextLink>
               </div>
               <div>
                 <table className="w-full table-fixed">
@@ -2309,7 +2343,7 @@ export default function EnhancedDealerDashboard() {
                         </>
                       ) : (
                         <>
-                          <Link size={20} />
+                          <LinkIcon size={20} />
                           Connect {selectedCRM.charAt(0).toUpperCase() + selectedCRM.slice(1).replace(/([A-Z])/g, ' $1')}
                         </>
                       )}

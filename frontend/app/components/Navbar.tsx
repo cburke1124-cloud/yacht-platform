@@ -272,21 +272,8 @@ export default function Navbar() {
     { label: 'Contact', href: '/contact' },
   ];
 
-  // Broker portal account dropdown items
-  const brokerAccountItems = [
-    { label: 'Billing', href: '/dashboard?tab=billing' },
-    { label: 'Team', href: '/dashboard?tab=team' },
-    { label: 'CRM & Integrations', href: '/dashboard?tab=crm' },
-    { label: 'API Keys', href: '/dashboard?tab=api-keys' },
-    { label: 'Bulk Tools', href: '/dashboard?tab=bulk' },
-    { label: 'Media Gallery', href: '/dashboard?tab=media' },
-    { label: 'Preferences', href: '/dashboard?tab=account' },
-  ];
-
-  const isDashboard = pathname?.startsWith('/dashboard');
-  const isBrokerUser = isLoggedIn && (user?.user_type === 'dealer' || user?.user_type === 'team_member');
-
   const navLinkStyle = { fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 16, color: '#10214F' };
+  const isDashboard = pathname?.startsWith('/dashboard');
 
   return (
     <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-200">
@@ -325,31 +312,9 @@ export default function Navbar() {
 
           {/* ── Desktop Nav Links ── */}
           <div className="hidden md:flex items-center space-x-8">
-            {isDashboard ? (
-              // Broker portal navigation
-              <>
-                <Link href="/dashboard/listings" className="hover:text-primary transition-colors" style={navLinkStyle}>Listings</Link>
-                <Link href="/dashboard/inquiries" className="hover:text-primary transition-colors" style={navLinkStyle}>Inquiries</Link>
-                <Link href="/dashboard?tab=analytics" className="hover:text-primary transition-colors" style={navLinkStyle}>Analytics</Link>
-                <NavDropdown label="Account" items={brokerAccountItems} />
-              </>
-            ) : isBrokerUser ? (
-              // Dealer/team member on public pages — show single Enter Dashboard button
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 px-5 py-2 rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
-                style={{ backgroundColor: '#10214F', color: 'white', fontFamily: 'Poppins, sans-serif' }}
-              >
-                Enter Dashboard
-              </Link>
-            ) : (
-              // Public navigation
-              <>
-                <Link href="/listings" className="hover:text-primary transition-colors" style={navLinkStyle}>Search Listings</Link>
-                <NavDropdown label="Sell / List" items={sellItems} />
-                <NavDropdown label="Resources" items={resourceItems} />
-              </>
-            )}
+            <Link href="/listings" className="hover:text-primary transition-colors" style={navLinkStyle}>Search Listings</Link>
+            <NavDropdown label="Sell / List" items={sellItems} />
+            <NavDropdown label="Resources" items={resourceItems} />
           </div>
 
           {/* ── Right Side ── */}
@@ -358,8 +323,8 @@ export default function Navbar() {
               <div className="w-32 h-10 bg-gray-100 animate-pulse rounded" />
             ) : isLoggedIn && user ? (
               <>
-                {/* Create Listing — only show on public pages, not in dashboard (listings page has its own button) */}
-                {!isDashboard && canCreateListings() && (user.user_type === 'dealer' || user.user_type === 'team_member') && (
+                {/* Create Listing — show for dealers/team members on all pages */}
+                {canCreateListings() && (user.user_type === 'dealer' || user.user_type === 'team_member') && (
                   <Link
                     href="/listings/create"
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -571,17 +536,10 @@ export default function Navbar() {
           <div className="px-4 py-4 space-y-1">
 
             {isDashboard ? (
-              // Broker portal mobile nav
+              // Broker portal mobile nav — keep public links plus portal shortcuts
               <>
-                <Link href="/dashboard/listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Listings</Link>
-                <Link href="/dashboard/inquiries" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Inquiries</Link>
-                <Link href="/dashboard?tab=analytics" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Analytics</Link>
-                <div>
-                  <p className="text-xs font-semibold text-dark/50 uppercase tracking-wide px-2 py-2">Account</p>
-                  {brokerAccountItems.map((item) => (
-                    <Link key={item.href} href={item.href} className="block py-2 px-4 text-sm text-dark/70 hover:text-primary" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>{item.label}</Link>
-                  ))}
-                </div>
+                <Link href="/listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
+                <Link href="/dashboard" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>My Dashboard</Link>
               </>
             ) : (
               // Public mobile nav
