@@ -19,6 +19,7 @@ import {
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import MessagingCenter from '@/app/messages/page';
 import SalesmanProfileForm from '@/app/dashboard/components/SalesmanProfileForm';
+import BrokerOnboarding from '@/app/dashboard/components/BrokerOnboarding';
 
 type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages';
 
@@ -253,6 +254,7 @@ export default function EnhancedDealerDashboard() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
   const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Broker profile inline state
   const [brokerProfile, setBrokerProfile] = useState({
@@ -264,7 +266,7 @@ export default function EnhancedDealerDashboard() {
   });
   const [brokerProfileSaving, setBrokerProfileSaving] = useState(false);
   const [brokerProfileSaved, setBrokerProfileSaved] = useState(false);
-  const [showPersonalProfile, setShowPersonalProfile] = useState(true);
+  const [showPersonalProfile, setShowPersonalProfile] = useState(false);
   const brokerProfileDirtyRef = useRef(false);
 
   // Media manager inline state
@@ -408,7 +410,18 @@ export default function EnhancedDealerDashboard() {
     if (token) {
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setCurrentUser(data); })
+        .then(data => {
+          if (data) {
+            setCurrentUser(data);
+            // Show onboarding for new brokers who haven't completed it
+            if (
+              (data.user_type === 'dealer' || data.user_type === 'admin') &&
+              !localStorage.getItem(`onboarding_done_${data.id}`)
+            ) {
+              setShowOnboarding(true);
+            }
+          }
+        })
         .catch(() => {});
       // Fetch logo_url for the sidebar brand area
       fetch(apiUrl('/users/me'), { headers: { Authorization: `Bearer ${token}` } })
@@ -1477,6 +1490,13 @@ export default function EnhancedDealerDashboard() {
 
   return (
     <div className="min-h-screen bg-soft">
+      {/* Broker Onboarding */}
+      {showOnboarding && currentUser && (
+        <BrokerOnboarding
+          userId={currentUser.id}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Payment lapsed banner */}

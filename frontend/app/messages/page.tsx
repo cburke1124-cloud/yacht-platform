@@ -58,6 +58,7 @@ interface Inquiry {
   sender_phone: string | null;
   message: string;
   lead_stage: string;
+  status: string;
   listing_title: string | null;
   created_at: string;
   message_id?: number | null;
@@ -178,12 +179,16 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
     setSelectedDetail(null);
     setInquiryReplyText('');
     setSendError('');
+    // Optimistically mark as read in the list immediately
+    if (inq.status === 'new') {
+      setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: 'read' } : i));
+    }
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/inquiries/${inq.id}`), { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
+        setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [], status: 'read' } : prev);
       }
     } catch (e) {
       console.error('Failed to load inquiry detail:', e);
@@ -520,7 +525,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                       >
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-teal-500" />
+                            <span className={`flex-shrink-0 w-2 h-2 rounded-full ${item.inq.status === 'new' ? 'bg-blue-500' : 'bg-gray-300'}`} />
                             <span className="text-sm font-semibold text-gray-900 truncate">{item.inq.sender_name}</span>
                           </div>
                           <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(item.inq.created_at)}</span>

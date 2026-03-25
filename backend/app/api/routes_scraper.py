@@ -208,6 +208,46 @@ def _require_admin(current_user: User):
 
 
 # -----------------------------------------------------------------------
+# BROKER: self-service import request (single or bulk URL)
+# Brokers submit a URL during onboarding; creates a ScraperJob for admin
+# processing. The listing will appear under "Needs Approval" once processed.
+# -----------------------------------------------------------------------
+
+class BrokerImportRequest(BaseModel):
+    url: str
+    import_type: str = "single"  # "single" | "bulk"
+
+
+@router.post("/broker/import-request")
+def broker_import_request(
+    data: BrokerImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Allow a broker to submit a URL for listing import (queued for admin processing)."""
+    if current_user.user_type not in ("dealer", "admin"):
+        raise AuthorizationException("Broker account required")
+    if not data.url or not data.url.strip():
+        raise ValidationException("URL is required")
+
+    job = ScraperJob(
+        dealer_id=current_user.id,
+        salesman_id=None,
+        created_by_id=current_user.id,
+        site_name=f"Broker import: {data.url[:80]}",
+        broker_url=data.url.strip(),
+        schedule_hours=0,
+        notes=f"Self-submitted via onboarding ({data.import_type})",
+        enabled=False,
+        status="idle",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return {"success": True, "job_id": job.id, "message": "Import request submitted. We'll process your listing(s) shortly."}
+
+
+# -----------------------------------------------------------------------
 # ORIGINAL: parse raw text → structured listing fields
 # -----------------------------------------------------------------------
 
