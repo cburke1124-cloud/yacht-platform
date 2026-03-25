@@ -64,7 +64,18 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
-      <div className="relative w-full max-w-3xl mx-auto min-h-full flex flex-col py-10 px-4">
+      {/* Background watermark */}
+      <div
+        className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center"
+        aria-hidden="true"
+      >
+        <img
+          src="/logo/logo-icon.png"
+          alt=""
+          className="w-[480px] max-w-[70vw] opacity-[0.04] select-none"
+        />
+      </div>
+      <div className="relative z-10 w-full max-w-3xl mx-auto min-h-full flex flex-col py-10 px-4">
 
         {/* Progress bar */}
         {step !== 'welcome' && (
