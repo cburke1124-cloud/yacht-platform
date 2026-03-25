@@ -1574,6 +1574,27 @@ export default function EnhancedDealerDashboard() {
         <div className="mb-20 flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-64 xl:w-72 shrink-0">
             <div className="glass-card p-3 lg:sticky lg:top-6">
+              {/* Brand logo area */}
+              <div className="mb-3 px-2 pt-2 pb-3 border-b border-gray-100">
+                {dealerLogoUrl ? (
+                  <img
+                    src={mediaUrl(dealerLogoUrl)}
+                    alt="Company logo"
+                    className="max-h-14 max-w-full object-contain"
+                    onError={onImgError}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-full flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+                  >
+                    <Upload size={20} className="text-gray-400 group-hover:text-primary transition-colors" />
+                    <span className="text-xs text-gray-400 group-hover:text-primary text-center leading-tight transition-colors">
+                      Add your logo
+                    </span>
+                  </button>
+                )}
+              </div>
               <div className="space-y-2">
                 {tabs.slice(0, 1).map((tab) => {
                   const Icon = tab.icon;

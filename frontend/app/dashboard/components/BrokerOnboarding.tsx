@@ -87,15 +87,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
         {/* ── WELCOME ─────────────────────────────────────────────────── */}
         {step === 'welcome' && (
-          <div className="p-10 flex flex-col md:flex-row gap-10 items-center">
-            {/* Logo block */}
-            <div className="flex-shrink-0 flex flex-col items-center justify-center w-56 h-56 rounded-2xl bg-soft border-2 border-primary/10">
-              <div className="w-24 h-24 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                <Building2 size={48} className="text-primary" />
-              </div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-widest">YachtVersal</p>
-            </div>
-
+          <div className="p-10 flex flex-col gap-8">
             {/* Text block */}
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-secondary mb-1">
