@@ -323,15 +323,15 @@ export default function Navbar() {
               <div className="w-32 h-10 bg-gray-100 animate-pulse rounded" />
             ) : isLoggedIn && user ? (
               <>
-                {/* Create Listing — show for dealers/team members on all pages */}
-                {canCreateListings() && (user.user_type === 'dealer' || user.user_type === 'team_member') && (
+                {/* Dashboard button — show for dealers/team members */}
+                {(user.user_type === 'dealer' || user.user_type === 'team_member') && (
                   <Link
-                    href="/listings/create"
+                    href="/dashboard"
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
+                    style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                   >
-                    <PlusCircle size={15} />
-                    New Listing
+                    <LayoutDashboard size={15} />
+                    Dashboard
                   </Link>
                 )}
 

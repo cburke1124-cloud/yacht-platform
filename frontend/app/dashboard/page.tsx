@@ -1586,7 +1586,6 @@ export default function EnhancedDealerDashboard() {
                   { id: 'listings',  label: 'Listings',    icon: BarChart3  },
                   { id: 'messages',  label: 'Messages',    icon: Mail       },
                   { id: 'analytics', label: 'Analytics',   icon: BarChart3  },
-                  ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -1606,11 +1605,24 @@ export default function EnhancedDealerDashboard() {
               {/* Divider */}
               <div className="my-3 border-t border-gray-100" />
 
+              {/* Help */}
+              <button
+                onClick={() => setActiveTab('help')}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                  activeTab === 'help'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                }`}
+              >
+                <HelpCircle size={16} />
+                Help
+              </button>
+
               {/* Account / Settings */}
               <button
                 onClick={() => setActiveTab('account')}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                  ['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab)
+                  ['account','billing','team','crm','bulk','media','api-keys'].includes(activeTab)
                     ? 'bg-primary/10 text-primary'
                     : 'text-gray-600 hover:bg-soft hover:text-secondary'
                 }`}
@@ -1624,7 +1636,7 @@ export default function EnhancedDealerDashboard() {
           {/* Main content */}
           <div className="flex-1 min-w-0">
             {/* Account sub-nav — shown only inside Account section */}
-            {['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab) && (
+            {['account','billing','team','crm','bulk','media','api-keys'].includes(activeTab) && (
               <div className="mb-4 flex flex-wrap gap-2">
                 {[
                   { id: 'account',  label: 'Preferences', icon: Settings   },
@@ -1634,7 +1646,7 @@ export default function EnhancedDealerDashboard() {
                   ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
                   ...(isDealer ? [{ id: 'crm',      label: 'CRM',         icon: Link2      }] : []),
                   ...(isDealer ? [{ id: 'api-keys', label: 'API Keys',    icon: Key        }] : []),
-                  { id: 'help',     label: 'Help',         icon: HelpCircle },
+                  ...(isDealer ? [{ id: 'profile',  label: 'Broker Page', icon: Building2  }] : []),
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
