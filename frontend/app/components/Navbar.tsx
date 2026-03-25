@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 import {
   Menu, X, Ship, User, PlusCircle, Bell, Mail,
-  Heart, Search, Settings, ChevronDown, DollarSign, BarChart3
+  Heart, Search, Settings, ChevronDown, DollarSign, BarChart3, LayoutDashboard
 } from 'lucide-react';
 
 type UserType = 'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user';
