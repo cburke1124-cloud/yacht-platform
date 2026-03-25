@@ -413,7 +413,11 @@ export default function EnhancedDealerDashboard() {
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data) {
+          // Read tab from URL on page load (driven by navbar links like /dashboard?tab=billing)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTab = urlParams.get('tab');
+        if (urlTab) setActiveTab(urlTab as TabId);
+        if (data) {
             setCurrentUser(data);
             // Show onboarding for new brokers who haven't completed it
             if (
@@ -1572,96 +1576,22 @@ export default function EnhancedDealerDashboard() {
         </div>
 
         {/* Tabs + Content */}
-        <div className="mb-20 flex flex-col lg:flex-row gap-6">
-          <aside className="lg:w-64 xl:w-72 shrink-0">
-            <div className="glass-card p-3 lg:sticky lg:top-6">
-              {/* Brand logo area */}
-              <div className="mb-3 px-2 pt-2 pb-3 border-b border-gray-100">
-                {dealerLogoUrl ? (
-                  <img
-                    src={mediaUrl(dealerLogoUrl)}
-                    alt="Company logo"
-                    className="max-h-14 max-w-full object-contain"
-                    onError={onImgError}
-                  />
-                ) : (
-                  <button
-                    onClick={() => setActiveTab('profile')}
-                    className="w-full flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
-                  >
-                    <Upload size={20} className="text-gray-400 group-hover:text-primary transition-colors" />
-                    <span className="text-xs text-gray-400 group-hover:text-primary text-center leading-tight transition-colors">
-                      Add your logo
-                    </span>
-                  </button>
-                )}
-              </div>
-              <div className="space-y-2">
-                {tabs.slice(0, 1).map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as TabId)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left ${
-                        activeTab === tab.id
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-600 hover:bg-soft hover:text-secondary'
-                      }`}
-                    >
-                      <Icon size={18} />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => setActiveTab('messages')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left ${
-                    activeTab === 'messages'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-600 hover:bg-soft hover:text-secondary'
-                  }`}
-                >
-                  <Mail size={18} />
-                  <span>Inquiries</span>
-                </button>
-                {tabs.slice(1).map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as TabId)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors text-left ${
-                        activeTab === tab.id
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-gray-600 hover:bg-soft hover:text-secondary'
-                      }`}
-                    >
-                      <Icon size={18} />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-            </div>
-          </aside>
-
-          <div className="flex-1 min-w-0">
+        {/* Content */}
+        <div className="mb-20">
           {/* Listings Tab */}
           {activeTab === 'listings' && (
             <div className="glass-card overflow-hidden">
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-secondary">Listings</h3>
-                  <p className="text-sm text-gray-600">Use Quick Edit Mode to update title, price, and status safely.</p>
                 </div>
-                <button
-                  onClick={() => setQuickEditMode((prev) => !prev)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium ${quickEditMode ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-primary text-white hover:bg-primary/90'}`}
+                <Link
+                  href="/listings/create"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
-                  {quickEditMode ? 'Exit Quick Edit Mode' : 'Enter Quick Edit Mode'}
-                </button>
+                  <PlusCircle size={15} />
+                  Create a Listing
+                </Link>
               </div>
               <div>
                 <table className="w-full table-fixed">
@@ -1822,6 +1752,15 @@ export default function EnhancedDealerDashboard() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              {/* Quick Edit toggle — subtle, bottom of listings */}
+              <div className="flex justify-center py-3">
+                <button
+                  onClick={() => setQuickEditMode((prev) => !prev)}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+                >
+                  {quickEditMode ? 'Exit Quick Edit Mode' : 'Enable Quick Edit Mode'}
+                </button>
               </div>
             </div>
           )}
@@ -3748,7 +3687,6 @@ export default function EnhancedDealerDashboard() {
               onNavigate={(tab) => setActiveTab(tab as TabId)}
             />
           )}
-          </div>
         </div>
       </div>
 

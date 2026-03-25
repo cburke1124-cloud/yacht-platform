@@ -355,17 +355,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setQuickEditMode((prev) => !prev)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${quickEditMode ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-          >
-            {quickEditMode ? 'Exit Quick Edit Mode' : 'Enter Quick Edit Mode'}
-          </button>
           <Link
-            href="/dealer/listings/create"
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+            href="/listings/create"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity"
           >
-            + New Listing
+            + Create a Listing
           </Link>
         </div>
       </div>
@@ -682,6 +676,16 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         listing={previewListing}
         onClose={() => setPreviewListing(null)}
       />
+
+      {/* Quick Edit toggle — subtle, bottom of page */}
+      <div className="flex justify-center pt-2">
+        <button
+          onClick={() => setQuickEditMode((prev) => !prev)}
+          className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+        >
+          {quickEditMode ? 'Exit Quick Edit Mode' : 'Enable Quick Edit Mode'}
+        </button>
+      </div>
     </div>
   );
 }

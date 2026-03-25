@@ -123,17 +123,6 @@ function SellerLoginContent() {
       return;
     }
 
-    // First-login welcome page (once per device per user)
-    const welcomeKey = `welcomed_${userData.id}`;
-    if (
-      !localStorage.getItem(welcomeKey) &&
-      ['dealer', 'private', 'salesman'].includes(userData.user_type)
-    ) {
-      localStorage.setItem(welcomeKey, '1');
-      router.push('/dashboard/welcome');
-      return;
-    }
-
     router.push(redirectTo);
   };
 

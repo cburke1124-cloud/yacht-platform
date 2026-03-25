@@ -1,35 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Building2, Anchor, ArrowRight, User } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function WelcomePage() {
   const router = useRouter();
-  const [userType, setUserType] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { router.replace('/login'); return; }
-    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(u => {
-        if (!u) { router.replace('/login'); return; }
-        if (u.user_type === 'user') { router.replace('/account'); return; }
-        if (u.user_type === 'admin') { router.replace('/admin'); return; }
-        setUserType(u.user_type);
-      })
-      .catch(() => {});
-  }, []);
+    // Welcome flow is now handled by the BrokerOnboarding modal in /dashboard
+    router.replace('/dashboard');
+  }, [router]);
 
-  const isSalesman = userType === 'salesman';
-  const dashboardHref = isSalesman ? '/sales-rep/dashboard' : '/dashboard';
-
-  return (
-    <div className="min-h-screen section-light flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+  return null;
+}
       <div className="w-full max-w-3xl">
         {/* Main card */}
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
