@@ -3501,12 +3501,21 @@ export default function EnhancedDealerDashboard() {
                       <p className="text-xs text-gray-500">Appears as a broker on the brokerage's public page</p>
                     </div>
                   </label>
-                  {Object.entries(editingMember.permissions).map(([key, value]) => (
+                  {([
+                    { key: 'can_create_listings',   label: 'Create Listings'   },
+                    { key: 'can_edit_own_listings',  label: 'Edit Own Listings' },
+                    { key: 'can_edit_all_listings',  label: 'Edit All Listings' },
+                    { key: 'can_delete_listings',    label: 'Delete Listings'   },
+                    { key: 'can_view_inquiries',     label: 'View Inquiries'    },
+                    { key: 'can_view_analytics',     label: 'View Analytics'    },
+                    { key: 'can_manage_team',        label: 'Manage Team'       },
+                  ] as { key: keyof TeamMember['permissions']; label: string }[]).map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-3">
-                      <input type="checkbox" checked={value}
+                      <input type="checkbox"
+                        checked={!!editingMember.permissions[key]}
                         onChange={(e) => setEditingMember({...editingMember, permissions: {...editingMember.permissions, [key]: e.target.checked}})}
                         className="rounded text-primary" />
-                      <span className="text-sm text-gray-700">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                      <span className="text-sm text-gray-700">{label}</span>
                     </label>
                   ))}
                   <div className="flex gap-3 pt-4">
