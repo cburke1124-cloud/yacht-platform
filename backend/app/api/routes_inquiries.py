@@ -406,23 +406,31 @@ def get_inquiry(
         raise ResourceNotFoundException("Inquiry", inquiry_id)
     _assert_can_access_inquiry(inq, current_user, db)
 
-    # Mark as read on first view (if still "new")
+    # Mark inquiry as read and clear any unread thread messages for this user
     if inq.status == "new":
         inq.status = "read"
-        # Also mark the linked Message record as read so the badge count decrements
-        linked_msg = (
-            db.query(Message)
-            .filter(
-                Message.ticket_number == f"INQ-{inq.id}",
-                Message.parent_message_id == None,  # noqa: E711
-                Message.status == "new",
-            )
-            .first()
+
+    # Always mark unread messages in this thread as read (covers new replies on already-read inquiries)
+    root = (
+        db.query(Message)
+        .filter(
+            Message.ticket_number == f"INQ-{inq.id}",
+            Message.parent_message_id == None,  # noqa: E711
         )
-        if linked_msg:
-            linked_msg.status = "read"
-            linked_msg.read_at = datetime.utcnow()
-        db.commit()
+        .first()
+    )
+    if root:
+        thread_ids = [root.id] + [
+            r.id for r in db.query(Message.id)
+            .filter(Message.parent_message_id == root.id)
+            .all()
+        ]
+        db.query(Message).filter(
+            Message.id.in_(thread_ids),
+            Message.recipient_id == current_user.id,
+            Message.status == "new",
+        ).update({"status": "read", "read_at": datetime.utcnow()}, synchronize_session=False)
+    db.commit()
 
     return _serialize_inquiry(inq, db, include_notes=True)
 

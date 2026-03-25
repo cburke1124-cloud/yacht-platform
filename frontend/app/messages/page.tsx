@@ -496,7 +496,9 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                       <p className="text-xs text-gray-500 line-clamp-1 ml-4 mt-0.5">{inq.message}</p>
                       <div className="flex items-center gap-2 mt-1.5 ml-4">
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">inquiry</span>
-                        {inq.lead_stage && <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{inq.lead_stage}</span>}
+                        {inq.lead_stage && inq.lead_stage !== 'new' && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{inq.lead_stage}</span>
+                        )}
                       </div>
                     </button>
                   ))
@@ -621,9 +623,11 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/20 text-white">
-                      {selectedInquiry.lead_stage ?? 'new'}
-                    </span>
+                    {selectedInquiry.lead_stage && selectedInquiry.lead_stage !== 'new' && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-white/20 text-white">
+                        {selectedInquiry.lead_stage}
+                      </span>
+                    )}
                     <button onClick={() => setSelectedInquiry(null)} className="text-white/50 hover:text-white ml-1">
                       <X size={18} />
                     </button>
