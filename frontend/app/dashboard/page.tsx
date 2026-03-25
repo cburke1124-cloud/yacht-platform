@@ -420,17 +420,13 @@ export default function EnhancedDealerDashboard() {
         if (urlTab) setActiveTab(urlTab as TabId);
         if (data) {
             setCurrentUser(data);
-            // DISABLED FOR LAUNCH: Auto-triggered onboarding modal
-            // Users now go straight to dashboard. Onboarding available via Help tab if needed.
-            // To re-enable, uncomment the block below after gathering user feedback.
-            /*
+            // Show onboarding for new brokers who haven't completed it
             if (
               (data.user_type === 'dealer' || data.user_type === 'admin' || data.user_type === 'team_member') &&
               !localStorage.getItem(`onboarding_done_${data.id}`)
             ) {
               setShowOnboarding(true);
             }
-            */
           }
         })
         .catch(() => {});
@@ -1580,77 +1576,82 @@ export default function EnhancedDealerDashboard() {
           </div>
         </div>
 
-        {/* Horizontal Tab Nav */}
-        <div className="mb-6 border-b border-gray-200">
-          <div className="flex flex-wrap gap-1">
-            {/* Primary tabs always shown */}
-            {[
-              { id: 'listings',  label: 'Listings',    icon: BarChart3   },
-              { id: 'messages',  label: 'Messages',    icon: Mail        },
-              { id: 'analytics', label: 'Analytics',   icon: BarChart3   },
-              ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
-            ].map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id as TabId)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
-                }`}
-              >
-                <Icon size={15} />
-                {label}
-              </button>
-            ))}
+        {/* Left Sidebar + Content */}
+        <div className="mb-20 flex flex-col lg:flex-row gap-6">
+          <aside className="lg:w-56 xl:w-64 shrink-0">
+            <div className="glass-card p-3 lg:sticky lg:top-6">
+              {/* Primary nav */}
+              <div className="space-y-1">
+                {[
+                  { id: 'listings',  label: 'Listings',    icon: BarChart3  },
+                  { id: 'messages',  label: 'Messages',    icon: Mail       },
+                  { id: 'analytics', label: 'Analytics',   icon: BarChart3  },
+                  ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id as TabId)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                      activeTab === id
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-            {/* Settings tab — secondary */}
-            <button
-              onClick={() => setActiveTab('account')}
-              className={`ml-auto flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                ['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab)
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
-              }`}
-            >
-              <Settings size={15} />
-              Settings
-            </button>
-          </div>
-        </div>
+              {/* Divider */}
+              <div className="my-3 border-t border-gray-100" />
 
-        {/* Settings sub-nav — only shown when in a settings tab */}
-        {['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab) && (
-          <div className="mb-6 flex flex-wrap gap-2">
-            {[
-              { id: 'account',  label: 'Preferences', icon: Settings    },
-              ...(isDealer ? [{ id: 'billing',  label: 'Billing',     icon: CreditCard  }] : []),
-              ...(isDealer || teamMemberCan('manage_team') ? [{ id: 'team', label: 'Team', icon: Users }] : []),
-              { id: 'media',    label: 'Media',        icon: Image       },
-              ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
-              ...(isDealer ? [{ id: 'crm',      label: 'CRM',         icon: Link2       }] : []),
-              ...(isDealer ? [{ id: 'api-keys', label: 'API Keys',    icon: Key         }] : []),
-              { id: 'help',     label: 'Help',         icon: HelpCircle  },
-            ].map(({ id, label, icon: Icon }) => (
+              {/* Account / Settings */}
               <button
-                key={id}
-                onClick={() => setActiveTab(id as TabId)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  activeTab === id
+                onClick={() => setActiveTab('account')}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                  ['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab)
                     ? 'bg-primary/10 text-primary'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-secondary'
+                    : 'text-gray-600 hover:bg-soft hover:text-secondary'
                 }`}
               >
-                <Icon size={13} />
-                {label}
+                <Settings size={16} />
+                Account
               </button>
-            ))}
-          </div>
-        )}
+            </div>
+          </aside>
 
-        {/* Content */}
-        <div className="mb-20">
-          {/* Listings Tab */}
+          {/* Main content */}
+          <div className="flex-1 min-w-0">
+            {/* Account sub-nav — shown only inside Account section */}
+            {['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab) && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {[
+                  { id: 'account',  label: 'Preferences', icon: Settings   },
+                  ...(isDealer ? [{ id: 'billing',  label: 'Billing',     icon: CreditCard }] : []),
+                  ...(isDealer || teamMemberCan('manage_team') ? [{ id: 'team', label: 'Team', icon: Users }] : []),
+                  { id: 'media',    label: 'Media',        icon: Image      },
+                  ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
+                  ...(isDealer ? [{ id: 'crm',      label: 'CRM',         icon: Link2      }] : []),
+                  ...(isDealer ? [{ id: 'api-keys', label: 'API Keys',    icon: Key        }] : []),
+                  { id: 'help',     label: 'Help',         icon: HelpCircle },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id as TabId)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      activeTab === id
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-secondary'
+                    }`}
+                  >
+                    <Icon size={13} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Listings Tab */}
           {activeTab === 'listings' && (
             <div className="glass-card overflow-hidden">
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -3759,6 +3760,7 @@ export default function EnhancedDealerDashboard() {
               onNavigate={(tab) => setActiveTab(tab as TabId)}
             />
           )}
+          </div>
         </div>
       </div>
 
