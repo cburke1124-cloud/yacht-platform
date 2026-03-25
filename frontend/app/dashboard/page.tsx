@@ -1574,27 +1574,6 @@ export default function EnhancedDealerDashboard() {
         <div className="mb-20 flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-64 xl:w-72 shrink-0">
             <div className="glass-card p-3 lg:sticky lg:top-6">
-              {/* Brand logo area */}
-              <div className="mb-3 px-2 pt-2 pb-3 border-b border-gray-100">
-                {dealerLogoUrl ? (
-                  <img
-                    src={mediaUrl(dealerLogoUrl)}
-                    alt="Company logo"
-                    className="max-h-14 max-w-full object-contain"
-                    onError={onImgError}
-                  />
-                ) : (
-                  <button
-                    onClick={() => setActiveTab('profile')}
-                    className="w-full flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
-                  >
-                    <Upload size={20} className="text-gray-400 group-hover:text-primary transition-colors" />
-                    <span className="text-xs text-gray-400 group-hover:text-primary text-center leading-tight transition-colors">
-                      Add your logo
-                    </span>
-                  </button>
-                )}
-              </div>
               <div className="space-y-2">
                 {tabs.slice(0, 1).map((tab) => {
                   const Icon = tab.icon;
@@ -3039,6 +3018,37 @@ export default function EnhancedDealerDashboard() {
                 </div>
               </div>
 
+              {/* Personal Profile Section */}
+              {(isDealer || isTeamMember) && (
+                <div className="glass-card rounded-xl overflow-hidden">
+                  <div className="p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <User size={18} className="text-primary" />
+                      <div>
+                        <p className="font-semibold text-secondary">My Personal Profile</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <button type="button"
+                        onClick={() => setShowPersonalProfile(p => !p)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${showPersonalProfile ? 'bg-primary' : 'bg-gray-300'}`}
+                        aria-pressed={showPersonalProfile}>
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${showPersonalProfile ? 'translate-x-8' : 'translate-x-1'}`} />
+                      </button>
+                      <span className={`text-xs font-semibold ${showPersonalProfile ? 'text-primary' : 'text-gray-400'}`}>
+                        {showPersonalProfile ? 'Enabled' : 'Hidden'}
+                      </span>
+                    </div>
+                  </div>
+                  {showPersonalProfile && (
+                    <div className="p-5 border-t border-gray-100">
+                      <SalesmanProfileForm />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Show Team toggle */}
               <div className="glass-card rounded-xl overflow-hidden">
                 <div className="p-5 border-b border-primary/10 flex items-center gap-3">
@@ -3110,35 +3120,6 @@ export default function EnhancedDealerDashboard() {
                   </div>
                 </div>
               </div>
-
-              {/* Personal Profile Section */}
-              {(isDealer || isTeamMember) && (
-                <div className="glass-card rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => setShowPersonalProfile(p => !p)}
-                    className="w-full flex items-center justify-between p-5 hover:bg-soft transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <User size={18} className="text-primary" />
-                      <div className="text-left">
-                        <p className="font-semibold text-secondary">My Personal Profile</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${showPersonalProfile ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}>
-                        {showPersonalProfile ? 'Editing' : 'Hidden'}
-                      </span>
-                      {showPersonalProfile ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-                    </div>
-                  </button>
-                  {showPersonalProfile && (
-                    <div className="p-5 border-t border-gray-100">
-                      <SalesmanProfileForm />
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Bottom save */}
               <div className="flex justify-end">
@@ -3757,6 +3738,7 @@ export default function EnhancedDealerDashboard() {
             <HelpCenter
               userType={currentUser.user_type as 'dealer' | 'team_member' | 'admin'}
               onOpenOnboarding={() => setShowOnboarding(true)}
+              onNavigate={(tab) => setActiveTab(tab as TabId)}
             />
           )}
           </div>

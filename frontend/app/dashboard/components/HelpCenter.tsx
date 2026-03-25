@@ -12,6 +12,7 @@ import {
 interface HelpCenterProps {
   userType: 'dealer' | 'team_member' | 'admin';
   onOpenOnboarding: () => void;
+  onNavigate?: (tab: string) => void;
 }
 
 type HelpTab = 'getting-started' | 'faq' | 'contact';
@@ -52,7 +53,7 @@ const COMMON_FAQS: FaqItem[] = [
   {
     question: 'How do I contact support?',
     answer:
-      'Use the "Contact Support" tab on this page. Describe your issue and select a priority level. Our team typically responds within one business day.',
+      'Use the "Contact Support" tab on this page. Describe your issue and our team will respond within one business day.',
   },
 ];
 
@@ -155,30 +156,35 @@ const BROKER_STEPS = [
     title: 'Set up your broker profile',
     description: 'Add your brokerage name, logo, and contact details so buyers know they can trust you.',
     action: 'Go to Broker Page tab',
+    tabId: 'profile',
   },
   {
     icon: FileText,
     title: 'Add your first listing',
     description: 'Create a listing with photos, pricing, specs, and a detailed description.',
-    action: 'Go to My Listings → "+" button',
+    action: 'Go to My Listings',
+    tabId: 'listings',
   },
   {
     icon: Upload,
     title: 'Upload photos and media',
     description: 'High-quality photos dramatically increase inquiry rates. Use the Media Gallery to organize your files.',
-    action: 'Go to Media Gallery tab',
+    action: 'Go to Media Gallery',
+    tabId: 'media',
   },
   {
     icon: Users,
     title: 'Invite your team',
     description: 'Add salespeople and assign them permissions to manage specific parts of your dashboard.',
-    action: 'Go to Team tab',
+    action: 'Go to Team',
+    tabId: 'team',
   },
   {
     icon: Settings,
     title: 'Configure preferences',
     description: 'Set up your notification preferences so you never miss an inquiry or message.',
-    action: 'Go to Account → Preferences',
+    action: 'Go to Account',
+    tabId: 'account',
   },
 ];
 
@@ -187,40 +193,45 @@ const TEAM_STEPS = [
     icon: BarChart3,
     title: 'Review your assigned listings',
     description: 'Familiarize yourself with your brokerage\'s current inventory in the My Listings tab.',
-    action: 'Go to My Listings tab',
+    action: 'Go to My Listings',
+    tabId: 'listings',
   },
   {
     icon: Mail,
     title: 'Handle incoming inquiries',
     description: 'Monitor the Inquiries tab for new buyer messages and reply promptly to stay engaged.',
-    action: 'Go to Inquiries in sidebar',
+    action: 'Go to Inquiries',
+    tabId: 'messages',
   },
   {
     icon: Upload,
     title: 'Upload and organize media',
     description: 'Keep listing photos current using the Media Gallery. Organize files into folders for easy access.',
-    action: 'Go to Media Gallery tab',
+    action: 'Go to Media Gallery',
+    tabId: 'media',
   },
   {
     icon: Building2,
     title: 'Set up your personal profile',
     description: 'Add your own photo, bio, and social links to be featured on listing pages.',
-    action: 'Go to Broker Page → Personal Profile',
+    action: 'Go to Broker Page',
+    tabId: 'profile',
   },
   {
     icon: Settings,
     title: 'Set your notification preferences',
     description: 'Configure how and when you are notified about new messages and listing activity.',
-    action: 'Go to Account tab',
+    action: 'Go to Account',
+    tabId: 'account',
   },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function HelpCenter({ userType, onOpenOnboarding }: HelpCenterProps) {
+export default function HelpCenter({ userType, onOpenOnboarding, onNavigate }: HelpCenterProps) {
   const [activeHelpTab, setActiveHelpTab] = useState<HelpTab>('getting-started');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-  const [form, setForm] = useState({ subject: '', category: 'general', priority: 'normal', body: '' });
+  const [form, setForm] = useState({ subject: '', category: 'general', body: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -241,11 +252,11 @@ export default function HelpCenter({ userType, onOpenOnboarding }: HelpCenterPro
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, priority: 'high' }),
       });
       if (!res.ok) throw new Error('Failed to submit');
       setSubmitted(true);
-      setForm({ subject: '', category: 'general', priority: 'normal', body: '' });
+      setForm({ subject: '', category: 'general', body: '' });
     } catch {
       setSubmitError('Unable to submit your ticket. Please try again or email support directly.');
     } finally {
@@ -325,8 +336,18 @@ export default function HelpCenter({ userType, onOpenOnboarding }: HelpCenterPro
             <div className="space-y-4">
               {steps.map((step, i) => {
                 const Icon = step.icon;
+                const clickable = !!(onNavigate && step.tabId);
                 return (
-                  <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-soft hover:bg-primary/5 transition-colors">
+                  <div
+                    key={i}
+                    role={clickable ? 'button' : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    onClick={clickable ? () => onNavigate!(step.tabId!) : undefined}
+                    onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onNavigate!(step.tabId!); } : undefined}
+                    className={`flex items-start gap-4 p-4 rounded-xl bg-soft transition-colors ${
+                      clickable ? 'hover:bg-primary/10 cursor-pointer' : ''
+                    }`}
+                  >
                     <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Icon className="text-primary" size={18} />
                     </div>
@@ -438,7 +459,7 @@ export default function HelpCenter({ userType, onOpenOnboarding }: HelpCenterPro
         <div className="glass-card p-6">
           <h3 className="text-base font-semibold text-secondary mb-1">Contact Support</h3>
           <p className="text-sm text-gray-500 mb-6">
-            Submit a support ticket and our team will respond within one business day. For urgent issues, set the priority to High or Urgent.
+            Submit a support ticket and our team will respond within one business day.
           </p>
 
           {submitted ? (
@@ -472,35 +493,20 @@ export default function HelpCenter({ userType, onOpenOnboarding }: HelpCenterPro
                 />
               </div>
 
-              {/* Category + Priority */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-1.5">Category</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-secondary bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                  >
-                    <option value="general">General</option>
-                    <option value="technical">Technical Issue</option>
-                    <option value="billing">Billing</option>
-                    <option value="listings">Listings</option>
-                    <option value="account">Account</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-1.5">Priority</label>
-                  <select
-                    value={form.priority}
-                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-secondary bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
-                  >
-                    <option value="low">Low</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1.5">Category</label>
+                <select
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-secondary bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition"
+                >
+                  <option value="general">General</option>
+                  <option value="technical">Technical Issue</option>
+                  <option value="billing">Billing</option>
+                  <option value="listings">Listings</option>
+                  <option value="account">Account</option>
+                </select>
               </div>
 
               {/* Message */}
