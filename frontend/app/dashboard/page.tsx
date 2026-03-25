@@ -20,8 +20,9 @@ import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import MessagingCenter from '@/app/messages/page';
 import SalesmanProfileForm from '@/app/dashboard/components/SalesmanProfileForm';
 import BrokerOnboarding from '@/app/dashboard/components/BrokerOnboarding';
+import HelpCenter from '@/app/dashboard/components/HelpCenter';
 
-type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages';
+type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages' | 'help';
 
 interface MediaFileItem {
   id: number;
@@ -1480,6 +1481,7 @@ export default function EnhancedDealerDashboard() {
     { id: 'account', label: 'Account', icon: Settings },
     ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
     ...(isDealer ? [{ id: 'api-keys', label: 'API Keys', icon: Key }] : []),
+    { id: 'help', label: 'Help Center', icon: HelpCircle },
   ] as { id: TabId; label: string; icon: any }[];
 
   const paidTiers = new Set(['basic','plus','pro','premium','private_basic','private_plus','private_pro']);
@@ -1641,17 +1643,6 @@ export default function EnhancedDealerDashboard() {
                 })}
               </div>
 
-              {/* Buried restart-onboarding button (for testing / re-run) */}
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <button
-                  onClick={() => setShowOnboarding(true)}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-soft transition-colors"
-                  title="Restart onboarding tutorial"
-                >
-                  <HelpCircle size={14} />
-                  <span>Getting Started Guide</span>
-                </button>
-              </div>
             </div>
           </aside>
 
@@ -3759,6 +3750,14 @@ export default function EnhancedDealerDashboard() {
           {/* Messages / Inquiries Tab */}
           {activeTab === 'messages' && (
             <MessagingCenter embedded />
+          )}
+
+          {/* Help Center Tab */}
+          {activeTab === 'help' && currentUser && (
+            <HelpCenter
+              userType={currentUser.user_type as 'dealer' | 'team_member' | 'admin'}
+              onOpenOnboarding={() => setShowOnboarding(true)}
+            />
           )}
           </div>
         </div>

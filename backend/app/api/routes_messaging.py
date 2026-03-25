@@ -1,5 +1,6 @@
 import os
 from fastapi import APIRouter, Depends, Query, UploadFile, File
+from pydantic import BaseModel, constr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
@@ -646,3 +647,66 @@ def delete_notification(
     db.delete(notification)
     db.commit()
     return {"success": True}
+
+
+# ─── Support Tickets (from Help Center) ──────────────────────────────────────
+
+_VALID_CATEGORIES = {"general", "technical", "billing", "listings", "account"}
+_VALID_PRIORITIES = {"low", "normal", "high", "urgent"}
+
+
+class SupportTicketIn(BaseModel):
+    subject: str
+    category: str = "general"
+    priority: str = "normal"
+    body: str
+
+
+@router.post("/messages/support-ticket")
+def create_support_ticket(
+    data: SupportTicketIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Submit a support ticket from the Help Center. Creates a support_ticket message
+    addressed to the first admin account and sends an in-app notification."""
+    subject = data.subject.strip()[:200]
+    body = data.body.strip()[:4000]
+    if not subject or not body:
+        raise ValidationException("Subject and message body are required.")
+
+    category = data.category if data.category in _VALID_CATEGORIES else "general"
+    priority = data.priority if data.priority in _VALID_PRIORITIES else "normal"
+
+    admin = db.query(User).filter(User.user_type == "admin").first()
+
+    ticket = Message(
+        sender_id=current_user.id,
+        recipient_id=admin.id if admin else None,
+        message_type="support_ticket",
+        subject=subject,
+        body=body,
+        priority=priority,
+        category=category,
+        status="new",
+        visible_to_dealer=True,
+    )
+    db.add(ticket)
+    db.flush()  # get ticket.id before committing
+    ticket.ticket_number = f"SUP-{ticket.id}"
+
+    if admin:
+        db.add(
+            Notification(
+                user_id=admin.id,
+                notification_type="support",
+                title=f"New support ticket from {current_user.email}",
+                body=subject,
+                link="/admin",
+                read=False,
+            )
+        )
+
+    db.commit()
+    db.refresh(ticket)
+    return {"id": ticket.id, "ticket_number": ticket.ticket_number, "status": "created"}
