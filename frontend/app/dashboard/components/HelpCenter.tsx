@@ -246,7 +246,7 @@ export default function HelpCenter({ userType, onOpenOnboarding, onNavigate }: H
     setSubmitError('');
     try {
       const token = localStorage.getItem('access_token');
-      const res = await fetch(`${apiUrl}/messages/support-ticket`, {
+      const res = await fetch(apiUrl('/messages/support-ticket'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
