@@ -165,7 +165,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
             >
               <div className="flex items-center gap-2">
                 <Award size={18} className="text-blue-600" />
-                <span className="font-medium text-gray-900">View Dealer Profile</span>
+                <span className="font-medium text-gray-900">View Broker Profile</span>
               </div>
               <ExternalLink size={16} className="text-gray-400 group-hover:text-blue-600" />
             </a>

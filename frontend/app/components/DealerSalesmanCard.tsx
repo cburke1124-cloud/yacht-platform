@@ -158,7 +158,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
 
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Dealership Contact
+            Brokerage Contact
           </p>
           <div className="space-y-2">
             <a
@@ -201,7 +201,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-soft text-dark rounded-lg hover:bg-primary/10 transition-colors font-medium"
             >
               <Building2 size={18} />
-              View Dealer Profile
+              View Broker Profile
             </a>
           )}
         </div>

@@ -2510,7 +2510,7 @@ export default function EnhancedDealerDashboard() {
                   {/* Header */}
                   <div className="text-center mb-8">
                     <h2 className="text-3xl font-bold text-secondary mb-3">Choose Your Plan</h2>
-                    <p className="text-gray-600">Select the perfect plan for your yacht dealership</p>
+                    <p className="text-gray-600">Select the perfect plan for your yacht brokerage</p>
                   </div>
 
                   {/* Active subscription banner */}
@@ -2816,7 +2816,7 @@ export default function EnhancedDealerDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-secondary">Broker Page</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">Customize how your dealership appears to buyers</p>
+                  <p className="text-sm text-gray-500 mt-0.5">Customize how your brokerage appears to buyers</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -2909,7 +2909,7 @@ export default function EnhancedDealerDashboard() {
                     onChange={(e) => setBrokerProfile(p => ({...p, description: e.target.value}))}
                     rows={4}
                     className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                    placeholder="Tell buyers about your dealership, experience, and what makes you unique…" />
+                    placeholder="Tell buyers about your brokerage, your experience, and what makes you unique…" />
                 </div>
               </div>
 
@@ -2924,7 +2924,7 @@ export default function EnhancedDealerDashboard() {
                     <input type="email" value={brokerProfile.email}
                       onChange={(e) => setBrokerProfile(p => ({...p, email: e.target.value}))}
                       className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                      placeholder="contact@yourdealership.com" />
+                      placeholder="contact@yourbrokerage.com" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-1">
@@ -2942,7 +2942,7 @@ export default function EnhancedDealerDashboard() {
                     <input type="url" value={brokerProfile.website}
                       onChange={(e) => setBrokerProfile(p => ({...p, website: e.target.value}))}
                       className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                      placeholder="https://www.yourdealership.com" />
+                      placeholder="https://www.yourbrokerage.com" />
                   </div>
                 </div>
               </div>
@@ -2998,10 +2998,10 @@ export default function EnhancedDealerDashboard() {
                 <h3 className="text-base font-semibold text-secondary mb-5">Social Media</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {([
-                    { field: 'facebook_url' as const, Icon: Facebook, color: 'text-blue-600', label: 'Facebook', placeholder: 'https://facebook.com/yourdealership' },
-                    { field: 'instagram_url' as const, Icon: Instagram, color: 'text-pink-500', label: 'Instagram', placeholder: 'https://instagram.com/yourdealership' },
-                    { field: 'twitter_url' as const, Icon: Twitter, color: 'text-sky-400', label: 'Twitter / X', placeholder: 'https://twitter.com/yourdealership' },
-                    { field: 'linkedin_url' as const, Icon: Linkedin, color: 'text-blue-700', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourdealership' },
+                    { field: 'facebook_url' as const, Icon: Facebook, color: 'text-blue-600', label: 'Facebook', placeholder: 'https://facebook.com/yourbrokerage' },
+                    { field: 'instagram_url' as const, Icon: Instagram, color: 'text-pink-500', label: 'Instagram', placeholder: 'https://instagram.com/yourbrokerage' },
+                    { field: 'twitter_url' as const, Icon: Twitter, color: 'text-sky-400', label: 'Twitter / X', placeholder: 'https://twitter.com/yourbrokerage' },
+                    { field: 'linkedin_url' as const, Icon: Linkedin, color: 'text-blue-700', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourbrokerage' },
                   ]).map(({ field, Icon, color, label, placeholder }) => (
                     <div key={field}>
                       <label className="block text-sm font-medium text-secondary mb-1">
@@ -3087,6 +3087,35 @@ export default function EnhancedDealerDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Personal Profile Section */}
+              {(isDealer || isTeamMember) && (
+                <div className="glass-card rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setShowPersonalProfile(p => !p)}
+                    className="w-full flex items-center justify-between p-5 hover:bg-soft transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <User size={18} className="text-primary" />
+                      <div className="text-left">
+                        <p className="font-semibold text-secondary">My Personal Profile</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${showPersonalProfile ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}>
+                        {showPersonalProfile ? 'Editing' : 'Hidden'}
+                      </span>
+                      {showPersonalProfile ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+                    </div>
+                  </button>
+                  {showPersonalProfile && (
+                    <div className="p-5 border-t border-gray-100">
+                      <SalesmanProfileForm />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Bottom save */}
               <div className="flex justify-end">
@@ -3562,34 +3591,6 @@ export default function EnhancedDealerDashboard() {
                 )}
               </div>
 
-              {/* Personal Profile Section */}
-              {(isDealer || isTeamMember) && (
-                <div className="glass-card rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => setShowPersonalProfile(p => !p)}
-                    className="w-full flex items-center justify-between p-5 hover:bg-soft transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <User size={18} className="text-primary" />
-                      <div className="text-left">
-                        <p className="font-semibold text-secondary">My Personal Profile</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${showPersonalProfile ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-500'}`}>
-                        {showPersonalProfile ? 'Editing' : 'Hidden'}
-                      </span>
-                      {showPersonalProfile ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-                    </div>
-                  </button>
-                  {showPersonalProfile && (
-                    <div className="p-5 border-t border-gray-100">
-                      <SalesmanProfileForm />
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 

@@ -409,6 +409,19 @@ def get_inquiry(
     # Mark as read on first view (if still "new")
     if inq.status == "new":
         inq.status = "read"
+        # Also mark the linked Message record as read so the badge count decrements
+        linked_msg = (
+            db.query(Message)
+            .filter(
+                Message.ticket_number == f"INQ-{inq.id}",
+                Message.parent_message_id == None,  # noqa: E711
+                Message.status == "new",
+            )
+            .first()
+        )
+        if linked_msg:
+            linked_msg.status = "read"
+            linked_msg.read_at = datetime.utcnow()
         db.commit()
 
     return _serialize_inquiry(inq, db, include_notes=True)
