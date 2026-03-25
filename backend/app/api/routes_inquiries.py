@@ -83,7 +83,7 @@ def _serialize_inquiry(inq: Inquiry, db: Session, include_notes: bool = False) -
         "sender_phone": inq.sender_phone,
         "message": inq.message,
         "status": inq.status,
-        "lead_stage": inq.lead_stage or "new",
+        "lead_stage": inq.lead_stage or None,
         "lead_score": inq.lead_score or 0,
         "notes": inq.notes,
         "paperwork_status": inq.paperwork_status,

@@ -486,14 +486,18 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-semibold text-gray-900 truncate">{inq.sender_name}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`flex-shrink-0 w-2 h-2 rounded-full ${inq.status === 'new' ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                          <span className="text-sm font-semibold text-gray-900 truncate">{inq.sender_name}</span>
+                        </div>
                         <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(inq.created_at)}</span>
                       </div>
-                      <p className="text-xs text-gray-500 truncate">{inq.listing_title ?? 'General Inquiry'}</p>
-                      <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{inq.message}</p>
-                      <span className="mt-1.5 inline-block px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">
-                        {inq.lead_stage ?? 'new'}
-                      </span>
+                      <p className="text-sm text-gray-700 font-medium truncate ml-4">{inq.listing_title ?? 'General Inquiry'}</p>
+                      <p className="text-xs text-gray-500 line-clamp-1 ml-4 mt-0.5">{inq.message}</p>
+                      <div className="flex items-center gap-2 mt-1.5 ml-4">
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-700">inquiry</span>
+                        {inq.lead_stage && <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{inq.lead_stage}</span>}
+                      </div>
                     </button>
                   ))
                 )
