@@ -66,7 +66,7 @@ const BROKER_FAQS: FaqItem[] = [
   {
     question: 'How do I feature a listing?',
     answer:
-      'In the My Listings tab, click the star icon on any listing to feature it. You can also manage placements and durations from the Featured tab. Featured listings appear at the top of search results on public pages.',
+      'Featured listings are coming soon. This feature will allow your listings to appear more prominently in search results. Stay tuned for updates.',
   },
   {
     question: 'How do I invite team members?',
@@ -76,7 +76,7 @@ const BROKER_FAQS: FaqItem[] = [
   {
     question: 'What permissions can I grant to team members?',
     answer:
-      'You can grant access to: creating and editing listings, managing the media gallery, viewing analytics, managing the CRM, handling inquiries, and managing the team itself. Each permission can be toggled on or off independently.',
+      'You can grant access to: creating and editing listings, managing the media gallery, viewing analytics, connecting the CRM integration, handling inquiries, and managing the team itself. Each permission can be toggled on or off independently.',
   },
   {
     question: 'How does billing work?',
@@ -96,7 +96,7 @@ const BROKER_FAQS: FaqItem[] = [
   {
     question: 'How do I use the CRM?',
     answer:
-      'The CRM tab lets you manage leads and contacts. Every inquiry automatically creates a lead that you can move through pipeline stages (New → Contacted → Qualified → Closed). You can add notes and track follow-up activity from each lead card.',
+      'The CRM tab connects your existing third-party CRM system (such as Pipedrive) to YachtVersal so your contacts and deals stay in sync. A built-in leads manager is coming soon and will live in the Leads tab.',
   },
   {
     question: 'How do I generate API keys?',
@@ -375,7 +375,7 @@ export default function HelpCenter({ userType, onOpenOnboarding, onNavigate }: H
                 { icon: BarChart3, label: 'My Listings', desc: 'Create, edit, and manage all your boat listings.' },
                 { icon: Image, label: 'Media Gallery', desc: 'Central library for all uploaded photos and videos.' },
                 { icon: Mail, label: 'Inquiries', desc: 'Buyer messages, lead threads, and replies.' },
-                { icon: Star, label: 'Featured', desc: 'Purchase and manage featured placements.' },
+                { icon: Star, label: 'Featured', desc: 'Coming soon — featured listing placements.' },
                 { icon: Archive, label: 'Bulk Tools', desc: 'CSV import/export and batch listing updates.' },
                 { icon: Users, label: 'Team', desc: 'Invite team members and assign permissions.' },
                 { icon: CreditCard, label: 'Billing', desc: 'Plan, payment method, and invoices.' },

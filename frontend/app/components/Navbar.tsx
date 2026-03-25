@@ -410,11 +410,8 @@ export default function Navbar() {
                           'bg-gray-100 text-dark'
                         }`}>
                           {user.user_type === 'salesman' ? 'Sales Rep' :
+                           user.user_type === 'dealer' ? 'Broker' :
                            user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1)}
-                        </span>
-                      </div>
-
-                      {/* Dashboard */}
                       <Link
                         href={getDashboardLink()}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-dark/80 hover:bg-gray-50 transition-colors"
@@ -624,6 +621,7 @@ export default function Navbar() {
                       'bg-gray-100 text-dark'
                     }`}>
                       {user.user_type === 'salesman' ? 'Sales Rep' :
+                       user.user_type === 'dealer' ? 'Broker' :
                        user.user_type.charAt(0).toUpperCase() + user.user_type.slice(1)}
                     </span>
                   </div>
