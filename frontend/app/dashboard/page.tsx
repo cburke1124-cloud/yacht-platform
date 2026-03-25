@@ -1577,38 +1577,72 @@ export default function EnhancedDealerDashboard() {
         </div>
 
         {/* Horizontal Tab Nav */}
-        <div className="mb-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 border-b border-gray-200 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabId)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
-                  }`}
-                >
-                  <Icon size={15} />
-                  {tab.label}
-                </button>
-              );
-            })}
+        <div className="mb-6 border-b border-gray-200">
+          <div className="flex flex-wrap gap-1">
+            {/* Primary tabs always shown */}
+            {[
+              { id: 'listings',  label: 'Listings',    icon: BarChart3   },
+              { id: 'messages',  label: 'Messages',    icon: Mail        },
+              { id: 'analytics', label: 'Analytics',   icon: BarChart3   },
+              ...(isDealer ? [{ id: 'profile', label: 'Broker Page', icon: Building2 }] : []),
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id as TabId)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === id
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
+                }`}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            ))}
+
+            {/* Settings tab — secondary */}
             <button
-              onClick={() => setActiveTab('messages')}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'messages'
+              onClick={() => setActiveTab('account')}
+              className={`ml-auto flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                ['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab)
                   ? 'border-primary text-primary'
                   : 'border-transparent text-gray-500 hover:text-secondary hover:border-gray-300'
               }`}
             >
-              <Mail size={15} />
-              Inquiries
+              <Settings size={15} />
+              Settings
             </button>
           </div>
         </div>
+
+        {/* Settings sub-nav — only shown when in a settings tab */}
+        {['account','billing','team','crm','bulk','media','api-keys','help'].includes(activeTab) && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {[
+              { id: 'account',  label: 'Preferences', icon: Settings    },
+              ...(isDealer ? [{ id: 'billing',  label: 'Billing',     icon: CreditCard  }] : []),
+              ...(isDealer || teamMemberCan('manage_team') ? [{ id: 'team', label: 'Team', icon: Users }] : []),
+              { id: 'media',    label: 'Media',        icon: Image       },
+              ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
+              ...(isDealer ? [{ id: 'crm',      label: 'CRM',         icon: Link2       }] : []),
+              ...(isDealer ? [{ id: 'api-keys', label: 'API Keys',    icon: Key         }] : []),
+              { id: 'help',     label: 'Help',         icon: HelpCircle  },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id as TabId)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  activeTab === id
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-secondary'
+                }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Content */}
         <div className="mb-20">
