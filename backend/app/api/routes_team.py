@@ -315,8 +315,14 @@ def update_member_permissions(
                 member.permissions = None
 
     if "permissions" in data:
-        # Replace entirely — the frontend sends the full set each time
-        member.permissions = data["permissions"]
+        # Accept only the canonical permission keys; discard anything else
+        # so stale/duplicate keys (agreed_terms, view_listings, etc.) are pruned.
+        _CANONICAL_PERMS = {
+            "can_create_listings", "can_edit_own_listings", "can_edit_all_listings",
+            "can_delete_listings", "can_view_inquiries", "can_manage_team", "can_view_analytics",
+        }
+        raw = data["permissions"]
+        member.permissions = {k: bool(v) for k, v in raw.items() if k in _CANONICAL_PERMS}
 
     if "public_profile" in data:
         member.public_profile = bool(data["public_profile"])

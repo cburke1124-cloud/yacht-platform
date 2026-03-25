@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import MessagingCenter from '@/app/messages/page';
-import SalesmanProfileForm from '@/app/dashboard/components/SalesmanProfileForm';
+import SalesmanProfileForm, { type SalesmanProfileFormHandle } from '@/app/dashboard/components/SalesmanProfileForm';
 import BrokerOnboarding from '@/app/dashboard/components/BrokerOnboarding';
 import HelpCenter from '@/app/dashboard/components/HelpCenter';
 
@@ -268,6 +268,7 @@ export default function EnhancedDealerDashboard() {
   const [brokerProfileSaving, setBrokerProfileSaving] = useState(false);
   const [brokerProfileSaved, setBrokerProfileSaved] = useState(false);
   const [showPersonalProfile, setShowPersonalProfile] = useState(false);
+  const salesmanProfileRef = useRef<SalesmanProfileFormHandle>(null);
   const brokerProfileDirtyRef = useRef(false);
 
   // Media manager inline state
@@ -2854,7 +2855,7 @@ export default function EnhancedDealerDashboard() {
                     Preview Page
                   </button>
                   <button
-                    onClick={() => handleBrokerSave()}
+                    onClick={() => { handleBrokerSave(); salesmanProfileRef.current?.save(); }}
                     disabled={brokerProfileSaving}
                     className="flex items-center gap-2 px-5 py-2 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400 font-semibold text-sm"
                   >
@@ -3042,31 +3043,16 @@ export default function EnhancedDealerDashboard() {
               {/* Personal Profile Section */}
               {(isDealer || isTeamMember) && (
                 <div className="glass-card rounded-xl overflow-hidden">
-                  <div className="p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <User size={18} className="text-primary" />
-                      <div>
-                        <p className="font-semibold text-secondary">My Personal Profile</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-1 shrink-0">
-                      <button type="button"
-                        onClick={() => setShowPersonalProfile(p => !p)}
-                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${showPersonalProfile ? 'bg-primary' : 'bg-gray-300'}`}
-                        aria-pressed={showPersonalProfile}>
-                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${showPersonalProfile ? 'translate-x-8' : 'translate-x-1'}`} />
-                      </button>
-                      <span className={`text-xs font-semibold ${showPersonalProfile ? 'text-primary' : 'text-gray-400'}`}>
-                        {showPersonalProfile ? 'Enabled' : 'Hidden'}
-                      </span>
+                  <div className="p-5 border-b border-primary/10 flex items-center gap-3">
+                    <User size={18} className="text-primary" />
+                    <div>
+                      <h3 className="text-base font-semibold text-secondary">My Personal Profile</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
                     </div>
                   </div>
-                  {showPersonalProfile && (
-                    <div className="p-5 border-t border-gray-100">
-                      <SalesmanProfileForm />
-                    </div>
-                  )}
+                  <div className="p-5">
+                    <SalesmanProfileForm ref={salesmanProfileRef} hideHeader />
+                  </div>
                 </div>
               )}
 
@@ -3145,7 +3131,7 @@ export default function EnhancedDealerDashboard() {
               {/* Bottom save */}
               <div className="flex justify-end">
                 <button
-                  onClick={() => handleBrokerSave()}
+                  onClick={() => { handleBrokerSave(); salesmanProfileRef.current?.save(); }}
                   disabled={brokerProfileSaving}
                   className="flex items-center gap-2 px-8 py-3 bg-primary text-light rounded-lg hover-primary disabled:bg-gray-400 font-semibold"
                 >

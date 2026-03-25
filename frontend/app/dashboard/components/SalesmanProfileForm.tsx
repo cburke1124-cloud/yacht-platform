@@ -1,17 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import {
   User, Upload, Mail, Phone, Save, CheckCircle,
-  Briefcase, Globe, Instagram, Linkedin, Facebook, Eye, EyeOff
+  Briefcase, Globe, Instagram, Linkedin, Facebook
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
-interface SalesmanProfileFormProps {
-  onSaved?: () => void;
+export interface SalesmanProfileFormHandle {
+  save: () => Promise<void>;
 }
 
-export default function SalesmanProfileForm({ onSaved }: SalesmanProfileFormProps) {
+interface SalesmanProfileFormProps {
+  onSaved?: () => void;
+  /** When true, hides the standalone save button row (used when embedded in a
+   *  parent page that provides its own save button). */
+  hideHeader?: boolean;
+}
+
+const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfileFormProps>(
+  function SalesmanProfileForm({ onSaved, hideHeader = false }, ref) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -112,6 +120,9 @@ export default function SalesmanProfileForm({ onSaved }: SalesmanProfileFormProp
     }
   };
 
+  // Expose save() so a parent page can trigger it imperatively
+  useImperativeHandle(ref, () => ({ save: handleSave }));
+
   const isDealer = userType === 'dealer' || userType === 'admin';
 
   if (loading) {
@@ -124,22 +135,24 @@ export default function SalesmanProfileForm({ onSaved }: SalesmanProfileFormProp
 
   return (
     <div className="space-y-5">
-      {/* Save button row */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {isDealer
-            ? 'Your personal broker profile — visible to buyers when you enable it'
-            : 'Your public sales profile shown to buyers on your listings'}
-        </p>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold text-sm transition-all"
-        >
-          {saved ? <CheckCircle size={16} /> : <Save size={16} />}
-          {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Profile'}
-        </button>
-      </div>
+      {/* Standalone save row — hidden when parent provides its own save */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            {isDealer
+              ? 'Your personal broker profile — visible to buyers when you enable it'
+              : 'Your public sales profile shown to buyers on your listings'}
+          </p>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold text-sm transition-all"
+          >
+            {saved ? <CheckCircle size={16} /> : <Save size={16} />}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Profile'}
+          </button>
+        </div>
+      )}
 
       {/* Public Profile Toggle */}
       <div
@@ -147,11 +160,6 @@ export default function SalesmanProfileForm({ onSaved }: SalesmanProfileFormProp
           profile.public_profile ? 'border-primary bg-primary/5' : 'border-gray-200 bg-white'
         }`}
       >
-        <div className="mt-0.5">
-          {profile.public_profile
-            ? <Eye size={20} className="text-primary" />
-            : <EyeOff size={20} className="text-dark/40" />}
-        </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-secondary text-sm">
             {isDealer
@@ -318,17 +326,21 @@ export default function SalesmanProfileForm({ onSaved }: SalesmanProfileFormProp
         </div>
       </div>
 
-      {/* Footer save */}
-      <div className="flex justify-end pb-2">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-7 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold transition-all shadow-sm text-sm"
-        >
-          {saved ? <CheckCircle size={16} /> : <Save size={16} />}
-          {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
-        </button>
-      </div>
+      {/* Footer save — only shown in standalone (non-embedded) mode */}
+      {!hideHeader && (
+        <div className="flex justify-end pb-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-7 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60 font-semibold transition-all shadow-sm text-sm"
+          >
+            {saved ? <CheckCircle size={16} /> : <Save size={16} />}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
+          </button>
+        </div>
+      )}
     </div>
   );
-}
+});
+
+export default SalesmanProfileForm;

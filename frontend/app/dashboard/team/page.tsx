@@ -20,6 +20,7 @@ interface TeamMember {
     can_view_inquiries: boolean;
     can_manage_team: boolean;
     can_view_analytics: boolean;
+    [key: string]: boolean; // allow extra stored keys without breaking
   };
   active: boolean;
   public_profile: boolean;
@@ -683,20 +684,26 @@ export default function TeamManagementPage() {
               <div className="border-t pt-4">
                 <h3 className="font-semibold mb-3">Permissions</h3>
                 <div className="space-y-2">
-                  {Object.entries(inviteForm.permissions).map(([key, value]) => (
+                  {([
+                    { key: 'can_create_listings',    label: 'Create Listings' },
+                    { key: 'can_edit_own_listings',  label: 'Edit Own Listings' },
+                    { key: 'can_edit_all_listings',  label: 'Edit All Listings' },
+                    { key: 'can_delete_listings',    label: 'Delete Listings' },
+                    { key: 'can_view_inquiries',     label: 'View Inquiries' },
+                    { key: 'can_manage_team',        label: 'Manage Team' },
+                    { key: 'can_view_analytics',     label: 'View Analytics' },
+                  ] as const).map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={value}
+                        checked={!!(inviteForm.permissions as Record<string, boolean>)[key]}
                         onChange={(e) => setInviteForm({
                           ...inviteForm,
                           permissions: {...inviteForm.permissions, [key]: e.target.checked}
                         })}
                         className="rounded text-primary"
                       />
-                      <span className="text-sm text-gray-700">
-                        {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </span>
+                      <span className="text-sm text-gray-700">{label}</span>
                     </label>
                   ))}
                 </div>
@@ -739,23 +746,30 @@ export default function TeamManagementPage() {
                   className="rounded text-primary" />
                 <div>
                   <span className="text-sm font-medium text-gray-800">Public Broker Profile</span>
-                  <p className="text-xs text-gray-500">Appears as a broker on the brokerage's public page</p>
+                  <p className="text-xs text-gray-500">Appears as a broker on the brokerage&apos;s public page</p>
                 </div>
               </label>
-              {Object.entries(editingMember.permissions).map(([key, value]) => (
+
+              {([
+                { key: 'can_create_listings',    label: 'Create Listings' },
+                { key: 'can_edit_own_listings',  label: 'Edit Own Listings' },
+                { key: 'can_edit_all_listings',  label: 'Edit All Listings' },
+                { key: 'can_delete_listings',    label: 'Delete Listings' },
+                { key: 'can_view_inquiries',     label: 'View Inquiries' },
+                { key: 'can_manage_team',        label: 'Manage Team' },
+                { key: 'can_view_analytics',     label: 'View Analytics' },
+              ] as const).map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    checked={value}
+                    checked={!!(editingMember.permissions as Record<string, boolean>)[key]}
                     onChange={(e) => setEditingMember({
                       ...editingMember,
                       permissions: {...editingMember.permissions, [key]: e.target.checked}
                     })}
                     className="rounded text-primary"
                   />
-                  <span className="text-sm text-gray-700">
-                    {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </span>
+                  <span className="text-sm text-gray-700">{label}</span>
                 </label>
               ))}
 
