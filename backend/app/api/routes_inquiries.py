@@ -38,26 +38,32 @@ VALID_STAGES = ("new", "contacted", "qualified", "proposal", "won", "lost")
 def _allowed_user_ids(current_user: User, db: Session) -> list[int]:
     """
     Return the list of user IDs whose inquiries this user may view.
+    Admin accounts are treated like dealers — they see their own assigned
+    inquiries by default.  Pass admin_view=True to the list endpoint to
+    see all platform inquiries.
     """
-    if current_user.user_type == "admin":
-        return []  # empty → no filter (see all)
-
     ids = [current_user.id]
 
-    if current_user.user_type in ("dealer", "team_member"):
-        # Dealers own their team; team members only see themselves
-        if current_user.user_type == "dealer" or current_user.role == "owner":
-            team = (
-                db.query(User.id)
-                .filter(User.parent_dealer_id == current_user.id, User.active == True)
-                .all()
-            )
-            ids += [row.id for row in team]
+    if current_user.user_type in ("dealer", "admin"):
+        team = (
+            db.query(User.id)
+            .filter(User.parent_dealer_id == current_user.id, User.active == True)
+            .all()
+        )
+        ids += [row.id for row in team]
+    elif current_user.user_type == "team_member" and current_user.role == "owner":
+        team = (
+            db.query(User.id)
+            .filter(User.parent_dealer_id == current_user.id, User.active == True)
+            .all()
+        )
+        ids += [row.id for row in team]
 
     return ids
 
 
 def _assert_can_access_inquiry(inquiry: Inquiry, current_user: User, db: Session):
+    # Admins can always open individual inquiry records (e.g. from admin panel or support context)
     if current_user.user_type == "admin":
         return
     allowed = _allowed_user_ids(current_user, db)
@@ -164,15 +170,21 @@ def list_inquiries(
     sort: str = Query("newest"),          # newest | oldest | score | stage
     limit: int = Query(100, le=500),
     offset: int = Query(0),
+    admin_view: bool = Query(False),       # admin-only: see all platform inquiries
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """List leads visible to the current user, with optional filters."""
-    allowed = _allowed_user_ids(current_user, db)
+    # admin_view=True lets admins see all platform inquiries (for the admin panel);
+    # by default even admins are scoped to their own assigned inquiries.
+    if admin_view and current_user.user_type != "admin":
+        raise AuthorizationException("admin_view requires admin role")
+
+    allowed = [] if (admin_view and current_user.user_type == "admin") else _allowed_user_ids(current_user, db)
 
     q = db.query(Inquiry).options(joinedload(Inquiry.lead_notes))
 
-    if allowed:  # admin has no restriction
+    if allowed:  # non-empty list → apply filter
         q = q.filter(Inquiry.assigned_to_id.in_(allowed))
 
     if stage:
