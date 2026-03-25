@@ -669,7 +669,7 @@ def create_support_ticket(
     db: Session = Depends(get_db),
 ):
     """Submit a support ticket from the Help Center. Creates a support_ticket message
-    addressed to the first admin account and sends an in-app notification."""
+    and sends an in-app notification to every admin account."""
     subject = data.subject.strip()[:200]
     body = data.body.strip()[:4000]
     if not subject or not body:
@@ -678,11 +678,13 @@ def create_support_ticket(
     category = data.category if data.category in _VALID_CATEGORIES else "general"
     priority = data.priority if data.priority in _VALID_PRIORITIES else "normal"
 
-    admin = db.query(User).filter(User.user_type == "admin").first()
+    admins = db.query(User).filter(User.user_type == "admin").all()
+    primary_admin = admins[0] if admins else None
 
+    # Create one canonical ticket addressed to the first admin for threading purposes
     ticket = Message(
         sender_id=current_user.id,
-        recipient_id=admin.id if admin else None,
+        recipient_id=primary_admin.id if primary_admin else None,
         message_type="support_ticket",
         subject=subject,
         body=body,
@@ -695,7 +697,8 @@ def create_support_ticket(
     db.flush()  # get ticket.id before committing
     ticket.ticket_number = f"SUP-{ticket.id}"
 
-    if admin:
+    # Notify every admin so anyone can pick it up
+    for admin in admins:
         db.add(
             Notification(
                 user_id=admin.id,
