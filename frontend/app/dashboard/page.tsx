@@ -14,7 +14,7 @@ import {
   Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter,
   Loader2, AlertCircle, ExternalLink, Ruler, Clock, Copy, AlertTriangle,
   UserPlus, Shield, LayoutDashboard, ClipboardList, ChevronLeft,
-  EyeOff, Briefcase, ChevronDown, ChevronUp
+  EyeOff, Briefcase, ChevronDown, ChevronUp, HelpCircle
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import MessagingCenter from '@/app/messages/page';
@@ -415,7 +415,7 @@ export default function EnhancedDealerDashboard() {
             setCurrentUser(data);
             // Show onboarding for new brokers who haven't completed it
             if (
-              (data.user_type === 'dealer' || data.user_type === 'admin') &&
+              (data.user_type === 'dealer' || data.user_type === 'admin' || data.user_type === 'team_member') &&
               !localStorage.getItem(`onboarding_done_${data.id}`)
             ) {
               setShowOnboarding(true);
@@ -1639,6 +1639,18 @@ export default function EnhancedDealerDashboard() {
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Buried restart-onboarding button (for testing / re-run) */}
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => setShowOnboarding(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 hover:bg-soft transition-colors"
+                  title="Restart onboarding tutorial"
+                >
+                  <HelpCircle size={14} />
+                  <span>Getting Started Guide</span>
+                </button>
               </div>
             </div>
           </aside>
