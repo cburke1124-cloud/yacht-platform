@@ -420,13 +420,17 @@ export default function EnhancedDealerDashboard() {
         if (urlTab) setActiveTab(urlTab as TabId);
         if (data) {
             setCurrentUser(data);
-            // Show onboarding for new brokers who haven't completed it
+            // DISABLED FOR LAUNCH: Auto-triggered onboarding modal
+            // Users now go straight to dashboard. Onboarding available via Help tab if needed.
+            // To re-enable, uncomment the block below after gathering user feedback.
+            /*
             if (
               (data.user_type === 'dealer' || data.user_type === 'admin' || data.user_type === 'team_member') &&
               !localStorage.getItem(`onboarding_done_${data.id}`)
             ) {
               setShowOnboarding(true);
             }
+            */
           }
         })
         .catch(() => {});
