@@ -76,7 +76,6 @@ export default function BulkToolsPage() {
           />
         )}
       </div>
-      </div>
     </div>
   );
 }
