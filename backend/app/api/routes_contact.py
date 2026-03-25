@@ -2,17 +2,22 @@
 Contact form endpoint — public, rate-limited.
 
 POST /contact
+  - Saves the submission as an admin message (support_ticket) in the DB
   - Sends a notification email to the site contact address
   - Sends a confirmation email to the submitter
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
 from typing import Optional
 import os
 import logging
 
 from app.core.limiter import limiter
+from app.db.session import get_db
+from app.models.misc import Message, Notification
+from app.models.user import User
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -31,13 +36,55 @@ class ContactRequest(BaseModel):
 
 @router.post("/contact")
 @limiter.limit("5/hour")
-async def submit_contact_form(request: Request, data: ContactRequest):
+async def submit_contact_form(request: Request, data: ContactRequest, db: Session = Depends(get_db)):
     """
     Receive a contact form submission.
-    Sends an internal notification and a confirmation to the sender.
+    Saves to admin message inbox, sends internal notification, and confirmation to sender.
     """
     if not data.name.strip() or not data.message.strip():
         return {"success": False, "message": "Name and message are required."}
+
+    # ── Save to admin message inbox ──────────────────────────────────────────
+    company_info = f"\nCompany: {data.company}" if data.company else ""
+    phone_info = f"\nPhone: {data.phone}" if data.phone else ""
+    message_body = (
+        f"From: {data.name} <{data.email}>{company_info}{phone_info}\n\n"
+        f"{data.message}"
+    )
+
+    admins = db.query(User).filter(User.user_type == "admin").all()
+    primary_admin = admins[0] if admins else None
+
+    if primary_admin:
+        try:
+            ticket = Message(
+                sender_id=None,
+                recipient_id=primary_admin.id,
+                message_type="contact_form",
+                subject=f"[Contact] {data.subject} — {data.name}",
+                body=message_body,
+                category="general",
+                status="new",
+                visible_to_dealer=False,
+            )
+            db.add(ticket)
+            db.flush()
+            ticket.ticket_number = f"CTF-{ticket.id}"
+
+            # Notify every admin
+            for admin in admins:
+                db.add(Notification(
+                    user_id=admin.id,
+                    notification_type="support",
+                    title=f"New contact form message from {data.name}",
+                    body=data.subject,
+                    link="/admin",
+                    read=False,
+                ))
+            db.commit()
+        except Exception as e:
+            logger.error(f"Contact form: failed to save admin message: {e}")
+            db.rollback()
 
     # Build internal notification email
     company_line = f"<p><strong>Company:</strong> {data.company}</p>" if data.company else ""

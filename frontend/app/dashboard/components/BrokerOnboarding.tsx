@@ -170,7 +170,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
                   title: 'CREATE LISTING MANUALLY',
                   desc1: 'Enter your listing details manually, including photos, specifications, pricing, and descriptions.',
                   desc2: 'This option gives you full control over how each listing appears and is ideal if you are adding listings one at a time.',
-                  action: () => { markDone(); router.push('/dashboard/listings'); },
+                  action: () => { markDone(); router.push('/listings/create'); },
                 },
                 {
                   icon: <LinkIcon size={28} className="text-secondary" />,
@@ -375,7 +375,7 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
   const [saved, setSaved] = useState(false);
   const [profile, setProfile] = useState({
     company_name: '', description: '', phone: '', email: '', website: '',
-    facebook_url: '', instagram_url: '', linkedin_url: '',
+    facebook_url: '', instagram_url: '', linkedin_url: '', twitter_url: '',
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -510,6 +510,7 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
             {field('instagram_url', 'Instagram', 'https://instagram.com/yourbrokerage', 'url')}
             {field('facebook_url', 'Facebook', 'https://facebook.com/yourbrokerage', 'url')}
             {field('linkedin_url', 'LinkedIn', 'https://linkedin.com/company/yourbrokerage', 'url')}
+            {field('twitter_url', 'X / Twitter', 'https://x.com/yourbrokerage', 'url')}
           </div>
         </div>
 

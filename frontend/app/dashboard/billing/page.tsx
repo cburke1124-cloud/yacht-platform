@@ -126,6 +126,8 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [managingBilling, setManagingBilling] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -182,6 +184,29 @@ export default function BillingPage() {
     }
   };
 
+  const cancelSubscription = async () => {
+    setCancelling(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/payments/cancel-subscription'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancel_immediately: false }),
+      });
+      if (res.ok) {
+        setShowCancelConfirm(false);
+        await fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Unable to cancel subscription. Please try again.');
+      }
+    } catch {
+      alert('Unable to cancel subscription. Please try again.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto p-6 flex items-center justify-center min-h-[60vh]">
@@ -207,6 +232,37 @@ export default function BillingPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
+      {/* Cancel confirmation modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+            <h3 className="text-xl font-bold text-[#10214F] mb-3">Cancel Subscription?</h3>
+            <p className="text-gray-600 mb-2">
+              Your subscription will remain active until the end of your current billing period, after which it will not renew.
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              You can re-subscribe at any time. No refunds are issued for unused days in the current period.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 transition-all"
+              >
+                Keep My Plan
+              </button>
+              <button
+                onClick={cancelSubscription}
+                disabled={cancelling}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 disabled:bg-red-300 transition-all flex items-center justify-center gap-2"
+              >
+                {cancelling ? <Loader2 className="animate-spin h-4 w-4" /> : null}
+                {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-[#10214F] mb-3">Choose Your Plan</h1>
@@ -233,14 +289,24 @@ export default function BillingPage() {
               </p>
             )}
           </div>
-          <button
-            onClick={openStripePortal}
-            disabled={managingBilling}
-            className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#01BBDC] text-[#01BBDC] rounded-xl font-semibold hover:bg-[#01BBDC] hover:text-white transition-all"
-          >
-            {managingBilling ? <Loader2 className="animate-spin h-4 w-4" /> : <ExternalLink size={16} />}
-            Manage Billing
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={openStripePortal}
+              disabled={managingBilling}
+              className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#01BBDC] text-[#01BBDC] rounded-xl font-semibold hover:bg-[#01BBDC] hover:text-white transition-all"
+            >
+              {managingBilling ? <Loader2 className="animate-spin h-4 w-4" /> : <ExternalLink size={16} />}
+              Manage Billing
+            </button>
+            {!subscription?.cancel_at_period_end && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="flex items-center gap-2 px-5 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition-all"
+              >
+                Cancel Plan
+              </button>
+            )}
+          </div>
         </div>
       )}
 

@@ -1580,6 +1580,26 @@ export default function EnhancedDealerDashboard() {
         <div className="mb-20 flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-56 xl:w-64 shrink-0">
             <div className="glass-card p-3 lg:sticky lg:top-6">
+              {/* Brand logo area */}
+              <div className="mb-3 px-2 pt-2 pb-3 border-b border-gray-100">
+                {dealerLogoUrl ? (
+                  <img
+                    src={mediaUrl(dealerLogoUrl)}
+                    alt="Company logo"
+                    className="max-h-14 max-w-full object-contain"
+                    onError={onImgError}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-full flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+                  >
+                    <Upload size={20} className="text-gray-400 group-hover:text-primary transition-colors" />
+                    <span className="text-xs text-gray-400 group-hover:text-primary text-center leading-tight transition-colors">Add your logo</span>
+                  </button>
+                )}
+              </div>
+
               {/* Primary nav */}
               <div className="space-y-1">
                 {[
@@ -1605,6 +1625,21 @@ export default function EnhancedDealerDashboard() {
               {/* Divider */}
               <div className="my-3 border-t border-gray-100" />
 
+              {/* Team — top-level sidebar item */}
+              {(isDealer || teamMemberCan('manage_team')) && (
+                <button
+                  onClick={() => setActiveTab('team')}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                    activeTab === 'team'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                  }`}
+                >
+                  <Users size={16} />
+                  Team
+                </button>
+              )}
+
               {/* Help */}
               <button
                 onClick={() => setActiveTab('help')}
@@ -1622,7 +1657,7 @@ export default function EnhancedDealerDashboard() {
               <button
                 onClick={() => setActiveTab('account')}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                  ['account','billing','team','crm','bulk','media','api-keys'].includes(activeTab)
+                  ['account','billing','crm','bulk','media','api-keys'].includes(activeTab)
                     ? 'bg-primary/10 text-primary'
                     : 'text-gray-600 hover:bg-soft hover:text-secondary'
                 }`}
@@ -1636,12 +1671,11 @@ export default function EnhancedDealerDashboard() {
           {/* Main content */}
           <div className="flex-1 min-w-0">
             {/* Account sub-nav — shown only inside Account section */}
-            {['account','billing','team','crm','bulk','media','api-keys'].includes(activeTab) && (
+            {['account','billing','crm','bulk','media','api-keys'].includes(activeTab) && (
               <div className="mb-4 flex flex-wrap gap-2">
                 {[
                   { id: 'account',  label: 'Preferences', icon: Settings   },
                   ...(isDealer ? [{ id: 'billing',  label: 'Billing',     icon: CreditCard }] : []),
-                  ...(isDealer || teamMemberCan('manage_team') ? [{ id: 'team', label: 'Team', icon: Users }] : []),
                   { id: 'media',    label: 'Media',        icon: Image      },
                   ...(isDealer || teamMemberCan('create_listings') ? [{ id: 'bulk', label: 'Bulk Tools', icon: Archive }] : []),
                   ...(isDealer ? [{ id: 'crm',      label: 'CRM',         icon: Link2      }] : []),
