@@ -203,7 +203,7 @@ export default function ImageGalleryModal({
   return (
     <div className="fixed inset-0 bg-black" style={{ zIndex: 9999 }}>
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4" style={{ zIndex: 20 }}>
+      <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4" style={{ zIndex: 50 }}>
         <div className="flex items-center justify-between">
           {/* Title & Counter */}
           <div className="text-white">
@@ -282,7 +282,7 @@ export default function ImageGalleryModal({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        style={{ cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default', zIndex: 0 }}
+        style={{ cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default', zIndex: 1 }}
       >
         <img
           src={mediaUrl(currentImage.url)}
@@ -304,7 +304,7 @@ export default function ImageGalleryModal({
             onClick={goToPrevious}
             className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white backdrop-blur-sm"
             title="Previous (←)"
-            style={{ zIndex: 20 }}
+            style={{ zIndex: 50 }}
           >
             <ChevronLeft size={32} />
           </button>
@@ -313,7 +313,7 @@ export default function ImageGalleryModal({
             onClick={goToNext}
             className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white backdrop-blur-sm"
             title="Next (→)"
-            style={{ zIndex: 20 }}
+            style={{ zIndex: 50 }}
           >
             <ChevronRight size={32} />
           </button>
@@ -322,7 +322,7 @@ export default function ImageGalleryModal({
 
       {/* Thumbnail Strip */}
       {images.length > 1 && (
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4" style={{ zIndex: 20 }}>
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4" style={{ zIndex: 50 }}>
           <div className="flex gap-2 overflow-x-auto pb-2 justify-center">
             {images.map((image, index) => (
               <button
@@ -356,7 +356,7 @@ export default function ImageGalleryModal({
       )}
 
       {/* Keyboard Shortcuts Hint */}
-      <div className="absolute top-20 left-4 text-white/60 text-xs space-y-1 bg-black/30 backdrop-blur-sm p-3 rounded-lg" style={{ zIndex: 20 }}>
+      <div className="absolute top-20 left-4 text-white/60 text-xs space-y-1 bg-black/30 backdrop-blur-sm p-3 rounded-lg" style={{ zIndex: 50 }}>
         <p>← → : Navigate</p>
         <p>+ - : Zoom</p>
         <p>Drag : Pan</p>
@@ -365,7 +365,7 @@ export default function ImageGalleryModal({
 
       {/* Zoom Indicator */}
       {zoom > 1 && (
-        <div className="absolute top-20 right-4 text-white bg-black/50 backdrop-blur-sm px-3 py-2 rounded-lg" style={{ zIndex: 20 }}>
+        <div className="absolute top-20 right-4 text-white bg-black/50 backdrop-blur-sm px-3 py-2 rounded-lg" style={{ zIndex: 50 }}>
           {Math.round(zoom * 100)}%
           <span className="block text-xs text-white/60 mt-0.5">drag to pan</span>
         </div>
