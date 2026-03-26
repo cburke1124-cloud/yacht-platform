@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle } from 'lucide-react';
+import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle, Trash2, Archive } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface Message {
@@ -70,7 +70,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
   const [selectedDetail, setSelectedDetail] = useState<MessageDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'inquiries'>('all');
+  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'inquiries' | 'archived'>('all');
   const [showNewMessage, setShowNewMessage] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -337,6 +337,40 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
     }
   };
 
+  const handleArchive = async (messageId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(apiUrl(`/messages/${messageId}/status`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'closed' }),
+      });
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: 'closed' } : m)));
+      if (selectedDetail?.message.id === messageId) setSelectedDetail(null);
+      window.dispatchEvent(new Event('authChange'));
+    } catch (e) {
+      console.error('Failed to archive message:', e);
+    }
+  };
+
+  const handleDelete = async (messageId: number) => {
+    if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/messages/${messageId}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        if (selectedDetail?.message.id === messageId) setSelectedDetail(null);
+        window.dispatchEvent(new Event('authChange'));
+      }
+    } catch (e) {
+      console.error('Failed to delete message:', e);
+    }
+  };
+
   // Backend timestamps are naive UTC (no 'Z'); append it so JS parses correctly.
   const toUtc = (s: string) => new Date(s.includes('Z') || s.includes('+') ? s : s + 'Z');
 
@@ -351,6 +385,8 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
   };
 
   const filteredMessages = messages.filter((msg) => {
+    if (filter === 'archived') return msg.status === 'closed';
+    if (msg.status === 'closed') return false;
     // Apply message-type filter client-side so background polling doesn't break the active tab
     if (filter === 'support_ticket' && msg.message_type !== 'support_ticket') return false;
     if (filter === 'inquiry' && msg.message_type !== 'inquiry') return false;
@@ -432,9 +468,10 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
         {/* Filter tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {[
-            { id: 'all', label: 'All Messages', count: messages.length + inquiries.length },
+            { id: 'all', label: 'All Messages', count: messages.filter(m => m.status !== 'closed').length + inquiries.length },
             { id: 'inquiries', label: 'Inquiries', count: inquiries.length, icon: Users },
-            { id: 'support_ticket', label: 'Support', count: messages.filter((m) => m.message_type === 'support_ticket').length },
+            { id: 'support_ticket', label: 'Support', count: messages.filter((m) => m.message_type === 'support_ticket' && m.status !== 'closed').length },
+            { id: 'archived', label: 'Archived', count: messages.filter(m => m.status === 'closed').length },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -548,7 +585,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                       <button
                         key={`msg-${item.msg.id}`}
                         onClick={() => { openMessage(item.msg); setSelectedInquiry(null); }}
-                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                        className={`relative group w-full p-4 text-left hover:bg-gray-50 transition-colors ${
                           selectedDetail?.message.id === item.msg.id ? 'bg-primary/5 border-l-2 border-primary' : ''
                         }`}
                       >
@@ -559,7 +596,15 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                               {item.msg.sender_name || item.msg.sender_email || 'Unknown'}
                             </span>
                           </div>
-                          <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(item.msg.created_at)}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(item.msg.created_at)}</span>
+                            <div className="hidden group-hover:flex items-center gap-0.5 ml-1" onClick={e => e.stopPropagation()}>
+                              {item.msg.status !== 'closed' && (
+                                <button onClick={() => handleArchive(item.msg.id)} className="p-1 text-gray-400 hover:text-gray-600 rounded" title="Archive"><Archive size={12} /></button>
+                              )}
+                              <button onClick={() => handleDelete(item.msg.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete"><Trash2 size={12} /></button>
+                            </div>
+                          </div>
                         </div>
                         <p className="text-sm text-gray-700 font-medium truncate ml-4">{item.msg.subject}</p>
                         <p className="text-xs text-gray-500 line-clamp-1 ml-4 mt-0.5">{item.msg.body}</p>
@@ -750,6 +795,22 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {selectedDetail.message.status !== 'closed' && (
+                      <button
+                        onClick={() => handleArchive(selectedDetail.message.id)}
+                        className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 text-xs font-medium text-gray-600 flex items-center gap-1"
+                        title="Archive"
+                      >
+                        <Archive size={13} /> Archive
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(selectedDetail.message.id)}
+                      className="px-3 py-1.5 border border-red-200 rounded-lg hover:bg-red-50 text-xs font-medium text-red-500 flex items-center gap-1"
+                      title="Delete"
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
                     {selectedDetail.message.status !== 'closed' && (
                       <button
                         onClick={() => updateStatus(selectedDetail.message.id, 'closed')}

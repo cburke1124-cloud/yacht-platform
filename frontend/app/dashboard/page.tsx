@@ -265,6 +265,12 @@ function EnhancedDealerDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabId>('listings');
+
+  // Update URL when switching tabs so navbar "My Dashboard" link always detects a change
+  const switchTab = (tab: TabId) => {
+    setActiveTab(tab);
+    router.replace(`/dashboard?tab=${tab}`, { scroll: false });
+  };
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
   const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null);
@@ -1586,7 +1592,7 @@ function EnhancedDealerDashboard() {
                   />
                 ) : (
                   <button
-                    onClick={() => setActiveTab('profile')}
+                    onClick={() => switchTab('profile')}
                     className="w-full flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 border-dashed border-gray-200 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
                   >
                     <Upload size={20} className="text-gray-400 group-hover:text-primary transition-colors" />
@@ -1603,7 +1609,7 @@ function EnhancedDealerDashboard() {
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
-                    onClick={() => setActiveTab(id as TabId)}
+                    onClick={() => switchTab(id as TabId)}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                       activeTab === id
                         ? 'bg-primary/10 text-primary shadow-sm'
@@ -1618,7 +1624,7 @@ function EnhancedDealerDashboard() {
                 {/* Broker Profile */}
                 {isDealer && (
                   <button
-                    onClick={() => setActiveTab('profile')}
+                    onClick={() => switchTab('profile')}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                       activeTab === 'profile'
                         ? 'bg-primary/10 text-primary shadow-sm'
@@ -1633,7 +1639,7 @@ function EnhancedDealerDashboard() {
                 {/* Team — above Analytics, only for eligible users */}
                 {(isDealer || teamMemberCan('manage_team')) && (
                   <button
-                    onClick={() => setActiveTab('team')}
+                    onClick={() => switchTab('team')}
                     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                       activeTab === 'team'
                         ? 'bg-primary/10 text-primary shadow-sm'
@@ -1646,7 +1652,7 @@ function EnhancedDealerDashboard() {
                 )}
 
                 <button
-                  onClick={() => setActiveTab('analytics' as TabId)}
+                  onClick={() => switchTab('analytics' as TabId)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                     activeTab === 'analytics'
                       ? 'bg-primary/10 text-primary shadow-sm'
@@ -1665,7 +1671,7 @@ function EnhancedDealerDashboard() {
 
               {/* Account / Settings */}
               <button
-                onClick={() => setActiveTab('account')}
+                onClick={() => switchTab('account')}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                   ['account','billing','crm','bulk','media','api-keys'].includes(activeTab)
                     ? 'bg-primary/10 text-primary shadow-sm'
@@ -1678,7 +1684,7 @@ function EnhancedDealerDashboard() {
 
               {/* Help — bottom of sidebar */}
               <button
-                onClick={() => setActiveTab('help')}
+                onClick={() => switchTab('help')}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                   activeTab === 'help'
                     ? 'bg-primary/10 text-primary shadow-sm'
@@ -1707,7 +1713,7 @@ function EnhancedDealerDashboard() {
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
-                    onClick={() => setActiveTab(id as TabId)}
+                    onClick={() => switchTab(id as TabId)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                       activeTab === id
                         ? 'bg-primary/10 text-primary'

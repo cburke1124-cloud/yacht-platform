@@ -35,8 +35,8 @@ const options = [
     title: 'Website Scraper',
     subtitle: 'Import your full inventory at once',
     desc: 'Point YachtVersal at your listings page and let the scraper pull in all your boats automatically — the fastest way to get started.',
-    href: '/dashboard/bulk-tools?mode=scraper',
-    cta: 'Open Scraper',
+    href: '/dashboard/bulk-tools?mode=bulk',
+    cta: 'Import All Listings',
   },
 ];
 
