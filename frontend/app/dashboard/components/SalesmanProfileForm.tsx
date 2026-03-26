@@ -108,6 +108,9 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
       if (response.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+        // Re-fetch from the server to confirm the data was persisted. This
+        // also re-populates the form so it always reflects the DB state.
+        fetchProfile();
         onSaved?.();
       } else {
         const error = await response.json();

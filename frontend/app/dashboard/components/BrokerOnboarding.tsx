@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2, List, ChevronRight, CheckCircle, Upload, Globe,
@@ -85,7 +85,9 @@ export default function BrokerOnboarding({ userId, userType, onComplete, prefetc
 
   // Fetch the profile fresh (merging /auth/me + /dealer-profile) to pick up any
   // fields that weren't in the pre-fetched snapshot or to handle first-time dealers.
-  useEffect(() => {
+  // Extracted as a named function so it can also be called after the form saves
+  // to keep profileData in sync with what's in the database.
+  const refreshProfileData = () => {
     const token = localStorage.getItem('token');
     Promise.all([
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
@@ -108,7 +110,9 @@ export default function BrokerOnboarding({ userId, userType, onComplete, prefetc
       setProfileData(pd);
       if (pd.website) setImportUrl(pd.website);
     }).finally(() => setLoadingProfile(false));
-  }, []);
+  };
+
+  useEffect(() => { refreshProfileData(); }, []);
 
   const markDone = () => {
     localStorage.setItem(`onboarding_done_${userId}`, '1');
@@ -476,6 +480,7 @@ export default function BrokerOnboarding({ userId, userType, onComplete, prefetc
             onDone={() => setStep('listings_choice')}
             initialProfile={profileData}
             loadingInitial={loadingProfile}
+            onSave={refreshProfileData}
           />
         )}
 
@@ -486,12 +491,13 @@ export default function BrokerOnboarding({ userId, userType, onComplete, prefetc
 
 // ── Brokerage Profile inline step ────────────────────────────────────────────
 function BrokerageProfileStep({
-  onBack, onDone, initialProfile, loadingInitial,
+  onBack, onDone, initialProfile, loadingInitial, onSave,
 }: {
   onBack: () => void;
   onDone: () => void;
   initialProfile?: ProfileData | null;
   loadingInitial?: boolean;
+  onSave?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -504,10 +510,13 @@ function BrokerageProfileStep({
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  // When parent-fetched profile data arrives (or on initial render if already present),
-  // hydrate the form fields so existing data is always visible.
+  // Seed form fields from the parent-fetched profile exactly once.
+  // Using a ref guard ensures that a concurrent background re-fetch in the parent
+  // (which updates `initialProfile`) can never wipe data the user is currently typing.
+  const seededRef = useRef(false);
   useEffect(() => {
-    if (initialProfile) {
+    if (initialProfile && !seededRef.current) {
+      seededRef.current = true;
       setProfile({
         company_name: initialProfile.company_name,
         description: initialProfile.description,
@@ -563,6 +572,7 @@ function BrokerageProfileStep({
         return;
       }
       setSaved(true);
+      onSave?.();
       setTimeout(onDone, 800);
     } catch {
       setSaveError('Network error. Please check your connection and try again.');

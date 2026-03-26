@@ -523,6 +523,8 @@ function EnhancedDealerDashboard() {
         fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
       ]);
       const userData = userRes.ok ? await userRes.json() : {};
+      // Only update state if the dealer-profile fetch actually succeeded.
+      // A failed re-fetch must NEVER wipe data the user just typed or saved.
       if (profileRes.ok) {
         const p = await profileRes.json();
         setBrokerProfile({
@@ -540,15 +542,8 @@ function EnhancedDealerDashboard() {
           cobrokering_enabled: p.cobrokering_enabled !== false,
           show_team_on_profile: p.show_team_on_profile ?? false
         });
-      } else {
-        setBrokerProfile(prev => ({
-          ...prev,
-          company_name: userData.company_name || '',
-          name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
-          email: userData.email || '',
-          phone: userData.phone || ''
-        }));
       }
+      // If profileRes failed: leave brokerProfile state completely untouched.
     } catch { /* non-fatal */ }
   };
 
@@ -587,10 +582,14 @@ function EnhancedDealerDashboard() {
       });
       if (res.ok) {
         brokerProfileDirtyRef.current = false;
+        // Immediately reflect what was saved so the form never appears to wipe.
+        // The payload IS the source of truth — no need to wait for a round-trip.
+        setBrokerProfile(prev => ({ ...prev, ...payload }));
         setBrokerProfileSaved(true);
         setTimeout(() => setBrokerProfileSaved(false), 3000);
-        // Re-fetch to get slug and any server-generated fields
-        await fetchBrokerProfile();
+        // Background refresh to pick up server-generated fields (e.g. slug).
+        // fetchBrokerProfile will only update state if the request succeeds.
+        fetchBrokerProfile();
       }
     } catch { /* non-fatal */ } finally {
       setBrokerProfileSaving(false);
