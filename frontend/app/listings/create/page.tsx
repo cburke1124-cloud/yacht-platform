@@ -941,12 +941,26 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         )}
         <div className="bg-white rounded-2xl shadow-sm p-8" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
 
-          <h1 style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 28, fontWeight: 600, color: '#10214F', marginBottom: 4 }}>
-            {isEditMode ? 'Edit Listing' : 'Create New Listing'}
-          </h1>
-          <p className="text-sm mb-8" style={{ color: 'rgba(16,33,79,0.5)' }}>
-            {isEditMode ? 'Update vessel details and media' : 'Fill in the details of your vessel'}
-          </p>
+          <div className="flex items-start justify-between gap-4 mb-8">
+            <div>
+              <h1 style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 28, fontWeight: 600, color: '#10214F', marginBottom: 4 }}>
+                {isEditMode ? 'Edit Listing' : 'Create New Listing'}
+              </h1>
+              <p className="text-sm" style={{ color: 'rgba(16,33,79,0.5)' }}>
+                {isEditMode ? 'Update vessel details and media' : 'Fill in the details of your vessel'}
+              </p>
+            </div>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => setShowScraperModal(true)}
+                className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
+                style={{ background: '#01BBDC' }}
+              >
+                <span>✨</span> AI Listing Assistant
+              </button>
+            )}
+          </div>
           <div className="flex items-center justify-between mb-6 text-xs" style={{ color: 'rgba(16,33,79,0.6)' }}>
             <span>
               {autosaveState === 'saving' ? 'Saving draft…' : autosaveState === 'saved' ? 'Draft saved' : autosaveInfo.restored && autosaveInfo.savedAt ? `Draft restored (saved ${autosaveInfo.savedAt})` : autosaveInfo.savedAt ? `Autosaved ${autosaveInfo.savedAt}` : 'Autosave enabled'}
@@ -979,35 +993,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {activeTab === 'basic' && (
               <div className="space-y-6">
                 <div>
-                  <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <p className="text-sm font-semibold text-[#10214F] mb-2">AI Listing Import</p>
-                    <p className="text-xs text-gray-600 mb-3">Paste a long listing description and auto-fill fields. Uses your parser endpoint when available, otherwise falls back to local extraction.</p>
-                    <textarea
-                      value={importText}
-                      onChange={e => setImportText(e.target.value)}
-                      rows={5}
-                      className={inp}
-                      placeholder="Paste listing text here…"
-                    />
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowScraperModal(true)}
-                        className="px-4 py-2 mr-2 rounded-lg text-white text-sm font-semibold"
-                        style={{ background: '#01BBDC' }}>
-                        Open AI Listing Assistant
-                      </button>
-                      <button
-                        type="button"
-                        onClick={importFromListingText}
-                        disabled={importBusy || !importText.trim()}
-                        className="px-4 py-2 rounded-lg text-white text-sm font-semibold disabled:opacity-60"
-                        style={{ background: '#10214F' }}>
-                        {importBusy ? 'Parsing…' : 'Parse & Fill Fields'}
-                      </button>
-                    </div>
-                  </div>
-
                   <label className={lbl} style={{ color: '#10214F' }}>Title *</label>
                   <input name="title" value={form.title} onChange={set} required
                     className={inp} placeholder="e.g. 2021 Sunseeker 65 Sport Yacht" />
