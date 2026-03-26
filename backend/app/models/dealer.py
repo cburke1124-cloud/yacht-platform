@@ -55,7 +55,7 @@ class DealerProfile(Base):
     # When True (default), the dealer's listings are accessible via the public API (co-brokering enabled).
     # When False, ALL of this dealer's listings are hidden from the public API regardless of
     # individual listing settings.
-    # cobrokering_enabled = Column(Boolean, default=True)
+    cobrokering_enabled = Column(Boolean, default=True)
 
     # Team Display
     show_team_on_profile = Column(Boolean, default=False)
