@@ -78,6 +78,58 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
   const totalSteps = 2;
   const progress = Math.round((stepIndex[step] / totalSteps) * 100);
 
+  // ── WELCOME POPUP ──────────────────────────────────────────────────────────
+  if (step === 'welcome') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 sm:p-10">
+          {/* Close / skip */}
+          <button
+            onClick={markDone}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Skip for now"
+          >
+            <X size={20} />
+          </button>
+
+          {/* Logo mark */}
+          <div className="flex justify-center mb-6">
+            <img src="/logo/logo-icon.png" alt="" className="h-14 w-auto opacity-90 select-none" />
+          </div>
+
+          {/* Heading */}
+          <h1 className="text-2xl sm:text-3xl font-bold text-secondary text-center mb-5">
+            Welcome to <span className="text-primary">YachtVersal</span>
+          </h1>
+
+          {/* Body text */}
+          <p className="text-gray-600 leading-relaxed text-sm sm:text-base mb-3">
+            Thank you for joining YachtVersal. We&apos;re excited to have your brokerage on the platform
+            and appreciate the opportunity to help market your company and your yacht listings to a broader audience.
+          </p>
+          <p className="text-gray-600 leading-relaxed text-sm sm:text-base mb-3">
+            Our goal is to make it easy for buyers to discover your brand, explore your inventory,
+            and connect with you through a modern marketplace built for visibility, credibility, and growth.
+          </p>
+          <p className="text-gray-600 leading-relaxed text-sm sm:text-base mb-3">
+            The next steps will guide you through setting up your brokerage profile and adding your listings
+            so you can begin showcasing your business with confidence.
+          </p>
+          <p className="font-bold text-secondary mt-4 mb-6">Let&apos;s get started!</p>
+
+          {/* CTA */}
+          <button
+            onClick={() => setStep('brokerage_profile')}
+            className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-primary text-white font-bold text-sm tracking-wide rounded-xl hover:bg-primary/90 transition-colors"
+          >
+            Get Started <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── FULL-SCREEN FLOW (all other steps) ────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
       {/* Background watermark */}
@@ -111,40 +163,6 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
         >
           <X size={22} />
         </button>
-
-        {/* ── WELCOME ─────────────────────────────────────────────────── */}
-        {step === 'welcome' && (
-          <div className="p-10 flex flex-col gap-8">
-            {/* Text block */}
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-secondary mb-1">
-                Welcome to <span className="text-primary">YachtVersal</span>
-              </h1>
-              <p className="text-gray-600 mt-4 leading-relaxed">
-                Thank you for joining YachtVersal. We&apos;re excited to have your brokerage on the platform
-                and appreciate the opportunity to help market your company and your yacht listings to a broader audience.
-              </p>
-              <p className="text-gray-600 mt-3 leading-relaxed">
-                Our goal is to make it easy for buyers to discover your brand, explore your inventory,
-                and connect with you through a modern marketplace built for visibility, credibility, and growth.
-              </p>
-              <p className="text-gray-600 mt-3 leading-relaxed">
-                The next steps will guide you through setting up your brokerage profile and adding your listings
-                so you can begin showcasing your business with confidence.
-              </p>
-              <p className="font-bold text-secondary mt-5">Let&apos;s get started!</p>
-
-              <div className="mt-6">
-                <button
-                  onClick={() => setStep('brokerage_profile')}
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-white font-bold text-sm tracking-wide rounded-xl hover:bg-primary/90 transition-colors"
-                >
-                  Get Started <ChevronRight size={18} />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── LISTINGS CHOICE ─────────────────────────────────────────── */}
         {step === 'listings_choice' && (
@@ -375,7 +393,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
         {/* ── BROKERAGE PROFILE ───────────────────────────────────────── */}
         {step === 'brokerage_profile' && (
-          <BrokerageProfileStep onBack={() => setStep('welcome')} onDone={() => setStep('listings_choice')} />
+          <BrokerageProfileStep onBack={markDone} onDone={() => setStep('listings_choice')} />
         )}
 
       </div>
