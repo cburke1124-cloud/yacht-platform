@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Trash2, Archive, Eye, EyeOff, CheckSquare, Square, X } from 'lucide-react';
 
 interface BulkActionsBarProps {
@@ -10,7 +10,7 @@ interface BulkActionsBarProps {
   onClearSelection: () => void;
   onBulkDelete: () => void;
   onBulkStatusChange: (status: string) => void;
-  onBulkFeatured: (featured: boolean) => void;
+  onBulkFeatured?: (featured: boolean) => void;
 }
 
 export function BulkActionsBar({
@@ -24,6 +24,18 @@ export function BulkActionsBar({
 }: BulkActionsBarProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showStatusMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+        setShowStatusMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showStatusMenu]);
 
   if (selectedIds.length === 0) return null;
 
@@ -56,7 +68,7 @@ export function BulkActionsBar({
             {/* Right side - Actions */}
             <div className="flex items-center gap-3">
               {/* Change Status */}
-              <div className="relative">
+              <div className="relative" ref={statusMenuRef}>
                 <button
                   onClick={() => setShowStatusMenu(!showStatusMenu)}
                   className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
@@ -66,32 +78,37 @@ export function BulkActionsBar({
                 </button>
 
                 {showStatusMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2">
+                  <div className="absolute top-full right-0 mt-0 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
                     <button
-                      onClick={() => {
-                        onBulkStatusChange('active');
-                        setShowStatusMenu(false);
-                      }}
+                      onClick={() => { onBulkStatusChange('active'); setShowStatusMenu(false); }}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"
                     >
                       <div className="w-2 h-2 rounded-full bg-green-500"></div>
                       Set to Active
                     </button>
                     <button
-                      onClick={() => {
-                        onBulkStatusChange('draft');
-                        setShowStatusMenu(false);
-                      }}
+                      onClick={() => { onBulkStatusChange('draft'); setShowStatusMenu(false); }}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"
                     >
                       <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
                       Set to Draft
                     </button>
                     <button
-                      onClick={() => {
-                        onBulkStatusChange('archived');
-                        setShowStatusMenu(false);
-                      }}
+                      onClick={() => { onBulkStatusChange('pending'); setShowStatusMenu(false); }}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                      Set to Pending
+                    </button>
+                    <button
+                      onClick={() => { onBulkStatusChange('sold'); setShowStatusMenu(false); }}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      Set to Sold
+                    </button>
+                    <button
+                      onClick={() => { onBulkStatusChange('archived'); setShowStatusMenu(false); }}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"
                     >
                       <div className="w-2 h-2 rounded-full bg-gray-500"></div>
@@ -102,12 +119,14 @@ export function BulkActionsBar({
               </div>
 
               {/* Feature/Unfeature */}
-              <button
-                onClick={() => onBulkFeatured(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white hover:bg-yellow-600 rounded-lg transition-colors font-medium"
-              >
-                ⭐ Feature
-              </button>
+              {onBulkFeatured && (
+                <button
+                  onClick={() => onBulkFeatured(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white hover:bg-yellow-600 rounded-lg transition-colors font-medium"
+                >
+                  ⭐ Feature
+                </button>
+              )}
 
               {/* Archive/Delete */}
               <button

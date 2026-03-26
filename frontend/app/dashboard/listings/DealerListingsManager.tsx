@@ -5,6 +5,7 @@ import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin,
 import Link from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ListingPreviewModal from '@/app/components/ListingPreviewModal';
+import { BulkActionsBar, ListingCheckbox, useBulkSelection } from '@/app/components/BulkActionBar';
 
 interface Listing {
   id: number;
@@ -63,6 +64,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
+
+  const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(listings.length);
 
   // Quick-create guest broker inside the assign modal
   const [showAddGuest, setShowAddGuest] = useState(false);
@@ -301,6 +304,36 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     }
   };
 
+  const handleBulkStatusChange = async (status: string) => {
+    const token = localStorage.getItem('token');
+    await Promise.all(
+      selectedIds.map(id =>
+        fetch(apiUrl(`/listings/${id}`), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ status }),
+        })
+      )
+    );
+    setListings(prev => prev.map(l => selectedIds.includes(l.id) ? { ...l, status: status as Listing['status'] } : l));
+    clearSelection();
+    if (onStatsUpdate) onStatsUpdate();
+  };
+
+  const handleBulkArchive = async () => {
+    const token = localStorage.getItem('token');
+    await Promise.all(
+      selectedIds.map(id =>
+        fetch(apiUrl(`/listings/${id}`), {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        })
+      )
+    );
+    fetchListings();
+    clearSelection();
+  };
+
   const deleteListing = async (listingId: number) => {
     if (!confirm('Are you sure you want to archive this listing?')) return;
 
@@ -364,6 +397,15 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         </div>
       </div>
 
+      <BulkActionsBar
+        selectedIds={selectedIds}
+        totalCount={listings.length}
+        onSelectAll={() => selectAll(listings.map(l => l.id))}
+        onClearSelection={clearSelection}
+        onBulkDelete={handleBulkArchive}
+        onBulkStatusChange={handleBulkStatusChange}
+      />
+
       {/* Status Filter Tabs */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
@@ -400,6 +442,14 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           <table className="min-w-[800px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={listings.length > 0 && selectedIds.length === listings.length}
+                    onChange={() => selectedIds.length === listings.length ? clearSelection() : selectAll(listings.map(l => l.id))}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-pointer"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Listing
                 </th>
@@ -429,6 +479,9 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                 
                 return (
                   <tr key={listing.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <ListingCheckbox id={listing.id} checked={isSelected(listing.id)} onChange={toggleSelection} />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-16 w-16 flex-shrink-0 mr-4">
