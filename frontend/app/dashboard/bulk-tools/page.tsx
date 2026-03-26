@@ -1,17 +1,25 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
 import BulkImportExportTools from "@/app/components/BulkImportExportTools";
 import SingleListingScraper from "@/app/dashboard/components/SingleListingScraper";
-import { Globe, FileSpreadsheet } from 'lucide-react';
+import { Globe, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 
 type Tab = 'scraper' | 'bulk';
 
 export default function BulkToolsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('scraper');
+  const searchParams = useSearchParams();
+  const modeParam = searchParams.get('mode');
+  const [tab, setTab] = useState<Tab>(modeParam === 'bulk' ? 'bulk' : 'scraper');
+
+  useEffect(() => {
+    if (modeParam === 'bulk') setTab('bulk');
+    else if (modeParam === 'scraper') setTab('scraper');
+  }, [modeParam]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -30,6 +38,15 @@ export default function BulkToolsPage() {
   return (
     <div className="p-6">
       <div className="max-w-6xl mx-auto">
+        {/* Back */}
+        <Link
+          href="/listings/add"
+          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-secondary transition-colors mb-6"
+        >
+          <ArrowLeft size={16} />
+          Back to Add a Listing
+        </Link>
+
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-dark mb-2">Listing Import Tools</h1>

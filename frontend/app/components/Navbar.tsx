@@ -224,7 +224,7 @@ export default function Navbar() {
     switch (user.user_type) {
       case 'admin': return '/admin';
       case 'salesman': return '/sales-rep/dashboard';
-      case 'dealer': return '/dashboard';
+      case 'dealer': return '/dashboard?tab=listings';
       case 'user': return '/account';
       default: return '/';
     }
@@ -326,7 +326,7 @@ export default function Navbar() {
                 {/* Dashboard button — show for dealers/team members */}
                 {(user.user_type === 'dealer' || user.user_type === 'team_member') && (
                   <Link
-                    href="/dashboard"
+                    href="/dashboard?tab=listings"
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                   >
@@ -539,7 +539,7 @@ export default function Navbar() {
               // Broker portal mobile nav — keep public links plus portal shortcuts
               <>
                 <Link href="/listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
-                <Link href="/dashboard" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>My Dashboard</Link>
+                <Link href="/dashboard?tab=listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>My Dashboard</Link>
               </>
             ) : (
               // Public mobile nav

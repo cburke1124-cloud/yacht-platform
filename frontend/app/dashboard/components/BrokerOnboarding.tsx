@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2, List, ChevronRight, CheckCircle, Upload, Globe,
@@ -94,7 +94,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
           {/* Logo mark */}
           <div className="flex justify-center mb-6">
-            <img src="/logo/logo-icon.png" alt="" className="h-14 w-auto opacity-90 select-none" />
+            <img src="/logo/logo-icon.png" alt="" className="h-[84px] w-auto opacity-90 select-none" />
           </div>
 
           {/* Heading */}
@@ -411,6 +411,28 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(p => {
+        if (!p) return;
+        setProfile({
+          company_name: p.company_name || '',
+          description: p.description || '',
+          phone: p.phone || '',
+          email: p.email || '',
+          website: p.website || '',
+          facebook_url: p.facebook_url || '',
+          instagram_url: p.instagram_url || '',
+          linkedin_url: p.linkedin_url || '',
+          twitter_url: p.twitter_url || '',
+        });
+        if (p.logo_url) setLogoPreview(p.logo_url);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

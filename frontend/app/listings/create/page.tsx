@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import MediaUpload from '@/app/components/MediaUpload';
 import MediaLibraryPicker from '@/app/components/MediaLibraryPicker';
 import ScraperModal from '@/app/components/ScraperModal';
-import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film } from 'lucide-react';
+import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film, ArrowLeft } from 'lucide-react';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 
@@ -928,6 +929,16 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         userId={0}
       />
       <div className="max-w-5xl mx-auto px-4">
+        {/* Back button */}
+        {!isEditMode && (
+          <Link
+            href="/listings/add"
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-secondary transition-colors mb-6"
+          >
+            <ArrowLeft size={16} />
+            Back to Add a Listing
+          </Link>
+        )}
         <div className="bg-white rounded-2xl shadow-sm p-8" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
 
           <h1 style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 28, fontWeight: 600, color: '#10214F', marginBottom: 4 }}>

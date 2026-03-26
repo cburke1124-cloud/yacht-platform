@@ -63,6 +63,7 @@ interface Listing {
 interface DashboardStats {
   totalListings: number;
   activeListings: number;
+  needsApprovalListings: number;
   totalViews: number;
   totalInquiries: number;
   featuredListings: number;
@@ -290,6 +291,7 @@ export default function EnhancedDealerDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
+    needsApprovalListings: 0,
     totalViews: 0,
     totalInquiries: 0,
     featuredListings: 0
@@ -299,6 +301,7 @@ export default function EnhancedDealerDashboard() {
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
+  const [listingStatusFilter, setListingStatusFilter] = useState('all');
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('30d');
   const [teamPerformance, setTeamPerformance] = useState<TeamPerformanceData | null>(null);
   const [teamPerformanceLoading, setTeamPerformanceLoading] = useState(false);
@@ -750,6 +753,7 @@ export default function EnhancedDealerDashboard() {
       setStats({
         totalListings: listings.length,
         activeListings: listings.filter((l: Listing) => l.status === 'active').length,
+        needsApprovalListings: listings.filter((l: Listing) => l.status === 'needs_approval').length,
         totalViews,
         totalInquiries,
         featuredListings: featuredCount
@@ -1537,22 +1541,22 @@ export default function EnhancedDealerDashboard() {
 
           <div className="glass-card p-6">
             <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-orange-50 rounded-lg">
+                <ClipboardList className="text-orange-500" size={24} />
+              </div>
+              <p className="text-gray-600 text-sm">Needs Approval</p>
+            </div>
+            <p className="text-3xl font-bold text-orange-500">{stats.needsApprovalListings}</p>
+          </div>
+
+          <div className="glass-card p-6">
+            <div className="flex items-center gap-3 mb-2">
               <div className="p-2 bg-emerald-50 rounded-lg">
                 <Eye className="text-primary" size={24} />
               </div>
               <p className="text-gray-600 text-sm">Active</p>
             </div>
             <p className="text-3xl font-bold text-primary">{stats.activeListings}</p>
-          </div>
-
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-amber-50 rounded-lg">
-                <Star className="text-accent fill-accent" size={24} />
-              </div>
-              <p className="text-gray-600 text-sm">Featured</p>
-            </div>
-            <p className="text-3xl font-bold text-accent">{stats.featuredListings}</p>
           </div>
 
           <div className="glass-card p-6">
@@ -1619,6 +1623,21 @@ export default function EnhancedDealerDashboard() {
                     {label}
                   </button>
                 ))}
+
+                {/* Broker Profile */}
+                {isDealer && (
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                      activeTab === 'profile'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                    }`}
+                  >
+                    <Building2 size={16} />
+                    Broker Page
+                  </button>
+                )}
 
                 {/* Team — above Analytics, only for eligible users */}
                 {(isDealer || teamMemberCan('manage_team')) && (
@@ -1718,174 +1737,210 @@ export default function EnhancedDealerDashboard() {
                   <h3 className="text-lg font-semibold text-secondary">Listings</h3>
                 </div>
                 <NextLink
-                  href="/listings/create"
+                  href="/listings/add"
                   className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
                   <PlusCircle size={15} />
-                  Create a Listing
+                  Add a Listing
                 </NextLink>
               </div>
-              <div>
-                <table className="w-full table-fixed">
-                  <thead className="bg-soft">
-                    <tr>
-                      <th className="px-3 py-3 text-left w-10">
-                        <input
-                          type="checkbox"
-                          checked={selectedListings.size === listings.length && listings.length > 0}
-                          onChange={() => {
-                            if (selectedListings.size === listings.length) {
-                              setSelectedListings(new Set());
-                            } else {
-                              setSelectedListings(new Set(listings.map(l => l.id)));
-                            }
-                          }}
-                          className="w-5 h-5 rounded"
-                        />
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[36%]">
-                        Yacht
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[16%]">
-                        Price
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[14%]">
-                        Status
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[10%]">
-                        Views
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[24%]">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {listings.map((listing) => (
-                      <tr 
-                        key={listing.id}
-                        className={selectedListings.has(listing.id) ? 'bg-cyan-50' : 'hover:bg-soft'}
-                      >
-                        <td className="px-3 py-3 align-top">
-                          <input
-                            type="checkbox"
-                            checked={selectedListings.has(listing.id)}
-                            onChange={() => toggleListingSelection(listing.id)}
-                            className="w-5 h-5 rounded"
-                          />
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center gap-3">
-                            {listing.images && listing.images.length > 0 ? (
-                              <img 
-                                src={mediaUrl(listing.images[0].url)} 
-                                alt={listing.title}
-                                className="w-12 h-12 object-cover rounded-lg"
-                                onError={onImgError}
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <span className="text-gray-400 text-xs">No image</span>
-                              </div>
-                            )}
-                            <div className="min-w-0 w-full">
-                              {quickEditMode ? (
-                                <input
-                                  type="text"
-                                  value={quickEdits[listing.id]?.title ?? listing.title}
-                                  onChange={(e) => updateQuickEditField(listing.id, 'title', e.target.value)}
-                                  className="font-semibold text-secondary rounded px-2 py-1 border border-gray-200 bg-white w-full"
-                                />
-                              ) : (
-                                <p className="font-semibold text-secondary truncate pr-2">
-                                  {quickEdits[listing.id]?.title ?? listing.title}
-                                </p>
-                              )}
-                              <p className="text-sm text-gray-600">
-                                {[listing.city, listing.state].filter(Boolean).join(', ') || 'Location not set'}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-secondary">$</span>
-                            {quickEditMode ? (
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={quickEdits[listing.id]?.price ?? (listing.price != null ? String(listing.price) : '')}
-                                onChange={(e) => updateQuickEditField(listing.id, 'price', e.target.value)}
-                                className="rounded px-2 py-1 w-full border border-gray-200 bg-white"
-                                placeholder="Price"
-                              />
-                            ) : (
-                              <span className="text-secondary font-medium truncate">
-                                {quickEdits[listing.id]?.price ?? (listing.price != null ? String(listing.price) : 'N/A')}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            (quickEdits[listing.id]?.status || listing.status) === 'active' 
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-soft text-dark'
-                          }`}>
-                            {quickEdits[listing.id]?.status || listing.status}
+              {/* Status filter tabs */}
+              {(() => {
+                const statusFilters = [
+                  { id: 'all', label: 'All' },
+                  { id: 'needs_approval', label: 'Needs Approval' },
+                  { id: 'active', label: 'Active' },
+                  { id: 'draft', label: 'Draft' },
+                  { id: 'pending', label: 'Pending' },
+                  { id: 'sold', label: 'Sold' },
+                  { id: 'archived', label: 'Archived' },
+                ];
+                const filteredListings = listingStatusFilter === 'all'
+                  ? listings
+                  : listings.filter(l => l.status === listingStatusFilter);
+                return (
+                  <>
+                    <div className="flex gap-1 overflow-x-auto px-4 pt-3 pb-0 border-b border-gray-100">
+                      {statusFilters.map(sf => (
+                        <button
+                          key={sf.id}
+                          onClick={() => setListingStatusFilter(sf.id)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-t-lg whitespace-nowrap transition-colors border-b-2 ${
+                            listingStatusFilter === sf.id
+                              ? 'border-primary text-primary bg-primary/5'
+                              : 'border-transparent text-gray-500 hover:text-secondary'
+                          }`}
+                        >
+                          {sf.label}
+                          <span className="ml-1 text-[10px] text-gray-400">
+                            ({sf.id === 'all' ? listings.length : listings.filter(l => l.status === sf.id).length})
                           </span>
-                          {quickEditMode && (
-                            <select
-                              value={quickEdits[listing.id]?.status ?? listing.status}
-                              onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
-                              className="mt-2 block text-sm border border-gray-200 rounded px-2 py-1"
+                        </button>
+                      ))}
+                    </div>
+                    <div>
+                      <table className="w-full table-fixed">
+                        <thead className="bg-soft">
+                          <tr>
+                            <th className="px-3 py-3 text-left w-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedListings.size === filteredListings.length && filteredListings.length > 0}
+                                onChange={() => {
+                                  if (selectedListings.size === filteredListings.length) {
+                                    setSelectedListings(new Set());
+                                  } else {
+                                    setSelectedListings(new Set(filteredListings.map((l: Listing) => l.id)));
+                                  }
+                                }}
+                                className="w-5 h-5 rounded"
+                              />
+                            </th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[36%]">
+                              Yacht
+                            </th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[16%]">
+                              Price
+                            </th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[14%]">
+                              Status
+                            </th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[10%]">
+                              Views
+                            </th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[24%]">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {filteredListings.map((listing: Listing) => (
+                            <tr
+                              key={listing.id}
+                              className={selectedListings.has(listing.id) ? 'bg-cyan-50' : 'hover:bg-soft'}
                             >
-                              <option value="draft">Draft</option>
-                              <option value="active">Active</option>
-                              <option value="pending">Pending</option>
-                              <option value="sold">Sold</option>
-                              <option value="archived">Archived</option>
-                            </select>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center gap-2">
-                            <Eye size={16} className="text-gray-400" />
-                            <span className="text-gray-900">{listing.views || 0}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <button
-                              onClick={() => window.location.href = `/listings/${listing.id}`}
-                              className="p-2 text-primary hover:bg-cyan-50 rounded transition-colors"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            <button
-                              onClick={() => window.location.href = `/listings/${listing.id}/edit`}
-                              className="p-2 text-secondary hover:bg-soft rounded transition-colors"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            {quickEditMode && (
-                              <button
-                                onClick={() => saveQuickEdit(listing.id)}
-                                disabled={savingQuickEditId === listing.id}
-                                className="px-3 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90 disabled:bg-gray-400"
-                              >
-                                {savingQuickEditId === listing.id ? 'Saving...' : 'Save'}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Quick Edit toggle — subtle, bottom of listings */}
+                              <td className="px-3 py-3 align-top">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedListings.has(listing.id)}
+                                  onChange={() => toggleListingSelection(listing.id)}
+                                  className="w-5 h-5 rounded"
+                                />
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <div className="flex items-center gap-3">
+                                  {listing.images && listing.images.length > 0 ? (
+                                    <img
+                                      src={mediaUrl(listing.images[0].url)}
+                                      alt={listing.title}
+                                      className="w-12 h-12 object-cover rounded-lg"
+                                      onError={onImgError}
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                      <span className="text-gray-400 text-xs">No image</span>
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 w-full">
+                                    {quickEditMode ? (
+                                      <input
+                                        type="text"
+                                        value={quickEdits[listing.id]?.title ?? listing.title}
+                                        onChange={(e) => updateQuickEditField(listing.id, 'title', e.target.value)}
+                                        className="font-semibold text-secondary rounded px-2 py-1 border border-gray-200 bg-white w-full"
+                                      />
+                                    ) : (
+                                      <NextLink
+                                        href={`/listings/${listing.id}`}
+                                        className="font-semibold text-secondary hover:text-primary truncate pr-2 block transition-colors"
+                                      >
+                                        {quickEdits[listing.id]?.title ?? listing.title}
+                                      </NextLink>
+                                    )}
+                                    <p className="text-sm text-gray-600">
+                                      {[listing.city, listing.state].filter(Boolean).join(', ') || 'Location not set'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-secondary">$</span>
+                                  {quickEditMode ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={quickEdits[listing.id]?.price ?? (listing.price != null ? String(listing.price) : '')}
+                                      onChange={(e) => updateQuickEditField(listing.id, 'price', e.target.value)}
+                                      className="rounded px-2 py-1 w-full border border-gray-200 bg-white"
+                                      placeholder="Price"
+                                    />
+                                  ) : (
+                                    <span className="text-secondary font-medium truncate">
+                                      {quickEdits[listing.id]?.price ?? (listing.price != null ? String(listing.price) : 'N/A')}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  (quickEdits[listing.id]?.status || listing.status) === 'active'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : (quickEdits[listing.id]?.status || listing.status) === 'needs_approval'
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : 'bg-soft text-dark'
+                                }`}>
+                                  {(quickEdits[listing.id]?.status || listing.status) === 'needs_approval'
+                                    ? 'Needs Approval'
+                                    : (quickEdits[listing.id]?.status || listing.status)}
+                                </span>
+                                {quickEditMode && (
+                                  <select
+                                    value={quickEdits[listing.id]?.status ?? listing.status}
+                                    onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
+                                    className="mt-2 block text-sm border border-gray-200 rounded px-2 py-1"
+                                  >
+                                    <option value="needs_approval">Needs Approval</option>
+                                    <option value="draft">Draft</option>
+                                    <option value="active">Active</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="sold">Sold</option>
+                                    <option value="archived">Archived</option>
+                                  </select>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <span className="text-gray-900">{listing.views || 0}</span>
+                              </td>
+                              <td className="px-3 py-3 align-top">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <button
+                                    onClick={() => window.location.href = `/listings/${listing.id}/edit`}
+                                    className="p-2 text-secondary hover:bg-soft rounded transition-colors"
+                                  >
+                                    <Edit size={18} />
+                                  </button>
+                                  {quickEditMode && (
+                                    <button
+                                      onClick={() => saveQuickEdit(listing.id)}
+                                      disabled={savingQuickEditId === listing.id}
+                                      className="px-3 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90 disabled:bg-gray-400"
+                                    >
+                                      {savingQuickEditId === listing.id ? 'Saving...' : 'Save'}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
+              {/* Quick Edit toggle */}
               <div className="flex justify-center py-3">
                 <button
                   onClick={() => setQuickEditMode((prev) => !prev)}
