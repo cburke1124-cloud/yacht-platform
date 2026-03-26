@@ -23,6 +23,7 @@ import MessagingCenter from '@/app/messages/page';
 import SalesmanProfileForm, { type SalesmanProfileFormHandle } from '@/app/dashboard/components/SalesmanProfileForm';
 import BrokerOnboarding from '@/app/dashboard/components/BrokerOnboarding';
 import HelpCenter from '@/app/dashboard/components/HelpCenter';
+import { motion } from 'framer-motion';
 
 type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages' | 'help';
 
@@ -1545,55 +1546,29 @@ function EnhancedDealerDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <BarChart3 className="text-gray-400" size={24} />
+          {[
+            { label: 'Total Listings',   value: stats.totalListings,                    icon: BarChart3,      iconClass: 'text-gray-400',    bgClass: 'bg-gray-100',    valueClass: 'text-gray-500'    },
+            { label: 'Needs Approval',   value: stats.needsApprovalListings,            icon: ClipboardList,  iconClass: 'text-orange-500',  bgClass: 'bg-orange-50',   valueClass: 'text-orange-500'  },
+            { label: 'Active',           value: stats.activeListings,                   icon: Eye,            iconClass: 'text-green-500',   bgClass: 'bg-green-50',    valueClass: 'text-green-600'   },
+            { label: 'Total Views',      value: stats.totalViews.toLocaleString(),      icon: Eye,            iconClass: 'text-primary',     bgClass: 'bg-cyan-50',     valueClass: 'text-primary'     },
+            { label: 'Inquiries',        value: stats.totalInquiries,                   icon: MessageSquare,  iconClass: 'text-secondary',   bgClass: 'bg-indigo-50',   valueClass: 'text-secondary'   },
+          ].map(({ label, value, icon: Icon, iconClass, bgClass, valueClass }, i) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              className="glass-card p-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2 ${bgClass} rounded-lg transition-transform duration-200 group-hover:scale-110`}>
+                  <Icon className={iconClass} size={24} />
+                </div>
+                <p className="text-gray-600 text-sm">{label}</p>
               </div>
-              <p className="text-gray-600 text-sm">Total Listings</p>
-            </div>
-            <p className="text-3xl font-bold text-gray-500">{stats.totalListings}</p>
-          </div>
-
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-orange-50 rounded-lg">
-                <ClipboardList className="text-orange-500" size={24} />
-              </div>
-              <p className="text-gray-600 text-sm">Needs Approval</p>
-            </div>
-            <p className="text-3xl font-bold text-orange-500">{stats.needsApprovalListings}</p>
-          </div>
-
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <Eye className="text-green-500" size={24} />
-              </div>
-              <p className="text-gray-600 text-sm">Active</p>
-            </div>
-            <p className="text-3xl font-bold text-green-600">{stats.activeListings}</p>
-          </div>
-
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-cyan-50 rounded-lg">
-                <Eye className="text-primary" size={24} />
-              </div>
-              <p className="text-gray-600 text-sm">Total Views</p>
-            </div>
-            <p className="text-3xl font-bold text-primary">{stats.totalViews.toLocaleString()}</p>
-          </div>
-
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-indigo-50 rounded-lg">
-                <MessageSquare className="text-secondary" size={24} />
-              </div>
-              <p className="text-gray-600 text-sm">Inquiries</p>
-            </div>
-            <p className="text-3xl font-bold text-secondary">{stats.totalInquiries}</p>
-          </div>
+              <p className={`text-3xl font-bold ${valueClass}`}>{value}</p>
+            </motion.div>
+          ))}
         </div>
 
         {/* Left Sidebar + Content */}
@@ -1629,13 +1604,13 @@ function EnhancedDealerDashboard() {
                   <button
                     key={id}
                     onClick={() => setActiveTab(id as TabId)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                       activeTab === id
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                        ? 'bg-primary/10 text-primary shadow-sm'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
                     }`}
                   >
-                    <Icon size={16} />
+                    <Icon size={16} className="transition-transform duration-200" />
                     {label}
                   </button>
                 ))}
@@ -1644,10 +1619,10 @@ function EnhancedDealerDashboard() {
                 {isDealer && (
                   <button
                     onClick={() => setActiveTab('profile')}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                       activeTab === 'profile'
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                        ? 'bg-primary/10 text-primary shadow-sm'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
                     }`}
                   >
                     <Building2 size={16} />
@@ -1659,10 +1634,10 @@ function EnhancedDealerDashboard() {
                 {(isDealer || teamMemberCan('manage_team')) && (
                   <button
                     onClick={() => setActiveTab('team')}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                       activeTab === 'team'
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                        ? 'bg-primary/10 text-primary shadow-sm'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
                     }`}
                   >
                     <Users size={16} />
@@ -1672,10 +1647,10 @@ function EnhancedDealerDashboard() {
 
                 <button
                   onClick={() => setActiveTab('analytics' as TabId)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                     activeTab === 'analytics'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                      ? 'bg-primary/10 text-primary shadow-sm'
+                      : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
                   }`}
                 >
                   <BarChart3 size={16} />
@@ -1691,10 +1666,10 @@ function EnhancedDealerDashboard() {
               {/* Account / Settings */}
               <button
                 onClick={() => setActiveTab('account')}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                   ['account','billing','crm','bulk','media','api-keys'].includes(activeTab)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                    ? 'bg-primary/10 text-primary shadow-sm'
+                    : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
                 }`}
               >
                 <Settings size={16} />
@@ -1704,10 +1679,10 @@ function EnhancedDealerDashboard() {
               {/* Help — bottom of sidebar */}
               <button
                 onClick={() => setActiveTab('help')}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
                   activeTab === 'help'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                    ? 'bg-primary/10 text-primary shadow-sm'
+                    : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
                 }`}
               >
                 <HelpCircle size={16} />

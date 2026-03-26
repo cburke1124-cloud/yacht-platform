@@ -169,14 +169,14 @@ export default function ListingCard({
   };
 
   return (
-    <Link href={`/listings/${id}`} className="block">
-      <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden">
+    <Link href={`/listings/${id}`} className="block group">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 ease-out overflow-hidden">
         {/* Image with Featured Badge and Action Buttons */}
-        <div className="relative aspect-[4/3] bg-gray-200">
+        <div className="relative aspect-[4/3] bg-gray-200 overflow-hidden">
           <img
             src={imageUrl}
             alt={title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={(e) => {
               // Fallback if image fails to load
               e.currentTarget.src = '/images/listing-fallback.png';

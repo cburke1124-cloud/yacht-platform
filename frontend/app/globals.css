@@ -99,7 +99,14 @@ nav {
     border: 1px solid #E5E7EB;
     border-radius: 0.75rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.2s ease;
+  }
+  .glass-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(1, 187, 220, 0.1), 0 2px 8px rgba(0,0,0,0.07);
+    border-color: rgba(1, 187, 220, 0.3);
   }
 
   .glass-stat {
@@ -188,5 +195,94 @@ nav {
   ::-moz-selection {
     background: rgba(204, 175, 139, 0.4);
     color: #2E2E2E;
+  }
+}
+
+/* =========================
+   Motion & Animation Utilities
+   ========================= */
+
+/* Entrance keyframes */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0;  }
+}
+
+@layer utilities {
+  /* Entrance animations */
+  .animate-fade-up   { animation: fadeUp  0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade-in   { animation: fadeIn  0.4s ease both; }
+  .animate-scale-in  { animation: scaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-slide-left { animation: slideInLeft 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Stagger delays */
+  .delay-75  { animation-delay: 75ms;  }
+  .delay-100 { animation-delay: 100ms; }
+  .delay-150 { animation-delay: 150ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  .delay-500 { animation-delay: 500ms; }
+
+  /* Card hover lift + glow */
+  .hover-rise {
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 0.2s ease;
+  }
+  .hover-rise:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 40px rgba(1, 187, 220, 0.12), 0 4px 12px rgba(0,0,0,0.08);
+    border-color: rgba(1, 187, 220, 0.4);
+  }
+
+  /* Button press */
+  .btn-press {
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  .btn-press:active {
+    transform: scale(0.96);
+  }
+
+  /* Icon pop on group hover */
+  .group:hover .icon-pop {
+    transform: scale(1.18) rotate(-4deg);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .icon-pop {
+    transition: transform 0.2s ease;
+  }
+
+  /* Shimmer skeleton */
+  .shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s infinite;
+  }
+
+  /* Glowing border on focus/active */
+  .glow-focus:focus-within {
+    box-shadow: 0 0 0 3px rgba(1, 187, 220, 0.25);
+    border-color: #01BBDC;
   }
 }
