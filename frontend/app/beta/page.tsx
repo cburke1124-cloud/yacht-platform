@@ -542,7 +542,7 @@ export default function HomePage() {
                 fontFamily: 'Poppins, sans-serif',
                 fontSize: 16,
                 lineHeight: '26px',
-                fontWeight: 700,
+                fontWeight: 400,
                 marginBottom: 20,
                 maxWidth: 640,
               }}

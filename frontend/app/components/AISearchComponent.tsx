@@ -220,7 +220,7 @@ export default function AISearchComponent() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="e.g., 'I need a yacht for 10 people for parties' or 'Fishing boat under $500k in Florida'"
+                placeholder="I want a 70–90 ft yacht for Bahamas cruising under $3M"
                 className="w-full px-6 py-4 text-lg border-2 border-light/30 bg-secondary/70 text-light placeholder:text-light/70 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
                 disabled={isListening || isSearching}
               />

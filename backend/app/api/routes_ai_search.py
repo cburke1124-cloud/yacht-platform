@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json
 import os
+import re
+import requests as _requests
 from datetime import datetime
-
-import anthropic as _anthropic
 
 from app.db.session import get_db
 from app.models.listing import Listing
@@ -44,7 +44,7 @@ class ScoredListing(BaseModel):
     warnings: Optional[List[str]] = None
 
 
-async def extract_search_criteria(query: str) -> SearchCriteria:
+def extract_search_criteria(query: str) -> SearchCriteria:
     """Use Claude to extract structured search criteria from natural language"""
     
     prompt = f"""You are a yacht search assistant. Extract search criteria from this query:
@@ -82,18 +82,30 @@ Return ONLY valid JSON, no markdown or explanations."""
         return SearchCriteria(features=[query.lower()])
 
     try:
-        client = _anthropic.AsyncAnthropic(api_key=api_key)
-        message = await client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}]
+        response = _requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 1000,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=20,
         )
-        content = message.content[0].text.strip()
+        if not response.ok:
+            return SearchCriteria(features=[query.lower()])
+        payload = response.json()
+        content_list = payload.get("content", [])
+        if not content_list:
+            return SearchCriteria(features=[query.lower()])
+        content = content_list[0].get("text", "").strip()
         # Strip markdown fences if present
-        if content.startswith("```json"): content = content[7:]
-        if content.startswith("```"):     content = content[3:]
-        if content.endswith("```"):       content = content[:-3]
-        criteria_dict = json.loads(content.strip())
+        content = re.sub(r"^```json\s*|\s*```$", "", content).strip()
+        criteria_dict = json.loads(content)
         return SearchCriteria(**criteria_dict)
     except Exception:
         return SearchCriteria(features=[query.lower()])
@@ -333,10 +345,19 @@ async def ai_search(
     
     try:
         # Step 1: Extract search criteria using Claude
-        criteria = await extract_search_criteria(request.query)
+        criteria = extract_search_criteria(request.query)
         
-        # Step 2: Build database query
-        query = db.query(Listing).filter(Listing.status == "active")
+        # Step 2: Build database query — eager-load owner+profile+images to avoid lazy-load 500s
+        from sqlalchemy.orm import joinedload as jl
+        from app.models.user import User
+        query = (
+            db.query(Listing)
+            .filter(Listing.status == "active")
+            .options(
+                jl(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
+                jl(Listing.images),
+            )
+        )
         
         # Apply hard filters (must-haves)
         if criteria.min_price:
@@ -366,11 +387,14 @@ async def ai_search(
                 "message": "No yachts found matching your criteria. Try broadening your search."
             }
         
-        # Step 3: Score each listing
+        # Step 3: Score each listing (skip any that fail to avoid single bad record tanking all results)
         scored_listings = []
         for listing in candidates:
-            scored = score_listing(listing, criteria, request.query)
-            scored_listings.append(scored)
+            try:
+                scored = score_listing(listing, criteria, request.query)
+                scored_listings.append(scored)
+            except Exception:
+                pass
         
         # Step 4: Sort by score and return top results
         scored_listings.sort(key=lambda x: x.score, reverse=True)

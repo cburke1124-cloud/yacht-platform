@@ -1960,7 +1960,7 @@ function EnhancedDealerDashboard() {
                   onClick={() => setQuickEditMode((prev) => !prev)}
                   className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
                 >
-                  {quickEditMode ? 'Exit Quick Edit Mode' : 'Enable Quick Edit Mode'}
+                  {quickEditMode ? 'Save & Exit Quick Edit' : 'Enable Quick Edit Mode'}
                 </button>
               </div>
             </div>
