@@ -347,13 +347,16 @@ async def ai_search(
         # Step 1: Extract search criteria using Claude
         criteria = extract_search_criteria(request.query)
         
-        # Step 2: Build database query — eager-load owner+profile+images to avoid lazy-load 500s
+        # Step 2: Build database query — inner-join User so orphaned listings
+        # are excluded, and eager-load all relationships to prevent lazy-load 500s.
         from sqlalchemy.orm import joinedload as jl
         from app.models.user import User
         query = (
             db.query(Listing)
+            .join(User, Listing.user_id == User.id)
             .filter(Listing.status == "active")
             .options(
+                jl(Listing.owner).joinedload(User.dealer_profile),
                 jl(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
                 jl(Listing.images),
             )

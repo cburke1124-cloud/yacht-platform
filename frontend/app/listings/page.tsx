@@ -279,7 +279,19 @@ function UnifiedListingsContent() {
       }
       const response = await fetch(url);
       const data = await response.json();
-      setListings(isAISearch ? (data.results || []) : (Array.isArray(data) ? data : []));
+      if (isAISearch) {
+        // AI results are wrapped: { listing: {...}, match_score, match_reasons, warnings }
+        // Flatten them so the rest of the page treats them as regular Listing objects.
+        const flat = (data.results || []).map((r: any) => ({
+          ...(r.listing || {}),
+          match_score: r.match_score,
+          match_reasons: r.match_reasons,
+          warnings: r.warnings,
+        }));
+        setListings(flat);
+      } else {
+        setListings(Array.isArray(data) ? data : []);
+      }
     } catch (error) {
       console.error('Error fetching listings:', error);
       setListings([]);
