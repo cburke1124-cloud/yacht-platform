@@ -146,14 +146,12 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
       <div className="relative z-10 w-full max-w-3xl mx-auto min-h-full flex flex-col py-10 px-4">
 
         {/* Progress bar */}
-        {step !== 'welcome' && (
-          <div className="h-1 bg-gray-100">
-            <div
-              className="h-full bg-primary transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
+        <div className="h-1 bg-gray-100">
+          <div
+            className="h-full bg-primary transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
 
         {/* Close / skip */}
         <button
