@@ -15,23 +15,71 @@ type Step =
   | 'import_bulk'
   | 'brokerage_profile';
 
+interface ProfileData {
+  company_name: string;
+  description: string;
+  phone: string;
+  email: string;
+  website: string;
+  facebook_url: string;
+  instagram_url: string;
+  linkedin_url: string;
+  twitter_url: string;
+  logo_url?: string;
+}
+
 interface Props {
   userId: number;
+  userType?: string;
   onComplete: () => void;
 }
 
-export default function BrokerOnboarding({ userId, onComplete }: Props) {
+export default function BrokerOnboarding({ userId, userType, onComplete }: Props) {
   const router = useRouter();
+  const isTeamMember = userType === 'team_member';
   const [step, setStep] = useState<Step>('welcome');
   const [importUrl, setImportUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  // Fetch existing dealer/broker profile on mount so every step can be pre-populated
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          const pd: ProfileData = {
+            company_name: data.company_name || '',
+            description: data.description || '',
+            phone: data.phone || '',
+            email: data.email || '',
+            website: data.website || '',
+            facebook_url: data.facebook_url || '',
+            instagram_url: data.instagram_url || '',
+            linkedin_url: data.linkedin_url || '',
+            twitter_url: data.twitter_url || '',
+            logo_url: data.logo_url || undefined,
+          };
+          setProfileData(pd);
+          // Pre-fill import URL with registered website so brokers don't have to re-enter it
+          if (data.website) setImportUrl(data.website);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProfile(false));
+  }, []);
 
   const markDone = () => {
     localStorage.setItem(`onboarding_done_${userId}`, '1');
     onComplete();
   };
+
+  // Team members skip the brokerage profile step (they can't edit the broker's profile)
+  const nextFromWelcome = () => isTeamMember ? setStep('listings_choice') : setStep('brokerage_profile');
 
   const submitImport = async (type: 'single' | 'bulk') => {
     if (!importUrl.trim()) return;
@@ -68,14 +116,11 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
   };
 
   // ── Progress bar ─────────────────────────────────────────────────────────
-  const stepIndex: Record<Step, number> = {
-    welcome: 0,
-    brokerage_profile: 1,
-    listings_choice: 2,
-    import_single: 2,
-    import_bulk: 2,
-  };
-  const totalSteps = 2;
+  // Team members only have 1 step (listings); dealers have 2 (profile + listings)
+  const stepIndex: Record<Step, number> = isTeamMember
+    ? { welcome: 0, brokerage_profile: 0, listings_choice: 1, import_single: 1, import_bulk: 1 }
+    : { welcome: 0, brokerage_profile: 1, listings_choice: 2, import_single: 2, import_bulk: 2 };
+  const totalSteps = isTeamMember ? 1 : 2;
   const progress = Math.round((stepIndex[step] / totalSteps) * 100);
 
   // ── WELCOME POPUP ──────────────────────────────────────────────────────────
@@ -118,7 +163,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
           {/* CTA */}
           <button
-            onClick={() => setStep('brokerage_profile')}
+            onClick={nextFromWelcome}
             className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-primary text-white font-bold text-sm tracking-wide rounded-xl hover:bg-primary/90 transition-colors"
           >
             Get Started <ChevronRight size={18} />
@@ -389,7 +434,12 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
         {/* ── BROKERAGE PROFILE ───────────────────────────────────────── */}
         {step === 'brokerage_profile' && (
-          <BrokerageProfileStep onBack={markDone} onDone={() => setStep('listings_choice')} />
+          <BrokerageProfileStep
+            onBack={markDone}
+            onDone={() => setStep('listings_choice')}
+            initialProfile={profileData}
+            loadingInitial={loadingProfile}
+          />
         )}
 
       </div>
@@ -398,7 +448,14 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 }
 
 // ── Brokerage Profile inline step ────────────────────────────────────────────
-function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+function BrokerageProfileStep({
+  onBack, onDone, initialProfile, loadingInitial,
+}: {
+  onBack: () => void;
+  onDone: () => void;
+  initialProfile?: ProfileData | null;
+  loadingInitial?: boolean;
+}) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -410,27 +467,24 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
+  // When parent-fetched profile data arrives (or on initial render if already present),
+  // hydrate the form fields so existing data is always visible.
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(p => {
-        if (!p) return;
-        setProfile({
-          company_name: p.company_name || '',
-          description: p.description || '',
-          phone: p.phone || '',
-          email: p.email || '',
-          website: p.website || '',
-          facebook_url: p.facebook_url || '',
-          instagram_url: p.instagram_url || '',
-          linkedin_url: p.linkedin_url || '',
-          twitter_url: p.twitter_url || '',
-        });
-        if (p.logo_url) setLogoPreview(p.logo_url);
-      })
-      .catch(() => {});
-  }, []);
+    if (initialProfile) {
+      setProfile({
+        company_name: initialProfile.company_name,
+        description: initialProfile.description,
+        phone: initialProfile.phone,
+        email: initialProfile.email,
+        website: initialProfile.website,
+        facebook_url: initialProfile.facebook_url,
+        instagram_url: initialProfile.instagram_url,
+        linkedin_url: initialProfile.linkedin_url,
+        twitter_url: initialProfile.twitter_url,
+      });
+      if (initialProfile.logo_url) setLogoPreview(initialProfile.logo_url);
+    }
+  }, [initialProfile]);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -491,6 +545,15 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
 
   return (
     <div className="p-8">
+      {/* Loading overlay while initial profile data is being fetched */}
+      {loadingInitial && (
+        <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
+          <Loader2 size={20} className="animate-spin" />
+          <span className="text-sm">Loading your profile…</span>
+        </div>
+      )}
+      {!loadingInitial && (
+      <>
       <div className="flex items-center gap-3 mb-2">
         <button onClick={onBack} className="text-gray-400 hover:text-secondary transition-colors">
           <ArrowLeft size={20} />
@@ -607,6 +670,8 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
           </button>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

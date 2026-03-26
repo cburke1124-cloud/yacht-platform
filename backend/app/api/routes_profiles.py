@@ -402,11 +402,43 @@ def get_dealer_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get current user's dealer profile."""
-    
-    if current_user.user_type != "dealer":
+    """Get current user's dealer profile (or their broker's profile for team members)."""
+
+    if current_user.user_type == "team_member":
+        dealer_id = current_user.parent_dealer_id
+        if not dealer_id:
+            raise AuthorizationException("No broker account associated with this account")
+        profile = db.query(DealerProfile).filter(
+            DealerProfile.user_id == dealer_id
+        ).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Broker profile not found")
+        return {
+            "id": profile.id,
+            "user_id": profile.user_id,
+            "slug": profile.slug,
+            "name": profile.name,
+            "company_name": profile.company_name,
+            "email": profile.email,
+            "phone": profile.phone,
+            "address": profile.address,
+            "city": profile.city,
+            "state": profile.state,
+            "country": profile.country,
+            "zip_code": profile.zip_code,
+            "website": profile.website,
+            "description": profile.description,
+            "logo_url": profile.logo_url,
+            "banner_url": profile.banner_url,
+            "facebook_url": profile.facebook_url,
+            "instagram_url": profile.instagram_url,
+            "twitter_url": profile.twitter_url,
+            "linkedin_url": profile.linkedin_url,
+        }
+
+    if current_user.user_type not in ("dealer", "admin"):
         raise AuthorizationException("Only dealers can access dealer profiles")
-    
+
     profile = db.query(DealerProfile).filter(
         DealerProfile.user_id == current_user.id
     ).first()

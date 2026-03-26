@@ -1530,6 +1530,7 @@ function EnhancedDealerDashboard() {
       {showOnboarding && currentUser && (
         <BrokerOnboarding
           userId={currentUser.id}
+          userType={currentUser.user_type}
           onComplete={() => setShowOnboarding(false)}
         />
       )}
