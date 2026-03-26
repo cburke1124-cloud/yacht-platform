@@ -22,24 +22,18 @@ export default function SingleListingScraper() {
     setStep('submitting');
     const token = localStorage.getItem('token');
     try {
-      // Log a pending scraper job for admin processing
-      await fetch(apiUrl('/broker/import-request'), {
+      const res = await fetch(apiUrl('/scraper/dealer/import'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ url: trimmed, import_type: 'single' }),
+        body: JSON.stringify({ url: trimmed }),
       });
 
-      // Also file a support ticket so every admin is notified
-      await fetch(apiUrl('/messages/support-ticket'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          subject: 'Listing import request',
-          category: 'listings',
-          priority: 'high',
-          body: `A broker has requested a listing import from the following URL:\n\n${trimmed}\n\nPlease review and configure the scraper job manually.`,
-        }),
-      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail || 'Failed to import listing. Please check the URL and try again.');
+        setStep('input');
+        return;
+      }
 
       setStep('done');
     } catch {
@@ -56,10 +50,10 @@ export default function SingleListingScraper() {
             <Check size={20} className="text-green-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-dark mb-1">Request submitted!</h3>
+            <h3 className="font-semibold text-dark mb-1">Listing imported!</h3>
             <p className="text-sm text-dark/70 mb-4">
-              We&apos;ve received your listing import request and will have it set up for you shortly.
-              You&apos;ll be notified once your listings are live.
+              Your listing has been scraped and saved as a draft. Head to the
+              <strong> Needs Approval</strong> section of your dashboard to review, edit, and publish it.
             </p>
             <button
               onClick={() => { setStep('input'); setUrl(''); setError(null); }}
@@ -80,8 +74,8 @@ export default function SingleListingScraper() {
         <h3 className="font-semibold text-dark">Import from your website</h3>
       </div>
       <p className="text-sm text-dark/60">
-        Enter the URL of a listing page on your brokerage website. Our team will configure
-        the import and notify you once your listings are live.
+        Enter the URL of a listing page on your brokerage website. Our scraper will pull in
+        the listing details automatically and save it as a draft for your review.
       </p>
 
       <div className="flex gap-3">
@@ -104,7 +98,7 @@ export default function SingleListingScraper() {
           ) : (
             <ArrowRight size={15} />
           )}
-          {step === 'submitting' ? 'Submitting…' : 'Submit Request'}
+          {step === 'submitting' ? 'Importing…' : 'Import Listing'}
         </button>
       </div>
 
@@ -116,7 +110,7 @@ export default function SingleListingScraper() {
       )}
 
       <p className="text-xs text-dark/40 pt-1">
-        Only URLs from your registered brokerage website are accepted.
+        Only URLs from your registered brokerage website are accepted. Marketplace sites (e.g. YachtWorld, Boat Trader) are not permitted.
       </p>
     </div>
   );

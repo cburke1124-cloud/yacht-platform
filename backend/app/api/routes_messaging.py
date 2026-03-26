@@ -315,7 +315,7 @@ def create_message(
                           Reply directly to this email to respond - no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
-                          <a href="{email_service.base_url}/messages"
+                          <a href="{email_service.base_url}/dashboard/messages"
                              style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;
                                     border-radius:6px;display:inline-block;font-weight:bold;">
                             View Conversation
@@ -341,7 +341,7 @@ def create_message(
                             notification_type="message",
                             title=f"New message: {data['subject']}",
                             body=data["body"][:160],
-                            link=f"/messages",
+                            link="/dashboard/messages",
                             read=False,
                         )
                     )
@@ -445,7 +445,7 @@ def reply_to_message(
                           Reply directly to this email to respond - no login required.
                         </p>
                         <div style="text-align:center;margin-top:20px;">
-                          <a href="{email_service.base_url}/messages"
+                          <a href="{email_service.base_url}/dashboard/messages"
                              style="background:#10214F;color:white;padding:12px 28px;
                                     text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
                             View Conversation
@@ -471,7 +471,7 @@ def reply_to_message(
                             notification_type="message",
                             title=f"Reply from {sender_name}: {parent.subject}",
                             body=data["body"][:160],
-                            link=f"/messages",
+                            link="/dashboard/messages",
                             read=False,
                         )
                     )
@@ -697,7 +697,8 @@ def create_support_ticket(
     db.flush()  # get ticket.id before committing
     ticket.ticket_number = f"SUP-{ticket.id}"
 
-    # Notify every admin so anyone can pick it up
+    # Notify every admin so anyone can pick it up; also email them with a reply-to token
+    submitted_by = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
     for admin in admins:
         db.add(
             Notification(
@@ -705,10 +706,48 @@ def create_support_ticket(
                 notification_type="support",
                 title=f"New support ticket from {current_user.email}",
                 body=subject,
-                link="/admin",
+                link="/dashboard/messages",
                 read=False,
             )
         )
+        try:
+            token = generate_reply_token(ticket.id, admin.id)
+            reply_to_addr = f"reply+{token}@{REPLY_TO_DOMAIN}"
+            email_service.send_email(
+                to_email=admin.email,
+                subject=f"[Support] {subject}",
+                html_content=f"""
+                <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                  <div style="background:linear-gradient(135deg,#10214F,#01BBDC);padding:28px;text-align:center;">
+                    <h1 style="color:white;margin:0;font-size:22px;">New Support Ticket</h1>
+                    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:13px;">{ticket.ticket_number}</p>
+                  </div>
+                  <div style="padding:30px;background:#f9fafb;">
+                    <p style="color:#64748b;font-size:13px;margin-bottom:16px;">
+                      <strong>From:</strong> {submitted_by} ({current_user.email})<br>
+                      <strong>Category:</strong> {category} &nbsp; <strong>Priority:</strong> {priority}
+                    </p>
+                    <h2 style="color:#10214F;font-size:18px;margin:0 0 12px;">{subject}</h2>
+                    <div style="background:white;border-left:4px solid #01BBDC;padding:20px;border-radius:4px;margin-bottom:24px;">
+                      <p style="white-space:pre-wrap;color:#334155;margin:0;">{body}</p>
+                    </div>
+                    <p style="color:#64748b;font-size:13px;">Reply directly to this email to respond — no login required.</p>
+                    <div style="text-align:center;margin-top:20px;">
+                      <a href="{email_service.base_url}/dashboard/messages"
+                         style="background:#10214F;color:white;padding:12px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
+                        View in Dashboard
+                      </a>
+                    </div>
+                  </div>
+                  <div style="background:#1e293b;padding:18px;text-align:center;color:#94a3b8;font-size:12px;">
+                    &#169; 2026 YachtVersal.
+                  </div>
+                </body></html>
+                """,
+                reply_to=reply_to_addr,
+            )
+        except Exception:
+            pass
 
     db.commit()
     db.refresh(ticket)

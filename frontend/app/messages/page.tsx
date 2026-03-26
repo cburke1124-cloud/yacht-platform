@@ -126,10 +126,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const url = filter === 'all'
-        ? apiUrl('/messages')
-        : apiUrl(`/messages?message_type=${filter}`);
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(apiUrl('/messages'), { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setMessages(await res.json());
     } catch (e) {
       console.error('Failed to fetch messages:', e);
@@ -353,12 +350,19 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const filteredMessages = messages.filter((msg) =>
-    searchQuery === '' ||
-    msg.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    msg.body?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    msg.sender_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMessages = messages.filter((msg) => {
+    // Apply message-type filter client-side so background polling doesn't break the active tab
+    if (filter === 'support_ticket' && msg.message_type !== 'support_ticket') return false;
+    if (filter === 'inquiry' && msg.message_type !== 'inquiry') return false;
+    // Search filter
+    if (searchQuery === '') return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      msg.subject?.toLowerCase().includes(q) ||
+      msg.body?.toLowerCase().includes(q) ||
+      msg.sender_name?.toLowerCase().includes(q)
+    );
+  });
 
   const typeColor: Record<string, string> = {
     inquiry: 'bg-teal-100 text-teal-700',

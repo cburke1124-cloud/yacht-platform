@@ -314,7 +314,7 @@ async def email_inbound(request: Request, db: Session = Depends(get_db)):
                 notification_type="message",
                 title=f"Reply from {sender.first_name} {sender.last_name}",
                 body=body[:160],
-                link=f"/messages",
+                link="/dashboard/messages",
                 read=False,
             )
         )

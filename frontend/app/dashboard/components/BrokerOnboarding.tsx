@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2, List, ChevronRight, CheckCircle, Upload, Globe,
-  ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, X
+  ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, X, AlertTriangle
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -26,6 +26,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
   const [importUrl, setImportUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const markDone = () => {
     localStorage.setItem(`onboarding_done_${userId}`, '1');
@@ -35,17 +36,32 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
   const submitImport = async (type: 'single' | 'bulk') => {
     if (!importUrl.trim()) return;
     setSubmitting(true);
+    setImportError(null);
     try {
       const token = localStorage.getItem('token');
-      await fetch(apiUrl('/broker/import-request'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ url: importUrl.trim(), import_type: type }),
-      });
+      if (type === 'single') {
+        const res = await fetch(apiUrl('/scraper/dealer/import'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ url: importUrl.trim() }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setImportError(err.detail || 'Failed to import. Please check the URL and try again.');
+          setSubmitting(false);
+          return;
+        }
+      } else {
+        await fetch(apiUrl('/broker/import-request'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ url: importUrl.trim(), import_type: type }),
+        });
+      }
       setSubmitted(true);
     } catch {
-      // still show success – the broker experience shouldn't break on network error
-      setSubmitted(true);
+      if (type === 'bulk') setSubmitted(true);
+      else setImportError('Network error. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -55,7 +71,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
   const stepIndex: Record<Step, number> = {
     welcome: 0,
     brokerage_profile: 1,
-    listings_choice: 1,
+    listings_choice: 2,
     import_single: 2,
     import_bulk: 2,
   };
@@ -118,22 +134,12 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
               </p>
               <p className="font-bold text-secondary mt-5">Let&apos;s get started!</p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mt-6">
+              <div className="mt-6">
                 <button
                   onClick={() => setStep('brokerage_profile')}
-                  className="flex-1 flex flex-col items-center gap-2 px-6 py-4 border-2 border-secondary rounded-xl hover:bg-secondary hover:text-white transition-all group"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-white font-bold text-sm tracking-wide rounded-xl hover:bg-primary/90 transition-colors"
                 >
-                  <Building2 size={28} className="text-secondary group-hover:text-white" />
-                  <span className="font-semibold text-sm tracking-wide uppercase">Setup Company Profile</span>
-                  <span className="text-xs text-gray-400 group-hover:text-white/70">Add your logo, branding, and company details</span>
-                </button>
-                <button
-                  onClick={() => setStep('listings_choice')}
-                  className="flex-1 flex flex-col items-center gap-2 px-6 py-4 border-2 border-secondary rounded-xl hover:bg-secondary hover:text-white transition-all group"
-                >
-                  <List size={28} className="text-secondary group-hover:text-white" />
-                  <span className="font-semibold text-sm tracking-wide uppercase">Setup Your Listings</span>
-                  <span className="text-xs text-gray-400 group-hover:text-white/70">Add your listings, yacht details, pricing, and photos</span>
+                  Get Started <ChevronRight size={18} />
                 </button>
               </div>
             </div>
@@ -144,13 +150,13 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
         {step === 'listings_choice' && (
           <div className="p-10">
             <div className="flex items-center gap-3 mb-2">
-              <button onClick={() => setStep('welcome')} className="text-gray-400 hover:text-secondary transition-colors">
+              <button onClick={() => setStep('brokerage_profile')} className="text-gray-400 hover:text-secondary transition-colors">
                 <ArrowLeft size={20} />
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-secondary">Set Up Your Listings</h2>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-xs font-semibold text-primary uppercase tracking-widest">Step 1 of 2</span>
+                  <span className="text-xs font-semibold text-primary uppercase tracking-widest">Step 2 of 2</span>
                   <span className="text-xs text-gray-400">· Listing Setup</span>
                 </div>
               </div>
@@ -259,26 +265,34 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-secondary mb-1 uppercase tracking-wide">Enter URL:</label>
-                  <input
-                    type="url"
-                    value={importUrl}
-                    onChange={(e) => setImportUrl(e.target.value)}
-                    placeholder="https://yourbrokerage.com/listings/yacht-name"
-                    className="w-full px-4 py-3 border-2 border-secondary/30 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors"
-                  />
+              <>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-secondary mb-1 uppercase tracking-wide">Enter URL:</label>
+                    <input
+                      type="url"
+                      value={importUrl}
+                      onChange={(e) => setImportUrl(e.target.value)}
+                      placeholder="https://yourbrokerage.com/listings/yacht-name"
+                      className="w-full px-4 py-3 border-2 border-secondary/30 rounded-xl text-sm focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <button
+                    onClick={() => submitImport('single')}
+                    disabled={submitting || !importUrl.trim()}
+                    className="flex items-center gap-2 px-7 py-3 bg-secondary text-white font-bold text-sm tracking-wide rounded-xl hover:bg-primary disabled:bg-gray-300 transition-colors self-end"
+                  >
+                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                    IMPORT LISTING
+                  </button>
                 </div>
-                <button
-                  onClick={() => submitImport('single')}
-                  disabled={submitting || !importUrl.trim()}
-                  className="flex items-center gap-2 px-7 py-3 bg-secondary text-white font-bold text-sm tracking-wide rounded-xl hover:bg-primary disabled:bg-gray-300 transition-colors self-end"
-                >
-                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                  IMPORT LISTING
-                </button>
-              </div>
+                {importError && (
+                  <p className="text-sm text-red-600 flex items-center gap-1.5 mt-2">
+                    <AlertTriangle size={14} className="flex-shrink-0" />
+                    {importError}
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
@@ -361,7 +375,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 
         {/* ── BROKERAGE PROFILE ───────────────────────────────────────── */}
         {step === 'brokerage_profile' && (
-          <BrokerageProfileStep onBack={() => setStep('welcome')} onDone={markDone} />
+          <BrokerageProfileStep onBack={() => setStep('welcome')} onDone={() => setStep('listings_choice')} />
         )}
 
       </div>
