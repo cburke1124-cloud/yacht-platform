@@ -1,7 +1,6 @@
 "use client";
-export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
@@ -12,6 +11,14 @@ import { Globe, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 type Tab = 'scraper' | 'bulk';
 
 export default function BulkToolsPage() {
+  return (
+    <Suspense>
+      <BulkToolsInner />
+    </Suspense>
+  );
+}
+
+function BulkToolsInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const modeParam = searchParams.get('mode');
