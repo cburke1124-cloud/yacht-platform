@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2, List, ChevronRight, CheckCircle, Upload, Globe,
-  ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, X, AlertTriangle
+  ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, AlertTriangle
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -83,13 +83,12 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 sm:p-10">
-          {/* Close / skip */}
+          {/* Exit */}
           <button
             onClick={markDone}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Skip for now"
+            className="absolute top-4 right-4 text-xs font-semibold text-gray-400 hover:text-secondary transition-colors"
           >
-            <X size={20} />
+            Exit to Dashboard
           </button>
 
           {/* Logo mark */}
@@ -153,13 +152,12 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
           />
         </div>
 
-        {/* Close / skip */}
+        {/* Exit */}
         <button
           onClick={markDone}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
-          title="Skip for now"
+          className="absolute top-4 right-4 text-xs font-semibold text-gray-400 hover:text-secondary transition-colors z-10"
         >
-          <X size={22} />
+          Exit to Dashboard
         </button>
 
         {/* ── LISTINGS CHOICE ─────────────────────────────────────────── */}

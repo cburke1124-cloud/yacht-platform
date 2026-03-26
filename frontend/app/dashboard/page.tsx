@@ -1,7 +1,8 @@
 "use client";
+export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import NextLink from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
@@ -251,8 +252,17 @@ const sortApiKeys = (keys: APIKey[]) =>
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-export default function EnhancedDealerDashboard() {
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <EnhancedDealerDashboard />
+    </Suspense>
+  );
+}
+
+function EnhancedDealerDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabId>('listings');
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListings, setSelectedListings] = useState<Set<number>>(new Set());
@@ -417,7 +427,7 @@ export default function EnhancedDealerDashboard() {
       fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          // Read tab from URL on page load (driven by navbar links like /dashboard?tab=billing)
+        // Read tab from URL on page load (driven by navbar links like /dashboard?tab=billing)
         const urlParams = new URLSearchParams(window.location.search);
         const urlTab = urlParams.get('tab');
         if (urlTab) setActiveTab(urlTab as TabId);
@@ -466,6 +476,12 @@ export default function EnhancedDealerDashboard() {
       window.history.replaceState({}, '', clean);
     }
   }, []);
+
+  // React to URL search param changes (e.g. navbar "My Dashboard" → ?tab=listings)
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    if (urlTab) setActiveTab(urlTab as TabId);
+  }, [searchParams]);
 
   // Track unsaved changes on the broker page form
   const brokerProfileInitializedRef = useRef(false);
@@ -1462,7 +1478,7 @@ export default function EnhancedDealerDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-soft flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -1501,7 +1517,7 @@ export default function EnhancedDealerDashboard() {
     !paidTiers.has(currentUser.subscription_tier || '');
 
   return (
-    <div className="min-h-screen bg-soft">
+    <div className="min-h-screen bg-white">
       {/* Broker Onboarding */}
       {showOnboarding && currentUser && (
         <BrokerOnboarding
@@ -1531,12 +1547,12 @@ export default function EnhancedDealerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="glass-card p-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <BarChart3 className="text-primary" size={24} />
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <BarChart3 className="text-gray-400" size={24} />
               </div>
               <p className="text-gray-600 text-sm">Total Listings</p>
             </div>
-            <p className="text-3xl font-bold text-secondary">{stats.totalListings}</p>
+            <p className="text-3xl font-bold text-gray-500">{stats.totalListings}</p>
           </div>
 
           <div className="glass-card p-6">
@@ -1551,12 +1567,12 @@ export default function EnhancedDealerDashboard() {
 
           <div className="glass-card p-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-emerald-50 rounded-lg">
-                <Eye className="text-primary" size={24} />
+              <div className="p-2 bg-green-50 rounded-lg">
+                <Eye className="text-green-500" size={24} />
               </div>
               <p className="text-gray-600 text-sm">Active</p>
             </div>
-            <p className="text-3xl font-bold text-primary">{stats.activeListings}</p>
+            <p className="text-3xl font-bold text-green-600">{stats.activeListings}</p>
           </div>
 
           <div className="glass-card p-6">

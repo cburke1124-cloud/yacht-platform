@@ -67,13 +67,10 @@ function FeaturedCard({ listing }: { listing: Listing }) {
   const [imgSrc, setImgSrc] = useState(getPrimaryImage(listing));
 
   return (
-    <Link href={`/listings/${listing.id}`} className="block group h-full">
-      <div
-        className="bg-white overflow-hidden transition-shadow duration-300 group-hover:shadow-2xl flex flex-col h-[380px] sm:h-[480px]"
-        style={{ border: '1px solid #DBDBDB', borderRadius: 12 }}
-      >
-        {/* Image ΓÇö responsive height */}
-        <div className="relative w-full flex-shrink-0 overflow-hidden h-[220px] sm:h-[317px]">
+    <Link href={`/listings/${listing.id}`} className="block group">
+      <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+        {/* Image — aspect-[4/3] matching search page cards */}
+        <div className="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden">
           <Image
             src={imgSrc}
             alt={
@@ -104,78 +101,46 @@ function FeaturedCard({ listing }: { listing: Listing }) {
           )}
         </div>
 
-        {/* Card body ΓÇö fills remaining 163px, flex column so bottom row is pinned */}
-        <div className="flex flex-col flex-1 px-5 pt-[17px] pb-5 min-h-0">
-          {/* Title ΓÇö clamp to 2 lines max so it never pushes content down */}
+        {/* Card body */}
+        <div className="p-5">
           <h3
-            className="font-normal overflow-hidden"
-            style={{
-              color: '#10214F',
-              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-              fontSize: 24,
-              lineHeight: '29px',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              marginBottom: 8,
-            }}
+            className="font-bold text-xl leading-tight line-clamp-2 mb-2"
+            style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
           >
             {listing.title}
           </h3>
 
+          <p className="text-2xl font-bold mb-2" style={{ color: '#01BBDC' }}>
+            {formatPrice(listing.price, listing.currency)}
+          </p>
+
           {/* Meta row */}
-          <div className="flex items-center flex-wrap" style={{ gap: 16, marginBottom: 8 }}>
+          <div className="flex items-center flex-wrap gap-3 text-sm mb-4" style={{ color: '#10214F' }}>
             {listing.length_feet && (
-              <span
-                className="flex items-center gap-1"
-                style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 16, lineHeight: '24px' }}
-              >
-                <Ruler aria-hidden={true} className="w-5 h-5 flex-shrink-0" style={{ color: '#01BBDC' }} />
+              <span className="flex items-center gap-1">
+                <Ruler className="w-4 h-4 flex-shrink-0" style={{ color: '#01BBDC' }} />
                 {Math.round(listing.length_feet)} ft
               </span>
             )}
-            <span
-              className="flex items-center gap-1"
-              style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 16, lineHeight: '24px' }}
-            >
-              <MapPin aria-hidden={true} className="w-5 h-5 flex-shrink-0" style={{ color: '#01BBDC' }} />
+            <span className="flex items-center gap-1">
+              <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#01BBDC' }} />
               {getLocation(listing)}
             </span>
           </div>
 
-          {/* Spacer pushes price + button to bottom */}
-          <div className="flex-1" />
-
-          {/* Bottom row: price left, button right ΓÇö always at card bottom */}
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className="font-bold"
-              style={{
-                color: '#01BBDC',
-                fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 24,
-                lineHeight: '29px',
-              }}
-            >
-              {formatPrice(listing.price, listing.currency)}
-            </span>
-
-            <span
-              className="flex-shrink-0 inline-flex items-center justify-center text-white font-medium transition-opacity hover:opacity-90"
-              style={{
-                backgroundColor: '#01BBDC',
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 16,
-                lineHeight: '24px',
-                fontWeight: 500,
-                borderRadius: 12,
-                width: 120,
-                height: 48,
-              }}
-            >
-              View Details
-            </span>
-          </div>
+          <span
+            className="inline-flex items-center justify-center w-full text-white font-medium transition-opacity hover:opacity-90"
+            style={{
+              backgroundColor: '#01BBDC',
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: 15,
+              fontWeight: 500,
+              borderRadius: 8,
+              padding: '10px 0',
+            }}
+          >
+            View Details
+          </span>
         </div>
       </div>
     </Link>
