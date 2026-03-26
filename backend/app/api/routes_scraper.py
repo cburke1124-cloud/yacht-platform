@@ -311,10 +311,10 @@ def _get_dealer_profile(current_user: User, db: Session):
 
     if current_user.user_type == "dealer":
         dealer_id = current_user.id
-    elif current_user.user_type == "salesman":
+    elif current_user.user_type in ("salesman", "team_member"):
         dealer_id = current_user.parent_dealer_id
         if not dealer_id:
-            raise HTTPException(status_code=400, detail="No broker account associated with this salesman")
+            raise HTTPException(status_code=400, detail="No broker account associated with this account")
     else:
         raise AuthorizationException("Broker account required")
 
@@ -377,7 +377,7 @@ def dealer_import_listing(
     if "error" in raw:
         raise HTTPException(status_code=422, detail=raw["error"])
 
-    salesman_id = current_user.id if current_user.user_type == "salesman" else None
+    salesman_id = current_user.id if current_user.user_type in ("salesman", "team_member") else None
     job_like = SimpleNamespace(dealer_id=dealer_id, salesman_id=salesman_id)
 
     listing = Listing(
@@ -425,14 +425,19 @@ def broker_import_request(
     current_user: User = Depends(get_current_user),
 ):
     """Allow a broker to submit a URL for listing import (queued for admin processing)."""
-    if current_user.user_type not in ("dealer", "admin"):
+    if current_user.user_type not in ("dealer", "admin", "team_member"):
         raise AuthorizationException("Broker account required")
     if not data.url or not data.url.strip():
         raise ValidationException("URL is required")
 
+    if current_user.user_type == "team_member":
+        import_dealer_id = current_user.parent_dealer_id or current_user.id
+    else:
+        import_dealer_id = current_user.id
+
     job = ScraperJob(
-        dealer_id=current_user.id,
-        salesman_id=None,
+        dealer_id=import_dealer_id,
+        salesman_id=current_user.id if current_user.user_type == "team_member" else None,
         created_by_id=current_user.id,
         site_name=f"Broker import: {data.url[:80]}",
         broker_url=data.url.strip(),
@@ -789,3 +794,6 @@ def get_job_listings(
             for s in scraped
         ],
     }
+
+
+
