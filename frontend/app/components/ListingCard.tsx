@@ -170,7 +170,7 @@ export default function ListingCard({
 
   return (
     <Link href={`/listings/${id}`} className="block group">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 ease-out overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden">
         {/* Image with Featured Badge and Action Buttons */}
         <div className="relative aspect-[4/3] bg-gray-200 overflow-hidden">
           <img

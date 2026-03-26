@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Check, MapPin, Ruler } from 'lucide-react';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import SearchBar from '@/app/components/SearchBar';
-import { API_ROOT } from '@/app/lib/apiRoot';
+import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 
 // ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
@@ -64,14 +64,14 @@ function getLocation(listing: Listing): string {
 // to the bottom regardless of title length.
 
 function FeaturedCard({ listing }: { listing: Listing }) {
-  const [imgSrc, setImgSrc] = useState(getPrimaryImage(listing));
+  const [imgSrc, setImgSrc] = useState(mediaUrl(getPrimaryImage(listing)));
 
   return (
     <Link href={`/listings/${listing.id}`} className="block group">
-      <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden">
-        {/* Image — aspect-[4/3] matching search page cards */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+        {/* Image */}
         <div className="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden">
-          <Image
+          <img
             src={imgSrc}
             alt={
               [
@@ -86,9 +86,7 @@ function FeaturedCard({ listing }: { listing: Listing }) {
                 .filter(Boolean)
                 .join(' ') || listing.title
             }
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, 33vw"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={() => setImgSrc('/images/listing-fallback.png')}
           />
           {listing.featured && (

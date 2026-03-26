@@ -99,14 +99,11 @@ nav {
     border: 1px solid #E5E7EB;
     border-radius: 0.75rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 0.2s ease;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
   }
   .glass-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 32px rgba(1, 187, 220, 0.1), 0 2px 8px rgba(0,0,0,0.07);
-    border-color: rgba(1, 187, 220, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border-color: rgba(1, 187, 220, 0.2);
   }
 
   .glass-stat {
