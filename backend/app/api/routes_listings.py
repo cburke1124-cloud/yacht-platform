@@ -390,7 +390,11 @@ def get_distinct_models(make: Optional[str] = None, db: Session = Depends(get_db
             Listing.model != "",
         )
         if make:
-            q = q.filter(Listing.make.ilike(f"%{make}%"))
+            make_vals = [v.strip() for v in make.split(',') if v.strip()]
+            if len(make_vals) == 1:
+                q = q.filter(Listing.make.ilike(f"%{make_vals[0]}%"))
+            elif make_vals:
+                q = q.filter(or_(*[Listing.make.ilike(f"%{v}%") for v in make_vals]))
         rows = q.distinct().order_by(Listing.model).all()
         return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
     except Exception:
@@ -451,9 +455,17 @@ def get_listings(
             )
         )
         if make:
-            q = q.filter(Listing.make.ilike(f"%{make}%"))
+            make_vals = [v.strip() for v in make.split(',') if v.strip()]
+            if len(make_vals) == 1:
+                q = q.filter(Listing.make.ilike(f"%{make_vals[0]}%"))
+            elif make_vals:
+                q = q.filter(or_(*[Listing.make.ilike(f"%{v}%") for v in make_vals]))
         if model:
-            q = q.filter(Listing.model.ilike(f"%{model}%"))
+            model_vals = [v.strip() for v in model.split(',') if v.strip()]
+            if len(model_vals) == 1:
+                q = q.filter(Listing.model.ilike(f"%{model_vals[0]}%"))
+            elif model_vals:
+                q = q.filter(or_(*[Listing.model.ilike(f"%{v}%") for v in model_vals]))
         if boat_type:
             bt_vals = [v.strip() for v in boat_type.split(',') if v.strip()]
             if len(bt_vals) == 1:

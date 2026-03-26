@@ -1032,6 +1032,8 @@ function FilterSearchList({
     ? items.filter((it) => it.toLowerCase().includes(search.toLowerCase()))
     : items;
 
+  const selected = value ? value.split(',').filter(Boolean) : [];
+
   return (
     <div>
       <div style={{ position: 'relative', marginBottom: 6 }}>
@@ -1055,12 +1057,16 @@ function FilterSearchList({
           </p>
         ) : (
           filtered.map((item) => {
-            const active = value === item;
+            const active = selected.includes(item);
+            const toggle = () => {
+              const next = active ? selected.filter((v) => v !== item) : [...selected, item];
+              onChange(next.join(','));
+            };
             return (
               <button
                 key={item}
                 type="button"
-                onClick={() => onChange(active ? '' : item)}
+                onClick={toggle}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors"
                 style={{ backgroundColor: active ? 'rgba(1,187,220,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
               >
@@ -1068,7 +1074,14 @@ function FilterSearchList({
                   width: 14, height: 14, borderRadius: 3, flexShrink: 0,
                   border: `2px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.25)'}`,
                   backgroundColor: active ? '#01BBDC' : 'transparent',
-                }} />
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {active && (
+                    <svg width="9" height="7" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </span>
                 <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: active ? '#01BBDC' : '#10214F', fontWeight: active ? 500 : 400 }}>
                   {item}
                 </span>

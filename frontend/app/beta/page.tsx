@@ -431,16 +431,16 @@ export default function HomePage() {
   useEffect(() => {
     const fetchListings = async () => {
       try {
-        const res = await fetch(`${API_ROOT}/listings?limit=9&status=active`);
+        const res = await fetch(`${API_ROOT}/listings?limit=8&status=active`);
         if (!res.ok) {
           console.error('Failed to fetch listings:', res.status, res.statusText);
           setListings([]);
         } else {
           const data = await res.json();
           const listingsArray = Array.isArray(data) ? data : (data.listings ?? []);
-          // Prefer featured listings; fall back to most-recently-added
-          const featured = listingsArray.filter((l: Listing) => l.featured);
-          setListings(featured.length ? featured : listingsArray.slice(0, 9));
+          // Featured listings appear first (backend sorts featured DESC, created_at DESC).
+          // Show up to 8 — if no featured exist, falls back to most-recently-listed.
+          setListings(listingsArray.slice(0, 8));
         }
       } catch (err) {
         console.error('Error fetching listings:', err);
@@ -663,10 +663,10 @@ export default function HomePage() {
             </div>
           ) : (
             <div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
               style={{ gap: 24 }}
             >
-              {listings.slice(0, 9).map((listing) => (
+              {listings.slice(0, 8).map((listing) => (
                 <FeaturedCard key={listing.id} listing={listing} />
               ))}
             </div>
