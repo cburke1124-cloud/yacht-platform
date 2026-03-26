@@ -323,18 +323,6 @@ export default function Navbar() {
               <div className="w-32 h-10 bg-gray-100 animate-pulse rounded" />
             ) : isLoggedIn && user ? (
               <>
-                {/* Dashboard button — show for dealers/team members */}
-                {(user.user_type === 'dealer' || user.user_type === 'team_member') && (
-                  <Link
-                    href="/dashboard?tab=listings"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    <LayoutDashboard size={15} />
-                    Dashboard
-                  </Link>
-                )}
-
                 {/* Messages */}
                 <Link
                   href="/messages"
@@ -474,6 +462,17 @@ export default function Navbar() {
                   )}
                 </div>
 
+                {/* My Dashboard button — far right for dealers/team members */}
+                {(user.user_type === 'dealer' || user.user_type === 'team_member') && (
+                  <Link
+                    href="/dashboard?tab=listings"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    <LayoutDashboard size={15} />
+                    My Dashboard
+                  </Link>
+                )}
 
               </>
             ) : (
