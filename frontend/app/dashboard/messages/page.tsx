@@ -141,6 +141,9 @@ export default function MessagesPage() {
       if (response.ok) {
         const data = await response.json();
         setSelectedInquiry(prev => prev ? { ...prev, message_id: data.message_id, message_thread: data.message_thread ?? [] } : prev);
+        // Refresh list + clear navbar badge immediately
+        await fetchMessages(token || '');
+        window.dispatchEvent(new Event('authChange'));
       }
     } catch (error) {
       console.error('Failed to load inquiry detail:', error);
@@ -183,6 +186,9 @@ export default function MessagesPage() {
           replies: data.replies || []
         };
         setSelectedMessage(detail);
+        // Refresh list so status updates in sidebar and badge clears in navbar
+        await fetchMessages(token || '');
+        window.dispatchEvent(new Event('authChange'));
       }
     } catch (error) {
       console.error('Failed to load message:', error);

@@ -179,10 +179,20 @@ def get_message_detail(
     ):
         raise AuthorizationException("Not authorized to view this message")
 
+    # Mark parent message as read
     if message.recipient_id == current_user.id and message.status == "new":
         message.status = "read"
         message.read_at = datetime.utcnow()
-        db.commit()
+
+    # Mark all reply messages in this thread as read for the current user
+    # (replies are separate Message rows with status="new" and must also be cleared)
+    db.query(Message).filter(
+        Message.parent_message_id == message_id,
+        Message.recipient_id == current_user.id,
+        Message.status == "new",
+    ).update({"status": "read", "read_at": datetime.utcnow()}, synchronize_session=False)
+
+    db.commit()
 
     replies = (
         db.query(Message)

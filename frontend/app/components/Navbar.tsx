@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
 import {
   Menu, X, Ship, User, PlusCircle, Bell, Mail,
-  Heart, Search, Settings, ChevronDown, DollarSign, BarChart3, LayoutDashboard
+  Heart, Search, Settings, ChevronDown, DollarSign, BarChart3
 } from 'lucide-react';
 
 type UserType = 'admin' | 'salesman' | 'dealer' | 'team_member' | 'private' | 'buyer' | 'user';
@@ -466,10 +466,9 @@ export default function Navbar() {
                 {(user.user_type === 'dealer' || user.user_type === 'team_member') && (
                   <Link
                     href="/dashboard?tab=listings"
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                   >
-                    <LayoutDashboard size={15} />
                     My Dashboard
                   </Link>
                 )}
