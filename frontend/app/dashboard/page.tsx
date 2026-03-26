@@ -1605,7 +1605,6 @@ export default function EnhancedDealerDashboard() {
                 {[
                   { id: 'listings',  label: 'Listings',    icon: BarChart3  },
                   { id: 'messages',  label: 'Messages',    icon: Mail       },
-                  { id: 'analytics', label: 'Analytics',   icon: BarChart3  },
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -1620,38 +1619,39 @@ export default function EnhancedDealerDashboard() {
                     {label}
                   </button>
                 ))}
+
+                {/* Team — above Analytics, only for eligible users */}
+                {(isDealer || teamMemberCan('manage_team')) && (
+                  <button
+                    onClick={() => setActiveTab('team')}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                      activeTab === 'team'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                    }`}
+                  >
+                    <Users size={16} />
+                    Team
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setActiveTab('analytics' as TabId)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                    activeTab === 'analytics'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                  }`}
+                >
+                  <BarChart3 size={16} />
+                  Analytics
+                </button>
               </div>
 
               {/* Divider */}
               <div className="my-3 border-t border-gray-100" />
 
-              {/* Team — top-level sidebar item */}
-              {(isDealer || teamMemberCan('manage_team')) && (
-                <button
-                  onClick={() => setActiveTab('team')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                    activeTab === 'team'
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-gray-600 hover:bg-soft hover:text-secondary'
-                  }`}
-                >
-                  <Users size={16} />
-                  Team
-                </button>
-              )}
-
-              {/* Help */}
-              <button
-                onClick={() => setActiveTab('help')}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                  activeTab === 'help'
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-gray-600 hover:bg-soft hover:text-secondary'
-                }`}
-              >
-                <HelpCircle size={16} />
-                Help
-              </button>
+              {/* Team — top-level sidebar item (hidden — now in primary nav above) */}
 
               {/* Account / Settings */}
               <button
@@ -1664,6 +1664,19 @@ export default function EnhancedDealerDashboard() {
               >
                 <Settings size={16} />
                 Account
+              </button>
+
+              {/* Help — bottom of sidebar */}
+              <button
+                onClick={() => setActiveTab('help')}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                  activeTab === 'help'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-600 hover:bg-soft hover:text-secondary'
+                }`}
+              >
+                <HelpCircle size={16} />
+                Help
               </button>
             </div>
           </aside>

@@ -30,7 +30,12 @@ export default function SingleListingScraper() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.detail || 'Failed to import listing. Please check the URL and try again.');
+        const detail: string = data.detail || 'Failed to import listing. Please check the URL and try again.';
+        // If the website isn't configured, direct the user to set it up
+        const needsWebsite = detail.toLowerCase().includes('website') || detail.toLowerCase().includes('dealer profile');
+        setError(needsWebsite
+          ? detail + ' Go to Account › Broker Page to add your website.'
+          : detail);
         setStep('input');
         return;
       }

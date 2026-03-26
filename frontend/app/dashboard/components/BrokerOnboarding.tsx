@@ -387,6 +387,7 @@ export default function BrokerOnboarding({ userId, onComplete }: Props) {
 function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [profile, setProfile] = useState({
     company_name: '', description: '', phone: '', email: '', website: '',
     facebook_url: '', instagram_url: '', linkedin_url: '', twitter_url: '',
@@ -421,17 +422,26 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
 
   const save = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const token = localStorage.getItem('token');
-      await fetch(apiUrl('/dealer-profile'), {
+      const res = await fetch(apiUrl('/dealer-profile'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(profile),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setSaveError(err.detail || 'Failed to save profile. Please try again.');
+        return;
+      }
       setSaved(true);
-      setTimeout(onDone, 1000);
-    } catch {}
-    finally { setSaving(false); }
+      setTimeout(onDone, 800);
+    } catch {
+      setSaveError('Network error. Please check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const field = (key: keyof typeof profile, label: string, placeholder: string, type = 'text') => (
@@ -540,18 +550,26 @@ function BrokerageProfileStep({ onBack, onDone }: { onBack: () => void; onDone: 
       </div>
 
       {/* CTA */}
-      <div className="flex items-center justify-between mt-6">
-        <button onClick={onDone} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
-          Skip for now
-        </button>
-        <button
-          onClick={save}
-          disabled={saving || !profile.company_name.trim()}
-          className="flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 disabled:bg-gray-300 transition-colors"
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : saved ? <CheckCircle size={16} /> : <ChevronRight size={16} />}
-          {saving ? 'Saving…' : saved ? 'Saved!' : 'Save & Continue'}
-        </button>
+      <div className="mt-6">
+        {saveError && (
+          <p className="text-sm text-red-600 flex items-center gap-1.5 mb-3">
+            <AlertTriangle size={14} className="flex-shrink-0" />
+            {saveError}
+          </p>
+        )}
+        <div className="flex items-center justify-between">
+          <button onClick={onDone} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+            Skip for now
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || !profile.company_name.trim()}
+            className="flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 disabled:bg-gray-300 transition-colors"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : saved ? <CheckCircle size={16} /> : <ChevronRight size={16} />}
+            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save & Continue'}
+          </button>
+        </div>
       </div>
     </div>
   );
