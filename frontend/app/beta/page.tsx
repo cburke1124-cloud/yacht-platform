@@ -306,7 +306,7 @@ function AISearchBox() {
         }}
       >
         Our AI-powered search goes beyond basic filters.<br />
-        Tell us what you wantΓÇösize, lifestyle, budget, cruising plansΓÇöand YachtVersal AI matches you with yachts that fit your vision.
+        Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
       </p>
 
       {/* Search row ΓÇö Figma: 666px input + 30px AI icon + 121px button */}
@@ -547,7 +547,7 @@ export default function HomePage() {
                 maxWidth: 640,
               }}
             >
-              YachtVersal Combines Smart Technology, Global Reach, and Dedicated Support to Deliver a Smooth Experience for Buyers, Brokers, and SellersΓÇöWithout the Complexity.
+              YachtVersal Combines Smart Technology, Global Reach, and Dedicated Support to Deliver a Smooth Experience for Buyers, Brokers, and Sellers—Without the Complexity.
             </p>
 
             {/* Tagline */}
