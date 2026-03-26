@@ -25,7 +25,7 @@ import BrokerOnboarding from '@/app/dashboard/components/BrokerOnboarding';
 import HelpCenter from '@/app/dashboard/components/HelpCenter';
 import { motion } from 'framer-motion';
 
-type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages' | 'help';
+type TabId = 'listings' | 'featured' | 'media' | 'bulk' | 'team' | 'analytics' | 'crm' | 'billing' | 'account' | 'profile' | 'api-keys' | 'messages' | 'help' | 'my-profile';
 
 interface MediaFileItem {
   id: number;
@@ -438,6 +438,7 @@ function EnhancedDealerDashboard() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlTab = urlParams.get('tab');
         if (urlTab) setActiveTab(urlTab as TabId);
+        else if (data?.user_type === 'team_member') setActiveTab('my-profile');
         if (data) {
             setCurrentUser(data);
             // Show onboarding for new brokers who haven't completed it
@@ -1632,7 +1633,22 @@ function EnhancedDealerDashboard() {
                     }`}
                   >
                     <Building2 size={16} />
-                    Broker Page
+                    Broker Profile
+                  </button>
+                )}
+
+                {/* My Profile — for team members */}
+                {isTeamMember && (
+                  <button
+                    onClick={() => switchTab('my-profile')}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-left ${
+                      activeTab === 'my-profile'
+                        ? 'bg-primary/10 text-primary shadow-sm'
+                        : 'text-gray-600 hover:bg-soft hover:text-secondary hover:translate-x-1'
+                    }`}
+                  >
+                    <User size={16} />
+                    My Profile
                   </button>
                 )}
 
@@ -3864,6 +3880,17 @@ function EnhancedDealerDashboard() {
                 <pre className="text-primary text-sm overflow-x-auto bg-secondary/80 p-4 rounded-lg">{`curl https://api.yachtversal.com/api/listings \\
   -H "Authorization: Bearer YOUR_API_KEY"`}</pre>
               </div>
+            </div>
+          )}
+
+          {/* My Profile Tab — for team members */}
+          {activeTab === 'my-profile' && (
+            <div className="max-w-3xl">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-secondary">My Profile</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Your personal bio, photo, and contact links visible to buyers</p>
+              </div>
+              <SalesmanProfileForm ref={salesmanProfileRef} hideHeader />
             </div>
           )}
 

@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle, Trash2, Archive } from 'lucide-react';
+import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle, Trash2, Archive, RotateCcw } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface Message {
@@ -20,6 +20,7 @@ interface Message {
   sender_email: string;
   external_sender_email?: string;
   listing_id?: number | null;
+  deleted_at?: string | null;
 }
 
 interface Reply {
@@ -70,7 +71,8 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
   const [selectedDetail, setSelectedDetail] = useState<MessageDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'inquiries' | 'archived'>('all');
+  const [filter, setFilter] = useState<'all' | 'inquiry' | 'support_ticket' | 'inquiries' | 'archived' | 'deleted'>('all');
+  const [deletedMessages, setDeletedMessages] = useState<Message[]>([]);
   const [showNewMessage, setShowNewMessage] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
@@ -112,6 +114,8 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
     if (filter === 'inquiries') {
       // already loaded on mount, refresh in case
       fetchInquiries();
+    } else if (filter === 'deleted') {
+      fetchDeletedMessages();
     } else {
       fetchMessages();
     }
@@ -130,6 +134,19 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
       if (res.ok) setMessages(await res.json());
     } catch (e) {
       console.error('Failed to fetch messages:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDeletedMessages = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/messages/deleted'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setDeletedMessages(await res.json());
+    } catch (e) {
+      console.error('Failed to fetch deleted messages:', e);
     } finally {
       setLoading(false);
     }
@@ -354,7 +371,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
   };
 
   const handleDelete = async (messageId: number) => {
-    if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+    if (!confirm('Move to Recently Deleted? You can restore it within 30 days.')) return;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/messages/${messageId}`), {
@@ -368,6 +385,22 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
       }
     } catch (e) {
       console.error('Failed to delete message:', e);
+    }
+  };
+
+  const handleRestore = async (messageId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/messages/${messageId}/restore`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setDeletedMessages((prev) => prev.filter((m) => m.id !== messageId));
+        window.dispatchEvent(new Event('authChange'));
+      }
+    } catch (e) {
+      console.error('Failed to restore message:', e);
     }
   };
 
@@ -472,6 +505,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
             { id: 'inquiries', label: 'Inquiries', count: inquiries.length, icon: Users },
             { id: 'support_ticket', label: 'Support', count: messages.filter((m) => m.message_type === 'support_ticket' && m.status !== 'closed').length },
             { id: 'archived', label: 'Archived', count: messages.filter(m => m.status === 'closed').length },
+            { id: 'deleted', label: 'Recently Deleted', count: deletedMessages.length },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -544,7 +578,41 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                     </button>
                   ))
                 )
-              ) : (filter === 'all' && inquiries.length > 0 && filteredMessages.length === 0) || filter === 'all' ? (
+              ) : filter === 'deleted' ? (
+                deletedMessages.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">
+                    <Trash2 size={40} className="mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No recently deleted messages</p>
+                    <p className="text-xs mt-1 text-gray-300">Deleted messages appear here for 30 days</p>
+                  </div>
+                ) : (
+                  deletedMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className="w-full p-4 bg-gray-50 border-b border-gray-100"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-500 truncate">{msg.sender_name || 'Unknown'}</p>
+                          <p className="text-xs text-gray-400 truncate">{msg.subject}</p>
+                          <p className="text-xs text-gray-300 mt-0.5">
+                            Deleted {msg.deleted_at ? formatDate(msg.deleted_at) : ''} • Auto-purges after 30 days
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => handleRestore(msg.id)}
+                            title="Restore"
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors"
+                          >
+                            <RotateCcw size={11} /> Restore
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )
+            ) : (filter === 'all' && inquiries.length > 0 && filteredMessages.length === 0) || filter === 'all' ? (
                 /* All tab: show inquiries first, then other messages */
                 [...inquiries.map(inq => ({ _type: 'inquiry' as const, inq })),
                  ...filteredMessages.map(msg => ({ _type: 'message' as const, msg }))]
@@ -598,11 +666,11 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(item.msg.created_at)}</span>
-                            <div className="hidden group-hover:flex items-center gap-0.5 ml-1" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center gap-0.5 ml-1" onClick={e => e.stopPropagation()}>
                               {item.msg.status !== 'closed' && (
-                                <button onClick={() => handleArchive(item.msg.id)} className="p-1 text-gray-400 hover:text-gray-600 rounded" title="Archive"><Archive size={12} /></button>
+                                <button onClick={() => handleArchive(item.msg.id)} className="p-1 text-gray-300 hover:text-gray-600 rounded" title="Archive"><Archive size={12} /></button>
                               )}
-                              <button onClick={() => handleDelete(item.msg.id)} className="p-1 text-gray-400 hover:text-red-500 rounded" title="Delete"><Trash2 size={12} /></button>
+                              <button onClick={() => handleDelete(item.msg.id)} className="p-1 text-gray-300 hover:text-red-500 rounded" title="Delete"><Trash2 size={12} /></button>
                             </div>
                           </div>
                         </div>
@@ -623,10 +691,13 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                 </div>
               ) : (
                 filteredMessages.map((msg) => (
-                  <button
+                  <div
                     key={msg.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => { openMessage(msg); setSelectedInquiry(null); }}
-                    className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                    onKeyDown={(e) => { if (e.key === 'Enter') { openMessage(msg); setSelectedInquiry(null); } }}
+                    className={`relative group w-full p-4 text-left hover:bg-gray-50 transition-colors cursor-pointer ${
                       selectedDetail?.message.id === msg.id ? 'bg-primary/5 border-l-2 border-primary' : ''
                     }`}
                   >
@@ -637,7 +708,15 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                           {msg.sender_name || msg.sender_email || 'Unknown'}
                         </span>
                       </div>
-                      <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(msg.created_at)}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{formatDate(msg.created_at)}</span>
+                        <div className="flex items-center gap-0.5 ml-1" onClick={e => e.stopPropagation()}>
+                          {msg.status !== 'closed' && (
+                            <button onClick={() => handleArchive(msg.id)} className="p-1 text-gray-300 hover:text-gray-600 rounded" title="Archive"><Archive size={12} /></button>
+                          )}
+                          <button onClick={() => handleDelete(msg.id)} className="p-1 text-gray-300 hover:text-red-500 rounded" title="Delete"><Trash2 size={12} /></button>
+                        </div>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-700 font-medium truncate ml-4">{msg.subject}</p>
                     <p className="text-xs text-gray-500 line-clamp-1 ml-4 mt-0.5">{msg.body}</p>
@@ -646,7 +725,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                         {msg.message_type.replace('_', ' ')}
                       </span>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>

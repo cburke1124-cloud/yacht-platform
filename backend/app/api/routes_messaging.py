@@ -69,6 +69,7 @@ def get_notification_count(
     messages = db.query(func.count(Message.id)).filter(
         Message.recipient_id == current_user.id,
         Message.status == "new",
+        Message.deleted_at == None,  # noqa: E711
     ).scalar() or 0
 
     return {"notifications": notifications, "messages": messages}
@@ -131,6 +132,8 @@ def get_messages(
     query = db.query(Message).filter(visibility_filter)
     # Only show root messages (thread starters) — replies are loaded via GET /messages/{id}
     query = query.filter(Message.parent_message_id == None)  # noqa: E711
+    # Exclude soft-deleted messages
+    query = query.filter(Message.deleted_at == None)  # noqa: E711
     if message_type:
         query = query.filter(Message.message_type == message_type)
     if status:
@@ -583,7 +586,74 @@ def delete_message(
         and current_user.user_type != "admin"
     ):
         raise AuthorizationException("Not authorized to delete this message")
-    db.delete(message)
+    # Soft-delete: set deleted_at timestamp; auto-purge after 30 days
+    message.deleted_at = datetime.utcnow()
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/messages/deleted")
+def get_deleted_messages(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return soft-deleted messages that are within the 30-day recovery window."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    messages = (
+        db.query(Message)
+        .filter(
+            (Message.sender_id == current_user.id) | (Message.recipient_id == current_user.id),
+            Message.deleted_at != None,  # noqa: E711
+            Message.deleted_at >= cutoff,
+            Message.parent_message_id == None,  # noqa: E711
+        )
+        .order_by(Message.deleted_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": m.id,
+            "subject": m.subject,
+            "body": m.body,
+            "message_type": m.message_type,
+            "ticket_number": m.ticket_number,
+            "priority": m.priority,
+            "category": m.category,
+            "status": m.status,
+            "listing_id": m.listing_id,
+            "sender_id": m.sender_id,
+            "recipient_id": m.recipient_id,
+            "sender_name": (
+                f"{m.sender.first_name} {m.sender.last_name}".strip()
+                if m.sender
+                else m.external_sender_email or "Unknown"
+            ),
+            "sender_email": m.sender.email if m.sender else m.external_sender_email,
+            "deleted_at": m.deleted_at.isoformat() if m.deleted_at else None,
+            "created_at": m.created_at.isoformat(),
+        }
+        for m in messages
+    ]
+
+
+@router.post("/messages/{message_id}/restore")
+def restore_message(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Restore a soft-deleted message."""
+    message = db.query(Message).filter(Message.id == message_id).first()
+    if not message:
+        raise ResourceNotFoundException("Message", message_id)
+    if (
+        message.sender_id != current_user.id
+        and message.recipient_id != current_user.id
+        and current_user.user_type != "admin"
+    ):
+        raise AuthorizationException("Not authorized")
+    message.deleted_at = None
     db.commit()
     return {"success": True}
 

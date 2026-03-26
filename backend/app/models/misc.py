@@ -29,6 +29,7 @@ class Message(Base):
     read_at = Column(DateTime)
     replied_at = Column(DateTime)
     closed_at = Column(DateTime)
+    deleted_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
