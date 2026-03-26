@@ -32,9 +32,23 @@ interface Props {
   userId: number;
   userType?: string;
   onComplete: () => void;
+  /** Pre-fetched broker profile from the dashboard (avoids cold-start empty form). */
+  prefetchedProfile?: {
+    company_name: string;
+    name?: string;
+    email: string;
+    phone: string;
+    website: string;
+    description: string;
+    logo_url: string;
+    facebook_url: string;
+    instagram_url: string;
+    twitter_url: string;
+    linkedin_url: string;
+  };
 }
 
-export default function BrokerOnboarding({ userId, userType, onComplete }: Props) {
+export default function BrokerOnboarding({ userId, userType, onComplete, prefetchedProfile }: Props) {
   const router = useRouter();
   const isTeamMember = userType === 'team_member';
   const [step, setStep] = useState<Step>('welcome');
@@ -42,35 +56,58 @@ export default function BrokerOnboarding({ userId, userType, onComplete }: Props
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [profileData, setProfileData] = useState<ProfileData | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // Fetch existing dealer/broker profile on mount so every step can be pre-populated
+  // Build the initial ProfileData from the pre-fetched dashboard data so the form
+  // is populated instantly — no waiting on a separate round-trip.
+  const makeProfileData = (src: typeof prefetchedProfile | null | undefined): ProfileData | null => {
+    if (!src) return null;
+    return {
+      company_name: src.company_name || '',
+      description: src.description || '',
+      phone: src.phone || '',
+      email: src.email || '',
+      website: src.website || '',
+      facebook_url: src.facebook_url || '',
+      instagram_url: src.instagram_url || '',
+      linkedin_url: src.linkedin_url || '',
+      twitter_url: src.twitter_url || '',
+      logo_url: src.logo_url || undefined,
+    };
+  };
+
+  const [profileData, setProfileData] = useState<ProfileData | null>(() => makeProfileData(prefetchedProfile));
+  const [loadingProfile, setLoadingProfile] = useState(!prefetchedProfile?.email);
+
+  // Pre-fill import URL from the pre-fetched website
+  useEffect(() => {
+    if (prefetchedProfile?.website) setImportUrl(prefetchedProfile.website);
+  }, [prefetchedProfile?.website]);
+
+  // Fetch the profile fresh (merging /auth/me + /dealer-profile) to pick up any
+  // fields that weren't in the pre-fetched snapshot or to handle first-time dealers.
   useEffect(() => {
     const token = localStorage.getItem('token');
-    fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) {
-          const pd: ProfileData = {
-            company_name: data.company_name || '',
-            description: data.description || '',
-            phone: data.phone || '',
-            email: data.email || '',
-            website: data.website || '',
-            facebook_url: data.facebook_url || '',
-            instagram_url: data.instagram_url || '',
-            linkedin_url: data.linkedin_url || '',
-            twitter_url: data.twitter_url || '',
-            logo_url: data.logo_url || undefined,
-          };
-          setProfileData(pd);
-          // Pre-fill import URL with registered website so brokers don't have to re-enter it
-          if (data.website) setImportUrl(data.website);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingProfile(false));
+    Promise.all([
+      fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([authData, profileRaw]) => {
+      const pd: ProfileData = {
+        company_name: profileRaw?.company_name || authData?.company_name || '',
+        description: profileRaw?.description || '',
+        phone: profileRaw?.phone || authData?.phone || '',
+        email: profileRaw?.email || authData?.email || '',
+        website: profileRaw?.website || '',
+        facebook_url: profileRaw?.facebook_url || '',
+        instagram_url: profileRaw?.instagram_url || '',
+        linkedin_url: profileRaw?.linkedin_url || '',
+        twitter_url: profileRaw?.twitter_url || '',
+        logo_url: profileRaw?.logo_url || undefined,
+      };
+      setProfileData(pd);
+      if (pd.website) setImportUrl(pd.website);
+    }).finally(() => setLoadingProfile(false));
   }, []);
 
   const markDone = () => {
