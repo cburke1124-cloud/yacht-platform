@@ -67,56 +67,38 @@ export default function DealerProfileEditPage() {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('token');
-      
-      // Fetch user info
-      const userResponse = await fetch(apiUrl('/users/me'), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const userData = await userResponse.json();
+      // Fetch auth data and dealer profile in parallel.
+      // /auth/me is the authoritative source for registration fields (name, email, company).
+      const [authRes, profileRes] = await Promise.all([
+        fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(apiUrl('/dealer-profile'), { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const authData = authRes.ok ? await authRes.json() : null;
+      const profileData = profileRes.ok ? await profileRes.json() : null;
 
-      // Fetch dealer profile if exists
-      try {
-        const profileResponse = await fetch(apiUrl('/dealer-profile'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          setProfile({
-            company_name: profileData.company_name || userData.company_name || '',
-            name: profileData.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || '',
-            email: profileData.email || userData.email || '',
-            phone: profileData.phone || userData.phone || '',
-            address: profileData.address || '',
-            city: profileData.city || '',
-            state: profileData.state || '',
-            zip_code: profileData.zip_code || '',
-            country: profileData.country || 'USA',
-            website: profileData.website || '',
-            description: profileData.description || '',
-            logo_url: profileData.logo_url || '',
-            banner_url: profileData.banner_url || '',
-            facebook_url: profileData.facebook_url || '',
-            instagram_url: profileData.instagram_url || '',
-            twitter_url: profileData.twitter_url || '',
-            linkedin_url: profileData.linkedin_url || '',
-            slug: profileData.slug || '',
-            cobrokering_enabled: profileData.cobrokering_enabled !== false,
-            show_team_on_profile: profileData.show_team_on_profile ?? false
-          });
-        } else {
-          // Initialize with user data
-          setProfile(prev => ({
-            ...prev,
-            company_name: userData.company_name || '',
-            name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || '',
-            email: userData.email || '',
-            phone: userData.phone || ''
-          }));
-        }
-      } catch (err) {
-        console.error('Profile fetch error:', err);
-      }
+      setProfile(prev => ({
+        ...prev,
+        company_name: profileData?.company_name || authData?.company_name || prev.company_name,
+        name: profileData?.name || (authData ? `${authData.first_name || ''} ${authData.last_name || ''}`.trim() : '') || prev.name,
+        email: profileData?.email || authData?.email || prev.email,
+        phone: profileData?.phone || authData?.phone || prev.phone,
+        address: profileData?.address || prev.address,
+        city: profileData?.city || prev.city,
+        state: profileData?.state || prev.state,
+        zip_code: profileData?.zip_code || prev.zip_code,
+        country: profileData?.country || prev.country,
+        website: profileData?.website || prev.website,
+        description: profileData?.description || prev.description,
+        logo_url: profileData?.logo_url || prev.logo_url,
+        banner_url: profileData?.banner_url || prev.banner_url,
+        facebook_url: profileData?.facebook_url || prev.facebook_url,
+        instagram_url: profileData?.instagram_url || prev.instagram_url,
+        twitter_url: profileData?.twitter_url || prev.twitter_url,
+        linkedin_url: profileData?.linkedin_url || prev.linkedin_url,
+        slug: profileData?.slug || prev.slug,
+        cobrokering_enabled: profileData?.cobrokering_enabled !== false,
+        show_team_on_profile: profileData?.show_team_on_profile ?? false,
+      }));
     } catch (error) {
       console.error('Failed to fetch profile:', error);
     } finally {

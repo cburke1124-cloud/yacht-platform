@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Send, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, Send, Clock, CheckCircle, AlertCircle, Trash2, Archive } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 // Type definitions
@@ -61,7 +61,7 @@ export default function MessagesPage() {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'inquiries'>('all');
+  const [filter, setFilter] = useState<'all' | 'new' | 'replied' | 'inquiries' | 'archived'>('all');
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [inquiryReplyText, setInquiryReplyText] = useState('');
@@ -228,6 +228,42 @@ export default function MessagesPage() {
     }
   };
 
+  const handleArchiveMessage = async (messageId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(apiUrl(`/messages/${messageId}/status`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'closed' }),
+      });
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      if (selectedMessage?.message.id === messageId) setSelectedMessage(null);
+      window.dispatchEvent(new Event('authChange'));
+    } catch (err) {
+      console.error('Failed to archive message:', err);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/messages/${messageId}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+        if (selectedMessage?.message.id === messageId) setSelectedMessage(null);
+        window.dispatchEvent(new Event('authChange'));
+      } else {
+        alert('Could not delete this message.');
+      }
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  };
+
   const handleCreateTicket = async () => {
     const subject = prompt('Enter ticket subject:');
     if (!subject) return;
@@ -294,6 +330,8 @@ export default function MessagesPage() {
 
   const filteredMessages = messages.filter(msg => {
     if (filter === 'inquiries') return false;
+    if (filter === 'archived') return msg.status === 'closed';
+    if (msg.status === 'closed') return false;
     if (filter === 'all') return true;
     if (filter === 'new') return msg.status === 'new' || msg.status === 'read';
     if (filter === 'replied') return msg.status === 'replied';
@@ -356,10 +394,11 @@ export default function MessagesPage() {
               <div className="flex flex-col md:flex-row">
                 <div className="md:w-44 border-b md:border-b-0 md:border-r border-gray-200 bg-gray-50 p-3 space-y-2">
                   {[
-                    { id: 'all' as const, label: 'Support', count: messages.length },
+                    { id: 'all' as const, label: 'Support', count: messages.filter(m => m.status !== 'closed').length },
                     { id: 'new' as const, label: 'New', count: messages.filter(m => m.status === 'new' || m.status === 'read').length },
                     { id: 'replied' as const, label: 'Replied', count: messages.filter(m => m.status === 'replied').length },
-                    { id: 'inquiries' as const, label: 'Inquiries', count: inquiries.length }
+                    { id: 'inquiries' as const, label: 'Inquiries', count: inquiries.length },
+                    { id: 'archived' as const, label: 'Archived', count: messages.filter(m => m.status === 'closed').length },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -413,10 +452,13 @@ export default function MessagesPage() {
                   </div>
                 ) : (
                   filteredMessages.map((message) => (
-                    <button
+                    <div
                       key={message.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => { loadMessageDetail(message.id); setSelectedInquiry(null); }}
-                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                      onKeyDown={e => { if (e.key === 'Enter') { loadMessageDetail(message.id); setSelectedInquiry(null); } }}
+                      className={`relative group w-full p-4 text-left hover:bg-gray-50 transition-colors cursor-pointer ${
                         selectedMessage?.message.id === message.id ? 'bg-[#01BCDD]/10' : ''
                       }`}
                     >
@@ -426,9 +468,30 @@ export default function MessagesPage() {
                             {message.priority}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-500">
-                          {formatDate(message.created_at)}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500">{formatDate(message.created_at)}</span>
+                          <div
+                            className="hidden group-hover:flex items-center gap-0.5 ml-1"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {message.status !== 'closed' && (
+                              <button
+                                onClick={() => handleArchiveMessage(message.id)}
+                                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                                title="Archive"
+                              >
+                                <Archive size={12} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteMessage(message.id)}
+                              className="p-1 text-gray-400 hover:text-red-500 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
                       {message.ticket_number && (
@@ -446,7 +509,7 @@ export default function MessagesPage() {
                       <div className="mt-2">
                         <span className="text-xs text-gray-500">From: {message.sender_name}</span>
                       </div>
-                    </button>
+                    </div>
                   ))
                 )}
                 </div>
@@ -596,7 +659,19 @@ export default function MessagesPage() {
                     rows={4}
                     placeholder="Type your reply..."
                   />
-                  <div className="flex justify-end gap-3">
+                  <div className="flex justify-end gap-3 flex-wrap">
+                    <button
+                      onClick={() => handleArchiveMessage(selectedMessage.message.id)}
+                      className="px-4 py-2 border border-gray-200 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 text-sm"
+                    >
+                      <Archive size={14} /> Archive
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMessage(selectedMessage.message.id)}
+                      className="px-4 py-2 border border-red-100 text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5 text-sm"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
                     <button
                       onClick={() => setSelectedMessage(null)}
                       className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"

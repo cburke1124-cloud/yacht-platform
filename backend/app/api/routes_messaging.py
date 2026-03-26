@@ -577,8 +577,12 @@ def delete_message(
     message = db.query(Message).filter(Message.id == message_id).first()
     if not message:
         raise ResourceNotFoundException("Message", message_id)
-    if message.sender_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Only sender can delete messages")
+    if (
+        message.sender_id != current_user.id
+        and message.recipient_id != current_user.id
+        and current_user.user_type != "admin"
+    ):
+        raise AuthorizationException("Not authorized to delete this message")
     db.delete(message)
     db.commit()
     return {"success": True}
