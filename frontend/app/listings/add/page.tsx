@@ -1,128 +1,82 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, PenSquare, LinkIcon, Layers, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, PenSquare, LinkIcon, Layers } from 'lucide-react';
 
 const options = [
   {
     icon: PenSquare,
-    color: 'from-blue-50 to-indigo-50',
-    iconColor: 'text-secondary',
-    accentColor: '#10214F',
-    title: 'Add a Listing',
-    subtitle: 'Full control over every detail',
-    desc: 'Enter photos, specs, pricing and descriptions yourself. Ideal for adding listings one at a time with complete customisation.',
+    title: 'CREATE LISTING MANUALLY',
+    desc1: 'Enter your listing details manually, including photos, specifications, pricing, and descriptions.',
+    desc2: 'This option gives you full control over how each listing appears and is ideal if you are adding listings one at a time.',
     href: '/listings/create',
-    cta: 'Start Building',
   },
   {
     icon: LinkIcon,
-    color: 'from-cyan-50 to-sky-50',
-    iconColor: 'text-primary',
-    accentColor: '#01BBDC',
-    title: 'Import Single Listing',
-    subtitle: 'Paste a link, we do the rest',
-    desc: 'Paste the URL of a specific yacht on your website and YachtVersal automatically pulls in photos, specs, and details.',
+    title: 'IMPORT SINGLE LISTING',
+    desc1: 'Paste the link to a specific yacht listing from your website, and YachtVersal will automatically pull in the details, photos, and information for you.',
+    desc2: 'This is the fastest way to add an individual listing without entering everything manually.',
     href: '/dashboard/bulk-tools?mode=scraper',
-    cta: 'Import Now',
   },
   {
     icon: Layers,
-    color: 'from-emerald-50 to-teal-50',
-    iconColor: 'text-emerald-600',
-    accentColor: '#059669',
-    title: 'Website Scraper',
-    subtitle: 'Import your full inventory at once',
-    desc: 'Point YachtVersal at your listings page and let the scraper pull in all your boats automatically — the fastest way to get started.',
+    title: 'IMPORT BULK LISTINGS',
+    desc1: 'Paste the link to your listings page on your website (where multiple yachts are shown), and YachtVersal will automatically import your listings in bulk.',
+    desc2: 'This is the easiest way to add multiple listings at once.',
     href: '/dashboard/bulk-tools?mode=bulk',
-    cta: 'Import All Listings',
   },
 ];
-
-const container = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.1 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 28 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
-};
 
 export default function AddListingPage() {
   return (
     <div className="min-h-screen bg-white py-12 px-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-3xl mx-auto">
 
         {/* Back */}
-        <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35 }}>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-secondary transition-colors mb-10 group"
-          >
-            <ArrowLeft size={15} className="transition-transform group-hover:-translate-x-0.5" />
-            Back to Dashboard
-          </Link>
-        </motion.div>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-secondary transition-colors mb-10 group"
+        >
+          <ArrowLeft size={15} className="transition-transform group-hover:-translate-x-0.5" />
+          Back to Dashboard
+        </Link>
 
         {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.05 }}
-          className="mb-10"
-        >
-          <h1 className="text-4xl font-bold text-secondary tracking-tight">Add a Listing</h1>
-          <p className="text-gray-500 mt-2 text-base">Choose how you&apos;d like to add your listing to YachtVersal.</p>
-        </motion.div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-secondary">Set Up Your Listings</h1>
+          <p className="text-sm text-primary italic mt-1 mb-1">Choose how you&apos;d like to add your listings to YachtVersal.</p>
+          <p className="text-sm text-gray-600">
+            Let&apos;s get your listings set up. You can choose the method that works best for you — whether you want to
+            enter listings manually or import them directly from your website.
+          </p>
+        </div>
 
         {/* Cards */}
-        <motion.div
-          variants={container}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {options.map((card) => {
             const Icon = card.icon;
             return (
-              <motion.div key={card.title} variants={item}>
-                <Link href={card.href} className="group block h-full">
-                  <div className="relative h-full flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm transition-all duration-300 ease-out group-hover:-translate-y-2 group-hover:shadow-xl group-hover:border-transparent">
-
-                    {/* Gradient top stripe */}
-                    <div className={`h-1.5 w-full bg-gradient-to-r ${card.color}`} />
-
-                    {/* Icon area */}
-                    <div className={`mx-6 mt-6 mb-4 w-14 h-14 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}>
-                      <Icon size={26} className={card.iconColor} />
-                    </div>
-
-                    {/* Text */}
-                    <div className="px-6 flex-1">
-                      <h3 className="font-bold text-secondary text-lg mb-0.5">{card.title}</h3>
-                      <p className="text-xs font-medium mb-3" style={{ color: card.accentColor }}>{card.subtitle}</p>
-                      <p className="text-sm text-gray-500 leading-relaxed">{card.desc}</p>
-                    </div>
-
-                    {/* CTA */}
-                    <div className="px-6 pb-6 mt-6">
-                      <div
-                        className="flex items-center justify-between w-full py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all duration-200 group-hover:gap-3"
-                        style={{ backgroundColor: card.accentColor }}
-                      >
-                        <span>{card.cta}</span>
-                        <ArrowRight size={15} className="transition-transform duration-200 group-hover:translate-x-1" />
-                      </div>
-                    </div>
+              <Link key={card.title} href={card.href} className="flex flex-col border-2 border-secondary/20 rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
+                <div className="p-6 flex-1">
+                  <div className="flex justify-center mb-4">
+                    <Icon size={28} className="text-secondary" />
                   </div>
-                </Link>
-              </motion.div>
+                  <h3 className="font-bold text-secondary text-center text-sm tracking-wide mb-4">{card.title}</h3>
+                  <p className="text-sm text-gray-600 text-center mb-3">{card.desc1}</p>
+                  <p className="text-sm text-gray-600 text-center">{card.desc2}</p>
+                </div>
+                <div className="p-4 pt-0">
+                  <div className="w-full py-3 bg-secondary text-white font-bold text-sm tracking-widest rounded-lg hover:bg-primary transition-colors text-center">
+                    LET&apos;S GO!
+                  </div>
+                </div>
+              </Link>
             );
           })}
-        </motion.div>
+        </div>
+
       </div>
     </div>
   );
 }
+
