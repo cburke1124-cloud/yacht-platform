@@ -77,7 +77,7 @@ def store_media_bytes(filename: str, content: bytes, content_type: str | None = 
         return f"{S3_ENDPOINT_URL.rstrip('/')}/{S3_BUCKET}/{object_key}"
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    filepath = os.path.join(UPLOAD_DIR, filename)
+    filepath = os.path.join(UPLOAD_DIR, os.path.basename(filename))
     with open(filepath, "wb") as stream:
         stream.write(content)
     return f"/uploads/{filename}"
@@ -90,8 +90,9 @@ def delete_media_by_url(url: str | None):
     if url.startswith("/uploads/"):
         filename = url.split("/uploads/", 1)[1]
         if filename:
-            path = os.path.join(UPLOAD_DIR, filename)
-            if os.path.exists(path):
+            upload_real = os.path.realpath(UPLOAD_DIR)
+            path = os.path.realpath(os.path.join(UPLOAD_DIR, filename))
+            if path.startswith(upload_real + os.sep) and os.path.exists(path):
                 os.remove(path)
         return
 

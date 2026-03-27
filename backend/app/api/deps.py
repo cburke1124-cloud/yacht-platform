@@ -29,7 +29,10 @@ def get_optional_user(
     except JWTError:
         return None
 
-    return db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not user.active:
+        return None
+    return user
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -52,6 +55,8 @@ def get_current_user(
 
     user = db.query(User).filter(User.email == email).first()
     if not user:
+        raise credentials_exception
+    if not user.active:
         raise credentials_exception
 
     return user

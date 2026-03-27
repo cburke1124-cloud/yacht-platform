@@ -39,7 +39,6 @@ export default function RouteGuard({
       // Check specific user type requirement
       if (requiredUserType && user.user_type !== requiredUserType) {
         // Redirect to appropriate dashboard
-        alert(`This page requires ${requiredUserType} access`);
         redirectToDashboard(user.user_type);
         return;
       }
@@ -47,7 +46,6 @@ export default function RouteGuard({
       // Check allowed user types
       if (allowedUserTypes && allowedUserTypes.length > 0) {
         if (!allowedUserTypes.includes(user.user_type)) {
-          alert(`Access denied. This page is only for ${allowedUserTypes.join(', ')} users.`);
           redirectToDashboard(user.user_type);
           return;
         }
@@ -55,19 +53,16 @@ export default function RouteGuard({
 
       // Specific route checks
       if (pathname.startsWith('/admin') && user.user_type !== 'admin') {
-        alert('Admin access required');
         redirectToDashboard(user.user_type);
         return;
       }
 
       if (pathname.startsWith('/sales-rep') && user.user_type !== 'salesman' && user.user_type !== 'admin') {
-        alert('Sales rep access required');
         redirectToDashboard(user.user_type);
         return;
       }
 
-      if (pathname.startsWith('/dashboard') && user.user_type !== 'dealer' && user.user_type !== 'admin') {
-        alert('Dealer access required');
+      if (pathname.startsWith('/dashboard') && user.user_type !== 'dealer' && user.user_type !== 'admin' && user.user_type !== 'team_member') {
         redirectToDashboard(user.user_type);
         return;
       }

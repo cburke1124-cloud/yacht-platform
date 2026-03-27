@@ -12,6 +12,7 @@ import {
   Bed, Gauge, Fuel, Waves, Ruler,
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -336,9 +337,11 @@ export default function ListingDetailPage() {
       : []);
 
   const descriptionHtml = listing?.description
-    ? (/<\/?[a-z][\s\S]*>/i.test(listing.description)
-        ? listing.description
-        : listing.description.replace(/\n/g, '<br />'))
+    ? DOMPurify.sanitize(
+        /<\/?[a-z][\s\S]*>/i.test(listing.description)
+          ? listing.description
+          : listing.description.replace(/\n/g, '<br />')
+      )
     : '';
 
   useEffect(() => {

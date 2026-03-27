@@ -4,7 +4,8 @@ from sqlalchemy import func
 from typing import Optional, List
 from datetime import datetime
 import os
-from PIL import Image
+import re
+from PIL import Image, ImageOps
 import io
 import shutil
 import subprocess
@@ -173,7 +174,8 @@ async def upload_media(
     
     # Generate filename
     timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-    safe_filename = f"{timestamp}_{file.filename.replace(' ', '_')}"
+    safe_basename = re.sub(r'[^a-zA-Z0-9._-]', '_', os.path.basename(file.filename or 'upload'))
+    safe_filename = f"{timestamp}_{safe_basename}"
     width = None
     height = None
     thumbnail_url = None

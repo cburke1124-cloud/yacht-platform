@@ -690,7 +690,11 @@ def get_my_listings(
     db: Session = Depends(get_db),
     status: Optional[str] = None,
 ):
-    query = db.query(Listing).filter(Listing.user_id == current_user.id)
+    if current_user.user_type in ("dealer", "admin"):
+        team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
+        query = db.query(Listing).filter(Listing.user_id.in_([current_user.id] + team_ids))
+    else:
+        query = db.query(Listing).filter(Listing.user_id == current_user.id)
     if status:
         query = query.filter(Listing.status == status)
     listings = query.order_by(Listing.created_at.desc()).all()
@@ -800,7 +804,9 @@ def update_listing(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized to update this listing")
+        owner = db.query(User).filter(User.id == listing.user_id).first()
+        if not (owner and owner.parent_dealer_id == current_user.id):
+            raise AuthorizationException("Not authorized to update this listing")
 
     if listing_data.bin and listing_data.bin != listing.bin:
         existing = db.query(Listing).filter(
@@ -845,7 +851,9 @@ def quick_edit_listing(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized to update this listing")
+        owner = db.query(User).filter(User.id == listing.user_id).first()
+        if not (owner and owner.parent_dealer_id == current_user.id):
+            raise AuthorizationException("Not authorized to update this listing")
 
     update_payload = listing_data.dict(exclude_unset=True)
     if not update_payload:
@@ -903,7 +911,9 @@ def delete_listing(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized")
+        owner = db.query(User).filter(User.id == listing.user_id).first()
+        if not (owner and owner.parent_dealer_id == current_user.id):
+            raise AuthorizationException("Not authorized")
     if permanent:
         db.delete(listing)
         db.commit()
