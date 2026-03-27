@@ -15,7 +15,7 @@ const options = [
     icon: LinkIcon,
     title: 'IMPORT SINGLE LISTING',
     desc1: 'Paste the link to a specific yacht listing from your website, and YachtVersal will automatically pull in the details, photos, and information for you.',
-    desc2: 'This is the fastest way to add an individual listing without entering everything manually.',
+    desc2: 'Use the direct URL for an actual vessel page — not your homepage or a page showing multiple listings.',
     href: '/dashboard/bulk-tools?mode=scraper',
   },
   {

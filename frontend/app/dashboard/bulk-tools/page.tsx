@@ -99,7 +99,7 @@ function BulkToolsInner() {
     {
       num: '1.',
       title: 'Copy & Paste the Listing URL',
-      body: 'Copy the direct URL of the yacht listing from your brokerage website page and paste it into the field below.',
+      body: 'Copy the direct URL of an actual yacht listing from your website — a specific vessel page, not your homepage or a page showing multiple listings — and paste it into the field below.',
     },
     {
       num: '2.',

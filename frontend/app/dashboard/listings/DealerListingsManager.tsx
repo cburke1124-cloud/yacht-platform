@@ -14,7 +14,7 @@ interface Listing {
   year?: number;
   make?: string;
   model?: string;
-  status: 'draft' | 'active' | 'archived' | 'sold';
+  status: 'draft' | 'active' | 'archived' | 'sold' | 'needs_approval';
   views: number;
   inquiries: number;
   featured: boolean;
@@ -59,6 +59,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [guestBrokers, setGuestBrokers] = useState<GuestBroker[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [approvingId, setApprovingId] = useState<number | null>(null);
   const [assigningSalesman, setAssigningSalesman] = useState<number | null>(null);
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
@@ -147,6 +148,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   };
 
   const updateListingStatus = async (listingId: number, newStatus: string) => {
+    if (newStatus === 'active') setApprovingId(listingId);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl(`/listings/${listingId}`), {
@@ -168,6 +170,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     } catch (error) {
       console.error('Failed to update status:', error);
       alert('Failed to update status');
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -410,10 +414,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
           { id: 'all', label: 'All' },
-          { id: 'draft', label: 'Draft' },
+          { id: 'needs_approval', label: 'Needs Approval' },
           { id: 'active', label: 'Active' },
+          { id: 'draft', label: 'Draft' },
           { id: 'sold', label: 'Sold' },
-          { id: 'archived', label: 'Archived' }
+          { id: 'archived', label: 'Archived' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -529,9 +534,9 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                             onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
                             className="text-xs border border-gray-300 rounded px-2 py-1"
                           >
+                            <option value="needs_approval">Needs Approval</option>
                             <option value="draft">Draft</option>
                             <option value="active">Active</option>
-                            <option value="pending">Pending</option>
                             <option value="sold">Sold</option>
                             <option value="archived">Archived</option>
                           </select>
@@ -553,6 +558,16 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                           >
                             <ToggleLeft size={14} />
                             Unpublish
+                          </button>
+                        )}
+                        {listing.status === 'needs_approval' && (
+                          <button
+                            onClick={() => updateListingStatus(listing.id, 'active')}
+                            disabled={approvingId === listing.id}
+                            className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <Check size={14} />
+                            {approvingId === listing.id ? 'Approving…' : 'Approve'}
                           </button>
                         )}
                       </div>

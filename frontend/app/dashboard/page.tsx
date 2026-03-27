@@ -317,6 +317,7 @@ function EnhancedDealerDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
+  const [approvingId, setApprovingId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [listingStatusFilter, setListingStatusFilter] = useState('all');
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('30d');
@@ -911,6 +912,28 @@ function EnhancedDealerDashboard() {
       alert('Failed to save quick edit');
     } finally {
       setSavingQuickEditId(null);
+    }
+  };
+
+  const approveListing = async (listingId: number) => {
+    setApprovingId(listingId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/listings/${listingId}`), {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' })
+      });
+      if (response.ok) {
+        setListings(prev => prev.map(l => l.id === listingId ? { ...l, status: 'active' } : l));
+        setQuickEdits(prev => ({ ...prev, [listingId]: { ...prev[listingId], status: 'active' } }));
+      } else {
+        alert('Failed to approve listing');
+      }
+    } catch {
+      alert('Failed to approve listing');
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -1765,7 +1788,6 @@ function EnhancedDealerDashboard() {
                   { id: 'needs_approval', label: 'Needs Approval' },
                   { id: 'active', label: 'Active' },
                   { id: 'draft', label: 'Draft' },
-                  { id: 'pending', label: 'Pending' },
                   { id: 'sold', label: 'Sold' },
                   { id: 'archived', label: 'Archived' },
                 ];
@@ -1918,7 +1940,6 @@ function EnhancedDealerDashboard() {
                                     <option value="needs_approval">Needs Approval</option>
                                     <option value="draft">Draft</option>
                                     <option value="active">Active</option>
-                                    <option value="pending">Pending</option>
                                     <option value="sold">Sold</option>
                                     <option value="archived">Archived</option>
                                   </select>
@@ -1929,6 +1950,16 @@ function EnhancedDealerDashboard() {
                               </td>
                               <td className="px-3 py-3 align-top">
                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                  {listing.status === 'needs_approval' && (
+                                    <button
+                                      onClick={() => approveListing(listing.id)}
+                                      disabled={approvingId === listing.id}
+                                      className="px-3 py-1.5 text-xs bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:bg-gray-400 font-semibold flex items-center gap-1"
+                                    >
+                                      <Check size={13} />
+                                      {approvingId === listing.id ? 'Approving…' : 'Approve'}
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => window.location.href = `/listings/${listing.id}/edit`}
                                     className="p-2 text-secondary hover:bg-soft rounded transition-colors"
@@ -3006,8 +3037,8 @@ function EnhancedDealerDashboard() {
               </div>
 
               {/* Banner */}
-              <div className="glass-card rounded-xl overflow-hidden">
-                <div className="p-5 border-b border-primary/10">
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-gray-100">
                   <h3 className="text-base font-semibold text-secondary">Cover Photo</h3>
                   <p className="text-sm text-gray-500">Hero image shown at the top of your public broker page</p>
                 </div>
@@ -3030,163 +3061,155 @@ function EnhancedDealerDashboard() {
                 </div>
               </div>
 
-              {/* Company Info */}
-              <div className="glass-card rounded-xl p-5">
-                <h3 className="text-base font-semibold text-secondary mb-5">Company Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+              {/* Section 1: Company Info & Brand */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <h3 className="font-bold text-secondary mb-4 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold flex-shrink-0">1</span>
+                  Company Information &amp; Brand
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Company Logo</label>
-                    <div className="relative w-28 h-28 bg-soft rounded-lg overflow-hidden border-2 border-dashed border-primary/20">
-                      {brokerProfile.logo_url ? (
-                        <img src={mediaUrl(brokerProfile.logo_url)} alt="Logo" className="w-full h-full object-cover" onError={onImgError} />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <Building2 className="text-gray-400" size={36} />
-                        </div>
-                      )}
-                      <label className="absolute inset-0 cursor-pointer hover:bg-black/10 transition-all flex items-center justify-center">
-                        <input type="file" accept="image/*" onChange={(e) => handleBrokerImageUpload('logo_url', e)} className="hidden" />
-                        <Upload className="text-white opacity-0 hover:opacity-100" size={20} />
-                      </label>
-                    </div>
+                    <label className="block text-xs font-semibold text-secondary mb-1">Company Name *</label>
+                    <input type="text" value={brokerProfile.company_name}
+                      onChange={(e) => setBrokerProfile(p => ({...p, company_name: e.target.value}))}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="Your Brokerage Name" />
                   </div>
-                  <div className="md:col-span-2 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">Company Name *</label>
-                      <input type="text" value={brokerProfile.company_name}
-                        onChange={(e) => setBrokerProfile(p => ({...p, company_name: e.target.value}))}
-                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                        placeholder="Your Company Name" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">Contact Person</label>
-                      <input type="text" value={brokerProfile.name}
-                        onChange={(e) => setBrokerProfile(p => ({...p, name: e.target.value}))}
-                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                        placeholder="John Doe" />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-secondary mb-1">About Your Business</label>
-                  <textarea value={brokerProfile.description}
-                    onChange={(e) => setBrokerProfile(p => ({...p, description: e.target.value}))}
-                    rows={4}
-                    className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                    placeholder="Tell buyers about your brokerage, your experience, and what makes you unique…" />
-                </div>
-              </div>
-
-              {/* Contact */}
-              <div className="glass-card rounded-xl p-5">
-                <h3 className="text-base font-semibold text-secondary mb-5">Contact Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">
-                      <span className="flex items-center gap-1.5"><Mail size={14} /> Email *</span>
-                    </label>
+                    <label className="block text-xs font-semibold text-secondary mb-1">Phone Number</label>
+                    <input type="tel" value={brokerProfile.phone}
+                      onChange={(e) => setBrokerProfile(p => ({...p, phone: e.target.value}))}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="+1 (555) 000-0000" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-secondary mb-1">Email Address *</label>
                     <input type="email" value={brokerProfile.email}
                       onChange={(e) => setBrokerProfile(p => ({...p, email: e.target.value}))}
-                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                       placeholder="contact@yourbrokerage.com" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">
-                      <span className="flex items-center gap-1.5"><Phone size={14} /> Phone *</span>
-                    </label>
-                    <input type="tel" value={brokerProfile.phone}
-                      onChange={(e) => setBrokerProfile(p => ({...p, phone: e.target.value}))}
-                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                      placeholder="(555) 123-4567" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-secondary mb-1">
-                      <span className="flex items-center gap-1.5"><Globe size={14} /> Website</span>
-                    </label>
+                    <label className="block text-xs font-semibold text-secondary mb-1">Company Website</label>
                     <input type="url" value={brokerProfile.website}
                       onChange={(e) => setBrokerProfile(p => ({...p, website: e.target.value}))}
-                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
-                      placeholder="https://www.yourbrokerage.com" />
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      placeholder="https://yourbrokerage.com" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-secondary mb-1">Company Bio / Description</label>
+                    <textarea value={brokerProfile.description}
+                      onChange={(e) => setBrokerProfile(p => ({...p, description: e.target.value}))}
+                      rows={3}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm resize-none"
+                      placeholder="Tell buyers about your brokerage, your experience, and what makes you unique…" />
+                    <p className="text-xs text-gray-400 mt-1">A strong profile builds trust and attracts more buyer inquiries.</p>
+                  </div>
+                </div>
+                {/* Logo upload */}
+                <div>
+                  <label className="block text-xs font-semibold text-secondary mb-2">Company Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-soft flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {brokerProfile.logo_url ? (
+                        <img src={mediaUrl(brokerProfile.logo_url)} alt="Logo" className="w-full h-full object-contain" onError={onImgError} />
+                      ) : (
+                        <Building2 className="text-gray-300" size={28} />
+                      )}
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-soft transition-colors">
+                        <Upload size={14} /> Upload Logo
+                        <input type="file" accept="image/*" onChange={(e) => handleBrokerImageUpload('logo_url', e)} className="hidden" />
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">PNG, JPG, or SVG recommended</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Location */}
-              <div className="glass-card rounded-xl p-5">
-                <h3 className="text-base font-semibold text-secondary mb-5 flex items-center gap-2">
-                  <MapPin size={18} className="text-primary" /> Location
+              {/* Section 2: Location */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <h3 className="font-bold text-secondary mb-1 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold flex-shrink-0">2</span>
+                  Location
                 </h3>
+                <p className="text-xs text-gray-500 mb-4 ml-8">Your brokerage&apos;s physical address, shown on your public profile.</p>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">Street Address</label>
+                    <label className="block text-xs font-semibold text-secondary mb-1">Street Address</label>
                     <input type="text" value={brokerProfile.address}
                       onChange={(e) => setBrokerProfile(p => ({...p, address: e.target.value}))}
-                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                       placeholder="123 Marina Boulevard" />
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-secondary mb-1">City *</label>
+                      <label className="block text-xs font-semibold text-secondary mb-1">City *</label>
                       <input type="text" value={brokerProfile.city}
                         onChange={(e) => setBrokerProfile(p => ({...p, city: e.target.value}))}
-                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                         placeholder="Miami" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">State *</label>
+                      <label className="block text-xs font-semibold text-secondary mb-1">State *</label>
                       <input type="text" value={brokerProfile.state}
                         onChange={(e) => setBrokerProfile(p => ({...p, state: e.target.value}))}
-                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                         placeholder="FL" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">ZIP</label>
+                      <label className="block text-xs font-semibold text-secondary mb-1">ZIP</label>
                       <input type="text" value={brokerProfile.zip_code}
                         onChange={(e) => setBrokerProfile(p => ({...p, zip_code: e.target.value}))}
-                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                         placeholder="33139" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">Country</label>
+                    <label className="block text-xs font-semibold text-secondary mb-1">Country</label>
                     <input type="text" value={brokerProfile.country}
                       onChange={(e) => setBrokerProfile(p => ({...p, country: e.target.value}))}
-                      className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                       placeholder="USA" />
                   </div>
                 </div>
               </div>
 
-              {/* Social Media */}
-              <div className="glass-card rounded-xl p-5">
-                <h3 className="text-base font-semibold text-secondary mb-5">Social Media</h3>
+              {/* Section 3: Social Media */}
+              <div className="border border-gray-200 rounded-xl p-5">
+                <h3 className="font-bold text-secondary mb-1 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold flex-shrink-0">3</span>
+                  Social Media
+                </h3>
+                <p className="text-xs text-gray-500 mb-4 ml-8">Add your social profiles to build credibility and give buyers more ways to explore your brand.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {([
-                    { field: 'facebook_url' as const, Icon: Facebook, color: 'text-blue-600', label: 'Facebook', placeholder: 'https://facebook.com/yourbrokerage' },
                     { field: 'instagram_url' as const, Icon: Instagram, color: 'text-pink-500', label: 'Instagram', placeholder: 'https://instagram.com/yourbrokerage' },
-                    { field: 'twitter_url' as const, Icon: Twitter, color: 'text-sky-400', label: 'Twitter / X', placeholder: 'https://twitter.com/yourbrokerage' },
+                    { field: 'facebook_url' as const, Icon: Facebook, color: 'text-blue-600', label: 'Facebook', placeholder: 'https://facebook.com/yourbrokerage' },
                     { field: 'linkedin_url' as const, Icon: Linkedin, color: 'text-blue-700', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourbrokerage' },
+                    { field: 'twitter_url' as const, Icon: Twitter, color: 'text-sky-400', label: 'X / Twitter', placeholder: 'https://x.com/yourbrokerage' },
                   ]).map(({ field, Icon, color, label, placeholder }) => (
                     <div key={field}>
-                      <label className="block text-sm font-medium text-secondary mb-1">
+                      <label className="block text-xs font-semibold text-secondary mb-1">
                         <span className="flex items-center gap-1.5"><Icon size={14} className={color} /> {label}</span>
                       </label>
                       <input type="url" value={brokerProfile[field]}
                         onChange={(e) => setBrokerProfile(p => ({...p, [field]: e.target.value}))}
-                        className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary text-sm"
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                         placeholder={placeholder} />
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Personal Profile Section */}
+              {/* Section 4: Personal Profile */}
               {(isDealer || isTeamMember) && (
-                <div className="glass-card rounded-xl overflow-hidden">
-                  <div className="p-5 border-b border-primary/10 flex items-center gap-3">
-                    <User size={18} className="text-primary" />
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                    <span className="w-6 h-6 rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold flex-shrink-0">4</span>
                     <div>
-                      <h3 className="text-base font-semibold text-secondary">My Personal Profile</h3>
+                      <h3 className="font-bold text-secondary">My Personal Profile</h3>
                       <p className="text-xs text-gray-500 mt-0.5">Your individual broker bio, photo, and social links</p>
                     </div>
                   </div>
@@ -3197,8 +3220,8 @@ function EnhancedDealerDashboard() {
               )}
 
               {/* Show Team toggle */}
-              <div className="glass-card rounded-xl overflow-hidden">
-                <div className="p-5 border-b border-primary/10 flex items-center gap-3">
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                   <Users size={18} className="text-primary" />
                   <div>
                     <h3 className="text-base font-semibold text-secondary">Team on Broker Page</h3>
@@ -3229,8 +3252,8 @@ function EnhancedDealerDashboard() {
               </div>
 
               {/* Co-brokering toggle */}
-              <div className="glass-card rounded-xl overflow-hidden">
-                <div className="p-5 border-b border-primary/10 flex items-center gap-3">
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                   <Share2 size={18} className="text-accent" />
                   <div>
                     <h3 className="text-base font-semibold text-secondary">Co-Brokering &amp; API Access</h3>

@@ -386,7 +386,7 @@ def dealer_import_listing(
         assigned_salesman_id=salesman_id,
         source="scraped",
         source_url=data.url.strip(),
-        status="draft",
+        status="needs_approval",
         bin=_generate_bin(db),
         condition="used",
     )
@@ -563,7 +563,7 @@ def import_single_listing(
         assigned_salesman_id=data.salesman_id,
         source="scraped",
         source_url=data.url,
-        status="draft",
+        status="needs_approval",
         bin=_generate_bin(db),
         condition="used",
     )

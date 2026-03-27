@@ -860,7 +860,7 @@ def quick_edit_listing(
         raise HTTPException(status_code=400, detail="No quick-edit fields were provided")
 
     if "status" in update_payload:
-        valid_statuses = {"active", "draft", "pending", "sold", "archived"}
+        valid_statuses = {"active", "draft", "needs_approval", "sold", "archived"}
         if update_payload["status"] not in valid_statuses:
             raise HTTPException(status_code=400, detail="Invalid status value")
 

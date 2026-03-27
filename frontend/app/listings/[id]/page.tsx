@@ -970,6 +970,19 @@ export default function ListingDetailPage() {
               </div>
             )}
 
+            {/* ══ DESCRIPTION ═══════════════════════════════════════════════ */}
+            {listing.description && (
+              <div>
+                <SectionHeading>Description</SectionHeading>
+                <div className="prose prose-lg max-w-none">
+                  <div
+                    className="text-base leading-relaxed text-[#10214F] font-poppins"
+                    dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+                  />
+                </div>
+              </div>
+            )}
+
           </div>
 
           {/* Right column: Finance — 4 cols */}
@@ -1054,19 +1067,6 @@ export default function ListingDetailPage() {
           </div>
 
         </div>
-
-        {/* ══ DESCRIPTION ════════════════════════════════════════════════════ */}
-        {listing.description && (
-          <div className="mb-10">
-            <SectionHeading>Description</SectionHeading>
-            <div className="prose prose-lg max-w-none">
-              <div
-                className="text-base leading-relaxed text-[#10214F] font-poppins"
-                dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
         <div className="mb-10">
