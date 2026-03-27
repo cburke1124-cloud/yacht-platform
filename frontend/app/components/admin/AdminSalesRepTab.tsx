@@ -231,7 +231,7 @@ export default function AdminSalesRepTab() {
 
       if (dealersRes.ok) {
         const dealersData = await dealersRes.json();
-        setDealers(dealersData);
+        setDealers(Array.isArray(dealersData) ? dealersData : (dealersData.dealers ?? []));
       }
 
       if (affiliatesRes.ok) {
