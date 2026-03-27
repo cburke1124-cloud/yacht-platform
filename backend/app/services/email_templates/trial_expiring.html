@@ -1,44 +1,67 @@
 <!DOCTYPE html>
-<html>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Trial Is Ending Soon &mdash; YachtVersal</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
 
-  <!-- Header -->
-  <div style="background: linear-gradient(to right, #f59e0b, #d97706); padding: 30px; text-align: center;">
-    <h1 style="color: white; margin: 0;">Your Trial Ends Soon</h1>
-  </div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f5f9;padding:40px 16px;">
+<tr><td align="center">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 24px rgba(16,33,79,0.10);">
+
+  <!-- Logo Header -->
+  <tr>
+    <td style="background-color:#10214F;padding:32px 40px;text-align:center;">
+      <img src="https://yachtversal.com/logo/logo-two-tone-white.png" alt="YachtVersal" width="180" style="display:block;margin:0 auto;width:180px;max-width:100%;height:auto;" />
+    </td>
+  </tr>
+  <tr><td style="background-color:#CCAF8B;height:4px;font-size:1px;line-height:1px;">&nbsp;</td></tr>
 
   <!-- Body -->
-  <div style="padding: 30px; background: #fffaf0;">
-    <p style="color: #4b5563; line-height: 1.6;">{{ greeting }}</p>
+  <tr>
+    <td style="padding:40px 40px 32px 40px;">
 
-    <p style="color: #4b5563; line-height: 1.6;">
-      Your YachtVersal trial ends in
-      <strong>{{ days_left }} day{% if days_left != 1 %}s{% endif %}</strong>
-      on {{ trial_end_date }}.
-    </p>
+      <h1 style="margin:0 0 20px 0;font-size:22px;font-weight:700;color:#10214F;">Your trial ends in {{ days_left }} day{% if days_left != 1 %}s{% endif %}</h1>
 
-    <p style="color: #4b5563; line-height: 1.6;">
-      Add billing now to keep listings, leads, and integrations active.
-    </p>
+      <p style="margin:0 0 16px 0;color:#4b5563;font-size:15px;line-height:1.7;">{{ greeting }}</p>
 
-    <!-- CTA -->
-    <div style="text-align: center; margin: 24px 0;">
-      <a href="{{ billing_url }}"
-         style="background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-        Update Billing
-      </a>
-    </div>
+      <p style="margin:0 0 24px 0;color:#4b5563;font-size:15px;line-height:1.7;">
+        Your YachtVersal trial period ends on <strong>{{ trial_end_date }}</strong>. Add a payment method now to keep your listings, leads, and integrations running without interruption.
+      </p>
 
-    <p style="color: #6b7280; font-size: 14px;">
-      You can also sign in and manage your plan here:
-      <a href="{{ signin_url }}" style="color: #2563eb;">{{ signin_url }}</a>
-    </p>
-  </div>
+      <!-- CTA -->
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0;">
+        <tr>
+          <td align="center">
+            <a href="{{ billing_url }}" style="display:inline-block;padding:14px 40px;background-color:#01BCDD;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:700;font-size:15px;letter-spacing:0.3px;">Activate My Plan</a>
+          </td>
+        </tr>
+      </table>
+
+      <div style="border-left:4px solid #CCAF8B;background-color:#fdf9f0;padding:16px 20px;margin:24px 0;border-radius:0 6px 6px 0;">
+        <p style="margin:0;color:#8a6a30;font-size:14px;">After your trial ends, your dashboard, active listings, and team access will be paused until a plan is activated.</p>
+      </div>
+
+      <p style="color:#9ca3af;font-size:13px;margin-top:24px;">You can also manage your plan by signing in at <a href="{{ signin_url }}" style="color:#01BCDD;">{{ signin_url }}</a>.</p>
+
+    </td>
+  </tr>
 
   <!-- Footer -->
-  <div style="background: #1f2937; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
-    <p style="margin: 0;">© 2026 YachtVersal. All rights reserved.</p>
-  </div>
+  <tr>
+    <td style="background-color:#10214F;padding:24px 40px;text-align:center;">
+      <p style="margin:0 0 6px 0;color:#7a8ea8;font-size:12px;">&copy; 2026 YachtVersal &mdash; All rights reserved.</p>
+      <p style="margin:0;"><a href="https://yachtversal.com" style="color:#01BCDD;font-size:12px;text-decoration:none;">yachtversal.com</a></p>
+    </td>
+  </tr>
+
+</table>
+
+</td></tr>
+</table>
 
 </body>
 </html>

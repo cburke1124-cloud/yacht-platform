@@ -1,88 +1,93 @@
 <!DOCTYPE html>
-<html>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Site Is Live &mdash; YachtVersal</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
 
-  <!-- Header -->
-  <div style="background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%); padding: 40px; text-align: center;">
-    <h1 style="color: white; margin: 0;">🚤 Your YachtVersal Site is Ready!</h1>
-  </div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f5f9;padding:40px 16px;">
+<tr><td align="center">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 4px 24px rgba(16,33,79,0.10);">
+
+  <!-- Logo Header -->
+  <tr>
+    <td style="background-color:#10214F;padding:32px 40px;text-align:center;">
+      <img src="https://yachtversal.com/logo/logo-two-tone-white.png" alt="YachtVersal" width="180" style="display:block;margin:0 auto;width:180px;max-width:100%;height:auto;" />
+    </td>
+  </tr>
+  <tr><td style="background-color:#01BCDD;height:4px;font-size:1px;line-height:1px;">&nbsp;</td></tr>
 
   <!-- Body -->
-  <div style="padding: 40px; background: #f8fafc;">
-    <h2 style="color: #0066cc;">Welcome, {{ dealer_name }}!</h2>
+  <tr>
+    <td style="padding:40px 40px 32px 40px;">
 
-    <p style="color: #4b5563; line-height: 1.6;">
-      Your professional yacht dealer website is now live and ready to showcase your inventory!
-    </p>
+      <h1 style="margin:0 0 16px 0;font-size:22px;font-weight:700;color:#10214F;">Your site is live, {{ dealer_name }}!</h1>
 
-    <!-- Site URL -->
-    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-      <h3 style="color: #0066cc; margin-top: 0;">Your Website</h3>
-      <p style="margin: 10px 0;">
-        <strong>URL:</strong>
-        <a href="https://{{ site_domain }}" style="color: #0066cc;">https://{{ site_domain }}</a>
+      <p style="margin:0 0 24px 0;color:#4b5563;font-size:15px;line-height:1.7;">
+        Your professional yacht dealer website is now live. Here are your details and credentials &mdash; store them somewhere safe.
       </p>
-    </div>
 
-    <!-- WP credentials -->
-    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-      <h3 style="color: #0066cc; margin-top: 0;">WordPress Admin Access</h3>
-      <p style="margin: 10px 0;">
-        <strong>Admin URL:</strong> <a href="{{ wp_admin_url }}" style="color: #0066cc;">{{ wp_admin_url }}</a><br>
-        <strong>Username:</strong> {{ wp_username }}<br>
-        <strong>Password:</strong> <code style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">{{ wp_password }}</code>
-      </p>
-    </div>
+      <!-- Site details -->
+      <div style="background-color:#f8fafc;border:1px solid #e2eaf2;border-radius:8px;padding:20px 24px;margin:0 0 24px 0;">
+        <p style="margin:0 0 16px 0;font-size:14px;font-weight:700;color:#10214F;">Site Details</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#7a8ea8;width:120px;border-bottom:1px solid #e2eaf2;">Website URL</td>
+            <td style="padding:7px 0;font-size:13px;border-bottom:1px solid #e2eaf2;"><a href="https://{{ site_domain }}" style="color:#01BCDD;font-weight:700;">{{ site_domain }}</a></td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#7a8ea8;border-bottom:1px solid #e2eaf2;">Admin Panel</td>
+            <td style="padding:7px 0;font-size:13px;border-bottom:1px solid #e2eaf2;"><a href="{{ wp_admin_url }}" style="color:#01BCDD;">{{ wp_admin_url }}</a></td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#7a8ea8;border-bottom:1px solid #e2eaf2;">Username</td>
+            <td style="padding:7px 0;font-size:13px;font-family:'Courier New',Courier,monospace;font-weight:700;color:#10214F;border-bottom:1px solid #e2eaf2;">{{ wp_username }}</td>
+          </tr>
+          <tr>
+            <td style="padding:7px 0;font-size:13px;color:#7a8ea8;">Password</td>
+            <td style="padding:7px 0;font-size:13px;font-family:'Courier New',Courier,monospace;font-weight:700;color:#10214F;">{{ wp_password }}</td>
+          </tr>
+        </table>
+      </div>
 
-    <!-- API Key -->
-    <div style="background: white; padding: 25px; border-radius: 12px; margin: 30px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-      <h3 style="color: #0066cc; margin-top: 0;">YachtVersal API Key</h3>
-      <p style="color: #4b5563; font-size: 14px; margin-bottom: 10px;">
-        Your inventory syncs automatically. This key is pre-configured in your site.
-      </p>
-      <code style="background: #f1f5f9; padding: 12px; display: block; font-size: 12px; word-break: break-all; border-radius: 4px; border-left: 4px solid #0066cc;">
-        {{ api_key }}
-      </code>
-    </div>
+      <!-- API Key box -->
+      <div style="background-color:#f4f8fb;border:1px solid #d0e4f0;border-left:4px solid #01BCDD;border-radius:0 6px 6px 0;padding:18px 20px;margin:0 0 24px 0;">
+        <p style="margin:0 0 8px 0;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#7a8ea8;font-weight:600;">YachtVersal API Key</p>
+        <code style="font-size:13px;word-break:break-all;color:#10214F;font-family:'Courier New',Courier,monospace;letter-spacing:0.5px;">{{ api_key }}</code>
+      </div>
 
-    <!-- Warning -->
-    <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 30px 0;">
-      <p style="margin: 0; color: #92400e;">
-        <strong>⚠ Important:</strong> Save these credentials securely! Change your WordPress password after first login.
-      </p>
-    </div>
+      <!-- CTA -->
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 28px 0;">
+        <tr>
+          <td align="center">
+            <a href="{{ wp_admin_url }}" style="display:inline-block;padding:14px 40px;background-color:#01BCDD;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:700;font-size:15px;letter-spacing:0.3px;">Access WordPress Admin</a>
+          </td>
+        </tr>
+      </table>
 
-    <!-- Next steps -->
-    <h3 style="color: #0066cc; margin-top: 40px;">What's Next?</h3>
-    <ol style="color: #4b5563; line-height: 1.8;">
-      <li>Visit your new website at <a href="https://{{ site_domain }}" style="color: #0066cc;">{{ site_domain }}</a></li>
-      <li>Log in to WordPress admin to customize your branding</li>
-      <li>Your yacht inventory syncs automatically every 24 hours</li>
-      <li>Check out the YachtVersal dashboard in your admin panel</li>
-    </ol>
+      <div style="border-left:4px solid #CCAF8B;background-color:#fdf9f0;padding:14px 20px;border-radius:0 6px 6px 0;">
+        <p style="margin:0;color:#8a6a30;font-size:14px;">Change your WordPress password after first login. Never share your API key in public repositories or client-side code.</p>
+      </div>
 
-    <!-- CTAs -->
-    <div style="margin-top: 40px; text-align: center;">
-      <a href="{{ wp_admin_url }}"
-         style="background: #0066cc; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; margin-right: 10px;">
-        Go to WordPress Admin
-      </a>
-      <a href="https://sites.yachtversal.com/help"
-         style="background: white; color: #0066cc; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; border: 2px solid #0066cc;">
-        View Help Docs
-      </a>
-    </div>
-
-    <p style="margin-top: 40px; color: #6b7280; font-size: 14px;">
-      Need help? Reply to this email or visit our
-      <a href="https://sites.yachtversal.com/help" style="color: #0066cc;">help center</a>.
-    </p>
-  </div>
+    </td>
+  </tr>
 
   <!-- Footer -->
-  <div style="background: #1e293b; padding: 20px; text-align: center; color: white;">
-    <p style="margin: 0; font-size: 14px;">© 2026 YachtVersal. All rights reserved.</p>
-  </div>
+  <tr>
+    <td style="background-color:#10214F;padding:24px 40px;text-align:center;">
+      <p style="margin:0 0 6px 0;color:#7a8ea8;font-size:12px;">&copy; 2026 YachtVersal &mdash; All rights reserved.</p>
+      <p style="margin:0;"><a href="https://yachtversal.com" style="color:#01BCDD;font-size:12px;text-decoration:none;">yachtversal.com</a></p>
+    </td>
+  </tr>
+
+</table>
+
+</td></tr>
+</table>
 
 </body>
 </html>
+
