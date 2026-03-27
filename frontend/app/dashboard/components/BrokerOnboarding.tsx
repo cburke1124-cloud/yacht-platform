@@ -510,26 +510,31 @@ function BrokerageProfileStep({
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  // Seed form fields from the parent-fetched profile exactly once.
-  // Using a ref guard ensures that a concurrent background re-fetch in the parent
-  // (which updates `initialProfile`) can never wipe data the user is currently typing.
+  // Seed form fields from the parent-fetched profile.
+  // Two rules:
+  //   1. Only lock in a seed when initialProfile has actual content — if everything
+  //      is empty strings (prefetchedProfile from dashboard before its own fetch
+  //      resolves), skip and wait for real data to arrive.
+  //   2. Once the user starts typing (seededRef = true via field onChange), never
+  //      overwrite their edits with a later prop update.
   const seededRef = useRef(false);
   useEffect(() => {
-    if (initialProfile && !seededRef.current) {
-      seededRef.current = true;
-      setProfile({
-        company_name: initialProfile.company_name,
-        description: initialProfile.description,
-        phone: initialProfile.phone,
-        email: initialProfile.email,
-        website: initialProfile.website,
-        facebook_url: initialProfile.facebook_url,
-        instagram_url: initialProfile.instagram_url,
-        linkedin_url: initialProfile.linkedin_url,
-        twitter_url: initialProfile.twitter_url,
-      });
-      if (initialProfile.logo_url) setLogoPreview(initialProfile.logo_url);
-    }
+    if (!initialProfile || seededRef.current) return;
+    const hasData = !!(initialProfile.email || initialProfile.company_name || initialProfile.phone);
+    if (!hasData) return; // wait for a fetch that actually has data
+    seededRef.current = true;
+    setProfile({
+      company_name: initialProfile.company_name,
+      description: initialProfile.description,
+      phone: initialProfile.phone,
+      email: initialProfile.email,
+      website: initialProfile.website,
+      facebook_url: initialProfile.facebook_url,
+      instagram_url: initialProfile.instagram_url,
+      linkedin_url: initialProfile.linkedin_url,
+      twitter_url: initialProfile.twitter_url,
+    });
+    if (initialProfile.logo_url) setLogoPreview(initialProfile.logo_url);
   }, [initialProfile]);
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -584,7 +589,8 @@ function BrokerageProfileStep({
   const field = (key: keyof typeof profile, label: string, placeholder: string, type = 'text') => (
     <div key={key}>
       <label className="block text-xs font-semibold text-secondary mb-1">{label}</label>
-      <input type={type} value={(profile as any)[key] ?? ''} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))}
+      <input type={type} value={(profile as any)[key] ?? ''}
+        onChange={e => { seededRef.current = true; setProfile(p => ({ ...p, [key]: e.target.value })); }}
         placeholder={placeholder}
         className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
     </div>
@@ -638,7 +644,7 @@ function BrokerageProfileStep({
               <textarea
                 rows={3}
                 value={profile.description}
-                onChange={e => setProfile(p => ({...p, description: e.target.value}))}
+                onChange={e => { seededRef.current = true; setProfile(p => ({...p, description: e.target.value})); }}
                 placeholder="Tell buyers about your brokerage, your experience, and what makes your company unique."
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
               />
