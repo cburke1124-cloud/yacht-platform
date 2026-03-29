@@ -401,7 +401,7 @@ function SellerLoginContent() {
                       )}
 
                       {isUltimate && <p className="text-xs text-white/60 font-medium mb-4">Tailored to your brokerage</p>}
-                      <ul className="space-y-2 mb-6">
+                      <ul className="space-y-2 mb-6 flex-1">
                         {(tier.features || []).map((f: string, i: number) => (
                           <li key={i} className={`flex items-start gap-2 text-sm ${isUltimate ? 'text-white/80' : 'text-dark/70'}`}>
                             <Check size={14} className={`${isUltimate ? 'text-white/60' : 'text-primary'} mt-0.5 shrink-0`} />
@@ -409,7 +409,7 @@ function SellerLoginContent() {
                           </li>
                         ))}
                       </ul>
-                      <div className="mt-auto">
+                      <div>
                       {isUltimate ? (
                         <Link
                           href="/contact?tier=ultimate"
@@ -459,7 +459,7 @@ function SellerLoginContent() {
                     </div>
 
                     <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
-                    <ul className="space-y-2 mb-6">
+                    <ul className="space-y-2 mb-6 flex-1">
                       {((tier as any).features || []).map((f: string, i: number) => (
                         <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
                           <Check size={14} className="text-primary mt-0.5 shrink-0" />
@@ -469,7 +469,7 @@ function SellerLoginContent() {
                     </ul>
                     <Link
                       href={`/register?user_type=private&subscription_tier=${key}`}
-                      className={`mt-auto block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
+                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
                         key === 'private_plus' ? 'bg-primary' : 'bg-secondary'
                       }`}
                     >

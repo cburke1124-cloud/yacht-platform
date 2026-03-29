@@ -26,6 +26,7 @@ interface Message {
 interface Reply {
   id: number;
   body: string;
+  sender_id?: number | null;
   sender_name: string;
   created_at: string;
   attachments?: Attachment[];
@@ -77,6 +78,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const threadEndRef = useRef<HTMLDivElement>(null);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
@@ -102,6 +104,14 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
 
   useEffect(() => {
     fetchInquiries();
+    // Fetch current user ID for correct sent/received bubble direction
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.id) setCurrentUserId(data.id); })
+        .catch(() => {});
+    }
     // Set up 30-second background polling for both lists
     pollRef.current = setInterval(() => {
       fetchMessagesSilent();
@@ -910,26 +920,37 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                 {/* Message thread */}
                 <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                   {/* Original message */}
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <User size={14} className="text-gray-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-sm font-semibold text-gray-800">
-                          {selectedDetail.message.sender_name || selectedDetail.message.external_sender_email || 'Unknown'}
-                        </span>
-                        <span className="text-xs text-gray-400">{toUtc(selectedDetail.message.created_at).toLocaleString()}</span>
+                  {(() => {
+                    const origIsMine = currentUserId !== null && selectedDetail.message.sender_id === currentUserId;
+                    return (
+                      <div className={`flex gap-3 ${origIsMine ? 'flex-row-reverse' : ''}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${origIsMine ? 'bg-primary text-white' : 'bg-gray-200'}`}>
+                          <User size={14} className={origIsMine ? 'text-white' : 'text-gray-500'} />
+                        </div>
+                        <div className={`flex-1 min-w-0 ${origIsMine ? 'items-end flex flex-col' : ''}`}>
+                          <div className={`flex items-baseline gap-2 mb-1 ${origIsMine ? 'flex-row-reverse' : ''}`}>
+                            <span className="text-sm font-semibold text-gray-800">
+                              {selectedDetail.message.sender_name || selectedDetail.message.external_sender_email || 'Unknown'}
+                            </span>
+                            <span className="text-xs text-gray-400">{toUtc(selectedDetail.message.created_at).toLocaleString()}</span>
+                          </div>
+                          <div className={`rounded-xl px-4 py-3 text-sm whitespace-pre-wrap border max-w-[85%] ${
+                            origIsMine
+                              ? 'bg-primary text-white border-primary/20 rounded-tr-sm'
+                              : 'bg-gray-50 text-gray-700 border-gray-100 rounded-tl-sm'
+                          }`}>
+                            {selectedDetail.message.body}
+                          </div>
+                        </div>
                       </div>
-                      <div className="bg-gray-50 rounded-xl rounded-tl-sm px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
-                        {selectedDetail.message.body}
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Replies */}
                   {selectedDetail.replies.map((reply) => {
-                    const isMine = reply.sender_name !== (selectedDetail.message.sender_name || selectedDetail.message.external_sender_email);
+                    const isMine = currentUserId !== null
+                      ? reply.sender_id === currentUserId
+                      : reply.sender_name !== (selectedDetail.message.sender_name || selectedDetail.message.external_sender_email);
                     return (
                       <div key={reply.id} className={`flex gap-3 ${isMine ? 'flex-row-reverse' : ''}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isMine ? 'bg-primary text-white' : 'bg-gray-200'}`}>

@@ -230,6 +230,7 @@ def get_message_detail(
             {
                 "id": r.id,
                 "body": r.body,
+                "sender_id": r.sender_id,
                 "sender_name": f"{r.sender.first_name} {r.sender.last_name}"
                 if r.sender
                 else "Unknown",
