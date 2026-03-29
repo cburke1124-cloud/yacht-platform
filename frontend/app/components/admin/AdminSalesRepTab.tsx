@@ -565,10 +565,12 @@ export default function AdminSalesRepTab() {
                         <td className="px-6 py-4">
                           <button
                             onClick={() => toggleRepExpand(rep.id)}
-                            className="flex items-center gap-1 text-left hover:text-primary transition-colors"
+                            className="flex items-center gap-2 text-left group"
                             title={isExpanded ? 'Collapse dealers' : 'View dealers'}
                           >
-                            {isExpanded ? <ChevronDown size={16} className="text-primary" /> : <ChevronRight size={16} className="text-gray-400" />}
+                            <span className={`flex-shrink-0 flex items-center justify-center w-6 h-6 rounded border ${isExpanded ? 'bg-primary border-primary text-white' : 'border-gray-300 text-gray-500 group-hover:border-primary group-hover:text-primary'} transition-colors`}>
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </span>
                             <div className="text-sm">
                               <div className="font-semibold text-gray-900">{rep.dealer_count || 0} total</div>
                               <div className="text-gray-500">{rep.active_dealers || 0} active</div>
