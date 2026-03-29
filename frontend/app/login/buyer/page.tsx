@@ -23,6 +23,10 @@ function BuyerLoginContent() {
   const [twoFaEmail, setTwoFaEmail] = useState('');
   const [twoFaCode, setTwoFaCode] = useState('');
 
+  // Resend verification state
+  const [resendSent, setResendSent] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+
   useEffect(() => {
     fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
   }, []);
@@ -118,6 +122,22 @@ function BuyerLoginContent() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    try {
+      await fetch(apiUrl('/auth/resend-verification-email'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      setResendSent(true);
+    } catch {
+      // silent — server returns success either way to prevent enumeration
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleTermsAccepted = () => { setShowTermsModal(false); router.push(pendingRedirect); };
   const handleTermsDecline = () => {
     setShowTermsModal(false);
@@ -159,6 +179,19 @@ function BuyerLoginContent() {
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">{error}</p>
+                {error.toLowerCase().includes('verify your email') && !resendSent && (
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendLoading}
+                    className="mt-2 text-sm font-medium text-primary hover:text-primary/80 underline hover:no-underline disabled:opacity-50"
+                  >
+                    {resendLoading ? 'Sending…' : 'Resend confirmation email'}
+                  </button>
+                )}
+                {resendSent && (
+                  <p className="mt-2 text-sm text-green-700 font-medium">Confirmation email sent! Check your inbox.</p>
+                )}
               </div>
             )}
 

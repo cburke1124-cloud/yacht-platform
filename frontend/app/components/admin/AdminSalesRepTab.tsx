@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { UserPlus, DollarSign, Users, Link2, X, Mail, Edit, TrendingUp, History } from 'lucide-react';
+import { useState, useEffect, Fragment } from 'react';
+import { UserPlus, DollarSign, Users, Link2, X, Mail, Edit, TrendingUp, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface SalesRep {
@@ -72,6 +72,7 @@ interface Dealer {
   email: string;
   subscription_tier: string;
   assigned_sales_rep_id?: number;
+  created_at?: string;
 }
 
 interface CommissionHistory {
@@ -97,6 +98,21 @@ export default function AdminSalesRepTab() {
   const [commissionHistory, setCommissionHistory] = useState<CommissionHistory[]>([]);
   const [affiliates, setAffiliates] = useState<AffiliateAccount[]>([]);
   const [dealPerformance, setDealPerformance] = useState<DealPerformanceResponse | null>(null);
+  const [expandedReps, setExpandedReps] = useState<Set<number>>(new Set());
+
+  const TIER_PRICES: Record<string, number> = {
+    basic: 29, plus: 59, pro: 99, premium: 99,
+    private_basic: 9, private_plus: 19, private_pro: 39,
+    free: 0, trial: 0,
+  };
+
+  const toggleRepExpand = (repId: number) => {
+    setExpandedReps(prev => {
+      const next = new Set(prev);
+      next.has(repId) ? next.delete(repId) : next.add(repId);
+      return next;
+    });
+  };
   
   const [newRep, setNewRep] = useState({
     email: '',
@@ -536,85 +552,142 @@ export default function AdminSalesRepTab() {
                   </td>
                 </tr>
               ) : (
-                salesReps.map((rep) => (
-                  <tr key={rep.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{rep.name}</div>
-                      <div className="text-sm text-gray-500">{rep.email}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm">
-                        <div className="font-semibold text-gray-900">{rep.dealer_count || 0} total</div>
-                        <div className="text-gray-500">{rep.active_dealers || 0} active</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-gray-900">
-                        ${(rep.total_revenue || 0).toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                          (rep.commission_rate || 10) === 10 
-                            ? 'bg-gray-100 text-gray-800'
-                            : (rep.commission_rate || 10) > 10
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {(rep.commission_rate || 10).toFixed(1)}%
-                        </span>
-                        <button
-                          onClick={() => {
-                            setSelectedRep(rep);
-                            setCommissionForm({
-                              commission_rate: rep.commission_rate || 10,
-                              reason: ''
-                            });
-                            setShowCommissionModal(true);
-                          }}
-                          className="p-1 text-primary hover:bg-primary/10 rounded"
-                          title="Edit commission rate"
-                        >
-                          <Edit size={16} />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-green-600">
-                        ${(rep.monthly_commission || 0).toFixed(2)}/mo
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm">
-                        <div className="font-semibold text-gray-900">{rep.referral_code || '—'}</div>
-                        <div className="text-gray-500">{rep.referred_signups || 0} signups</div>
-                        {rep.referral_link && (
-                          <>
-                            <div className="mt-1 text-xs font-mono text-gray-600 break-all">
-                              {buildAbsoluteSignupLink(rep.referral_link)}
+                salesReps.map((rep) => {
+                  const repDealers = dealers.filter(d => d.assigned_sales_rep_id === rep.id);
+                  const isExpanded = expandedReps.has(rep.id);
+                  return (
+                    <Fragment key={rep.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-gray-900">{rep.name}</div>
+                          <div className="text-sm text-gray-500">{rep.email}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => toggleRepExpand(rep.id)}
+                            className="flex items-center gap-1 text-left hover:text-primary transition-colors"
+                            title={isExpanded ? 'Collapse dealers' : 'View dealers'}
+                          >
+                            {isExpanded ? <ChevronDown size={16} className="text-primary" /> : <ChevronRight size={16} className="text-gray-400" />}
+                            <div className="text-sm">
+                              <div className="font-semibold text-gray-900">{rep.dealer_count || 0} total</div>
+                              <div className="text-gray-500">{rep.active_dealers || 0} active</div>
                             </div>
+                          </button>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="font-semibold text-gray-900">
+                            ${(rep.total_revenue || 0).toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                              (rep.commission_rate || 10) === 10 
+                                ? 'bg-gray-100 text-gray-800'
+                                : (rep.commission_rate || 10) > 10
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {(rep.commission_rate || 10).toFixed(1)}%
+                            </span>
                             <button
-                              onClick={() => copyToClipboard(buildAbsoluteSignupLink(rep.referral_link), 'Signup link')}
-                              className="mt-1 text-xs text-primary hover:text-primary/90"
+                              onClick={() => {
+                                setSelectedRep(rep);
+                                setCommissionForm({
+                                  commission_rate: rep.commission_rate || 10,
+                                  reason: ''
+                                });
+                                setShowCommissionModal(true);
+                              }}
+                              className="p-1 text-primary hover:bg-primary/10 rounded"
+                              title="Edit commission rate"
                             >
-                              Copy signup link
+                              <Edit size={16} />
                             </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => fetchCommissionHistory(rep.id)}
-                        className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
-                        title="View commission history"
-                      >
-                        <History size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="font-semibold text-green-600">
+                            ${(rep.monthly_commission || 0).toFixed(2)}/mo
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm">
+                            <div className="font-semibold text-gray-900">{rep.referral_code || '—'}</div>
+                            <div className="text-gray-500">{rep.referred_signups || 0} signups</div>
+                            {rep.referral_link && (
+                              <>
+                                <div className="mt-1 text-xs font-mono text-gray-600 break-all">
+                                  {buildAbsoluteSignupLink(rep.referral_link)}
+                                </div>
+                                <button
+                                  onClick={() => copyToClipboard(buildAbsoluteSignupLink(rep.referral_link), 'Signup link')}
+                                  className="mt-1 text-xs text-primary hover:text-primary/90"
+                                >
+                                  Copy signup link
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => fetchCommissionHistory(rep.id)}
+                            className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
+                            title="View commission history"
+                          >
+                            <History size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-blue-50/40">
+                          <td colSpan={7} className="px-6 py-4">
+                            {repDealers.length === 0 ? (
+                              <p className="text-sm text-gray-500 italic">No dealers assigned to this rep yet.</p>
+                            ) : (
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-gray-200">
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Company</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Email</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Tier</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Monthly Price</th>
+                                    <th className="text-left pb-2 font-medium text-gray-600 text-xs uppercase">Signed Up</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {repDealers.map(dealer => (
+                                    <tr key={dealer.id} className="hover:bg-blue-50/60">
+                                      <td className="py-2 pr-4 font-medium text-gray-900">{dealer.company_name || '—'}</td>
+                                      <td className="py-2 pr-4 text-gray-600">{dealer.email}</td>
+                                      <td className="py-2 pr-4">
+                                        <span className="px-2 py-0.5 rounded text-xs font-semibold bg-secondary/10 text-secondary capitalize">
+                                          {dealer.subscription_tier || 'free'}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 pr-4 text-gray-700">
+                                        {TIER_PRICES[dealer.subscription_tier] != null
+                                          ? `$${TIER_PRICES[dealer.subscription_tier]}/mo`
+                                          : '—'}
+                                      </td>
+                                      <td className="py-2 text-gray-500">
+                                        {dealer.created_at
+                                          ? new Date(dealer.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                          : '—'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

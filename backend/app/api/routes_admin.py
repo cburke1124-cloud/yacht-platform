@@ -687,6 +687,7 @@ def get_all_dealers(
             "total_listings": listing_count,
             "active_listings": active_listings,
             "created_at": dealer.created_at.isoformat() if dealer.created_at else None,
+            "assigned_sales_rep_id": dealer.assigned_sales_rep_id,
         })
 
     return {"total": total, "dealers": dealer_list}

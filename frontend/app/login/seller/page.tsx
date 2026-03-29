@@ -73,6 +73,10 @@ function SellerLoginContent() {
   const [twoFaEmail, setTwoFaEmail] = useState('');
   const [twoFaCode, setTwoFaCode] = useState('');
 
+  // Resend verification state
+  const [resendSent, setResendSent] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+
   const [liveBrokerTiers, setLiveBrokerTiers] = useState<Record<string, any>>(BROKER_TIERS);
   const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
 
@@ -184,6 +188,22 @@ function SellerLoginContent() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    try {
+      await fetch(apiUrl('/auth/resend-verification-email'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      setResendSent(true);
+    } catch {
+      // silent — server returns success either way to prevent enumeration
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleTermsAccepted = () => { setShowTermsModal(false); router.push(pendingRedirect); };
   const handleTermsDecline = () => {
     setShowTermsModal(false);
@@ -276,6 +296,19 @@ function SellerLoginContent() {
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-sm text-red-600">{error}</p>
+                  {error.toLowerCase().includes('verify your email') && !resendSent && (
+                    <button
+                      type="button"
+                      onClick={handleResendVerification}
+                      disabled={resendLoading}
+                      className="mt-2 text-sm font-medium text-primary hover:text-primary/80 underline hover:no-underline disabled:opacity-50"
+                    >
+                      {resendLoading ? 'Sending…' : 'Resend confirmation email'}
+                    </button>
+                  )}
+                  {resendSent && (
+                    <p className="mt-2 text-sm text-green-700 font-medium">Confirmation email sent! Check your inbox.</p>
+                  )}
                 </div>
               )}
 
@@ -338,7 +371,7 @@ function SellerLoginContent() {
                 {Object.entries(liveBrokerTiers).map(([key, tier]) => {
                   const isUltimate = key === 'ultimate';
                   return (
-                    <div key={key} className={`p-7 rounded-2xl shadow-xl relative ${
+                    <div key={key} className={`flex flex-col p-7 rounded-2xl shadow-xl relative ${
                       isUltimate
                         ? 'bg-secondary text-white border-2 border-secondary'
                         : key === 'plus'
@@ -376,6 +409,7 @@ function SellerLoginContent() {
                           </li>
                         ))}
                       </ul>
+                      <div className="mt-auto">
                       {isUltimate ? (
                         <Link
                           href="/contact?tier=ultimate"
@@ -393,6 +427,7 @@ function SellerLoginContent() {
                           Get Started
                         </Link>
                       )}
+                      </div>
                     </div>
                   );
                 })}
@@ -407,7 +442,7 @@ function SellerLoginContent() {
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {Object.entries(livePrivateTier).map(([key, tier]) => (
-                  <div key={key} className={`p-7 rounded-2xl shadow-xl relative ${
+                  <div key={key} className={`flex flex-col p-7 rounded-2xl shadow-xl relative ${
                     key === 'private_plus'
                       ? 'bg-white border-4 border-primary'
                       : 'bg-white border border-gray-100'
@@ -434,7 +469,7 @@ function SellerLoginContent() {
                     </ul>
                     <Link
                       href={`/register?user_type=private&subscription_tier=${key}`}
-                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
+                      className={`mt-auto block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
                         key === 'private_plus' ? 'bg-primary' : 'bg-secondary'
                       }`}
                     >
@@ -445,7 +480,15 @@ function SellerLoginContent() {
               </div>
             </div>
 
-            <p className="text-center text-xs text-dark/40 mt-6">Cancel anytime · No commission on sales</p>
+            <div className="mt-8 border border-gray-200 rounded-xl px-6 py-4 bg-gray-50">
+              <p className="text-xs text-dark/60 leading-relaxed text-center">
+                All plans start with a free trial &mdash; no charge until your trial ends.{' '}
+                Subscriptions renew automatically each month.{' '}
+                <strong>You may cancel at any time</strong> from your Account Dashboard under{' '}
+                <strong>Billing</strong>; your access continues through the end of your current paid period with no further charges.{' '}
+                Private seller plans never charge sales commission.
+              </p>
+            </div>
           </div>
 
           {/* ── Toggle button ── */}
