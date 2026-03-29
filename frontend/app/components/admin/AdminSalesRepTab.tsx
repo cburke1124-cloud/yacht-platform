@@ -73,6 +73,10 @@ interface Dealer {
   subscription_tier: string;
   assigned_sales_rep_id?: number;
   created_at?: string;
+  subscription_monthly_price?: number | null;
+  custom_subscription_price?: number | null;
+  trial_active?: boolean;
+  always_free?: boolean;
 }
 
 interface CommissionHistory {
@@ -670,9 +674,14 @@ export default function AdminSalesRepTab() {
                                         </span>
                                       </td>
                                       <td className="py-2 pr-4 text-gray-700">
-                                        {TIER_PRICES[dealer.subscription_tier] != null
-                                          ? `$${TIER_PRICES[dealer.subscription_tier]}/mo`
-                                          : '—'}
+                                        {(() => {
+                                          if (dealer.always_free) return <span className="text-gray-500">Free (admin)</span>;
+                                          if (dealer.trial_active) return <span className="text-amber-600 font-medium">$0/mo (Trial)</span>;
+                                          if (dealer.subscription_monthly_price != null) return `$${dealer.subscription_monthly_price.toFixed(2)}/mo`;
+                                          if (dealer.custom_subscription_price != null) return `$${dealer.custom_subscription_price.toFixed(2)}/mo`;
+                                          const fallback = TIER_PRICES[dealer.subscription_tier];
+                                          return fallback != null ? `$${fallback}/mo` : '—';
+                                        })()}
                                       </td>
                                       <td className="py-2 text-gray-500">
                                         {dealer.created_at

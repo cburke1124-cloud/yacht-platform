@@ -688,6 +688,10 @@ def get_all_dealers(
             "active_listings": active_listings,
             "created_at": dealer.created_at.isoformat() if dealer.created_at else None,
             "assigned_sales_rep_id": dealer.assigned_sales_rep_id,
+            "subscription_monthly_price": dealer.subscription_monthly_price,
+            "custom_subscription_price": dealer.custom_subscription_price,
+            "trial_active": dealer.trial_active,
+            "always_free": dealer.always_free,
         })
 
     return {"total": total, "dealers": dealer_list}

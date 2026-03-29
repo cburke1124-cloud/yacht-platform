@@ -20,6 +20,7 @@ class User(Base):
     company_name = Column(String)
     subscription_tier = Column(String, default="free")
     custom_subscription_price = Column(Float, nullable=True)
+    subscription_monthly_price = Column(Float, nullable=True)  # Actual Stripe amount (post-discount) updated on sync
     verified = Column(Boolean, default=False)
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

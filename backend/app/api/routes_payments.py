@@ -686,11 +686,27 @@ async def sync_my_subscription(
                     current_user.trial_active = True
                     current_user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
                     updated["trial_active"] = True
+                # Store the actual monthly amount (after any discount coupon)
+                try:
+                    unit_amount = (sub["items"]["data"][0]["price"].get("unit_amount") or 0) / 100
+                    discount = sub.get("discount")
+                    if discount and discount.get("coupon"):
+                        coupon = discount["coupon"]
+                        if coupon.get("percent_off"):
+                            unit_amount *= (1 - coupon["percent_off"] / 100)
+                        elif coupon.get("amount_off"):
+                            unit_amount = max(0, unit_amount - coupon["amount_off"] / 100)
+                    current_user.subscription_monthly_price = round(unit_amount, 2)
+                    updated["subscription_monthly_price"] = current_user.subscription_monthly_price
+                except Exception:
+                    pass
             elif sub.status in ("past_due", "unpaid", "incomplete_expired", "canceled"):
                 if current_user.subscription_tier in _PAID_TIERS:
                     current_user.subscription_tier = "free"
                     current_user.trial_active = False
                     updated["subscription_tier"] = "free"
+                    current_user.subscription_monthly_price = 0.0
+                    updated["subscription_monthly_price"] = 0.0
         elif current_user.stripe_customer_id:
             subs = stripe.Subscription.list(
                 customer=current_user.stripe_customer_id, status="active", limit=1
@@ -704,6 +720,19 @@ async def sync_my_subscription(
                     current_user.subscription_tier = tier
                     updated["subscription_tier"] = tier
                 updated["stripe_subscription_id"] = sub.id
+                try:
+                    unit_amount = (sub["items"]["data"][0]["price"].get("unit_amount") or 0) / 100
+                    discount = sub.get("discount")
+                    if discount and discount.get("coupon"):
+                        coupon = discount["coupon"]
+                        if coupon.get("percent_off"):
+                            unit_amount *= (1 - coupon["percent_off"] / 100)
+                        elif coupon.get("amount_off"):
+                            unit_amount = max(0, unit_amount - coupon["amount_off"] / 100)
+                    current_user.subscription_monthly_price = round(unit_amount, 2)
+                    updated["subscription_monthly_price"] = current_user.subscription_monthly_price
+                except Exception:
+                    pass
     except stripe.error.StripeError as e:
         logger.warning("sync_my_subscription: stripe error for user %s: %s", current_user.id, e)
         return {"synced": False, "reason": "stripe_error"}
