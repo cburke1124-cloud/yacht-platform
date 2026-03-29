@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -19,12 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("demo_owner_sales_rep_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        "fk_users_demo_owner_sales_rep_id",
-        "users", "users",
-        ["demo_owner_sales_rep_id"], ["id"]
-    )
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_columns = [col["name"] for col in inspector.get_columns("users")]
+    if "demo_owner_sales_rep_id" not in existing_columns:
+        op.add_column("users", sa.Column("demo_owner_sales_rep_id", sa.Integer(), nullable=True))
+
+    existing_fks = [fk["name"] for fk in inspector.get_foreign_keys("users")]
+    if "fk_users_demo_owner_sales_rep_id" not in existing_fks:
+        op.create_foreign_key(
+            "fk_users_demo_owner_sales_rep_id",
+            "users", "users",
+            ["demo_owner_sales_rep_id"], ["id"]
+        )
 
 
 def downgrade() -> None:
