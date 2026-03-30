@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.db.session import get_db
 from app.models.listing import Listing
+from app.api.routes_listings import _get_primary_images_for_listings
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ Return ONLY valid JSON, no markdown or explanations."""
         return SearchCriteria(features=[query.lower()])
 
 
-def score_listing(listing: Listing, criteria: SearchCriteria, query: str) -> ScoredListing:
+def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Session = None) -> ScoredListing:
     """Score a listing based on how well it matches the search criteria"""
     
     score = 0
@@ -298,7 +299,10 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str) -> Sco
         "city": listing.city,
         "state": listing.state,
         "country": listing.country,
-        "images": [{"url": img.url} for img in listing.images[:1]],
+        "images": (
+            _get_primary_images_for_listings(db, [listing.id]).get(listing.id)
+            or [{"url": img.url} for img in listing.images[:1]]
+        ) if db else [{"url": img.url} for img in listing.images[:1]],
         "featured": listing.featured or False,
         "dealer": {
             "name": dealer_name,
@@ -394,7 +398,7 @@ async def ai_search(
         scored_listings = []
         for listing in candidates:
             try:
-                scored = score_listing(listing, criteria, request.query)
+                scored = score_listing(listing, criteria, request.query, db)
                 scored_listings.append(scored)
             except Exception:
                 pass
