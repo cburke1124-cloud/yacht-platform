@@ -726,6 +726,8 @@ def get_my_listings(
             "featured": l.featured or False,
             "featured_until": l.featured_until.isoformat() if l.featured_until else None,
             "created_at": l.created_at.isoformat() if l.created_at else None,
+            "assigned_salesman_id": l.assigned_salesman_id,
+            "guest_salesman_id": l.guest_salesman_id,
             "images": (
                 media_map.get(l.id, [])
                 or [{"url": img.url, "is_primary": img.is_primary} for img in l.images]

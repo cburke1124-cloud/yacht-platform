@@ -908,6 +908,107 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     window.setTimeout(() => setAutosaveState('idle'), 1500);
   };
 
+  // ── Save as Draft (server-side) ────────────────────────────────────────────
+  const saveAsDraft = async () => {
+    if (!form.title.trim()) {
+      alert('Please enter a title before saving your draft.');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) { router.push('/login'); return; }
+    setAutosaveState('saving');
+    try {
+      const num = (v: string) => v ? parseFloat(v) : null;
+      const int = (v: string) => v ? parseInt(v) : null;
+      const payload = {
+        title:           form.title,
+        description:     form.description || null,
+        price:           num(form.price),
+        currency:        form.currency,
+        year:            int(form.year),
+        make:            form.make     || null,
+        model:           form.model    || null,
+        bin:             form.bin      || '',
+        condition:       form.condition,
+        status:          'draft',
+        allow_cobrokering: form.allow_cobrokering,
+        city:            form.city     || null,
+        state:           form.state    || null,
+        country:         form.country  || null,
+        zip_code:        form.zip_code || null,
+        continent:       form.continent || null,
+        length_feet:     num(form.length_feet),
+        beam_feet:       num(form.beam_feet),
+        draft_feet:      num(form.draft_feet),
+        boat_type:       form.boat_type       || null,
+        hull_material:   form.hull_material   || null,
+        hull_type:       form.hull_type       || null,
+        cabins:          int(form.cabins),
+        berths:          int(form.berths),
+        heads:           int(form.heads),
+        previous_owners: int(form.previous_owners),
+        engine_count:    int(form.engine_count),
+        fuel_type:       form.fuel_type    || null,
+        max_speed_knots: num(form.max_speed_knots),
+        cruising_speed_knots: num(form.cruising_speed_knots),
+        fuel_capacity_gallons:  num(form.fuel_capacity_gallons),
+        water_capacity_gallons: num(form.water_capacity_gallons),
+        additional_specs: {
+          displacement_lbs:      num(form.displacement_lbs),
+          dry_weight_lbs:        num(form.dry_weight_lbs),
+          bridge_clearance_feet: num(form.bridge_clearance_feet),
+          deadrise_degrees:      num(form.deadrise_degrees),
+          cruising_range_nm:     num(form.cruising_range_nm),
+          fuel_burn_gph:         num(form.fuel_burn_gph),
+          holding_tank_gallons:  num(form.holding_tank_gallons),
+        },
+        feature_bullets: deriveFeatureBullets(form),
+        features: [
+          ...deriveFeatureBullets(form).map(b => `- ${b}`),
+          form.features_text.trim() ? `\n${form.features_text.trim()}` : '',
+        ].filter(Boolean).join('\n'),
+        additional_engines: form.additional_engines
+          .map(e => ({ make: e.make || null, model: e.model || null, type: e.type || null, hours: num(e.hours), horsepower: num(e.horsepower), notes: e.notes || null }))
+          .filter(e => Object.values(e).some(v => v !== null && v !== '')),
+        generators: form.generators
+          .map(g => ({ brand: g.brand || null, model: g.model || null, hours: num(g.hours), kw: num(g.kw), notes: g.notes || null }))
+          .filter(g => Object.values(g).some(v => v !== null && v !== '')),
+      };
+
+      const endpoint = isEditMode ? `${API_ROOT}/listings/${listingId}` : `${API_ROOT}/listings/`;
+      const res = await fetch(endpoint, {
+        method: isEditMode ? 'PUT' : 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to save draft'); }
+      const result = await res.json();
+      const resolvedId = isEditMode ? Number(listingId) : result.id;
+
+      // Attach any already-uploaded media
+      const mediaIds = uploadedMedia.map(m => m?.id).filter(Boolean);
+      if (mediaIds.length > 0) {
+        await fetch(`${API_ROOT}/listings/${resolvedId}/media/attach`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ media_ids: mediaIds }),
+        });
+      }
+
+      if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey);
+      if (!isEditMode) {
+        // Redirect to edit so further saves use PUT
+        router.push(`/dealer/listings/${resolvedId}/edit`);
+      } else {
+        setAutosaveState('saved');
+        window.setTimeout(() => setAutosaveState('idle'), 2000);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to save draft');
+      setAutosaveState('idle');
+    }
+  };
+
   // ── Tab completion indicators ──────────────────────────────────────────────
   const tabComplete: Record<Tab, boolean> = {
     basic:  !!(form.title && form.price && form.year && form.bin),
@@ -1114,8 +1215,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             <span>
               {autosaveState === 'saving' ? 'Saving draft…' : autosaveState === 'saved' ? 'Draft saved' : autosaveInfo.restored && autosaveInfo.savedAt ? `Draft restored (saved ${autosaveInfo.savedAt})` : autosaveInfo.savedAt ? `Autosaved ${autosaveInfo.savedAt}` : 'Autosave enabled'}
             </span>
-            <button type="button" onClick={saveLocalDraftNow} className="px-3 py-1.5 rounded-md text-white" style={{ background: '#10214F' }}>
-              Save Draft
+            <button type="button" onClick={saveAsDraft} disabled={autosaveState === 'saving'} className="px-3 py-1.5 rounded-md text-white disabled:opacity-60" style={{ background: '#10214F' }}>
+              {autosaveState === 'saving' ? 'Saving…' : 'Save Draft'}
             </button>
           </div>
 

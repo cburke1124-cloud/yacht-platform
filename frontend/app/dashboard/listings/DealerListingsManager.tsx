@@ -374,11 +374,14 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       });
 
       if (response.ok) {
-        fetchListings();
+        setListings(prev => prev.filter(l => l.id !== listingId));
         if (onStatsUpdate) onStatsUpdate();
+      } else {
+        alert('Failed to delete listing. Please try again.');
       }
     } catch (error) {
       console.error('Failed to delete listing:', error);
+      alert('Something went wrong. Please try again.');
     }
   };
 
