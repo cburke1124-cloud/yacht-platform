@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import secrets
 import sys
@@ -2432,8 +2432,9 @@ def create_demo_account(
         # Create sample listings
         demo_listings = get_demo_listing_data()
         listings_created = 0
+        now = datetime.utcnow()
         
-        for listing_data in demo_listings:
+        for idx, listing_data in enumerate(demo_listings):
             try:
                 bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
                 location = listing_data.get("location", "Miami, Florida")
@@ -2441,13 +2442,17 @@ def create_demo_account(
                 city = location_parts[0].strip() if location_parts else "Miami"
                 state = location_parts[1].strip() if len(location_parts) > 1 else "FL"
                 
+                is_featured = listing_data.get("featured", False)
+                listing_status = listing_data.get("status", "active")
+                is_recently_deleted = listing_data.get("recently_deleted", False)
+
                 listing = Listing(
                     user_id=demo_user.id,
                     created_by_user_id=current_user.id,
                     title=listing_data.get("title", "Sample Yacht"),
                     description=listing_data.get("description", ""),
-                    make=listing_data.get("make_model", "").split()[0] if listing_data.get("make_model") else "",
-                    model=listing_data.get("make_model", ""),
+                    make=listing_data.get("make", ""),
+                    model=listing_data.get("model", ""),
                     year=listing_data.get("year", 2023),
                     price=listing_data.get("price", 1000000),
                     currency="USD",
@@ -2466,7 +2471,15 @@ def create_demo_account(
                     fuel_type=listing_data.get("fuel_type", "diesel"),
                     condition=listing_data.get("condition", "Excellent"),
                     feature_bullets=listing_data.get("features", []),
-                    status="active",
+                    status=listing_status,
+                    featured=is_featured,
+                    featured_until=now + timedelta(days=90) if is_featured else None,
+                    views=listing_data.get("views", 0),
+                    inquiries=listing_data.get("inquiries", 0),
+                    # Soft-delete listings flagged recently_deleted so the
+                    # Recently Deleted tab is populated on a fresh demo.
+                    # Use staggered ages so countdown numbers vary.
+                    deleted_at=now - timedelta(days=3 + idx * 2) if is_recently_deleted else None,
                 )
                 db.add(listing)
                 listings_created += 1
@@ -2597,21 +2610,26 @@ def reset_demo_account(
         demo_listing_data = get_demo_listing_data()
         listings_restored = 0
         
-        for listing_data in demo_listing_data:
+        now = datetime.utcnow()
+        for idx, listing_data in enumerate(demo_listing_data):
             try:
                 bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
                 location = listing_data.get("location", "Miami, Florida")
                 location_parts = location.split(",")
                 city = location_parts[0].strip() if location_parts else "Miami"
                 state = location_parts[1].strip() if len(location_parts) > 1 else "FL"
-                
+
+                is_featured = listing_data.get("featured", False)
+                listing_status = listing_data.get("status", "active")
+                is_recently_deleted = listing_data.get("recently_deleted", False)
+
                 listing = Listing(
                     user_id=demo_user.id,
                     created_by_user_id=current_user.id,
                     title=listing_data.get("title", "Sample Yacht"),
                     description=listing_data.get("description", ""),
-                    make=listing_data.get("make_model", "").split()[0] if listing_data.get("make_model") else "",
-                    model=listing_data.get("make_model", ""),
+                    make=listing_data.get("make", ""),
+                    model=listing_data.get("model", ""),
                     year=listing_data.get("year", 2023),
                     price=listing_data.get("price", 1000000),
                     currency="USD",
@@ -2630,7 +2648,12 @@ def reset_demo_account(
                     fuel_type=listing_data.get("fuel_type", "diesel"),
                     condition=listing_data.get("condition", "Excellent"),
                     feature_bullets=listing_data.get("features", []),
-                    status="active",
+                    status=listing_status,
+                    featured=is_featured,
+                    featured_until=now + timedelta(days=90) if is_featured else None,
+                    views=listing_data.get("views", 0),
+                    inquiries=listing_data.get("inquiries", 0),
+                    deleted_at=now - timedelta(days=3 + idx * 2) if is_recently_deleted else None,
                 )
                 db.add(listing)
                 listings_restored += 1
