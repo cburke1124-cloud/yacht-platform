@@ -8,7 +8,7 @@ import MediaLibraryPicker from '@/app/components/MediaLibraryPicker';
 import ScraperModal from '@/app/components/ScraperModal';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film, ArrowLeft } from 'lucide-react';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
-import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
+import { COUNTRIES, STATES_BY_COUNTRY, COUNTRY_TO_CONTINENT } from '@/app/lib/locationData';
 
 const TABS = ['basic', 'specs', 'engine', 'media'] as const;
 type Tab = typeof TABS[number];
@@ -172,9 +172,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     feature_bullets: ['', '', '', '', ''],
     features_text: '',
     additional_engines: [] as ExtraEngine[],
-    generators: [
-      { brand: '', model: '', hours: '', kw: '', notes: '' },
-    ] as Generator[],
+    generators: [] as Generator[],
   });
 
   // Scope the draft key to the current user so drafts never bleed across accounts.
@@ -538,6 +536,95 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     setForm(p => ({ ...p, features_text: text }));
   };
 
+  /**
+   * Given a partial form object (from AI or local parse), fills in any
+   * boat_type / hull_material / hull_type / beam_feet / draft_feet that
+   * can be deduced from a known make+model combination.
+   */
+  const inferMissingFields = (data: Record<string, any>) => {
+    const make = (data.make || '').toLowerCase();
+    const model = (data.model || '').toLowerCase();
+    const combined = `${make} ${model}`;
+
+    // --- Boat type inference ---
+    if (!data.boat_type) {
+      if (/catamaran|cat\b|leopard|lagoon|fountaine pajot|outremer|excess|bali/.test(combined)) {
+        data.boat_type = 'Catamaran';
+      } else if (/trawler|nordic|nordhavn|defever|grand banks|beneteau swift trawler/.test(combined)) {
+        data.boat_type = 'Trawler';
+      } else if (/mega.?yacht|superyacht|explorer/.test(combined)) {
+        data.boat_type = 'Mega Yacht';
+      } else if (/sailing|sloop|ketch|schooner|jeanneau sun|beneteau oceanis|hanse|bavaria|hallberg/.test(combined)) {
+        data.boat_type = 'Sailing Yacht';
+      } else if (/center.?console|cc\b/.test(combined)) {
+        data.boat_type = 'Center Console';
+      } else if (/sport.?fish|fishing|bertram|viking|hatteras/.test(combined)) {
+        data.boat_type = 'Sport Fisher';
+      } else if (/express.?cruiser|sundancer|sea ray|four winns/.test(combined)) {
+        data.boat_type = 'Express Cruiser';
+      } else if (/azimut|sunseeker|princess|ferretti|riva|sanlorenzo|pershing|prestige|cranchi|galeon|bavaria motor/.test(combined)) {
+        data.boat_type = 'Motor Yacht';
+      }
+    }
+
+    // --- Hull material inference ---
+    if (!data.hull_material) {
+      if (/aluminum|alloy|alum/.test(combined)) {
+        data.hull_material = 'Aluminum';
+      } else if (/carbon|carbon fiber/.test(combined)) {
+        data.hull_material = 'Carbon Fiber';
+      } else if (/steel/.test(combined)) {
+        data.hull_material = 'Steel';
+      } else if (/wood|classic|timber/.test(combined)) {
+        data.hull_material = 'Wood';
+      } else if (/composite/.test(combined)) {
+        data.hull_material = 'Composite';
+      } else if (data.boat_type) {
+        // Most production yachts/powerboats are fiberglass
+        data.hull_material = 'Fiberglass';
+      }
+    }
+
+    // --- Hull shape inference ---
+    if (!data.hull_type) {
+      const bt = (data.boat_type || '').toLowerCase();
+      if (/catamaran/.test(bt)) {
+        data.hull_type = 'Catamaran';
+      } else if (/trawler/.test(bt)) {
+        data.hull_type = 'Displacement';
+      } else if (/sailing/.test(bt)) {
+        data.hull_type = 'Monohull';
+      } else if (/motor yacht|express cruiser|sport fish|mega|super/.test(bt)) {
+        data.hull_type = 'Planing';
+      }
+    }
+
+    // --- Dimension inference from well-known model families ---
+    // Only fill in when completely absent — these are best-guess defaults.
+    const len = Number(data.length_feet) || 0;
+    if (!data.beam_feet && len > 0) {
+      // Approximate beam as ~28–32% of LOA for most production powerboats/sail
+      const bt = (data.boat_type || '').toLowerCase();
+      if (/catamaran/.test(bt)) {
+        data.beam_feet = String(Math.round(len * 0.44 * 10) / 10); // catamarans are ~44% LOA
+      } else {
+        data.beam_feet = String(Math.round(len * 0.30 * 10) / 10);
+      }
+    }
+    if (!data.draft_feet && len > 0) {
+      const bt = (data.boat_type || '').toLowerCase();
+      if (/catamaran/.test(bt)) {
+        data.draft_feet = String(Math.round(len * 0.07 * 10) / 10);
+      } else if (/sailing/.test(bt)) {
+        data.draft_feet = String(Math.round(len * 0.12 * 10) / 10);
+      } else {
+        data.draft_feet = String(Math.round(len * 0.08 * 10) / 10);
+      }
+    }
+
+    return data;
+  };
+
   const parseListingTextLocal = (text: string) => {
     const raw = text || '';
     const normalized = raw.replace(/\r/g, '');
@@ -600,7 +687,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       .filter(Boolean)
       .slice(0, 5);
 
-    return {
+    const base = {
       title: form.title || titleCandidate,
       year: year || form.year,
       price: toNumString(price) || form.price,
@@ -627,6 +714,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       feature_bullets: bulletLines.length ? [...bulletLines, ...Array(Math.max(0, 5 - bulletLines.length)).fill('')] : form.feature_bullets,
       features_text: form.features_text || raw,
     };
+    return inferMissingFields(base);
   };
 
   const importFromListingText = async () => {
@@ -677,9 +765,39 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             city: ai.city || form.city,
             state: ai.state || form.state,
             country: ai.country || form.country,
+            continent: ai.continent ||
+              (ai.country ? COUNTRY_TO_CONTINENT[ai.country] : '') ||
+              form.continent,
             feature_bullets: ai.feature_bullets?.length ? ai.feature_bullets : form.feature_bullets,
             features_text: ai.features || form.features_text,
           };
+
+          // Infer missing fields from make+model knowledge
+          merged = inferMissingFields(merged);
+
+          // Populate extra engines/generators from AI response
+          if (ai.additional_engines?.length) {
+            merged.additional_engines = ai.additional_engines.map((e: any) => ({
+              make: e.make || '', model: e.model || '', type: e.type || '',
+              hours: e.hours != null ? String(e.hours) : '',
+              horsepower: e.horsepower != null ? String(e.horsepower) : '',
+              notes: e.notes || '',
+            }));
+          } else if (ai.engine_count && Number(ai.engine_count) > 1 && !form.additional_engines.length) {
+            // AI says twin/triple engines but gave no detail — pre-populate blank slots
+            const extras = Number(ai.engine_count) - 1;
+            merged.additional_engines = Array.from({ length: Math.min(extras, 3) }, () => ({
+              make: '', model: '', type: '', hours: '', horsepower: '', notes: '',
+            }));
+          }
+          if (ai.generators?.length) {
+            merged.generators = ai.generators.map((g: any) => ({
+              brand: g.brand || '', model: g.model || '',
+              hours: g.hours != null ? String(g.hours) : '',
+              kw: g.kw != null ? String(g.kw) : '',
+              notes: g.notes || '',
+            }));
+          }
         }
       } catch {
         // fall back to local parse
@@ -697,35 +815,66 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   };
 
   const applyExtractedListingData = (ai: any) => {
-    setForm(p => ({
-      ...p,
-      title: ai.title || p.title,
-      description: ai.description || p.description,
-      price: ai.price != null ? String(ai.price) : p.price,
-      year: ai.year != null ? String(ai.year) : p.year,
-      make: ai.make || p.make,
-      model: ai.model || p.model,
-      length_feet: ai.length_feet != null ? String(ai.length_feet) : p.length_feet,
-      beam_feet: ai.beam_feet != null ? String(ai.beam_feet) : p.beam_feet,
-      draft_feet: ai.draft_feet != null ? String(ai.draft_feet) : p.draft_feet,
-      boat_type: ai.boat_type || p.boat_type,
-      hull_material: ai.hull_material || p.hull_material,
-      hull_type: ai.hull_type || p.hull_type,
-      engine_count: ai.engine_count != null ? String(ai.engine_count) : p.engine_count,
-      fuel_type: ai.fuel_type || p.fuel_type,
-      max_speed_knots: ai.max_speed_knots != null ? String(ai.max_speed_knots) : p.max_speed_knots,
-      cruising_speed_knots: ai.cruising_speed_knots != null ? String(ai.cruising_speed_knots) : p.cruising_speed_knots,
-      fuel_capacity_gallons: ai.fuel_capacity_gallons != null ? String(ai.fuel_capacity_gallons) : p.fuel_capacity_gallons,
-      water_capacity_gallons: ai.water_capacity_gallons != null ? String(ai.water_capacity_gallons) : p.water_capacity_gallons,
-      cabins: ai.cabins != null ? String(ai.cabins) : p.cabins,
-      berths: ai.berths != null ? String(ai.berths) : p.berths,
-      heads: ai.heads != null ? String(ai.heads) : p.heads,
-      city: ai.city || p.city,
-      state: ai.state || p.state,
-      country: ai.country || p.country,
-      feature_bullets: ai.feature_bullets?.length ? ai.feature_bullets : p.feature_bullets,
-      features_text: ai.features || p.features_text,
-    }));
+    const base: any = {
+      title: ai.title || undefined,
+      description: ai.description || undefined,
+      price: ai.price != null ? String(ai.price) : undefined,
+      year: ai.year != null ? String(ai.year) : undefined,
+      make: ai.make || undefined,
+      model: ai.model || undefined,
+      length_feet: ai.length_feet != null ? String(ai.length_feet) : undefined,
+      beam_feet: ai.beam_feet != null ? String(ai.beam_feet) : undefined,
+      draft_feet: ai.draft_feet != null ? String(ai.draft_feet) : undefined,
+      boat_type: ai.boat_type || undefined,
+      hull_material: ai.hull_material || undefined,
+      hull_type: ai.hull_type || undefined,
+      engine_count: ai.engine_count != null ? String(ai.engine_count) : undefined,
+      fuel_type: ai.fuel_type || undefined,
+      max_speed_knots: ai.max_speed_knots != null ? String(ai.max_speed_knots) : undefined,
+      cruising_speed_knots: ai.cruising_speed_knots != null ? String(ai.cruising_speed_knots) : undefined,
+      fuel_capacity_gallons: ai.fuel_capacity_gallons != null ? String(ai.fuel_capacity_gallons) : undefined,
+      water_capacity_gallons: ai.water_capacity_gallons != null ? String(ai.water_capacity_gallons) : undefined,
+      cabins: ai.cabins != null ? String(ai.cabins) : undefined,
+      berths: ai.berths != null ? String(ai.berths) : undefined,
+      heads: ai.heads != null ? String(ai.heads) : undefined,
+      city: ai.city || undefined,
+      state: ai.state || undefined,
+      country: ai.country || undefined,
+      continent: ai.continent || (ai.country ? COUNTRY_TO_CONTINENT[ai.country] : undefined),
+      feature_bullets: ai.feature_bullets?.length ? ai.feature_bullets : undefined,
+      features_text: ai.features || undefined,
+    };
+    // Strip undefined so we don't overwrite existing form values with nothing
+    const cleaned = Object.fromEntries(Object.entries(base).filter(([, v]) => v !== undefined));
+    const inferred = inferMissingFields(cleaned);
+
+    setForm(p => {
+      const next = { ...p, ...inferred };
+      // Extra engines
+      if (ai.additional_engines?.length) {
+        next.additional_engines = ai.additional_engines.map((e: any) => ({
+          make: e.make || '', model: e.model || '', type: e.type || '',
+          hours: e.hours != null ? String(e.hours) : '',
+          horsepower: e.horsepower != null ? String(e.horsepower) : '',
+          notes: e.notes || '',
+        }));
+      } else if (inferred.engine_count && Number(inferred.engine_count) > 1 && !p.additional_engines.length) {
+        const extras = Number(inferred.engine_count) - 1;
+        next.additional_engines = Array.from({ length: Math.min(extras, 3) }, () => ({
+          make: '', model: '', type: '', hours: '', horsepower: '', notes: '',
+        }));
+      }
+      // Generators
+      if (ai.generators?.length) {
+        next.generators = ai.generators.map((g: any) => ({
+          brand: g.brand || '', model: g.model || '',
+          hours: g.hours != null ? String(g.hours) : '',
+          kw: g.kw != null ? String(g.kw) : '',
+          notes: g.notes || '',
+        }));
+      }
+      return next;
+    });
   };
 
   const insertLink = () => {
@@ -1107,7 +1256,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   </div>
                   <div>
                     <label className={lbl} style={{ color: '#10214F' }}>Country *</label>
-                    <select name="country" value={form.country} onChange={(e) => { setForm(f => ({ ...f, country: e.target.value, state: '' })); }} required className={inp}>
+                    <select name="country" value={form.country} onChange={(e) => { const c = e.target.value; setForm(f => ({ ...f, country: c, state: '', continent: COUNTRY_TO_CONTINENT[c] || f.continent })); }} required className={inp}>
                       <option value="">Select…</option>
                       {COUNTRIES.map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -1394,15 +1543,13 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   </div>
                 </div>
 
-                <h3 className="text-sm font-semibold uppercase tracking-wide pt-2" style={{ color: '#01BBDC' }}>Additional Motors</h3>
+                <h3 className="text-sm font-semibold uppercase tracking-wide pt-2" style={{ color: '#01BBDC' }}>Motors</h3>
                 <div className="space-y-4">
                   {form.additional_engines.map((engine, index) => (
                     <div key={index} className="border border-gray-200 rounded-xl p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold" style={{ color: '#10214F' }}>Motor {index + 1}</p>
-                        {form.additional_engines.length > 1 && (
-                          <button type="button" onClick={() => removeExtraEngine(index)} className="text-xs text-red-500 hover:text-red-600">Remove</button>
-                        )}
+                        <button type="button" onClick={() => removeExtraEngine(index)} className="text-xs text-red-500 hover:text-red-600">Delete</button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <input value={engine.make} onChange={e => setExtraEngine(index, 'make', e.target.value)} className={inp} placeholder="Make" />
@@ -1430,9 +1577,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     <div key={index} className="border border-gray-200 rounded-xl p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold" style={{ color: '#10214F' }}>Generator {index + 1}</p>
-                        {form.generators.length > 1 && (
-                          <button type="button" onClick={() => removeGenerator(index)} className="text-xs text-red-500 hover:text-red-600">Remove</button>
-                        )}
+                        <button type="button" onClick={() => removeGenerator(index)} className="text-xs text-red-500 hover:text-red-600">Delete</button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <input value={generator.brand} onChange={e => setGenerator(index, 'brand', e.target.value)} className={inp} placeholder="Brand" />
@@ -1447,6 +1592,9 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   ))}
                   <div className="flex items-center gap-3">
                     <button type="button" onClick={addGenerator} disabled={form.generators.length >= 2} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">+ Add Generator</button>
+                    {form.generators.length === 0 && (
+                      <p className="text-xs text-gray-400">No generators added</p>
+                    )}
                     {form.generators.length >= 2 && (
                       <p className="text-xs text-gray-500">Max 2 generators supported</p>
                     )}
