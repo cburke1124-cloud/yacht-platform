@@ -10,6 +10,7 @@ from app.models.dealer import DealerProfile
 from app.models.listing import Listing
 from app.models.guest_broker import GuestBroker
 from app.exceptions import ResourceNotFoundException, AuthorizationException
+from app.api.routes_listings import _get_primary_images_for_listings
 
 router = APIRouter()
 
@@ -55,19 +56,18 @@ def get_listing_contact_info(
         "slug": dealer_profile.slug if dealer_profile else None
     }
     
-    # Build salesman info (only if different from dealer)
-    salesman_info = None
-    if salesman.id != dealer_id:
-        salesman_info = {
-            "id": salesman.id,
-            "first_name": salesman.first_name,
-            "last_name": salesman.last_name,
-            "email": salesman.email,
-            "phone": salesman.phone,
-            "photo_url": salesman.photo_url,
-            "title": salesman.title,
-            "bio": salesman.bio
-        }
+    # Build salesman info — always include when the listing has personal profile data worth showing
+    salesman_info = {
+        "id": salesman.id,
+        "first_name": salesman.first_name,
+        "last_name": salesman.last_name,
+        "name": f"{salesman.first_name or ''} {salesman.last_name or ''}".strip() or salesman.email,
+        "email": salesman.email,
+        "phone": salesman.phone,
+        "photo_url": salesman.profile_photo_url,
+        "title": salesman.title,
+        "bio": salesman.bio,
+    }
     
     return {
         "dealer": dealer_info,
@@ -350,12 +350,18 @@ def get_public_salesman_profile(user_id: int, db: Session = Depends(get_db)):
     # Fetch active listings owned by this salesman
     listings = (
         db.query(Listing)
-        .filter(Listing.user_id == salesman.id, Listing.status == "active")
+        .filter(
+            Listing.user_id == salesman.id,
+            Listing.status == "active",
+            Listing.deleted_at.is_(None),
+        )
         .order_by(Listing.created_at.desc())
         .limit(24)
         .all()
     )
 
+    listing_ids = [l.id for l in listings]
+    media_map = _get_primary_images_for_listings(db, listing_ids)
     social_links = getattr(salesman, 'social_links', None) or {}
 
     return {
@@ -386,7 +392,10 @@ def get_public_salesman_profile(user_id: int, db: Session = Depends(get_db)):
                 "city": l.city,
                 "state": l.state,
                 "status": l.status,
-                "images": [{"url": img.url} for img in l.images[:1]] if l.images else [],
+                "images": (
+                    media_map.get(l.id, [])
+                    or [{"url": img.url} for img in l.images[:1]]
+                ),
             }
             for l in listings
         ],
