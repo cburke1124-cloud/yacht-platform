@@ -98,6 +98,7 @@ class Listing(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     published_at = Column(DateTime)
+    deleted_at = Column(DateTime, nullable=True)  # soft-delete timestamp; NULL = not deleted
 
     owner = relationship("User", back_populates="listings", foreign_keys=[user_id])
     creator = relationship("User", foreign_keys=[created_by_user_id], overlaps="created_listings")

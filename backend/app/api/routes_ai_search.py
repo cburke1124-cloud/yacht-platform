@@ -358,7 +358,7 @@ async def ai_search(
         query = (
             db.query(Listing)
             .join(User, Listing.user_id == User.id)
-            .filter(Listing.status == "active", User.is_demo != True)
+            .filter(Listing.status == "active", Listing.deleted_at.is_(None), User.is_demo != True)
             .options(
                 jl(Listing.owner).joinedload(User.dealer_profile),
                 jl(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),

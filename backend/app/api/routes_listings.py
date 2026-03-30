@@ -443,6 +443,7 @@ def get_listings(
             )
             .filter(
                 Listing.status == status,
+                Listing.deleted_at.is_(None),
                 User.is_demo != True,
                 # Only surface listings whose owner has an active subscription
                 # (or is marked always_free by an admin). Lapsed accounts keep
@@ -692,9 +693,15 @@ def get_my_listings(
 ):
     if current_user.user_type in ("dealer", "admin"):
         team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
-        query = db.query(Listing).filter(Listing.user_id.in_([current_user.id] + team_ids))
+        query = db.query(Listing).filter(
+            Listing.user_id.in_([current_user.id] + team_ids),
+            Listing.deleted_at.is_(None),
+        )
     else:
-        query = db.query(Listing).filter(Listing.user_id == current_user.id)
+        query = db.query(Listing).filter(
+            Listing.user_id == current_user.id,
+            Listing.deleted_at.is_(None),
+        )
     if status:
         query = query.filter(Listing.status == status)
     listings = query.order_by(Listing.created_at.desc()).all()
@@ -900,6 +907,9 @@ def patch_listing_status(
     )
 
 
+SOFT_DELETE_RETENTION_DAYS = 30
+
+
 @router.delete("/{listing_id}")
 def delete_listing(
     listing_id: int,
@@ -918,10 +928,78 @@ def delete_listing(
         db.delete(listing)
         db.commit()
         return {"message": "Listing permanently deleted"}
-    listing.status = "archived"
+    # Soft delete — move to Recently Deleted
+    listing.deleted_at = datetime.utcnow()
     listing.updated_at = datetime.utcnow()
     db.commit()
-    return {"message": "Listing archived"}
+    return {"message": "Listing moved to Recently Deleted"}
+
+
+@router.post("/{listing_id}/restore")
+def restore_listing(
+    listing_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        owner = db.query(User).filter(User.id == listing.user_id).first()
+        if not (owner and owner.parent_dealer_id == current_user.id):
+            raise AuthorizationException("Not authorized")
+    if not listing.deleted_at:
+        return {"message": "Listing is not deleted"}
+    listing.deleted_at = None
+    listing.updated_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Listing restored"}
+
+
+@router.get("/recently-deleted")
+def get_recently_deleted(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=SOFT_DELETE_RETENTION_DAYS)
+    if current_user.user_type in ("dealer", "admin"):
+        team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
+        query = db.query(Listing).filter(
+            Listing.user_id.in_([current_user.id] + team_ids),
+            Listing.deleted_at.isnot(None),
+            Listing.deleted_at >= cutoff,
+        )
+    else:
+        query = db.query(Listing).filter(
+            Listing.user_id == current_user.id,
+            Listing.deleted_at.isnot(None),
+            Listing.deleted_at >= cutoff,
+        )
+    listings = query.order_by(Listing.deleted_at.desc()).all()
+    listing_ids = [l.id for l in listings]
+    media_map = _get_primary_images_for_listings(db, listing_ids)
+    now = datetime.utcnow()
+    return [
+        {
+            "id": l.id,
+            "title": l.title,
+            "price": l.price,
+            "year": l.year,
+            "make": l.make,
+            "model": l.model,
+            "status": l.status,
+            "city": l.city,
+            "state": l.state,
+            "deleted_at": l.deleted_at.isoformat() if l.deleted_at else None,
+            "days_until_permanent_delete": max(0, SOFT_DELETE_RETENTION_DAYS - (now - l.deleted_at).days),
+            "images": (
+                media_map.get(l.id, [])
+                or [{"url": img.url} for img in l.images[:1]]
+            ),
+        }
+        for l in listings
+    ]
 
 
 # ─── GET single listing (FULL detail) ─────────────────────────────────────────
@@ -934,6 +1012,9 @@ def get_listing(listing_id: int, db: Session = Depends(get_db)):
     ]
     listing = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.id == listing_id).first()
     if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+    # Treat soft-deleted listings as not found for public access
+    if listing.deleted_at is not None:
         raise ResourceNotFoundException("Listing", listing_id)
     # Hide listing if the owner's subscription has lapsed
     owner = listing.owner

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye, User, Upload } from 'lucide-react';
+import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye, User, Upload, RotateCcw, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ListingPreviewModal from '@/app/components/ListingPreviewModal';
@@ -24,6 +24,8 @@ interface Listing {
   images: Array<{ url: string }>;
   city?: string;
   state?: string;
+  deleted_at?: string | null;
+  days_until_permanent_delete?: number;
 }
 
 interface TeamMember {
@@ -55,6 +57,7 @@ interface DealerListingsManagerProps {
 
 export default function DealerListingsManager({ onStatsUpdate }: DealerListingsManagerProps) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [deletedListings, setDeletedListings] = useState<Listing[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [guestBrokers, setGuestBrokers] = useState<GuestBroker[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +77,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [savingGuest, setSavingGuest] = useState(false);
 
   useEffect(() => {
-    fetchListings();
+    if (statusFilter === 'recently_deleted') {
+      fetchDeletedListings();
+    } else {
+      fetchListings();
+    }
     fetchTeamMembers();
     fetchGuestBrokers();
   }, [statusFilter]);
@@ -144,6 +151,24 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       }
     } catch (error) {
       console.error('Failed to fetch guest brokers:', error);
+    }
+  };
+
+  const fetchDeletedListings = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/listings/recently-deleted'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDeletedListings(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch deleted listings:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -339,7 +364,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   };
 
   const deleteListing = async (listingId: number) => {
-    if (!confirm('Are you sure you want to archive this listing?')) return;
+    if (!confirm('Move this listing to Recently Deleted? You can restore it within 30 days.')) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -350,9 +375,50 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
 
       if (response.ok) {
         fetchListings();
+        if (onStatsUpdate) onStatsUpdate();
       }
     } catch (error) {
       console.error('Failed to delete listing:', error);
+    }
+  };
+
+  const restoreListing = async (listingId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/listings/${listingId}/restore`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setDeletedListings(prev => prev.filter(l => l.id !== listingId));
+        if (onStatsUpdate) onStatsUpdate();
+      } else {
+        alert('Failed to restore listing');
+      }
+    } catch (error) {
+      console.error('Failed to restore listing:', error);
+    }
+  };
+
+  const permanentlyDeleteListing = async (listingId: number) => {
+    if (!confirm('Permanently delete this listing? This cannot be undone.')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/listings/${listingId}?permanent=true`), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setDeletedListings(prev => prev.filter(l => l.id !== listingId));
+        if (onStatsUpdate) onStatsUpdate();
+      } else {
+        alert('Failed to permanently delete listing');
+      }
+    } catch (error) {
+      console.error('Failed to permanently delete listing:', error);
     }
   };
 
@@ -419,26 +485,120 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           { id: 'draft', label: 'Draft' },
           { id: 'sold', label: 'Sold' },
           { id: 'archived', label: 'Archived' },
+          { id: 'recently_deleted', label: 'Recently Deleted' },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setStatusFilter(tab.id)}
-            className={`px-6 py-3 font-medium border-b-2 transition-colors ${
+            className={`px-6 py-3 font-medium border-b-2 transition-colors whitespace-nowrap ${
               statusFilter === tab.id
-                ? 'border-blue-600 text-blue-600'
+                ? tab.id === 'recently_deleted'
+                  ? 'border-red-500 text-red-600'
+                  : 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
             {tab.label}
             <span className="ml-2 text-sm">
-              ({tab.id === 'all' ? listings.length : listings.filter(l => l.status === tab.id).length})
+              ({tab.id === 'all'
+                ? listings.length
+                : tab.id === 'recently_deleted'
+                  ? deletedListings.length
+                  : listings.filter(l => l.status === tab.id).length})
             </span>
           </button>
         ))}
       </div>
 
-      {/* Listings Table */}
-      {listings.length === 0 ? (
+      {/* Recently Deleted View */}
+      {statusFilter === 'recently_deleted' ? (
+        <div className="space-y-4">
+          {deletedListings.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-12 text-center">
+              <Trash2 size={40} className="mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-600 text-lg">No recently deleted listings</p>
+              <p className="text-gray-400 text-sm mt-1">Deleted listings appear here for 30 days before being permanently removed.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                <AlertTriangle size={16} className="flex-shrink-0" />
+                Listings are permanently deleted after 30 days. Restore them before they expire.
+              </div>
+              <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="min-w-[700px] w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Listing</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deleted</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expires In</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {deletedListings.map((listing) => {
+                      const daysLeft = listing.days_until_permanent_delete ?? 0;
+                      const deletedDate = listing.deleted_at ? new Date(listing.deleted_at).toLocaleDateString() : '—';
+                      return (
+                        <tr key={listing.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={mediaUrl(listing.images[0]?.url)}
+                                alt={listing.title}
+                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                                onError={onImgError}
+                              />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{listing.title}</p>
+                                <p className="text-xs text-gray-500">
+                                  {listing.year && `${listing.year} `}{listing.make} {listing.model}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs rounded-full font-semibold ${getStatusColor(listing.status)}`}>
+                              {listing.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{deletedDate}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`text-sm font-medium ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-amber-600' : 'text-gray-700'}`}>
+                              {daysLeft === 0 ? 'Expires today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'}`}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              <button
+                                onClick={() => restoreListing(listing.id)}
+                                className="flex items-center gap-1 text-sm text-green-600 hover:text-green-800 font-medium"
+                                title="Restore listing"
+                              >
+                                <RotateCcw size={15} />
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => permanentlyDeleteListing(listing.id)}
+                                className="flex items-center gap-1 text-sm text-red-500 hover:text-red-700 font-medium"
+                                title="Permanently delete"
+                              >
+                                <Trash2 size={15} />
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      ) : listings.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-gray-600 text-lg">No listings found</p>
         </div>
