@@ -346,6 +346,71 @@ def _serialize_listing(listing: Listing, db: Session = None) -> dict:
     }
 
 
+# ─── Diagnostic endpoint (TEMPORARY) ─────────────────────────────────────────
+
+@router.get("/debug/delete-check/{listing_id}")
+def debug_delete_check(
+    listing_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Temporary diagnostic – check if a listing exists and its delete state."""
+    has_col = _has_listing_column("deleted_at")
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        return {"exists": False, "listing_id": listing_id, "has_deleted_at_column": has_col}
+    return {
+        "exists": True,
+        "listing_id": listing.id,
+        "status": listing.status,
+        "deleted_at": listing.deleted_at.isoformat() if listing.deleted_at else None,
+        "user_id": listing.user_id,
+        "current_user_id": current_user.id,
+        "has_deleted_at_column": has_col,
+        "title": listing.title,
+    }
+
+
+@router.post("/debug/force-delete/{listing_id}")
+def debug_force_delete(
+    listing_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Temporary diagnostic – force-delete via raw SQL to bypass any ORM issues."""
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        return {"error": "Listing not found"}
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        owner = db.query(User).filter(User.id == listing.user_id).first()
+        if not (owner and owner.parent_dealer_id == current_user.id):
+            return {"error": "Not authorized"}
+    old_status = listing.status
+    old_deleted_at = listing.deleted_at
+    # Use raw SQL to bypass any ORM column-mapping issues
+    db.execute(
+        text("UPDATE listings SET status = 'deleted', updated_at = NOW() WHERE id = :lid"),
+        {"lid": listing_id},
+    )
+    if _has_listing_column("deleted_at"):
+        db.execute(
+            text("UPDATE listings SET deleted_at = NOW() WHERE id = :lid"),
+            {"lid": listing_id},
+        )
+    db.commit()
+    # Re-read to verify
+    db.expire(listing)
+    db.refresh(listing)
+    return {
+        "success": True,
+        "listing_id": listing_id,
+        "old_status": old_status,
+        "new_status": listing.status,
+        "old_deleted_at": old_deleted_at.isoformat() if old_deleted_at else None,
+        "new_deleted_at": listing.deleted_at.isoformat() if listing.deleted_at else None,
+    }
+
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @router.get("/makes")
@@ -693,17 +758,21 @@ def get_my_listings(
 ):
     if current_user.user_type in ("dealer", "admin"):
         team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
-        query = db.query(Listing).filter(
+        filters = [
             Listing.user_id.in_([current_user.id] + team_ids),
-            Listing.deleted_at.is_(None),
             Listing.status != "deleted",
-        )
+        ]
+        if _has_listing_column("deleted_at"):
+            filters.append(Listing.deleted_at.is_(None))
+        query = db.query(Listing).filter(*filters)
     else:
-        query = db.query(Listing).filter(
+        filters = [
             Listing.user_id == current_user.id,
-            Listing.deleted_at.is_(None),
             Listing.status != "deleted",
-        )
+        ]
+        if _has_listing_column("deleted_at"):
+            filters.append(Listing.deleted_at.is_(None))
+        query = db.query(Listing).filter(*filters)
     if status:
         query = query.filter(Listing.status == status)
     listings = query.order_by(Listing.created_at.desc()).all()
@@ -934,19 +1003,36 @@ def delete_listing(
         db.commit()
         logger.info(f"[DELETE] Listing {listing_id} permanently deleted")
         return {"message": "Listing permanently deleted"}
-    # Soft delete — move to Recently Deleted
-    now = datetime.utcnow()
-    listing.deleted_at = now
-    listing.updated_at = now
-    listing.status = "deleted"
-    db.commit()
-    # Verify the write persisted
-    db.refresh(listing)
-    logger.info(f"[DELETE] Listing {listing_id} soft-deleted: deleted_at={listing.deleted_at}, status={listing.status}")
-    if not listing.deleted_at:
-        logger.error(f"[DELETE] CRITICAL: deleted_at is None AFTER commit for listing {listing_id}!")
-        raise HTTPException(status_code=500, detail="Soft-delete failed to persist")
-    return {"message": "Listing moved to Recently Deleted", "listing_id": listing_id, "deleted_at": listing.deleted_at.isoformat()}
+
+    # Soft delete — use raw SQL to guarantee it works regardless of ORM state
+    try:
+        if _has_listing_column("deleted_at"):
+            db.execute(
+                text("UPDATE listings SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() WHERE id = :lid"),
+                {"lid": listing_id},
+            )
+        else:
+            db.execute(
+                text("UPDATE listings SET status = 'deleted', updated_at = NOW() WHERE id = :lid"),
+                {"lid": listing_id},
+            )
+        db.commit()
+        logger.info(f"[DELETE] Listing {listing_id} soft-deleted via raw SQL")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[DELETE] Raw SQL delete failed for listing {listing_id}: {e}")
+        # Last resort — just change status via ORM
+        try:
+            listing.status = "deleted"
+            listing.updated_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"[DELETE] Listing {listing_id} deleted via ORM fallback (status only)")
+        except Exception as e2:
+            db.rollback()
+            logger.error(f"[DELETE] ORM fallback also failed for listing {listing_id}: {e2}")
+            raise HTTPException(status_code=500, detail=f"Delete failed: {str(e2)}")
+
+    return {"message": "Listing moved to Recently Deleted", "listing_id": listing_id}
 
 
 @router.post("/{listing_id}/restore")

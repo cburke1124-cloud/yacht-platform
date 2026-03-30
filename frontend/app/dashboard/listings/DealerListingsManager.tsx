@@ -70,6 +70,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
   const [deleteToast, setDeleteToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(listings.length);
 
@@ -378,38 +379,37 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const deleteListing = async (listingId: number) => {
     if (!confirm('Move this listing to Recently Deleted? You can restore it within 30 days.')) return;
 
+    setDeletingId(listingId);
     const deleteUrl = apiUrl(`/listings/${listingId}`);
-    console.log(`[DELETE] Sending DELETE to ${deleteUrl}`);
-
-    // Optimistic removal — hide listing immediately so UX is instant
-    const removedListing = listings.find(l => l.id === listingId);
-    setListings(prev => prev.filter(l => l.id !== listingId));
 
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('error', 'You are not logged in. Please refresh and log in again.');
+        setDeletingId(null);
+        return;
+      }
+
       const response = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       const body = await response.json().catch(() => ({}));
-      console.log(`[DELETE] Response: ${response.status}`, body);
 
       if (response.ok) {
+        // Remove from list immediately
+        setListings(prev => prev.filter(l => l.id !== listingId));
         showToast('success', 'Listing moved to Recently Deleted. You can restore it within 30 days.');
         if (onStatsUpdate) onStatsUpdate();
         fetchDeletedListings();
       } else {
-        // Restore listing in UI since delete failed
-        if (removedListing) setListings(prev => [removedListing, ...prev]);
-        console.error(`[DELETE] Delete failed:`, body);
         showToast('error', body.detail || body.error || `Delete failed (HTTP ${response.status}). Please try again.`);
       }
     } catch (error) {
-      // Restore listing in UI on network error
-      if (removedListing) setListings(prev => [removedListing, ...prev]);
-      console.error('[DELETE] Network error:', error);
       showToast('error', 'Network error — could not delete the listing. Please try again.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -929,10 +929,15 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                         </button>
                         <button
                           onClick={() => deleteListing(listing.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Archive listing"
+                          disabled={deletingId === listing.id}
+                          className={`text-red-600 hover:text-red-900 ${deletingId === listing.id ? 'opacity-50 cursor-wait' : ''}`}
+                          title="Delete listing"
                         >
-                          <Trash2 size={18} />
+                          {deletingId === listing.id ? (
+                            <span className="inline-block w-[18px] h-[18px] border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash2 size={18} />
+                          )}
                         </button>
                       </div>
                     </td>
