@@ -378,16 +378,22 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const deleteListing = async (listingId: number) => {
     if (!confirm('Move this listing to Recently Deleted? You can restore it within 30 days.')) return;
 
+    const deleteUrl = apiUrl(`/listings/${listingId}`);
+    console.log(`[DELETE] Sending DELETE to ${deleteUrl}`);
+
     // Optimistic removal — hide listing immediately so UX is instant
     const removedListing = listings.find(l => l.id === listingId);
     setListings(prev => prev.filter(l => l.id !== listingId));
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/listings/${listingId}`), {
+      const response = await fetch(deleteUrl, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      const body = await response.json().catch(() => ({}));
+      console.log(`[DELETE] Response: ${response.status}`, body);
 
       if (response.ok) {
         showToast('success', 'Listing moved to Recently Deleted. You can restore it within 30 days.');
@@ -396,13 +402,13 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       } else {
         // Restore listing in UI since delete failed
         if (removedListing) setListings(prev => [removedListing, ...prev]);
-        const body = await response.json().catch(() => ({}));
+        console.error(`[DELETE] Delete failed:`, body);
         showToast('error', body.detail || body.error || `Delete failed (HTTP ${response.status}). Please try again.`);
       }
     } catch (error) {
       // Restore listing in UI on network error
       if (removedListing) setListings(prev => [removedListing, ...prev]);
-      console.error('Failed to delete listing:', error);
+      console.error('[DELETE] Network error:', error);
       showToast('error', 'Network error — could not delete the listing. Please try again.');
     }
   };

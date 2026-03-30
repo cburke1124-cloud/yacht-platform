@@ -696,11 +696,13 @@ def get_my_listings(
         query = db.query(Listing).filter(
             Listing.user_id.in_([current_user.id] + team_ids),
             Listing.deleted_at.is_(None),
+            Listing.status != "deleted",
         )
     else:
         query = db.query(Listing).filter(
             Listing.user_id == current_user.id,
             Listing.deleted_at.is_(None),
+            Listing.status != "deleted",
         )
     if status:
         query = query.filter(Listing.status == status)
@@ -919,6 +921,7 @@ def delete_listing(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    logger.info(f"[DELETE] User {current_user.id} ({current_user.email}) attempting to delete listing {listing_id}, permanent={permanent}")
     listing = db.query(Listing).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
@@ -929,12 +932,21 @@ def delete_listing(
     if permanent:
         db.delete(listing)
         db.commit()
+        logger.info(f"[DELETE] Listing {listing_id} permanently deleted")
         return {"message": "Listing permanently deleted"}
     # Soft delete — move to Recently Deleted
-    listing.deleted_at = datetime.utcnow()
-    listing.updated_at = datetime.utcnow()
+    now = datetime.utcnow()
+    listing.deleted_at = now
+    listing.updated_at = now
+    listing.status = "deleted"
     db.commit()
-    return {"message": "Listing moved to Recently Deleted"}
+    # Verify the write persisted
+    db.refresh(listing)
+    logger.info(f"[DELETE] Listing {listing_id} soft-deleted: deleted_at={listing.deleted_at}, status={listing.status}")
+    if not listing.deleted_at:
+        logger.error(f"[DELETE] CRITICAL: deleted_at is None AFTER commit for listing {listing_id}!")
+        raise HTTPException(status_code=500, detail="Soft-delete failed to persist")
+    return {"message": "Listing moved to Recently Deleted", "listing_id": listing_id, "deleted_at": listing.deleted_at.isoformat()}
 
 
 @router.post("/{listing_id}/restore")
@@ -953,6 +965,7 @@ def restore_listing(
     if not listing.deleted_at:
         return {"message": "Listing is not deleted"}
     listing.deleted_at = None
+    listing.status = "draft"
     listing.updated_at = datetime.utcnow()
     db.commit()
     return {"message": "Listing restored"}
