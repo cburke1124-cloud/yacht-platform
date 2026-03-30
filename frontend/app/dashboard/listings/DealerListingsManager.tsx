@@ -61,6 +61,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [guestBrokers, setGuestBrokers] = useState<GuestBroker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletedLoading, setDeletedLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [assigningSalesman, setAssigningSalesman] = useState<number | null>(null);
@@ -161,7 +162,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   };
 
   const fetchDeletedListings = async () => {
-    setLoading(true);
+    setDeletedLoading(true);
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl('/listings/recently-deleted'), {
@@ -174,7 +175,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     } catch (error) {
       console.error('Failed to fetch deleted listings:', error);
     } finally {
-      setLoading(false);
+      setDeletedLoading(false);
     }
   };
 
@@ -371,7 +372,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setDeleteToast({ type, message });
-    setTimeout(() => setDeleteToast(null), 4000);
+    setTimeout(() => setDeleteToast(null), 5000);
   };
 
   const deleteListing = async (listingId: number) => {
@@ -385,13 +386,14 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       });
 
       if (response.ok) {
-        setListings(prev => prev.filter(l => l.id !== listingId));
-        fetchDeletedListings(); // refresh the recently-deleted count/list
-        if (onStatsUpdate) onStatsUpdate();
         showToast('success', 'Listing moved to Recently Deleted. You can restore it within 30 days.');
+        if (onStatsUpdate) onStatsUpdate();
+        // Refresh both lists from server — most reliable approach
+        await fetchListings();
+        fetchDeletedListings();
       } else {
         const body = await response.json().catch(() => ({}));
-        showToast('error', body.detail || body.error || `Delete failed (${response.status}). Please try again.`);
+        showToast('error', body.detail || body.error || `Delete failed (HTTP ${response.status}). Please try again.`);
       }
     } catch (error) {
       console.error('Failed to delete listing:', error);

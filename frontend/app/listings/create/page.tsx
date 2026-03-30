@@ -44,8 +44,6 @@ interface ListingEditorPageProps {
   listingId?: string;
 }
 
-const AUTOSAVE_VERSION = 1;
-
 function deriveFeatureBullets(form: {
   feature_bullets: string[];
   features_text: string;
@@ -86,7 +84,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [uploadedMedia, setUploadedMedia] = useState<any[]>([]);
   const [showLibraryPicker, setShowLibraryPicker] = useState(false);
   const [activeTab, setActiveTab]       = useState<Tab>('basic');
-  const [autosaveInfo, setAutosaveInfo] = useState<{ restored: boolean; savedAt: string | null }>({ restored: false, savedAt: null });
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [importText, setImportText] = useState('');
   const [importBusy, setImportBusy] = useState(false);
@@ -176,6 +173,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   });
 
   // Scope the draft key to the current user so drafts never bleed across accounts.
+  // (kept for legacy cleanup only — no longer written)
   const draftStorageKey = `listing-editor-draft:${userId ?? 'anon'}:${isEditMode ? `edit:${listingId}` : 'create'}`;
 
   useEffect(() => {
@@ -246,37 +244,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
     checkListingAccess();
   }, [router]);
-
-  const formatTime = (iso?: string | null) => {
-    if (!iso) return null;
-    const dt = new Date(iso);
-    if (Number.isNaN(dt.getTime())) return null;
-    return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved?.version !== AUTOSAVE_VERSION) return;
-
-      if (saved.form) {
-        setForm((prev) => ({ ...prev, ...saved.form }));
-      }
-      if (Array.isArray(saved.uploadedMedia)) {
-        setUploadedMedia(saved.uploadedMedia);
-      }
-      if (saved.activeTab && TABS.includes(saved.activeTab)) {
-        setActiveTab(saved.activeTab);
-      }
-
-      setAutosaveInfo({ restored: true, savedAt: formatTime(saved.savedAt) });
-    } catch {
-      // ignore bad local draft payloads
-    }
-  }, [draftStorageKey]);
 
   useEffect(() => {
     if (!isEditMode || !listingId) {
@@ -380,31 +347,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
     loadListing();
   }, [isEditMode, listingId]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (initializing) return;
-
-    const timer = window.setTimeout(() => {
-      setAutosaveState('saving');
-      const nowIso = new Date().toISOString();
-      localStorage.setItem(
-        draftStorageKey,
-        JSON.stringify({
-          version: AUTOSAVE_VERSION,
-          savedAt: nowIso,
-          form,
-          uploadedMedia,
-          activeTab,
-        })
-      );
-      setAutosaveInfo((p) => ({ ...p, savedAt: formatTime(nowIso) }));
-      setAutosaveState('saved');
-      window.setTimeout(() => setAutosaveState('idle'), 1500);
-    }, 800);
-
-    return () => window.clearTimeout(timer);
-  }, [form, uploadedMedia, activeTab, draftStorageKey, initializing]);
 
   const set = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -889,25 +831,6 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     wrapDescriptionSelection(`<a href=\"${safeUrl}\" target=\"_blank\" rel=\"noopener noreferrer\">${label}</a>`);
   };
 
-  const saveLocalDraftNow = () => {
-    if (typeof window === 'undefined') return;
-    setAutosaveState('saving');
-    const nowIso = new Date().toISOString();
-    localStorage.setItem(
-      draftStorageKey,
-      JSON.stringify({
-        version: AUTOSAVE_VERSION,
-        savedAt: nowIso,
-        form,
-        uploadedMedia,
-        activeTab,
-      })
-    );
-    setAutosaveInfo((p) => ({ ...p, savedAt: formatTime(nowIso) }));
-    setAutosaveState('saved');
-    window.setTimeout(() => setAutosaveState('idle'), 1500);
-  };
-
   // ── Save as Draft (server-side) ────────────────────────────────────────────
   const saveAsDraft = async () => {
     if (!form.title.trim()) {
@@ -1213,7 +1136,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           </div>
           <div className="flex items-center justify-between mb-6 text-xs" style={{ color: 'rgba(16,33,79,0.6)' }}>
             <span>
-              {autosaveState === 'saving' ? 'Saving draft…' : autosaveState === 'saved' ? 'Draft saved' : autosaveInfo.restored && autosaveInfo.savedAt ? `Draft restored (saved ${autosaveInfo.savedAt})` : autosaveInfo.savedAt ? `Autosaved ${autosaveInfo.savedAt}` : 'Autosave enabled'}
+              {autosaveState === 'saving' ? 'Saving…' : autosaveState === 'saved' ? 'Draft saved to server' : 'Unsaved changes'}
             </span>
             <button type="button" onClick={saveAsDraft} disabled={autosaveState === 'saving'} className="px-3 py-1.5 rounded-md text-white disabled:opacity-60" style={{ background: '#10214F' }}>
               {autosaveState === 'saving' ? 'Saving…' : 'Save Draft'}
