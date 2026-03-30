@@ -68,6 +68,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
+  const [deleteToast, setDeleteToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(listings.length);
 
@@ -75,6 +76,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [showAddGuest, setShowAddGuest] = useState(false);
   const [newGuest, setNewGuest] = useState({ first_name: '', last_name: '', email: '', phone: '', title: '' });
   const [savingGuest, setSavingGuest] = useState(false);
+
+  // Always load the deleted-listings count so the badge is accurate on first render
+  useEffect(() => {
+    fetchDeletedListings();
+  }, []);
 
   useEffect(() => {
     if (statusFilter === 'recently_deleted') {
@@ -363,6 +369,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     clearSelection();
   };
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setDeleteToast({ type, message });
+    setTimeout(() => setDeleteToast(null), 4000);
+  };
+
   const deleteListing = async (listingId: number) => {
     if (!confirm('Move this listing to Recently Deleted? You can restore it within 30 days.')) return;
 
@@ -375,13 +386,16 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
 
       if (response.ok) {
         setListings(prev => prev.filter(l => l.id !== listingId));
+        fetchDeletedListings(); // refresh the recently-deleted count/list
         if (onStatsUpdate) onStatsUpdate();
+        showToast('success', 'Listing moved to Recently Deleted. You can restore it within 30 days.');
       } else {
-        alert('Failed to delete listing. Please try again.');
+        const body = await response.json().catch(() => ({}));
+        showToast('error', body.detail || body.error || `Delete failed (${response.status}). Please try again.`);
       }
     } catch (error) {
       console.error('Failed to delete listing:', error);
-      alert('Something went wrong. Please try again.');
+      showToast('error', 'Network error — could not delete the listing. Please try again.');
     }
   };
 
@@ -478,6 +492,19 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         onBulkDelete={handleBulkArchive}
         onBulkStatusChange={handleBulkStatusChange}
       />
+
+      {/* Delete toast notification */}
+      {deleteToast && (
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${
+          deleteToast.type === 'success'
+            ? 'bg-green-50 border border-green-200 text-green-800'
+            : 'bg-red-50 border border-red-200 text-red-800'
+        }`}>
+          <span>{deleteToast.type === 'success' ? '✓' : '✕'}</span>
+          {deleteToast.message}
+          <button onClick={() => setDeleteToast(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
 
       {/* Status Filter Tabs */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
