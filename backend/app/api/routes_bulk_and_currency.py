@@ -15,7 +15,6 @@ from app.exceptions import (
     ResourceNotFoundException,
     ExternalServiceException
 )
-from app.services.permissions import has_permission, Permission
 
 router = APIRouter()
 
@@ -28,36 +27,40 @@ def bulk_delete_listings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete multiple listings at once."""
+    """Soft-delete multiple listings at once."""
     listing_ids = data.get("ids") or data.get("listing_ids") or []
     permanent = data.get("permanent", False)
-    
+
     if not listing_ids:
         raise ValidationException("No listing IDs provided")
-    
-    # Get listings and verify ownership
+
     listings = db.query(Listing).filter(Listing.id.in_(listing_ids)).all()
-    
+
     for listing in listings:
-        # Check authorization
-        if listing.user_id != current_user.id:
-            if not has_permission(current_user, Permission.DELETE_ANY_LISTING):
+        if listing.user_id != current_user.id and current_user.user_type != "admin":
+            # Allow dealer to delete listings owned by their team members
+            owner = db.query(User).filter(User.id == listing.user_id).first()
+            if not (owner and owner.parent_dealer_id == current_user.id):
                 raise AuthorizationException(f"Not authorized to delete listing {listing.id}")
-    
+
+    now = datetime.utcnow()
     if permanent:
         for listing in listings:
             db.delete(listing)
     else:
+        from sqlalchemy import text
         for listing in listings:
-            listing.status = "archived"
-            listing.updated_at = datetime.utcnow()
-    
+            db.execute(
+                text("UPDATE listings SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() WHERE id = :lid"),
+                {"lid": listing.id},
+            )
+
     db.commit()
-    
+
     return {
         "success": True,
         "deleted_count": len(listings),
-        "message": f"{'Permanently deleted' if permanent else 'Archived'} {len(listings)} listings"
+        "message": f"{'Permanently deleted' if permanent else 'Moved to Recently Deleted'} {len(listings)} listings"
     }
 
 
@@ -86,8 +89,9 @@ def bulk_update_listing_status(
     
     for listing in listings:
         # Check authorization
-        if listing.user_id != current_user.id:
-            if not has_permission(current_user, Permission.EDIT_ANY_LISTING):
+        if listing.user_id != current_user.id and current_user.user_type != "admin":
+            owner = db.query(User).filter(User.id == listing.user_id).first()
+            if not (owner and owner.parent_dealer_id == current_user.id):
                 raise AuthorizationException(f"Not authorized to edit listing {listing.id}")
         
         listing.status = new_status
