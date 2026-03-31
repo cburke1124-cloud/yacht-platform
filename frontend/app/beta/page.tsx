@@ -93,7 +93,7 @@ function FeaturedCard({ listing }: { listing: Listing }) {
           )}
         </div>
 
-        <div className="p-5">
+        <div className="p-5 flex flex-col" style={{ minHeight: 180 }}>
           <h3
             className="font-bold text-xl leading-tight line-clamp-2 mb-2"
             style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
@@ -105,32 +105,34 @@ function FeaturedCard({ listing }: { listing: Listing }) {
             {formatPrice(listing.price, listing.currency)}
           </p>
 
-          <div className="flex items-center flex-wrap gap-3 text-sm mb-4" style={{ color: '#10214F' }}>
+          <div className="flex items-center gap-3 text-sm mb-4" style={{ color: '#10214F', minHeight: 24 }}>
             {listing.length_feet && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                 <Ruler className="w-4 h-4 flex-shrink-0" style={{ color: '#01BBDC' }} />
                 {Math.round(listing.length_feet)} ft
               </span>
             )}
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 min-w-0">
               <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#01BBDC' }} />
-              {getLocation(listing)}
+              <span className="truncate">{getLocation(listing)}</span>
             </span>
           </div>
 
-          <span
-            className="inline-flex items-center justify-center w-full text-white font-medium transition-opacity hover:opacity-90"
-            style={{
-              backgroundColor: '#01BBDC',
-              fontFamily: 'Poppins, sans-serif',
-              fontSize: 15,
-              fontWeight: 500,
-              borderRadius: 8,
-              padding: '10px 0',
-            }}
-          >
-            View Details
-          </span>
+          <div className="mt-auto">
+            <span
+              className="inline-flex items-center justify-center w-full text-white font-medium transition-opacity hover:opacity-90"
+              style={{
+                backgroundColor: '#01BBDC',
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 15,
+                fontWeight: 500,
+                borderRadius: 8,
+                padding: '10px 0',
+              }}
+            >
+              View Details
+            </span>
+          </div>
         </div>
       </div>
     </Link>
