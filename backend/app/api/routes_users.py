@@ -10,25 +10,6 @@ from app.exceptions import ResourceNotFoundException, ValidationException
 router = APIRouter()
 
 
-@router.get("/users/{user_id}")
-def get_user_info(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise ResourceNotFoundException("User", user_id)
-
-    dealer_profile = db.query(DealerProfile).filter(DealerProfile.user_id == user_id).first()
-
-    return {
-        "id": user.id,
-        "name": f"{user.first_name} {user.last_name}" if user.first_name else user.email,
-        "company_name": user.company_name,
-        "email": user.email,
-        "phone": user.phone,
-        "user_type": user.user_type,
-        "logo_url": dealer_profile.logo_url if dealer_profile else None,
-        "slug": dealer_profile.slug if dealer_profile else None,
-    }
-
 @router.get("/users/me")  
 def get_current_user_info(
     current_user: User = Depends(get_current_user),
@@ -53,6 +34,26 @@ def get_current_user_info(
         "bio": current_user.bio,
         "verified": current_user.verified,
         "active": current_user.active,
+        "logo_url": dealer_profile.logo_url if dealer_profile else None,
+        "slug": dealer_profile.slug if dealer_profile else None,
+    }
+
+
+@router.get("/users/{user_id}")
+def get_user_info(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+
+    dealer_profile = db.query(DealerProfile).filter(DealerProfile.user_id == user_id).first()
+
+    return {
+        "id": user.id,
+        "name": f"{user.first_name} {user.last_name}" if user.first_name else user.email,
+        "company_name": user.company_name,
+        "email": user.email,
+        "phone": user.phone,
+        "user_type": user.user_type,
         "logo_url": dealer_profile.logo_url if dealer_profile else None,
         "slug": dealer_profile.slug if dealer_profile else None,
     }

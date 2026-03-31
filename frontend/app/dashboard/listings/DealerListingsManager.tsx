@@ -404,6 +404,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         if (onStatsUpdate) onStatsUpdate();
         fetchDeletedListings();
       } else {
+        // Hard-to-miss alert so we can diagnose the exact error
+        alert(`DELETE failed — HTTP ${response.status}\n\n${JSON.stringify(body, null, 2)}`);
         showToast('error', body.detail || body.error || `Delete failed (HTTP ${response.status}). Please try again.`);
       }
     } catch (error) {
