@@ -694,7 +694,7 @@ export default function ListingDetailPage() {
                     {primaryPhone && (
                       <a href={`tel:${primaryPhone}`}
                         className="w-full py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all border-2 border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white">
-                        <Phone size={18} /> Call {sc ? 'Agent' : 'Broker'}
+                        <Phone size={18} /> Call Broker
                       </a>
                     )}
                   </div>
@@ -827,73 +827,44 @@ export default function ListingDetailPage() {
           </div>
         </div>
 
-        {/* ══ PHOTO STRIP: 1 large left + 2×2 right ══════════════════════════ */}
+        {/* ══ PHOTO STRIP: single row of thumbnails ═══════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="grid gap-3 mb-12 overflow-hidden" style={{ gridTemplateColumns: '3fr 2fr', height: 300 }}>
-            {/* Large left image */}
-            <button type="button"
-              className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
-              onClick={() => {
-                const item = galleryItems[1];
-                if (!item) return;
-                if (item.file_type === 'image') {
-                  const i = imageLightboxItems.findIndex(x => x.id === item.id);
-                  if (i >= 0) setLightbox(i);
-                } else if (item.file_type === 'video') {
-                  window.open(item.url, '_blank');
-                }
-              }}>
-              {galleryItems[1]?.file_type === 'video' ? (
-                <>
-                  <img src={mediaUrl(galleryItems[1].thumbnail_url) || FALLBACK_LISTING_IMAGE}
-                    alt={`${listing.title} video`} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    <PlayCircle size={28} className="text-white" />
-                  </div>
-                </>
-              ) : (
-                <img src={mediaUrl(galleryItems[1]?.thumbnail_url || galleryItems[1]?.url) || FALLBACK_LISTING_IMAGE}
-                  alt={`${listing.title} photo 2`} className="w-full h-full object-cover" />
-              )}
-            </button>
-
-            {/* 2×2 right grid */}
-            <div className="grid grid-cols-2 gap-3 h-full" style={{ gridTemplateRows: '1fr 1fr' }}>
-              {galleryItems.slice(2, 6).map((item, idx) => {
-                const isLast = idx === 3;
-                const remaining = Math.max(galleryItems.length - 6, 0);
-                return (
-                  <button key={item.id} type="button"
-                    className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 h-full"
-                    onClick={() => {
-                      if (item.file_type === 'image') {
-                        const i = imageLightboxItems.findIndex(x => x.id === item.id);
-                        if (i >= 0) setLightbox(i);
-                      } else if (item.file_type === 'video') {
-                        window.open(item.url, '_blank');
-                      }
-                    }}>
-                    {item.file_type === 'video' ? (
-                      <>
-                        <img src={mediaUrl(item.thumbnail_url) || FALLBACK_LISTING_IMAGE}
-                          alt={`${listing.title} video`} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                          <PlayCircle size={22} className="text-white" />
-                        </div>
-                      </>
-                    ) : (
-                      <img src={mediaUrl(item.thumbnail_url || item.url) || FALLBACK_LISTING_IMAGE}
-                        alt={`${listing.title} photo ${idx + 3}`} className="w-full h-full object-cover" />
-                    )}
-                    {isLast && remaining > 0 && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+          <div className="flex gap-3 mb-12 overflow-hidden">
+            {galleryItems.slice(1, 5).map((item, idx) => {
+              const isLast = idx === 3;
+              const remaining = Math.max(galleryItems.length - 5, 0);
+              return (
+                <button key={item.id} type="button"
+                  className="relative flex-1 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                  style={{ height: 160 }}
+                  onClick={() => {
+                    if (item.file_type === 'image') {
+                      const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                      if (i >= 0) setLightbox(i);
+                    } else if (item.file_type === 'video') {
+                      window.open(item.url, '_blank');
+                    }
+                  }}>
+                  {item.file_type === 'video' ? (
+                    <>
+                      <img src={mediaUrl(item.thumbnail_url) || FALLBACK_LISTING_IMAGE}
+                        alt={`${listing.title} video`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <PlayCircle size={22} className="text-white" />
                       </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                    </>
+                  ) : (
+                    <img src={mediaUrl(item.thumbnail_url || item.url) || FALLBACK_LISTING_IMAGE}
+                      alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
+                  )}
+                  {isLast && remaining > 0 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
