@@ -320,6 +320,8 @@ function EnhancedDealerDashboard() {
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [listingStatusFilter, setListingStatusFilter] = useState('all');
+  const [deletedListings, setDeletedListings] = useState<any[]>([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('30d');
   const [teamPerformance, setTeamPerformance] = useState<TeamPerformanceData | null>(null);
   const [teamPerformanceLoading, setTeamPerformanceLoading] = useState(false);
@@ -423,6 +425,7 @@ function EnhancedDealerDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchDeletedListings();
     fetchTeamMembers();
     fetchCRMStatus();
     fetchWebhookConfig();
@@ -786,6 +789,51 @@ function EnhancedDealerDashboard() {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDeletedListings = async () => {
+    setDeletedLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(apiUrl('/listings/recently-deleted'), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) setDeletedListings(await r.json());
+    } catch (e) {
+      console.error('Failed to fetch deleted listings:', e);
+    } finally {
+      setDeletedLoading(false);
+    }
+  };
+
+  const restoreDeletedListing = async (id: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(apiUrl(`/listings/${id}/restore`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) {
+        await fetchDeletedListings();
+        await fetchDashboardData();
+      }
+    } catch (e) {
+      console.error('Failed to restore listing:', e);
+    }
+  };
+
+  const permanentlyDeleteListing = async (id: number) => {
+    if (!confirm('Permanently delete this listing? This cannot be undone.')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(apiUrl(`/listings/${id}?permanent=true`), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) await fetchDeletedListings();
+    } catch (e) {
+      console.error('Failed to permanently delete listing:', e);
     }
   };
 
@@ -1790,6 +1838,7 @@ function EnhancedDealerDashboard() {
                   { id: 'draft', label: 'Draft' },
                   { id: 'sold', label: 'Sold' },
                   { id: 'archived', label: 'Archived' },
+                  { id: 'recently_deleted', label: 'Recently Deleted' },
                 ];
                 const filteredListings = listingStatusFilter === 'all'
                   ? listings
@@ -1800,7 +1849,7 @@ function EnhancedDealerDashboard() {
                       {statusFilters.map(sf => (
                         <button
                           key={sf.id}
-                          onClick={() => setListingStatusFilter(sf.id)}
+                          onClick={() => { setListingStatusFilter(sf.id); if (sf.id === 'recently_deleted') fetchDeletedListings(); }}
                           className={`px-3 py-1.5 text-xs font-medium rounded-t-lg whitespace-nowrap transition-colors border-b-2 ${
                             listingStatusFilter === sf.id
                               ? 'border-primary text-primary bg-primary/5'
@@ -1809,11 +1858,87 @@ function EnhancedDealerDashboard() {
                         >
                           {sf.label}
                           <span className="ml-1 text-[10px] text-gray-400">
-                            ({sf.id === 'all' ? listings.length : listings.filter(l => l.status === sf.id).length})
+                            ({sf.id === 'all' ? listings.length : sf.id === 'recently_deleted' ? deletedListings.length : listings.filter(l => l.status === sf.id).length})
                           </span>
                         </button>
                       ))}
                     </div>
+                    {listingStatusFilter === 'recently_deleted' ? (
+                      <div className="p-4">
+                        {deletedListings.length === 0 && !deletedLoading ? (
+                          <p className="text-center text-gray-500 py-12 text-sm">No recently deleted listings.</p>
+                        ) : deletedLoading ? (
+                          <p className="text-center text-gray-400 py-12 text-sm">Loading…</p>
+                        ) : (
+                          <>
+                            <div className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                              <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                              <span>Deleted listings are permanently removed after 30 days. Restore them to make them active again.</span>
+                            </div>
+                            <table className="w-full table-fixed">
+                              <thead className="bg-soft">
+                                <tr>
+                                  <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[38%]">Listing</th>
+                                  <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[16%]">Status</th>
+                                  <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[18%]">Deleted</th>
+                                  <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[14%]">Expires In</th>
+                                  <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[14%]">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {deletedListings.map((dl: any) => {
+                                  const deletedMs = dl.deleted_at ? Date.now() - new Date(dl.deleted_at).getTime() : 0;
+                                  const daysLeft = dl.days_until_permanent_delete ?? Math.max(0, 30 - Math.floor(deletedMs / 86400000));
+                                  return (
+                                    <tr key={dl.id} className="hover:bg-soft">
+                                      <td className="px-3 py-3 align-top">
+                                        <div className="flex items-center gap-3">
+                                          {dl.images && dl.images.length > 0 ? (
+                                            <img src={mediaUrl(dl.images[0].url)} alt={dl.title} className="w-12 h-12 object-cover rounded-lg" onError={onImgError} />
+                                          ) : (
+                                            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center"><span className="text-gray-400 text-xs">No img</span></div>
+                                          )}
+                                          <span className="font-semibold text-secondary truncate">{dl.title}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-3 align-top">
+                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">Deleted</span>
+                                      </td>
+                                      <td className="px-3 py-3 align-top text-sm text-gray-600">
+                                        {dl.deleted_at ? new Date(dl.deleted_at).toLocaleDateString() : '—'}
+                                      </td>
+                                      <td className="px-3 py-3 align-top">
+                                        <span className={`text-sm font-medium ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-amber-600' : 'text-gray-700'}`}>
+                                          {daysLeft} day{daysLeft !== 1 ? 's' : ''}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-3 align-top">
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            onClick={() => restoreDeletedListing(dl.id)}
+                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                            title="Restore listing"
+                                          >
+                                            <RefreshCw size={16} />
+                                          </button>
+                                          <button
+                                            onClick={() => permanentlyDeleteListing(dl.id)}
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                            title="Permanently delete"
+                                          >
+                                            <Trash2 size={16} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </>
+                        )}
+                      </div>
+                    ) : (
                     <div>
                       <table className="w-full table-fixed">
                         <thead className="bg-soft">
@@ -1982,6 +2107,7 @@ function EnhancedDealerDashboard() {
                         </tbody>
                       </table>
                     </div>
+                    )}
                   </>
                 );
               })()}

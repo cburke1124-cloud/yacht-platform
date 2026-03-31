@@ -1122,65 +1122,48 @@ export default function ListingDetailPage() {
         </div>
 
         {/* ══ ENGINES ════════════════════════════════════════════════════════ */}
-        {/* NOTE: Backend currently supports single engine data with engine_count.
-            For full multi-engine support, backend would need a separate engines table. */}
         {(() => {
-          // Build engines array without duplicating primary/additional entries.
-          const engines: Array<any> = [];
-          const hasPrimary = listing.engine_hours != null || listing.engine_count;
-          if (hasPrimary) {
-            engines.push({
-              make: null,
-              model: null,
-              type: null,
-              hours: listing.engine_hours != null ? listing.engine_hours : null,
-              horsepower: null,
-              note: null,
-              isPrimaryFallback: !((listing.additional_engines || []).length > 0) && !!listing.engine_count,
-            });
-          }
+          // Only show explicit engine entries (from additional_engines).
+          // If only engine_count was filled in with no detail, show nothing —
+          // same behaviour as generators (which also only render when data exists).
+          const additionalEngines = Array.isArray(listing.additional_engines) && listing.additional_engines.length > 0
+            ? listing.additional_engines
+            : [];
 
-          if (Array.isArray(listing.additional_engines) && listing.additional_engines.length > 0) {
-            for (const e of listing.additional_engines) {
-              engines.push(e);
-            }
-          }
+          // Legacy fallback: if old listing has engine_hours but no additional_engines
+          const hasLegacyHours = listing.engine_hours != null;
 
           const gens = Array.isArray(listing.generators) ? listing.generators.slice(0, 2) : [];
 
-          if (engines.length === 0 && gens.length === 0) return null;
+          if (additionalEngines.length === 0 && !hasLegacyHours && gens.length === 0) return null;
 
           return (
             <div className="mb-10">
               <SectionHeading>Engine Details</SectionHeading>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {engines.length > 0 ? (
-                  // If we have explicit engine entries, render them (max 4)
-                  engines.slice(0, 4).map((engine, idx) => (
+                {additionalEngines.length > 0 ? (
+                  additionalEngines.slice(0, 4).map((engine, idx) => (
                     <div key={`engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">{engines.length > 1 ? `Engine ${idx + 1}` : 'Engine'}</h4>
+                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">{additionalEngines.length > 1 ? `Engine ${idx + 1}` : 'Engine'}</h4>
                       <div className="space-y-1">
                         <SpecRow label="Make" value={engine.make} />
                         <SpecRow label="Model" value={engine.model} />
                         <SpecRow label="Type" value={engine.type} />
                         <SpecRow label="Hours" value={engine.hours != null ? fmt(engine.hours) : null} />
                         <SpecRow label="Horsepower" value={engine.horsepower != null ? `${fmt(engine.horsepower)} hp` : null} />
-                        <SpecRow label="Notes" value={engine.notes || engine.note || null} />
+                        <SpecRow label="Notes" value={engine.notes || null} />
                       </div>
                     </div>
                   ))
-                ) : (
-                  // Fallback: show primary spec once if only engine_count present
-                  listing.engine_count ? (
-                    <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Engine</h4>
-                      <div className="space-y-1">
-                        <SpecRow label="Fuel" value={listing.fuel_type} />
-                        <SpecRow label="Hours" value={listing.engine_hours != null ? fmt(listing.engine_hours) : null} />
-                      </div>
+                ) : hasLegacyHours ? (
+                  <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
+                    <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Engine</h4>
+                    <div className="space-y-1">
+                      <SpecRow label="Fuel" value={listing.fuel_type} />
+                      <SpecRow label="Hours" value={fmt(listing.engine_hours!)} />
                     </div>
-                  ) : null
-                )}
+                  </div>
+                ) : null}
 
                 {gens.map((generator, idx) => (
                   <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">

@@ -1342,9 +1342,27 @@ def get_listing_contact_info(listing_id: int, db: Session = Depends(get_db)):
 
     # ── Direct dealer owns the listing ────────────────────────────────────
     profile = db.query(DealerProfile).filter(DealerProfile.user_id == owner.id).first()
+    # If the owner has a personal profile (photo/bio/title), surface it as sales_contact
+    # so their headshot and bio appear on the listing detail page.
+    personal_photo = getattr(owner, "profile_photo_url", None)
+    personal_title = getattr(owner, "title", None)
+    personal_bio   = getattr(owner, "bio", None)
+    sales_contact  = (
+        {
+            "id": owner.id,
+            "name": f"{owner.first_name or ''} {owner.last_name or ''}".strip() or owner.email,
+            "title": personal_title,
+            "email": owner.email,
+            "phone": getattr(owner, "phone", None),
+            "photo_url": personal_photo,
+            "bio": personal_bio,
+        }
+        if (personal_photo or personal_title or personal_bio)
+        else None
+    )
     return {
         "dealer": _dealer_dict(owner, profile),
-        "sales_contact": None,
+        "sales_contact": sales_contact,
     }
 
 

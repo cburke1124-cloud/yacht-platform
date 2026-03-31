@@ -485,6 +485,18 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   };
 
   /**
+   * Normalizes an AI-returned state/province string to match the exact casing
+   * in STATES_BY_COUNTRY for dropdown countries, or returns as-is for others.
+   */
+  const normalizeStateForCountry = (state: string | null | undefined, country: string | null | undefined): string => {
+    if (!state) return '';
+    const options = country ? STATES_BY_COUNTRY[country] : undefined;
+    if (!options) return state;
+    const lower = state.toLowerCase();
+    return options.find(s => s.toLowerCase() === lower) ?? state;
+  };
+
+  /**
    * Given a partial form object (from AI or local parse), fills in any
    * boat_type / hull_material / hull_type / beam_feet / draft_feet that
    * can be deduced from a known make+model combination.
@@ -711,7 +723,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             berths: ai.berths != null ? String(ai.berths) : form.berths,
             heads: ai.heads != null ? String(ai.heads) : form.heads,
             city: ai.city || form.city,
-            state: ai.state || form.state,
+            state: normalizeStateForCountry(ai.state, ai.country) || form.state,
             country: ai.country || form.country,
             continent: ai.continent ||
               (ai.country ? COUNTRY_TO_CONTINENT[ai.country] : '') ||
@@ -786,7 +798,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       berths: ai.berths != null ? String(ai.berths) : undefined,
       heads: ai.heads != null ? String(ai.heads) : undefined,
       city: ai.city || undefined,
-      state: ai.state || undefined,
+      state: normalizeStateForCountry(ai.state, ai.country) || undefined,
       country: ai.country || undefined,
       continent: ai.continent || (ai.country ? COUNTRY_TO_CONTINENT[ai.country] : undefined),
       feature_bullets: ai.feature_bullets?.length ? ai.feature_bullets : undefined,
@@ -1053,27 +1065,32 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   };
 
   // ── Submit ─────────────────────────────────────────────────────────────────
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isEditMode && uploadedMedia.length === 0) {
-      alert('Please upload at least one image');
-      setActiveTab('media');
-      return;
-    }
-    if (!form.boat_type) {
-      alert('Please select a Boat Type in the Specifications tab');
-      setActiveTab('specs');
-      return;
-    }
-    if (!form.fuel_type) {
-      alert('Please select a Fuel Type in the Engine tab');
-      setActiveTab('engine');
-      return;
-    }
-    if (!form.hull_material) {
-      alert('Please select a Hull Material in the Specifications tab');
-      setActiveTab('specs');
-      return;
+  async function handleSubmit(e: React.FormEvent | null, statusOverride?: 'draft' | 'active') {
+    e?.preventDefault();
+    const submitStatus = statusOverride ?? (form.status as 'draft' | 'active') ?? 'active';
+    const isDraft = submitStatus === 'draft';
+
+    if (!isDraft) {
+      if (!isEditMode && uploadedMedia.length === 0) {
+        alert('Please upload at least one image');
+        setActiveTab('media');
+        return;
+      }
+      if (!form.boat_type) {
+        alert('Please select a Boat Type in the Specifications tab');
+        setActiveTab('specs');
+        return;
+      }
+      if (propulsion !== 'sail' && !form.fuel_type) {
+        alert('Please select a Fuel Type in the Engine tab');
+        setActiveTab('engine');
+        return;
+      }
+      if (!form.hull_material) {
+        alert('Please select a Hull Material in the Specifications tab');
+        setActiveTab('specs');
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -1094,7 +1111,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         model:           form.model    || null,
         bin:             form.bin,
         condition:       form.condition,
-        status:          form.status,
+        status:          submitStatus,
         allow_cobrokering: form.allow_cobrokering,
         // Location
         city:            form.city     || null,
@@ -1278,7 +1295,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             </div>
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={e => handleSubmit(e)}>
 
             {/* ─── BASIC INFO ─────────────────────────────────────────────── */}
             {activeTab === 'basic' && (
@@ -1407,23 +1424,14 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Continent</label>
-                    <select name="continent" value={form.continent} onChange={set} className={inp}>
-                      <option value="">Select…</option>
-                      {['North America','South America','Europe','Caribbean','Mediterranean','Asia Pacific','Middle East','Africa'].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Listing Status</label>
-                    <select name="status" value={form.status} onChange={set} className={inp}>
-                      <option value="draft">Draft</option>
-                      <option value="active">Active (Publish Now)</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className={lbl} style={{ color: '#10214F' }}>Continent</label>
+                  <select name="continent" value={form.continent} onChange={set} className={inp}>
+                    <option value="">Select…</option>
+                    {['North America','South America','Europe','Caribbean','Mediterranean','Asia Pacific','Middle East','Africa'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Co-Brokering opt-out — only shown when dealer has account-level co-brokering ON */}
@@ -1617,8 +1625,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     <input name="engine_count" type="number" value={form.engine_count} onChange={set} min="1" className={inp} placeholder="2" />
                   </div>
                   <div>
-                    <label className={lbl} style={{ color: '#10214F' }}>Fuel Type <span style={{ color: '#e53e3e' }}>*</span></label>
-                    <select name="fuel_type" value={form.fuel_type} onChange={set} className={inp} required>
+                    <label className={lbl} style={{ color: '#10214F' }}>Fuel Type {propulsion !== 'sail' && <span style={{ color: '#e53e3e' }}>*</span>}</label>
+                    <select name="fuel_type" value={form.fuel_type} onChange={set} className={inp} required={propulsion !== 'sail'}>
                       <option value="">Select…</option>
                       {['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other'].map(f => (
                         <option key={f} value={f}>{f}</option>
@@ -1897,12 +1905,31 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   style={{ background: '#01BBDC' }}>
                   Next →
                 </button>
-              ) : (
-                <button type="submit" disabled={loading || (!isEditMode && uploadedMedia.length === 0)}
+              ) : isEditMode ? (
+                <button type="submit" disabled={loading}
                   className="flex-1 px-6 py-3 rounded-xl text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   style={{ background: '#10214F' }}>
-                  {loading ? (isEditMode ? 'Saving changes…' : 'Creating listing…') : (isEditMode ? 'Save Changes' : 'Create Listing')}
+                  {loading ? 'Saving changes…' : 'Save Changes'}
                 </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleSubmit(null, 'draft')}
+                    className="flex-1 px-6 py-3 rounded-xl text-sm font-semibold border-2 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    style={{ borderColor: '#10214F', color: '#10214F' }}>
+                    {loading ? 'Saving…' : 'Save as Draft'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleSubmit(null, 'active')}
+                    className="flex-1 px-6 py-3 rounded-xl text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    style={{ background: '#01BBDC' }}>
+                    {loading ? 'Publishing…' : 'Publish Listing'}
+                  </button>
+                </>
               )}
             </div>
           </form>
