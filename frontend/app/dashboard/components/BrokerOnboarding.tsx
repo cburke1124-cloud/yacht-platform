@@ -250,7 +250,7 @@ export default function BrokerOnboarding({ userId, userType, onComplete, prefetc
         {step === 'listings_choice' && (
           <div className="p-10">
             <div className="flex items-center gap-3 mb-2">
-              <button onClick={() => setStep('brokerage_profile')} className="text-gray-400 hover:text-secondary transition-colors">
+              <button onClick={() => isTeamMember ? setStep('welcome') : setStep('brokerage_profile')} className="text-gray-400 hover:text-secondary transition-colors">
                 <ArrowLeft size={20} />
               </button>
               <div>
@@ -476,7 +476,7 @@ export default function BrokerOnboarding({ userId, userType, onComplete, prefetc
         {/* ── BROKERAGE PROFILE ───────────────────────────────────────── */}
         {step === 'brokerage_profile' && (
           <BrokerageProfileStep
-            onBack={markDone}
+            onBack={() => setStep('welcome')}
             onDone={() => setStep('listings_choice')}
             initialProfile={profileData}
             loadingInitial={loadingProfile}
