@@ -1063,21 +1063,32 @@ def get_recently_deleted(
     db: Session = Depends(get_db),
 ):
     from datetime import timedelta
+    from sqlalchemy import or_
     cutoff = datetime.utcnow() - timedelta(days=SOFT_DELETE_RETENTION_DAYS)
+    # Match listings where deleted_at is set and within retention window,
+    # OR where status='deleted' but deleted_at was never stamped (older deletes).
+    deleted_filter = or_(
+        Listing.deleted_at.isnot(None) if _has_listing_column("deleted_at") else False,
+        Listing.status == "deleted",
+    )
+    cutoff_filter = or_(
+        Listing.deleted_at >= cutoff if _has_listing_column("deleted_at") else False,
+        Listing.deleted_at.is_(None) if _has_listing_column("deleted_at") else True,
+    )
     if current_user.user_type in ("dealer", "admin"):
         team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
         query = db.query(Listing).filter(
             Listing.user_id.in_([current_user.id] + team_ids),
-            Listing.deleted_at.isnot(None),
-            Listing.deleted_at >= cutoff,
+            deleted_filter,
+            cutoff_filter,
         )
     else:
         query = db.query(Listing).filter(
             Listing.user_id == current_user.id,
-            Listing.deleted_at.isnot(None),
-            Listing.deleted_at >= cutoff,
+            deleted_filter,
+            cutoff_filter,
         )
-    listings = query.order_by(Listing.deleted_at.desc()).all()
+    listings = query.order_by(Listing.updated_at.desc()).all()
     listing_ids = [l.id for l in listings]
     media_map = _get_primary_images_for_listings(db, listing_ids)
     now = datetime.utcnow()
@@ -1093,7 +1104,10 @@ def get_recently_deleted(
             "city": l.city,
             "state": l.state,
             "deleted_at": l.deleted_at.isoformat() if l.deleted_at else None,
-            "days_until_permanent_delete": max(0, SOFT_DELETE_RETENTION_DAYS - (now - l.deleted_at).days),
+            "days_until_permanent_delete": (
+                max(0, SOFT_DELETE_RETENTION_DAYS - (now - l.deleted_at).days)
+                if l.deleted_at else SOFT_DELETE_RETENTION_DAYS
+            ),
             "images": (
                 media_map.get(l.id, [])
                 or [{"url": img.url} for img in l.images[:1]]

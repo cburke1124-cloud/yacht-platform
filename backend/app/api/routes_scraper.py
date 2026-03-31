@@ -178,19 +178,50 @@ def _claude_extract_if_available(text: str) -> Optional[dict]:
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
     if not api_key:
         return None
-    prompt = f"""Extract yacht listing fields from this text and return JSON only.
+    prompt = f"""Extract yacht listing fields from the text below and return a single JSON object — no markdown, no explanation, only raw JSON.
+
 Text:
 {text[:12000]}
 
-Fields: title, make, model, year, price, length_feet, beam_feet, draft_feet,
-cabins, berths, heads, engine_count, engine_hours,
-fuel_type, fuel_capacity_gallons, water_capacity_gallons, max_speed_knots, cruising_speed_knots,
-city, state, country, hull_material, hull_type, feature_bullets (array), features (string)"""
+Return exactly these fields (use null for unknowns):
+- title (string)
+- make (string)
+- model (string)
+- year (integer)
+- price (number, no currency symbol)
+- length_feet (number)
+- beam_feet (number)
+- draft_feet (number)
+- cabins (integer)
+- berths (integer)
+- heads (integer)
+- engine_count (integer — total number of main propulsion engines)
+- engine_hours (number — hours on primary engine, if stated)
+- fuel_type ("Diesel" | "Gasoline" | "Electric" | "Hybrid" | null)
+- fuel_capacity_gallons (number)
+- water_capacity_gallons (number)
+- max_speed_knots (number)
+- cruising_speed_knots (number)
+- city (string)
+- state (string)
+- country (string)
+- boat_type — MUST be one of exactly: "Motor Yacht", "Sailing Yacht", "Catamaran", "Center Console", "Sport Fisher", "Trawler", "Express Cruiser", "Mega Yacht", "Pontoon", "Bowrider", "Cuddy Cabin", "Walkaround", "Convertible", "Pilothouse", or null
+- hull_material — MUST be one of exactly: "Fiberglass", "Aluminum", "Steel", "Wood", "Composite", "Carbon Fiber", "Ferro-Cement", or null
+- hull_type — the hull SHAPE, MUST be one of exactly: "Monohull", "Catamaran", "Trimaran", "Planing", "Displacement", "Semi-Displacement", or null
+- feature_bullets (array of up to 10 short feature strings, each under 80 chars)
+- features (long-form features paragraph or null)
+- description (full listing description or null)
+- additional_engines: array of objects for engines 2, 3, 4 (NOT the primary engine). Each object: {{"make": string|null, "model": string|null, "type": string|null, "horsepower": number|null, "hours": number|null, "notes": string|null}}. Empty array [] if single engine or no info.
+- generators: array of generator objects found in the listing. Each: {{"brand": string|null, "model": string|null, "kw": number|null, "hours": number|null, "notes": string|null}}. Empty array [] if none.
+
+For boat_type: infer from context — e.g. "triple Yamaha outboards" + fishing mentions = "Sport Fisher"; trawler mentions = "Trawler"; sailing/sloop/ketch = "Sailing Yacht"; catamaran = "Catamaran".
+For hull_material: most production boats are Fiberglass unless text says otherwise.
+For hull_type: Catamaran if catamaran, Displacement if slow trawler/sailboat, Planing if fast powerboat, Monohull if monohull sailboat, else null."""
     try:
         response = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-sonnet-4-20250514", "max_tokens": 1200,
+            json={"model": "claude-sonnet-4-20250514", "max_tokens": 2500,
                   "messages": [{"role": "user", "content": prompt}]},
             timeout=25,
         )
