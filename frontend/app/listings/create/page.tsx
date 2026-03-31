@@ -85,6 +85,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [showLibraryPicker, setShowLibraryPicker] = useState(false);
   const [activeTab, setActiveTab]       = useState<Tab>('basic');
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [importText, setImportText] = useState('');
   const [importBusy, setImportBusy] = useState(false);
   const [showScraperModal, setShowScraperModal] = useState(false);
@@ -723,17 +724,17 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           merged = inferMissingFields(merged);
 
           // Populate extra engines/generators from AI response
-          if (ai.additional_engines?.length) {
+      if (ai.additional_engines?.length) {
             merged.additional_engines = ai.additional_engines.map((e: any) => ({
               make: e.make || '', model: e.model || '', type: e.type || '',
               hours: e.hours != null ? String(e.hours) : '',
               horsepower: e.horsepower != null ? String(e.horsepower) : '',
               notes: e.notes || '',
             }));
-          } else if (ai.engine_count && Number(ai.engine_count) > 1 && !form.additional_engines.length) {
-            // AI says twin/triple engines but gave no detail — pre-populate blank slots
-            const extras = Number(ai.engine_count) - 1;
-            merged.additional_engines = Array.from({ length: Math.min(extras, 3) }, () => ({
+          } else if (ai.engine_count && Number(ai.engine_count) > 0 && !form.additional_engines.length) {
+            // AI returned engine count but no detail — pre-populate blank slots for all engines
+            const count = Math.min(Number(ai.engine_count), 4);
+            merged.additional_engines = Array.from({ length: count }, () => ({
               make: '', model: '', type: '', hours: '', horsepower: '', notes: '',
             }));
           }
@@ -805,9 +806,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           horsepower: e.horsepower != null ? String(e.horsepower) : '',
           notes: e.notes || '',
         }));
-      } else if (inferred.engine_count && Number(inferred.engine_count) > 1 && !p.additional_engines.length) {
-        const extras = Number(inferred.engine_count) - 1;
-        next.additional_engines = Array.from({ length: Math.min(extras, 3) }, () => ({
+      } else if (inferred.engine_count && Number(inferred.engine_count) > 0 && !p.additional_engines.length) {
+        // AI returned engine count but no detail — pre-populate blank slots for all engines
+        const count = Math.min(Number(inferred.engine_count), 4);
+        next.additional_engines = Array.from({ length: count }, () => ({
           make: '', model: '', type: '', hours: '', horsepower: '', notes: '',
         }));
       }
@@ -923,6 +925,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       }
       if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey);
       setAutosaveState('saved');
+      setLastSavedAt(new Date());
       window.setTimeout(() => setAutosaveState('idle'), 2000);
     } catch {
       setAutosaveState('idle');
@@ -1032,6 +1035,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         router.push(`/dealer/listings/${resolvedId}/edit`);
       } else {
         setAutosaveState('saved');
+        setLastSavedAt(new Date());
         window.setTimeout(() => setAutosaveState('idle'), 2000);
       }
     } catch (err: any) {
@@ -1244,7 +1248,13 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           </div>
           <div className="flex items-center justify-between mb-6 text-xs" style={{ color: 'rgba(16,33,79,0.6)' }}>
             <span>
-              {autosaveState === 'saving' ? 'Saving…' : autosaveState === 'saved' ? 'Draft saved ✓' : form.title.trim() ? 'Unsaved changes' : 'Start typing to autosave'}
+              {autosaveState === 'saving'
+                ? 'Saving…'
+                : autosaveState === 'saved'
+                  ? 'Draft saved ✓'
+                  : lastSavedAt
+                    ? `Last saved at ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : form.title.trim() ? 'Unsaved changes' : 'Start typing to autosave'}
             </span>
             <button type="button" onClick={saveAsDraft} disabled={autosaveState === 'saving'} className="px-3 py-1.5 rounded-md text-white disabled:opacity-60" style={{ background: '#10214F' }}>
               {autosaveState === 'saving' ? 'Saving…' : 'Save Draft'}

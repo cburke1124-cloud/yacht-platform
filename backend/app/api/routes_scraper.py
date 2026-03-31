@@ -211,7 +211,7 @@ Return exactly these fields (use null for unknowns):
 - feature_bullets (array of up to 10 short feature strings, each under 80 chars)
 - features (long-form features paragraph or null)
 - description (full listing description or null)
-- additional_engines: array of objects for engines 2, 3, 4 (NOT the primary engine). Each object: {{"make": string|null, "model": string|null, "type": string|null, "horsepower": number|null, "hours": number|null, "notes": string|null}}. Empty array [] if single engine or no info.
+- additional_engines: array of objects describing ALL main propulsion engines (one entry per engine, so twin engines = 2 entries, triple = 3, etc.). Each object: {"make": string|null, "model": string|null, "type": string|null, "horsepower": number|null, "hours": number|null, "notes": string|null}. Empty array [] only if truly no engine info at all.
 - generators: array of generator objects found in the listing. Each: {{"brand": string|null, "model": string|null, "kw": number|null, "hours": number|null, "notes": string|null}}. Empty array [] if none.
 
 For boat_type: infer from context — e.g. "triple Yamaha outboards" + fishing mentions = "Sport Fisher"; trawler mentions = "Trawler"; sailing/sloop/ketch = "Sailing Yacht"; catamaran = "Catamaran".
