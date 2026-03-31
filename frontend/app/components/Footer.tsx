@@ -18,7 +18,7 @@ export default function Footer() {
   const socialLinks = [
     { href: 'https://www.facebook.com/profile.php?id=61579522401665', icon: Facebook, label: 'Facebook' },
     { href: 'https://www.instagram.com/yachtversal/', icon: Instagram, label: 'Instagram' },
-    { href: 'https://www.linkedin.com/company/112766298/admin/dashboard/', icon: Linkedin, label: 'LinkedIn' },
+    { href: 'https://www.linkedin.com/company/112766298/', icon: Linkedin, label: 'LinkedIn' },
   ];
 
   return (
