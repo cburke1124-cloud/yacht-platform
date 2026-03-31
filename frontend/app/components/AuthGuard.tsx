@@ -22,7 +22,18 @@ export default function AuthGuard() {
         // Only redirect if the user was authenticated — avoids interfering
         // with public pages where a 401 is a normal "not logged in" response.
         if (token) {
-          const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url ?? '';
+          let url = '';
+          try {
+            if (typeof args[0] === 'string') {
+              url = args[0];
+            } else if (args[0] instanceof URL) {
+              url = args[0].href;
+            } else if (args[0] instanceof Request) {
+              url = args[0].url;
+            }
+          } catch (_) {
+            url = '';
+          }
           const isAuthEndpoint = /\/(auth\/login|auth\/register|auth\/forgot-password|auth\/reset-password|2fa\/complete-login)/.test(url);
           if (!isAuthEndpoint) {
             localStorage.removeItem('token');

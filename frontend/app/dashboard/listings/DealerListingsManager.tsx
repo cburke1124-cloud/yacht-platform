@@ -381,6 +381,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
 
     setDeletingId(listingId);
     const deleteUrl = apiUrl(`/listings/${listingId}`);
+    console.log(`[DELETE] Attempting delete for listing ${listingId} at ${deleteUrl}`);
 
     try {
       const token = localStorage.getItem('token');
@@ -395,9 +396,13 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      console.log(`[DELETE] Response status: ${response.status} for listing ${listingId}`);
+
       const body = await response.json().catch(() => ({}));
+      console.log(`[DELETE] Response body:`, body);
 
       if (response.ok) {
+        console.log(`[DELETE] Success — removing listing ${listingId} from UI`);
         // Remove from list immediately
         setListings(prev => prev.filter(l => l.id !== listingId));
         showToast('success', 'Listing moved to Recently Deleted. You can restore it within 30 days.');
@@ -405,10 +410,13 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         fetchDeletedListings();
       } else {
         // Hard-to-miss alert so we can diagnose the exact error
-        alert(`DELETE failed — HTTP ${response.status}\n\n${JSON.stringify(body, null, 2)}`);
+        console.error(`[DELETE] Failed — HTTP ${response.status}`, body);
+        alert(`DELETE failed — HTTP ${response.status}\n\n${JSON.stringify(body, null, 2)}\n\nCheck the browser Console for more details.`);
         showToast('error', body.detail || body.error || `Delete failed (HTTP ${response.status}). Please try again.`);
       }
     } catch (error) {
+      console.error(`[DELETE] Exception thrown:`, error);
+      alert(`DELETE threw an exception: ${error instanceof Error ? error.message : String(error)}\n\nCheck the browser Console for more details.`);
       showToast('error', 'Network error — could not delete the listing. Please try again.');
     } finally {
       setDeletingId(null);
