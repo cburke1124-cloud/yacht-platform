@@ -829,14 +829,14 @@ export default function ListingDetailPage() {
 
         {/* ══ PHOTO STRIP: single row of thumbnails ═══════════════════════ */}
         {galleryItems.length > 1 && (
-          <div className="flex gap-3 mb-12 overflow-hidden">
+          <div className="flex justify-center gap-3 mb-12 overflow-hidden">
             {galleryItems.slice(1, 5).map((item, idx) => {
               const isLast = idx === 3;
               const remaining = Math.max(galleryItems.length - 5, 0);
               return (
                 <button key={item.id} type="button"
-                  className="relative flex-1 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
-                  style={{ height: 160 }}
+                  className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                  style={{ height: 160, width: 'calc(25% - 9px)' }}
                   onClick={() => {
                     if (item.file_type === 'image') {
                       const i = imageLightboxItems.findIndex(x => x.id === item.id);
