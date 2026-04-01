@@ -348,12 +348,12 @@ function AISearchBox() {
             lineHeight: '24px',
             fontWeight: 500,
             borderRadius: 999,
-            width: 121,
+            width: 155,
             height: 56,
             flexShrink: 0,
           }}
         >
-          Search
+          Quick Search
         </button>
       </form>
 
@@ -521,7 +521,7 @@ export default function HomePage() {
       </section>
 
       {/* FEATURED LISTINGS */}
-      <section style={{ backgroundColor: '#10214F', paddingTop: 100, paddingBottom: 100 }}>
+      <section style={{ backgroundColor: '#10214F', paddingTop: 40, paddingBottom: 100 }}>
         <div
           className="mx-auto"
           style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
@@ -532,8 +532,8 @@ export default function HomePage() {
               style={{
                 color: '#FFFFFF',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 40,
-                lineHeight: '48px',
+                fontSize: 32,
+                lineHeight: '40px',
                 fontWeight: 400,
               }}
             >
