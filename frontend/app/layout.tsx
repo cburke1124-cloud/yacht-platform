@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import Navbar from "./components/Navbar";
@@ -42,6 +43,12 @@ export default function RootLayout({
         </LayoutShell>
         <CookieConsentBanner />
         <AuthGuard />
+        <Script 
+          src="https://widgets.leadconnectorhq.com/loader.js"
+          strategy="afterInteractive"
+          data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"
+          data-widget-id="69cd7a636925f04180877cc6"
+        />
       </body>
     </html>
   );
