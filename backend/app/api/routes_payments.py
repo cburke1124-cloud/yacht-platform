@@ -17,6 +17,7 @@ STRIPE_PRICES_REVERSE: dict[str, str] = {v: k for k, v in STRIPE_PRICES.items()}
 from app.services.notification_service import notification_service
 from app.exceptions import ValidationException, ResourceNotFoundException, ExternalServiceException
 from app.core.config import settings
+from app.models.partner_growth import PartnerOffer
 
 import logging
 logger = logging.getLogger(__name__)
@@ -108,6 +109,29 @@ PRIVATE_SELLER_PLANS = [
         ],
     },
 ]
+
+
+# ==================== PUBLIC OFFER LOOKUP ====================
+
+@router.get("/offers/by-coupon/{coupon_id}")
+def get_offer_by_coupon(coupon_id: str, db: Session = Depends(get_db)):
+    """Public endpoint — returns the first active offer matching this coupon ID.
+    Used by the registration page to display promo banner + adjusted pricing.
+    No auth required since coupon IDs are distributed publicly.
+    """
+    offer = (
+        db.query(PartnerOffer)
+        .filter(PartnerOffer.coupon_id == coupon_id, PartnerOffer.active == True)
+        .order_by(PartnerOffer.sort_order)
+        .first()
+    )
+    if not offer:
+        raise ResourceNotFoundException("Offer", coupon_id)
+    return {
+        "name": offer.name,
+        "terms_summary": offer.terms_summary,
+        "description": offer.description,
+    }
 
 
 # ==================== CHECKOUT SESSION ====================

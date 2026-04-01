@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Check, Loader2, ChevronLeft } from 'lucide-react';
+import { Check, Loader2, ChevronLeft, Tag } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 // --- Fallback broker tiers ---
@@ -86,6 +86,7 @@ function RegisterContent() {
 
   const [liveBrokerTiers, setLiveBrokerTiers] = useState<Record<string, any>>(BROKER_TIERS);
   const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
+  const [offerDetails, setOfferDetails] = useState<{ name: string; terms_summary: string | null; description: string | null } | null>(null);
 
   useEffect(() => {
     // Wake the backend (Render free tier spins down) before fetching tiers
@@ -125,6 +126,13 @@ function RegisterContent() {
         deal_code: deal || prev.deal_code,
         coupon_id: coupon || prev.coupon_id,
       }));
+    }
+
+    if (coupon) {
+      fetch(apiUrl(`/offers/by-coupon/${encodeURIComponent(coupon)}`), { cache: 'no-store' })
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => { if (d) setOfferDetails(d); })
+        .catch(() => {});
     }
 
     if (userType === 'buyer') {
@@ -256,6 +264,23 @@ function RegisterContent() {
             <h2 className="text-2xl font-semibold text-secondary">Choose Your Plan</h2>
             <p className="mt-2 text-dark/70">Cancel anytime. No commission on sales.</p>
           </div>
+
+          {/* Promo Banner — only shown when a coupon URL param is present */}
+          {offerDetails && (
+            <div className="mb-8 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+              <Tag size={18} className="text-green-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-green-800">Special offer applied: {offerDetails.name}</p>
+                {offerDetails.terms_summary && (
+                  <p className="text-sm text-green-700 mt-0.5">{offerDetails.terms_summary}</p>
+                )}
+                {offerDetails.description && (
+                  <p className="text-xs text-green-600 mt-0.5">{offerDetails.description}</p>
+                )}
+                <p className="text-xs text-green-600 mt-1">Your discount will be applied automatically at checkout.</p>
+              </div>
+            </div>
+          )}
 
           {/* Yacht Broker tiers */}
           <div className="mb-8">
@@ -400,8 +425,12 @@ function RegisterContent() {
           {selectedTierInfo && !isBuyer && (
             <p className="mt-3">
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-secondary rounded-full text-sm font-medium">
-                {selectedTierInfo.name} Plan - ${selectedTierInfo.price}/month
-                <span className="text-xs text-dark/50">payment via Stripe</span>
+                {selectedTierInfo.name} Plan
+                {offerDetails ? (
+                  <span className="text-green-700 font-semibold">{offerDetails.terms_summary || offerDetails.name}</span>
+                ) : (
+                  <>${selectedTierInfo.price}/month<span className="text-xs text-dark/50">payment via Stripe</span></>
+                )}
               </span>
             </p>
           )}
@@ -413,6 +442,20 @@ function RegisterContent() {
               <p className="text-sm text-yellow-800">
                 <strong>Payment was cancelled.</strong> Your account has been created - complete payment from your dashboard at any time.
               </p>
+            </div>
+          )}
+
+          {/* Promo Banner — only shown when a coupon URL param is present */}
+          {offerDetails && (
+            <div className="mb-6 flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
+              <Tag size={18} className="text-green-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-green-800">Special offer applied: {offerDetails.name}</p>
+                {offerDetails.terms_summary && (
+                  <p className="text-sm text-green-700 mt-0.5">{offerDetails.terms_summary}</p>
+                )}
+                <p className="text-xs text-green-600 mt-1">Your discount will be applied automatically at checkout.</p>
+              </div>
             </div>
           )}
 
@@ -527,11 +570,24 @@ function RegisterContent() {
             {!isBuyer && selectedTierInfo && (
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
                 <p className="font-medium mb-1">Secure payment via Stripe</p>
-                <p className="text-blue-600">
-                  After creating your account you will be taken to Stripe checkout to complete your{' '}
-                  <strong>{selectedTierInfo.name}</strong> subscription (${selectedTierInfo.price}/month).
-                  Cancel anytime from your dashboard.
-                </p>
+                {offerDetails ? (
+                  <>
+                    <p className="text-blue-600">
+                      After creating your account you will be taken to Stripe checkout for your{' '}
+                      <strong>{selectedTierInfo.name}</strong> subscription.
+                    </p>
+                    <p className="mt-1.5 font-semibold text-green-700">
+                      🎉 {offerDetails.terms_summary || offerDetails.name} — discount applied automatically.
+                    </p>
+                    <p className="mt-1 text-blue-500 text-xs">Then ${selectedTierInfo.price}/month. Cancel anytime from your dashboard.</p>
+                  </>
+                ) : (
+                  <p className="text-blue-600">
+                    After creating your account you will be taken to Stripe checkout to complete your{' '}
+                    <strong>{selectedTierInfo.name}</strong> subscription (${selectedTierInfo.price}/month).
+                    Cancel anytime from your dashboard.
+                  </p>
+                )}
               </div>
             )}
 
