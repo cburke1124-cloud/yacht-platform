@@ -10,7 +10,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing
 from app.models.dealer import DealerProfile
-from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
+from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup, PartnerOffer
 from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
 from app.security.auth import get_password_hash, pwd_context
@@ -306,6 +306,35 @@ def create_sales_rep_deal(
         "code": deal.code,
         "message": "Deal created",
     }
+
+
+@router.get("/offers")
+def get_offers_sales_rep(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return all active promotional offers for sales reps to share."""
+    if current_user.user_type not in ("salesman", "admin"):
+        raise AuthorizationException("Sales rep or admin access required")
+
+    offers = (
+        db.query(PartnerOffer)
+        .filter(PartnerOffer.active == True)
+        .order_by(PartnerOffer.sort_order, PartnerOffer.created_at)
+        .all()
+    )
+    return [
+        {
+            "id": o.id,
+            "name": o.name,
+            "description": o.description,
+            "terms_summary": o.terms_summary,
+            "stripe_payment_link_url": o.stripe_payment_link_url,
+            "tier": o.tier,
+            "sort_order": o.sort_order,
+        }
+        for o in offers
+    ]
 
 
 @router.get("/{sales_rep_id}/profile")

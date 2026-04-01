@@ -55,6 +55,16 @@ interface SalesDeal {
   usage_count: number;
 }
 
+interface PartnerOffer {
+  id: number;
+  name: string;
+  description: string | null;
+  terms_summary: string | null;
+  stripe_payment_link_url: string;
+  tier: string | null;
+  sort_order: number;
+}
+
 interface DocItem {
   id: number;
   slug: string;
@@ -127,6 +137,8 @@ export default function SalesRepDashboard() {
   const [loading, setLoading]               = useState(true);
   const [selectedDealer, setSelectedDealer] = useState<DealerStats | null>(null);
   const [deals, setDeals]                   = useState<SalesDeal[]>([]);
+  const [offers, setOffers]                 = useState<PartnerOffer[]>([]);
+  const [offersLoading, setOffersLoading]   = useState(false);
   const [docs, setDocs]                     = useState<DocItem[]>([]);
   const [activeDoc, setActiveDoc]           = useState<DocItem | null>(null);
   const [demo, setDemo]                     = useState<DemoAccount | null>(null);
@@ -175,6 +187,14 @@ export default function SalesRepDashboard() {
     } catch (e) { console.error('Failed to fetch deals:', e); }
   };
 
+  const fetchOffers = async (token: string) => {
+    setOffersLoading(true);
+    try {
+      const r = await fetch(apiUrl('/sales-rep/offers'), { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) { const d = await r.json(); setOffers(Array.isArray(d) ? d : []); }
+    } catch (e) { console.error('Failed to fetch offers:', e); } finally { setOffersLoading(false); }
+  };
+
   const fetchDocs = async (token: string) => {
     try {
       const r = await fetch(apiUrl('/sales-rep/docs'), { headers: { Authorization: `Bearer ${token}` } });
@@ -206,7 +226,7 @@ export default function SalesRepDashboard() {
       if (userData.user_type !== 'salesman') { alert('Sales rep access required'); router.push('/'); return; }
       setUser(userData);
       await Promise.all([
-        fetchAnalytics(token), fetchDeals(token),
+        fetchAnalytics(token), fetchDeals(token), fetchOffers(token),
         fetchDocs(token), fetchDemo(token), fetchTiers(token),
       ]);
     } catch (e) { console.error('Auth check failed:', e); localStorage.removeItem('token'); router.push('/login'); }
@@ -486,6 +506,58 @@ export default function SalesRepDashboard() {
         <button onClick={() => copyToClipboard(affiliateLink, 'ref')} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1"><Copy size={12} /> Copy</button>
       </div>
     </div>
+
+    {/* Pre-Made Offers */}
+    {(offersLoading || offers.length > 0) && (
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mb-6">
+        <div className="p-5 border-b flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-secondary">Pre-Made Offers</h3>
+            <p className="text-xs text-dark/50 mt-0.5">Admin-created Stripe Payment Links you can share directly with prospects.</p>
+          </div>
+        </div>
+        {offersLoading ? (
+          <div className="px-5 py-8 text-center text-dark/40 text-sm">Loading offers...</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {offers.map((offer) => (
+              <div key={offer.id} className="px-5 py-4 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-secondary">{offer.name}</span>
+                    {offer.tier && (
+                      <span className={`px-2 py-0.5 text-xs rounded-full border capitalize ${
+                        TIER_ACCENT[offer.tier] || 'bg-gray-50 text-gray-600 border-gray-200'
+                      }`}>{offer.tier}</span>
+                    )}
+                  </div>
+                  {offer.terms_summary && <p className="text-sm text-dark/70 mt-0.5">{offer.terms_summary}</p>}
+                  {offer.description && <p className="text-xs text-dark/50 mt-0.5">{offer.description}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={offer.stripe_payment_link_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-400 hover:text-primary"
+                    title="Open link"
+                  >
+                    <ExternalLink size={15} />
+                  </a>
+                  <button
+                    onClick={() => copyToClipboard(offer.stripe_payment_link_url, `offer-${offer.id}`)}
+                    className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 flex items-center gap-1"
+                  >
+                    <Copy size={12} />
+                    {copiedText === `offer-${offer.id}` ? 'Copied!' : 'Copy Link'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
 
     {/* Deals Table */}
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">

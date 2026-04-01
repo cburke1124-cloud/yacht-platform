@@ -23,6 +23,7 @@ from app.models.listing import Listing
 from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.partner_growth import PartnerDeal
+from app.models.partner_growth import PartnerOffer
 from app.models.misc import SiteSettings
 from app.exceptions import (
     AuthorizationException,
@@ -2882,6 +2883,135 @@ def update_deal_admin(
     db.refresh(deal)
     
     return {"success": True, "deal_id": deal.id, "message": "Deal updated"}
+
+
+# ---------------------------------------------------------------------------
+# Partner Offers — pre-created Stripe Payment Link offers for sales reps
+# ---------------------------------------------------------------------------
+
+# Stripe Price IDs per tier (set once, never change unless prices are archived)
+_TIER_PRICE_IDS: dict[str, str] = {
+    "private_basic": "price_1TCAZnL4JS1hgLQ47vqo1cxG",
+    "basic":         "price_1TC5gGL4JS1hgLQ4JyJFBqeW",
+    "plus":          "price_1TC5gUL4JS1hgLQ4Hz3mYvu4",
+    "pro":           "price_1TC5ggL4JS1hgLQ49EwDBFKg",
+}
+
+@router.get("/offers")
+def list_offers_admin(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """List all partner offers (active and inactive)."""
+    offers = db.query(PartnerOffer).order_by(PartnerOffer.sort_order, PartnerOffer.created_at).all()
+    return [
+        {
+            "id": o.id,
+            "name": o.name,
+            "description": o.description,
+            "terms_summary": o.terms_summary,
+            "stripe_payment_link_url": o.stripe_payment_link_url,
+            "tier": o.tier,
+            "sort_order": o.sort_order,
+            "active": o.active,
+            "created_by": o.created_by,
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+        }
+        for o in offers
+    ]
+
+
+@router.post("/offers")
+def create_offer_admin(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Create a pre-made promotional offer, optionally generating a Stripe Payment Link."""
+    name = (data.get("name") or "").strip()
+    if not name:
+        raise ValidationException("Offer name is required")
+
+    url = ""
+    if data.get("generate_stripe_link"):
+        tier = (data.get("tier") or "").strip().lower()
+        if not tier or tier not in _TIER_PRICE_IDS:
+            raise ValidationException(
+                f"Valid tier required to auto-generate link. Options: {', '.join(_TIER_PRICE_IDS)}"
+            )
+        coupon_id = (data.get("coupon_id") or "").strip()
+        if not coupon_id:
+            raise ValidationException("Coupon ID is required to generate a Stripe link")
+        price_id = _TIER_PRICE_IDS[tier]
+        from app.core.config import settings
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        try:
+            payment_link = stripe.PaymentLink.create(
+                line_items=[{"price": price_id, "quantity": 1}],
+                discounts=[{"coupon": coupon_id}],
+            )
+            url = payment_link.url
+        except stripe.error.StripeError as e:
+            raise ValidationException(f"Stripe error: {str(e)}")
+    else:
+        url = (data.get("stripe_payment_link_url") or "").strip()
+        if not url:
+            raise ValidationException("Stripe Payment Link URL is required")
+
+    offer = PartnerOffer(
+        name=name,
+        description=(data.get("description") or "").strip() or None,
+        terms_summary=(data.get("terms_summary") or "").strip() or None,
+        stripe_payment_link_url=url,
+        tier=(data.get("tier") or "").strip() or None,
+        sort_order=int(data.get("sort_order") or 0),
+        active=bool(data.get("active", True)),
+        created_by=current_user.id,
+    )
+    db.add(offer)
+    db.commit()
+    db.refresh(offer)
+
+    return {"success": True, "id": offer.id, "message": "Offer created successfully"}
+
+
+@router.put("/offers/{offer_id}")
+def update_offer_admin(
+    offer_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update a promotional offer."""
+    offer = db.query(PartnerOffer).filter(PartnerOffer.id == offer_id).first()
+    if not offer:
+        raise ResourceNotFoundException("Offer", offer_id)
+
+    for field in ["name", "description", "terms_summary", "stripe_payment_link_url", "tier", "active"]:
+        if field in data:
+            setattr(offer, field, data[field])
+    if "sort_order" in data:
+        offer.sort_order = int(data["sort_order"] or 0)
+
+    db.commit()
+    db.refresh(offer)
+    return {"success": True, "id": offer.id, "message": "Offer updated"}
+
+
+@router.delete("/offers/{offer_id}")
+def delete_offer_admin(
+    offer_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a promotional offer."""
+    offer = db.query(PartnerOffer).filter(PartnerOffer.id == offer_id).first()
+    if not offer:
+        raise ResourceNotFoundException("Offer", offer_id)
+
+    db.delete(offer)
+    db.commit()
+    return {"success": True, "message": "Offer deleted"}
 
 
 @router.post("/register-broker")

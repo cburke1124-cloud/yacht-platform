@@ -53,6 +53,24 @@ class PartnerDeal(Base):
     affiliate_account = relationship("AffiliateAccount", foreign_keys=[affiliate_account_id])
 
 
+class PartnerOffer(Base):
+    """Pre-created promotional offers admin creates; sales reps share the URLs."""
+    __tablename__ = "partner_offers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    terms_summary = Column(String, nullable=True)       # e.g. "30 days free, then $199/mo"
+    stripe_payment_link_url = Column(String, nullable=False)
+    tier = Column(String(32), nullable=True)             # basic | plus | pro
+    sort_order = Column(Integer, default=0)
+    active = Column(Boolean, default=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    creator_user = relationship("User", foreign_keys=[created_by])
+
+
 class ReferralSignup(Base):
     __tablename__ = "referral_signups"
 

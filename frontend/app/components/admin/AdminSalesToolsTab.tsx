@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Tag, UserPlus, DollarSign, Percent, Calendar, Check, X, Copy, RefreshCw, Briefcase, Plus } from 'lucide-react';
+import { Tag, UserPlus, DollarSign, Check, X, Copy, RefreshCw, Plus, ExternalLink, Link2, Pencil, Trash2, Gift } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface SalesRep {
@@ -29,6 +29,30 @@ interface Deal {
   end_date?: string;
 }
 
+interface PartnerOffer {
+  id: number;
+  name: string;
+  description: string | null;
+  terms_summary: string | null;
+  stripe_payment_link_url: string;
+  tier: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string | null;
+}
+
+interface OfferForm {
+  name: string;
+  description: string;
+  terms_summary: string;
+  stripe_payment_link_url: string;
+  tier: string;
+  sort_order: string;
+  active: boolean;
+  generate_stripe_link: boolean;
+  coupon_id: string;
+}
+
 interface BrokerForm {
   email: string;
   first_name: string;
@@ -41,8 +65,23 @@ interface BrokerForm {
   always_free: boolean;
 }
 
+const STRIPE_COUPON_ID = 'mFbVt7bD';
+const STRIPE_COUPON_LABEL = '4 months free';
+
+const BLANK_OFFER_FORM: OfferForm = {
+  name: '',
+  description: '',
+  terms_summary: '',
+  stripe_payment_link_url: '',
+  tier: '',
+  sort_order: '0',
+  active: true,
+  generate_stripe_link: true,
+  coupon_id: STRIPE_COUPON_ID,
+};
+
 export default function AdminSalesToolsTab() {
-  const [activeTab, setActiveTab] = useState<'marketing' | 'registration'>('marketing');
+  const [activeTab, setActiveTab] = useState<'marketing' | 'registration' | 'offers'>('marketing');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
@@ -69,6 +108,14 @@ export default function AdminSalesToolsTab() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendResult, setResendResult] = useState<{ email_sent: boolean; setup_url: string; message: string } | null>(null);
 
+  // Offers State
+  const [offers, setOffers] = useState<PartnerOffer[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<PartnerOffer | null>(null);
+  const [offerForm, setOfferForm] = useState<OfferForm>(BLANK_OFFER_FORM);
+  const [offerSaving, setOfferSaving] = useState(false);
+
   // Deal Form State
   const [showDealModal, setShowDealModal] = useState(false);
   const [dealForm, setDealForm] = useState({
@@ -87,6 +134,7 @@ export default function AdminSalesToolsTab() {
 
   useEffect(() => {
     fetchInitialData();
+    fetchOffers();
   }, []);
 
   useEffect(() => {
@@ -159,6 +207,86 @@ export default function AdminSalesToolsTab() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchOffers = async () => {
+    setOffersLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(apiUrl('/admin/offers'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setOffers(await res.json());
+    } catch (err) {
+      console.error('Failed to fetch offers', err);
+    } finally {
+      setOffersLoading(false);
+    }
+  };
+
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOfferSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Authentication required');
+      const payload = {
+        ...offerForm,
+        sort_order: parseInt(offerForm.sort_order) || 0,
+      };
+      const url = editingOffer
+        ? apiUrl(`/admin/offers/${editingOffer.id}`)
+        : apiUrl('/admin/offers');
+      const res = await fetch(url, {
+        method: editingOffer ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Save failed');
+      }
+      setShowOfferModal(false);
+      setEditingOffer(null);
+      setOfferForm(BLANK_OFFER_FORM);
+      fetchOffers();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setOfferSaving(false);
+    }
+  };
+
+  const handleOfferDelete = async (offerId: number) => {
+    if (!confirm('Delete this offer? Sales reps will lose access to this link.')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/offers/${offerId}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      fetchOffers();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleOfferEdit = (offer: PartnerOffer) => {
+    setEditingOffer(offer);
+    setOfferForm({
+      name: offer.name,
+      description: offer.description ?? '',
+      terms_summary: offer.terms_summary ?? '',
+      stripe_payment_link_url: offer.stripe_payment_link_url,
+      tier: offer.tier ?? '',
+      sort_order: String(offer.sort_order),
+      active: offer.active,
+      generate_stripe_link: false,
+      coupon_id: STRIPE_COUPON_ID,
+    });
+    setShowOfferModal(true);
   };
 
   const fetchDeals = async (token?: string, repId?: string) => {
@@ -354,6 +482,19 @@ export default function AdminSalesToolsTab() {
             Register Broker
           </div>
         </button>
+        <button
+          onClick={() => setActiveTab('offers')}
+          className={`pb-4 px-4 font-medium text-sm transition-colors relative ${
+            activeTab === 'offers'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Gift className="w-4 h-4" />
+            Pre-Made Offers
+          </div>
+        </button>
       </div>
 
       {activeTab === 'marketing' && (
@@ -490,6 +631,108 @@ export default function AdminSalesToolsTab() {
                     </td>
                   </tr>
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'offers' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">Pre-Made Stripe Offers</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Create offers backed by Stripe Payment Links. Sales reps can copy and share these with prospects.</p>
+            </div>
+            <button
+              onClick={() => { setEditingOffer(null); setOfferForm(BLANK_OFFER_FORM); setShowOfferModal(true); }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Offer
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 font-medium text-gray-500">Name</th>
+                  <th className="px-6 py-3 font-medium text-gray-500">Terms</th>
+                  <th className="px-6 py-3 font-medium text-gray-500">Tier</th>
+                  <th className="px-6 py-3 font-medium text-gray-500">Link</th>
+                  <th className="px-6 py-3 font-medium text-gray-500">Status</th>
+                  <th className="px-6 py-3 font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {offersLoading && (
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-400">Loading offers...</td></tr>
+                )}
+                {!offersLoading && offers.length === 0 && (
+                  <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-400">No offers yet. Create your first offer above.</td></tr>
+                )}
+                {offers.map((offer) => (
+                  <tr key={offer.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-3">
+                      <div className="font-medium text-gray-900">{offer.name}</div>
+                      {offer.description && <div className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{offer.description}</div>}
+                    </td>
+                    <td className="px-6 py-3 text-gray-600">
+                      {offer.terms_summary || <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-6 py-3">
+                      {offer.tier ? (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-100 capitalize">{offer.tier}</span>
+                      ) : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={offer.stripe_payment_link_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800"
+                          title="Open link"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <button
+                          onClick={() => copyToClipboard(offer.stripe_payment_link_url)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Copy URL"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3">
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${
+                        offer.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {offer.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOfferEdit(offer)}
+                          className="text-gray-400 hover:text-blue-600"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleOfferDelete(offer.id)}
+                          className="text-gray-400 hover:text-red-600"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -736,6 +979,191 @@ export default function AdminSalesToolsTab() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* OFFER CREATE/EDIT MODAL */}
+      {showOfferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowOfferModal(false); setEditingOffer(null); setOfferForm(BLANK_OFFER_FORM); }} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+              <div className="flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-blue-600" />
+                <h3 className="font-semibold text-gray-900">{editingOffer ? 'Edit Offer' : 'New Pre-Made Offer'}</h3>
+              </div>
+              <button onClick={() => { setShowOfferModal(false); setEditingOffer(null); setOfferForm(BLANK_OFFER_FORM); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleOfferSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Offer Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 4 Months Free — Basic"
+                  value={offerForm.name}
+                  onChange={e => setOfferForm({ ...offerForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+
+              {/* Link source — only shown when creating, not editing */}
+              {!editingOffer && (
+                <div className="border rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setOfferForm({ ...offerForm, generate_stripe_link: true })}
+                    className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center gap-2 transition-colors ${
+                      offerForm.generate_stripe_link ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      offerForm.generate_stripe_link ? 'border-white' : 'border-gray-400'
+                    }`}>
+                      {offerForm.generate_stripe_link && <span className="w-2 h-2 rounded-full bg-white" />}
+                    </span>
+                    Auto-generate Stripe Payment Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOfferForm({ ...offerForm, generate_stripe_link: false })}
+                    className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center gap-2 border-t transition-colors ${
+                      !offerForm.generate_stripe_link ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      !offerForm.generate_stripe_link ? 'border-white' : 'border-gray-400'
+                    }`}>
+                      {!offerForm.generate_stripe_link && <span className="w-2 h-2 rounded-full bg-white" />}
+                    </span>
+                    Paste URL manually
+                  </button>
+                </div>
+              )}
+
+              {/* Auto-generate fields */}
+              {!editingOffer && offerForm.generate_stripe_link && (
+                <div className="space-y-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 uppercase mb-1">Tier *</label>
+                    <select
+                      required={offerForm.generate_stripe_link}
+                      value={offerForm.tier}
+                      onChange={e => setOfferForm({ ...offerForm, tier: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                    >
+                      <option value="">— Select tier —</option>
+                      <option value="private_basic">Private Basic ($9/mo)</option>
+                      <option value="basic">Basic ($199/mo)</option>
+                      <option value="plus">Plus ($299/mo)</option>
+                      <option value="pro">Pro ($499/mo)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 uppercase mb-1">Coupon</label>
+                    <div className="flex items-center gap-2 px-3 py-2 bg-white border rounded-lg text-sm">
+                      <span className="font-mono text-gray-700">{STRIPE_COUPON_ID}</span>
+                      <span className="text-gray-400">—</span>
+                      <span className="text-green-700 font-medium">{STRIPE_COUPON_LABEL}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-blue-700">Stripe will create the payment link automatically when you submit.</p>
+                </div>
+              )}
+
+              {/* Manual URL field (when editing or manual mode) */}
+              {(editingOffer || !offerForm.generate_stripe_link) && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Stripe Payment Link URL *</label>
+                  <input
+                    type="url"
+                    required={!offerForm.generate_stripe_link}
+                    placeholder="https://buy.stripe.com/..."
+                    value={offerForm.stripe_payment_link_url}
+                    onChange={e => setOfferForm({ ...offerForm, stripe_payment_link_url: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
+                  />
+                </div>
+              )}
+
+              {/* Tier selector for manual mode or editing (where it's optional) */}
+              {(!offerForm.generate_stripe_link || editingOffer) && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Tier</label>
+                  <select
+                    value={offerForm.tier}
+                    onChange={e => setOfferForm({ ...offerForm, tier: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                  >
+                    <option value="">— Any —</option>
+                    <option value="private_basic">Private Basic</option>
+                    <option value="basic">Basic</option>
+                    <option value="plus">Plus</option>
+                    <option value="pro">Pro</option>
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Terms Summary</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 4 months free, then $199/mo"
+                  value={offerForm.terms_summary}
+                  onChange={e => setOfferForm({ ...offerForm, terms_summary: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Description (shown to sales reps)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Optional: Additional context for sales reps about when to use this offer"
+                  value={offerForm.description}
+                  onChange={e => setOfferForm({ ...offerForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Sort Order</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={offerForm.sort_order}
+                  onChange={e => setOfferForm({ ...offerForm, sort_order: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm w-32"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="offer-active"
+                  type="checkbox"
+                  checked={offerForm.active}
+                  onChange={e => setOfferForm({ ...offerForm, active: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <label htmlFor="offer-active" className="text-sm text-gray-700">Active (visible to sales reps)</label>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowOfferModal(false); setEditingOffer(null); setOfferForm(BLANK_OFFER_FORM); }}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={offerSaving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {offerSaving ? 'Saving…' : editingOffer ? 'Update Offer' : 'Create Offer'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
