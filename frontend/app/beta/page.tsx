@@ -257,12 +257,12 @@ function AISearchBox() {
         height={900}
         style={{
           position: 'absolute',
-          top: '-10%',
+          top: '20%',
           left: '50%',
           transform: 'translateX(-50%)',
           pointerEvents: 'none',
           userSelect: 'none',
-          opacity: 1,
+          opacity: 0.25,
         }}
       />
 
