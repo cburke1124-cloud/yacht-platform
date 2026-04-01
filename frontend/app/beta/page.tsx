@@ -310,7 +310,7 @@ function AISearchBox() {
           <input
             id="yacht-search"
             type="search"
-            placeholder="Describe your ideal yacht..."
+            placeholder="I want a 70–90 ft yacht for Bahamas cruising under $3M"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full focus:outline-none"
