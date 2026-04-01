@@ -262,7 +262,7 @@ function AISearchBox() {
           transform: 'translateX(-50%)',
           pointerEvents: 'none',
           userSelect: 'none',
-          opacity: 0.12,
+          opacity: 0.35,
         }}
       />
 
