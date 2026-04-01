@@ -250,7 +250,7 @@ function AISearchBox() {
     >
       {/* Logomark watermark */}
       <Image
-        src="/logo/logo-icon.png"
+        src="/logo/wave-only.png"
         alt=""
         aria-hidden={true}
         width={480}
@@ -258,9 +258,9 @@ function AISearchBox() {
         style={{
           position: 'absolute',
           top: '50%',
-          right: '-40px',
-          transform: 'translateY(-50%)',
-          opacity: 0.04,
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          opacity: 0.08,
           pointerEvents: 'none',
           userSelect: 'none',
         }}
@@ -365,7 +365,7 @@ function AISearchBox() {
           fontSize: 16,
           lineHeight: '24px',
           marginTop: 42,
-          opacity: 0.6,
+          opacity: 0.7,
         }}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -516,7 +516,7 @@ export default function HomePage() {
           }}
         >
           <AISearchBox />
-          <SearchBar showAIOption={false} squareTop />
+          <SearchBar showAIOption={false} />
         </div>
       </section>
 
@@ -555,7 +555,7 @@ export default function HomePage() {
                 whiteSpace: 'nowrap',
               }}
             >
-              Search Listings
+              Browse All Listings
             </Link>
           </div>
 
