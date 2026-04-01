@@ -521,16 +521,16 @@ export default function HomePage() {
       </section>
 
       {/* FEATURED LISTINGS */}
-      <section className="bg-white" style={{ paddingTop: 100, paddingBottom: 100 }}>
+      <section style={{ backgroundColor: '#10214F', paddingTop: 100, paddingBottom: 100 }}>
         <div
           className="mx-auto"
           style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
         >
-          <div className="flex items-center justify-between" style={{ marginBottom: 'clamp(32px, 6vw, 116px)' }}>
+          <div className="flex items-center justify-between" style={{ marginBottom: 'clamp(16px, 3vw, 32px)' }}>
             <h2
               className="font-normal"
               style={{
-                color: '#10214F',
+                color: '#FFFFFF',
                 fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
                 fontSize: 40,
                 lineHeight: '48px',
