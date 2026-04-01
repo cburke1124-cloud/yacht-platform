@@ -521,7 +521,7 @@ export default function HomePage() {
       </section>
 
       {/* FEATURED LISTINGS */}
-      <section style={{ backgroundColor: '#10214F', paddingTop: 40, paddingBottom: 100 }}>
+      <section style={{ backgroundColor: '#10214F', marginTop: 60, paddingTop: 40, paddingBottom: 100 }}>
         <div
           className="mx-auto"
           style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
