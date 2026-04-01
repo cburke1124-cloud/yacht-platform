@@ -2927,52 +2927,89 @@ def create_offer_admin(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Create a pre-made promotional offer, optionally generating a Stripe Payment Link."""
+    """Create pre-made promotional offer(s), optionally generating Stripe Payment Links.
+    
+    If generate_stripe_link=true and tier="all", creates one offer per tier automatically.
+    """
     name = (data.get("name") or "").strip()
     if not name:
         raise ValidationException("Offer name is required")
 
-    url = ""
     if data.get("generate_stripe_link"):
-        tier = (data.get("tier") or "").strip().lower()
-        if not tier or tier not in _TIER_PRICE_IDS:
-            raise ValidationException(
-                f"Valid tier required to auto-generate link. Options: {', '.join(_TIER_PRICE_IDS)}"
-            )
         coupon_id = (data.get("coupon_id") or "").strip()
         if not coupon_id:
             raise ValidationException("Coupon ID is required to generate a Stripe link")
-        price_id = _TIER_PRICE_IDS[tier]
         from app.core.config import settings
         stripe.api_key = settings.STRIPE_SECRET_KEY
-        try:
-            payment_link = stripe.PaymentLink.create(
-                line_items=[{"price": price_id, "quantity": 1}],
-                discounts=[{"coupon": coupon_id}],
+
+        tier_input = (data.get("tier") or "").strip().lower()
+
+        # Determine which tiers to generate for
+        if tier_input == "all":
+            tiers_to_create = list(_TIER_PRICE_IDS.keys())
+        elif tier_input and tier_input in _TIER_PRICE_IDS:
+            tiers_to_create = [tier_input]
+        else:
+            raise ValidationException(
+                f"Valid tier required. Options: all, {', '.join(_TIER_PRICE_IDS)}"
             )
-            url = payment_link.url
-        except stripe.error.StripeError as e:
-            raise ValidationException(f"Stripe error: {str(e)}")
+
+        _TIER_LABELS = {
+            "private_basic": "Private Basic",
+            "basic": "Basic",
+            "plus": "Plus",
+            "pro": "Pro",
+        }
+        created_ids = []
+        for tier in tiers_to_create:
+            price_id = _TIER_PRICE_IDS[tier]
+            try:
+                payment_link = stripe.PaymentLink.create(
+                    line_items=[{"price": price_id, "quantity": 1}],
+                    discounts=[{"coupon": coupon_id}],
+                )
+            except stripe.error.StripeError as e:
+                raise ValidationException(f"Stripe error for {tier}: {str(e)}")
+
+            # Use base name for single tier, append tier label for multi
+            offer_name = name if len(tiers_to_create) == 1 else f"{name} — {_TIER_LABELS.get(tier, tier.title())}"
+            offer = PartnerOffer(
+                name=offer_name,
+                description=(data.get("description") or "").strip() or None,
+                terms_summary=(data.get("terms_summary") or "").strip() or None,
+                stripe_payment_link_url=payment_link.url,
+                tier=tier,
+                sort_order=int(data.get("sort_order") or 0),
+                active=bool(data.get("active", True)),
+                created_by=current_user.id,
+            )
+            db.add(offer)
+            db.flush()
+            created_ids.append(offer.id)
+
+        db.commit()
+        count = len(created_ids)
+        return {"success": True, "ids": created_ids, "count": count,
+                "message": f"{count} offer{'s' if count != 1 else ''} created successfully"}
     else:
         url = (data.get("stripe_payment_link_url") or "").strip()
         if not url:
             raise ValidationException("Stripe Payment Link URL is required")
 
-    offer = PartnerOffer(
-        name=name,
-        description=(data.get("description") or "").strip() or None,
-        terms_summary=(data.get("terms_summary") or "").strip() or None,
-        stripe_payment_link_url=url,
-        tier=(data.get("tier") or "").strip() or None,
-        sort_order=int(data.get("sort_order") or 0),
-        active=bool(data.get("active", True)),
-        created_by=current_user.id,
-    )
-    db.add(offer)
-    db.commit()
-    db.refresh(offer)
-
-    return {"success": True, "id": offer.id, "message": "Offer created successfully"}
+        offer = PartnerOffer(
+            name=name,
+            description=(data.get("description") or "").strip() or None,
+            terms_summary=(data.get("terms_summary") or "").strip() or None,
+            stripe_payment_link_url=url,
+            tier=(data.get("tier") or "").strip() or None,
+            sort_order=int(data.get("sort_order") or 0),
+            active=bool(data.get("active", True)),
+            created_by=current_user.id,
+        )
+        db.add(offer)
+        db.commit()
+        db.refresh(offer)
+        return {"success": True, "ids": [offer.id], "count": 1, "message": "Offer created successfully"}
 
 
 @router.put("/offers/{offer_id}")

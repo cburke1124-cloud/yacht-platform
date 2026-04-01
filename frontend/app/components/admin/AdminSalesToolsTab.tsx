@@ -46,7 +46,7 @@ interface OfferForm {
   description: string;
   terms_summary: string;
   stripe_payment_link_url: string;
-  tier: string;
+  tier: string;         // 'all' | 'basic' | 'plus' | 'pro' | 'private_basic' | ''
   sort_order: string;
   active: boolean;
   generate_stripe_link: boolean;
@@ -73,7 +73,7 @@ const BLANK_OFFER_FORM: OfferForm = {
   description: '',
   terms_summary: '',
   stripe_payment_link_url: '',
-  tier: '',
+  tier: 'all',
   sort_order: '0',
   active: true,
   generate_stripe_link: true,
@@ -1015,7 +1015,7 @@ export default function AdminSalesToolsTab() {
                 <div className="border rounded-lg overflow-hidden">
                   <button
                     type="button"
-                    onClick={() => setOfferForm({ ...offerForm, generate_stripe_link: true })}
+                    onClick={() => setOfferForm({ ...offerForm, generate_stripe_link: true, tier: offerForm.tier || 'all' })}
                     className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center gap-2 transition-colors ${
                       offerForm.generate_stripe_link ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                     }`}
@@ -1048,18 +1048,18 @@ export default function AdminSalesToolsTab() {
               {!editingOffer && offerForm.generate_stripe_link && (
                 <div className="space-y-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 uppercase mb-1">Tier *</label>
+                    <label className="block text-xs font-medium text-gray-600 uppercase mb-1">Generate For</label>
                     <select
                       required={offerForm.generate_stripe_link}
                       value={offerForm.tier}
                       onChange={e => setOfferForm({ ...offerForm, tier: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
                     >
-                      <option value="">— Select tier —</option>
-                      <option value="private_basic">Private Basic ($9/mo)</option>
-                      <option value="basic">Basic ($199/mo)</option>
-                      <option value="plus">Plus ($299/mo)</option>
-                      <option value="pro">Pro ($499/mo)</option>
+                      <option value="all">All tiers (creates 4 offers)</option>
+                      <option value="private_basic">Private Basic only ($9/mo)</option>
+                      <option value="basic">Basic only ($199/mo)</option>
+                      <option value="plus">Plus only ($299/mo)</option>
+                      <option value="pro">Pro only ($499/mo)</option>
                     </select>
                   </div>
                   <div>
@@ -1070,7 +1070,11 @@ export default function AdminSalesToolsTab() {
                       <span className="text-green-700 font-medium">{STRIPE_COUPON_LABEL}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-blue-700">Stripe will create the payment link automatically when you submit.</p>
+                  <p className="text-xs text-blue-700">
+                    {offerForm.tier === 'all'
+                      ? 'Stripe will create 4 payment links (one per tier) and save them as separate offers.'
+                      : 'Stripe will create the payment link automatically when you submit.'}
+                  </p>
                 </div>
               )}
 
