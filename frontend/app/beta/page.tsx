@@ -253,14 +253,14 @@ function AISearchBox() {
         src="/logo/wave-only.png"
         alt=""
         aria-hidden={true}
-        width={480}
-        height={480}
+        width={650}
+        height={650}
         style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          opacity: 0.08,
+          opacity: 0.18,
           pointerEvents: 'none',
           userSelect: 'none',
         }}
