@@ -299,6 +299,28 @@ export default function ContactPage() {
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Phone size={18} style={{ color: '#01BBDC' }} />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 2px', fontSize: 12, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone</p>
+                    <a href="tel:401-305-1722" style={{ color: '#10214F', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>
+                      401-305-1722
+                    </a>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <MapPin size={18} style={{ color: '#01BBDC' }} />
+                  </div>
+                  <div>
+                    <p style={{ margin: '0 0 2px', fontSize: 12, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Address</p>
+                    <p style={{ margin: 0, color: '#10214F', fontSize: 15, fontWeight: 500 }}>4132 Colonel Vanderhorst Circle<br />Mount Pleasant, SC 29466<br />United States</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <MapPin size={18} style={{ color: '#01BBDC' }} />
                   </div>
                   <div>
@@ -333,7 +355,7 @@ export default function ContactPage() {
                     fontFamily: 'Poppins, sans-serif',
                   }}
                 >
-                  Get Started Free →
+                  Get Started →
                 </Link>
               </div>
             </div>
