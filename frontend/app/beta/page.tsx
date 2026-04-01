@@ -263,6 +263,7 @@ function AISearchBox() {
           pointerEvents: 'none',
           userSelect: 'none',
           opacity: 0.25,
+          filter: 'invert(1) sepia(40%) hue-rotate(200deg) saturate(200%)',
         }}
       />
 
