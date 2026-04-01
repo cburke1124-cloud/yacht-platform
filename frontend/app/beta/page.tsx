@@ -240,27 +240,27 @@ function AISearchBox() {
 
   return (
     <div
-      className="bg-secondary"
       style={{
-        boxShadow: '0px 1px 10.2px rgba(0,0,0,0.15)',
+        background: '#FFFFFF',
         borderRadius: '24px 24px 0 0',
         padding: '43px 0 43px 0',
         position: 'relative',
         overflow: 'hidden',
       }}
     >
+      {/* Logomark watermark */}
       <Image
-        src="/logo/footer-watermark.png"
+        src="/logo/logo-icon.png"
         alt=""
         aria-hidden={true}
-        width={500}
-        height={500}
+        width={480}
+        height={480}
         style={{
           position: 'absolute',
           top: '50%',
-          left: '50%',
-          transform: 'translateX(-50%) translateY(-50%)',
-          opacity: 0.3,
+          right: '-40px',
+          transform: 'translateY(-50%)',
+          opacity: 0.04,
           pointerEvents: 'none',
           userSelect: 'none',
         }}
@@ -269,7 +269,7 @@ function AISearchBox() {
       <h2
         className="text-center font-normal"
         style={{
-          color: '#FFFFFF',
+          color: '#10214F',
           fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
           fontSize: 'clamp(26px, 2.5vw, 40px)',
           lineHeight: '48px',
@@ -283,11 +283,12 @@ function AISearchBox() {
       <p
         className="text-center"
         style={{
-          color: '#FFFFFF',
+          color: '#10214F',
           fontFamily: 'Poppins, sans-serif',
           fontSize: 16,
           lineHeight: '24px',
           marginBottom: 46,
+          opacity: 0.7,
         }}
       >
         Our AI-powered search goes beyond basic filters.<br />
@@ -315,16 +316,16 @@ function AISearchBox() {
             className="w-full focus:outline-none"
             style={{
               height: 56,
-              border: '2px solid rgba(1, 187, 220, 0.85)',
+              border: '1.5px solid #E2E8F0',
               borderRadius: 999,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: '#F8FAFC',
               paddingLeft: 24,
               paddingRight: 52,
               fontSize: 14,
               lineHeight: '21px',
               fontFamily: 'Poppins, sans-serif',
-              color: '#FFFFFF',
-              boxShadow: '0 0 18px 4px rgba(1, 187, 220, 0.45), inset 0 0 12px rgba(1, 187, 220, 0.08)',
+              color: '#10214F',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
             }}
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
@@ -359,11 +360,12 @@ function AISearchBox() {
       <p
         className="text-center flex items-center justify-center gap-2"
         style={{
-          color: '#FFFFFF',
+          color: '#10214F',
           fontFamily: 'Poppins, sans-serif',
           fontSize: 16,
           lineHeight: '24px',
           marginTop: 42,
+          opacity: 0.6,
         }}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -511,7 +513,6 @@ export default function HomePage() {
             maxWidth: 1296,
             paddingLeft: 'clamp(16px, 2vw, 0px)',
             paddingRight: 'clamp(16px, 2vw, 0px)',
-            paddingTop: 40,
           }}
         >
           <AISearchBox />

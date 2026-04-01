@@ -292,7 +292,7 @@ function RegisterContent() {
               {Object.entries(liveBrokerTiers).map(([key, tier]) => {
                 const isUltimate = key === 'ultimate';
                 return (
-                  <div key={key} className={`p-7 rounded-2xl shadow-xl relative ${
+                  <div key={key} className={`p-7 rounded-2xl shadow-xl relative flex flex-col ${
                     isUltimate
                       ? 'bg-secondary text-white border-2 border-secondary'
                       : key === 'plus'
@@ -322,7 +322,7 @@ function RegisterContent() {
                     )}
 
                     {isUltimate && <p className="text-xs text-white/60 font-medium mb-4">Tailored to your brokerage</p>}
-                    <ul className="space-y-2 mb-6">
+                    <ul className="space-y-2 mb-6 flex-1">
                       {(tier.features as string[]).map((f: string, i: number) => (
                         <li key={i} className={`flex items-start gap-2 text-sm ${isUltimate ? 'text-white/80' : 'text-dark/70'}`}>
                           <Check size={14} className={`${isUltimate ? 'text-white/60' : 'text-primary'} mt-0.5 shrink-0`} />
@@ -359,7 +359,7 @@ function RegisterContent() {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
               {Object.entries(livePrivateTier).map(([key, tier]) => (
-                <div key={key} className={`p-7 rounded-2xl shadow-xl relative ${
+                <div key={key} className={`p-7 rounded-2xl shadow-xl relative flex flex-col ${
                   key === 'private_plus'
                     ? 'bg-white border-4 border-primary'
                     : 'bg-white border border-gray-100'
@@ -376,7 +376,7 @@ function RegisterContent() {
                   </div>
 
                   <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
-                  <ul className="space-y-2 mb-6">
+                  <ul className="space-y-2 mb-6 flex-1">
                     {(tier.features as string[]).map((f: string, i: number) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
                         <Check size={14} className="text-primary mt-0.5 shrink-0" />
