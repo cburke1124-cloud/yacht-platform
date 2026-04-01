@@ -159,7 +159,7 @@ function StepCard({
         backgroundColor: '#FFFFFF',
         border: '1px solid rgba(0, 0, 0, 0.1)',
         borderRadius: 12,
-        paddingBottom: 24,
+        paddingBottom: 16,
       }}
     >
       <div
@@ -184,11 +184,11 @@ function StepCard({
         style={{
           color: '#10214F',
           fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-          fontSize: 24,
-          lineHeight: '29px',
+          fontSize: 20,
+          lineHeight: '26px',
           fontWeight: 400,
-          marginBottom: 16,
-          minHeight: 58,
+          marginBottom: 12,
+          minHeight: 52,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -199,7 +199,7 @@ function StepCard({
 
       <div
         className="w-full flex-shrink-0"
-        style={{ height: 280, backgroundColor: '#F0FEFF', overflow: 'hidden' }}
+        style={{ height: 220, backgroundColor: '#F0FEFF', overflow: 'hidden' }}
       >
         <img
           src={illustration}
@@ -210,7 +210,7 @@ function StepCard({
       </div>
 
       <p
-        className="px-6 pt-5"
+        className="px-6 pt-3"
         style={{
           color: '#10214F',
           fontFamily: 'Poppins, sans-serif',
