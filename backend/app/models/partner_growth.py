@@ -60,9 +60,10 @@ class PartnerOffer(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    terms_summary = Column(String, nullable=True)       # e.g. "30 days free, then $199/mo"
-    stripe_payment_link_url = Column(String, nullable=False)
-    tier = Column(String(32), nullable=True)             # basic | plus | pro
+    terms_summary = Column(String, nullable=True)       # e.g. "4 months free, then $199/mo"
+    coupon_id = Column(String(64), nullable=True)        # Stripe coupon ID — drives the shareable link
+    stripe_payment_link_url = Column(String, nullable=True)  # manual URL override (legacy)
+    tier = Column(String(32), nullable=True)             # basic | plus | pro (label only for coupon-based offers)
     sort_order = Column(Integer, default=0)
     active = Column(Boolean, default=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)

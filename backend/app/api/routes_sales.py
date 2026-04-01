@@ -329,6 +329,7 @@ def get_offers_sales_rep(
             "name": o.name,
             "description": o.description,
             "terms_summary": o.terms_summary,
+            "coupon_id": o.coupon_id,
             "stripe_payment_link_url": o.stripe_payment_link_url,
             "tier": o.tier,
             "sort_order": o.sort_order,

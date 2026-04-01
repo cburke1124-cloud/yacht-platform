@@ -195,6 +195,14 @@ async def create_checkout_session(
     if trial_days > 0:
         session_params["subscription_data"] = {"trial_period_days": trial_days}
 
+    # Apply coupon discount if provided (overrides any existing trial in Stripe)
+    coupon_id = (data.get("coupon_id") or "").strip() or None
+    if coupon_id:
+        session_params["discounts"] = [{"coupon": coupon_id}]
+        # Cannot combine discounts with trial_period_days on subscription_data;
+        # move trial into the coupon itself if needed — for now just use the coupon.
+        session_params.pop("subscription_data", None)
+
     try:
         session = stripe.checkout.Session.create(**session_params)
     except stripe.error.StripeError as e:

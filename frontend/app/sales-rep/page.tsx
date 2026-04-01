@@ -60,7 +60,8 @@ interface PartnerOffer {
   name: string;
   description: string | null;
   terms_summary: string | null;
-  stripe_payment_link_url: string;
+  stripe_payment_link_url: string | null;
+  coupon_id: string | null;
   tier: string | null;
   sort_order: number;
 }
@@ -513,7 +514,7 @@ export default function SalesRepDashboard() {
         <div className="p-5 border-b flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-secondary">Pre-Made Offers</h3>
-            <p className="text-xs text-dark/50 mt-0.5">Admin-created Stripe Payment Links you can share directly with prospects.</p>
+            <p className="text-xs text-dark/50 mt-0.5">Admin-created promotional links you can share directly with prospects. Customer picks their plan and the discount auto-applies.</p>
           </div>
         </div>
         {offersLoading ? (
@@ -535,22 +536,31 @@ export default function SalesRepDashboard() {
                   {offer.description && <p className="text-xs text-dark/50 mt-0.5">{offer.description}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <a
-                    href={offer.stripe_payment_link_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-400 hover:text-primary"
-                    title="Open link"
-                  >
-                    <ExternalLink size={15} />
-                  </a>
-                  <button
-                    onClick={() => copyToClipboard(offer.stripe_payment_link_url, `offer-${offer.id}`)}
-                    className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 flex items-center gap-1"
-                  >
-                    <Copy size={12} />
-                    {copiedText === `offer-${offer.id}` ? 'Copied!' : 'Copy Link'}
-                  </button>
+                  {(() => {
+                    const shareUrl = offer.coupon_id
+                      ? `${window.location.origin}/register?coupon=${offer.coupon_id}`
+                      : offer.stripe_payment_link_url;
+                    return shareUrl ? (
+                      <>
+                        <a
+                          href={shareUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-primary"
+                          title="Open link"
+                        >
+                          <ExternalLink size={15} />
+                        </a>
+                        <button
+                          onClick={() => copyToClipboard(shareUrl, `offer-${offer.id}`)}
+                          className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 flex items-center gap-1"
+                        >
+                          <Copy size={12} />
+                          {copiedText === `offer-${offer.id}` ? 'Copied!' : 'Copy Link'}
+                        </button>
+                      </>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             ))}

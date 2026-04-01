@@ -34,7 +34,8 @@ interface PartnerOffer {
   name: string;
   description: string | null;
   terms_summary: string | null;
-  stripe_payment_link_url: string;
+  stripe_payment_link_url: string | null;
+  coupon_id: string | null;
   tier: string | null;
   sort_order: number;
   active: boolean;
@@ -45,12 +46,11 @@ interface OfferForm {
   name: string;
   description: string;
   terms_summary: string;
-  stripe_payment_link_url: string;
+  coupon_id: string;
+  stripe_payment_link_url: string; // manual URL override
   tier: string;         // 'all' | 'basic' | 'plus' | 'pro' | 'private_basic' | ''
   sort_order: string;
   active: boolean;
-  generate_stripe_link: boolean;
-  coupon_id: string;
 }
 
 interface BrokerForm {
@@ -65,19 +65,17 @@ interface BrokerForm {
   always_free: boolean;
 }
 
-const STRIPE_COUPON_ID = 'mFbVt7bD';
-const STRIPE_COUPON_LABEL = '4 months free';
+
 
 const BLANK_OFFER_FORM: OfferForm = {
   name: '',
   description: '',
   terms_summary: '',
+  coupon_id: '',
   stripe_payment_link_url: '',
   tier: 'all',
   sort_order: '0',
   active: true,
-  generate_stripe_link: true,
-  coupon_id: STRIPE_COUPON_ID,
 };
 
 export default function AdminSalesToolsTab() {
@@ -279,15 +277,14 @@ export default function AdminSalesToolsTab() {
       name: offer.name,
       description: offer.description ?? '',
       terms_summary: offer.terms_summary ?? '',
-      stripe_payment_link_url: offer.stripe_payment_link_url,
+      coupon_id: offer.coupon_id ?? '',
+      stripe_payment_link_url: offer.stripe_payment_link_url ?? '',
       tier: offer.tier ?? '',
       sort_order: String(offer.sort_order),
       active: offer.active,
-      generate_stripe_link: false,
-      coupon_id: STRIPE_COUPON_ID,
     });
     setShowOfferModal(true);
-  };
+  };};
 
   const fetchDeals = async (token?: string, repId?: string) => {
     setLoadingDeals(true);
@@ -687,24 +684,31 @@ export default function AdminSalesToolsTab() {
                       ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={offer.stripe_payment_link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Open link"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                        <button
-                          onClick={() => copyToClipboard(offer.stripe_payment_link_url)}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Copy URL"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {(() => {
+                        const shareUrl = offer.coupon_id
+                          ? `${typeof window !== 'undefined' ? window.location.origin : ''}/register?coupon=${offer.coupon_id}`
+                          : offer.stripe_payment_link_url;
+                        return shareUrl ? (
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={shareUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Open link"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => copyToClipboard(shareUrl)}
+                              className="text-gray-400 hover:text-blue-600"
+                              title="Copy shareable URL"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : <span className="text-gray-400">—</span>;
+                      })()}
                     </td>
                     <td className="px-6 py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
@@ -1010,106 +1014,38 @@ export default function AdminSalesToolsTab() {
                 />
               </div>
 
-              {/* Link source — only shown when creating, not editing */}
-              {!editingOffer && (
-                <div className="border rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setOfferForm({ ...offerForm, generate_stripe_link: true, tier: offerForm.tier || 'all' })}
-                    className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center gap-2 transition-colors ${
-                      offerForm.generate_stripe_link ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                      offerForm.generate_stripe_link ? 'border-white' : 'border-gray-400'
-                    }`}>
-                      {offerForm.generate_stripe_link && <span className="w-2 h-2 rounded-full bg-white" />}
-                    </span>
-                    Auto-generate Stripe Payment Link
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOfferForm({ ...offerForm, generate_stripe_link: false })}
-                    className={`w-full px-4 py-2.5 text-left text-sm font-medium flex items-center gap-2 border-t transition-colors ${
-                      !offerForm.generate_stripe_link ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                      !offerForm.generate_stripe_link ? 'border-white' : 'border-gray-400'
-                    }`}>
-                      {!offerForm.generate_stripe_link && <span className="w-2 h-2 rounded-full bg-white" />}
-                    </span>
-                    Paste URL manually
-                  </button>
-                </div>
-              )}
+              {/* Coupon ID — drives the shareable /register?coupon= URL */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Coupon ID *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. mFbVt7bD"
+                  value={offerForm.coupon_id}
+                  onChange={e => setOfferForm({ ...offerForm, coupon_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Shareable link will be <span className="font-mono">/register?coupon=&#123;id&#125;</span> — customer picks their tier at checkout.
+                </p>
+              </div>
 
-              {/* Auto-generate fields */}
-              {!editingOffer && offerForm.generate_stripe_link && (
-                <div className="space-y-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 uppercase mb-1">Generate For</label>
-                    <select
-                      required={offerForm.generate_stripe_link}
-                      value={offerForm.tier}
-                      onChange={e => setOfferForm({ ...offerForm, tier: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                    >
-                      <option value="all">All tiers (creates 4 offers)</option>
-                      <option value="private_basic">Private Basic only ($9/mo)</option>
-                      <option value="basic">Basic only ($199/mo)</option>
-                      <option value="plus">Plus only ($299/mo)</option>
-                      <option value="pro">Pro only ($499/mo)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 uppercase mb-1">Coupon</label>
-                    <div className="flex items-center gap-2 px-3 py-2 bg-white border rounded-lg text-sm">
-                      <span className="font-mono text-gray-700">{STRIPE_COUPON_ID}</span>
-                      <span className="text-gray-400">—</span>
-                      <span className="text-green-700 font-medium">{STRIPE_COUPON_LABEL}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-blue-700">
-                    {offerForm.tier === 'all'
-                      ? 'Stripe will create 4 payment links (one per tier) and save them as separate offers.'
-                      : 'Stripe will create the payment link automatically when you submit.'}
-                  </p>
-                </div>
-              )}
-
-              {/* Manual URL field (when editing or manual mode) */}
-              {(editingOffer || !offerForm.generate_stripe_link) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Stripe Payment Link URL *</label>
-                  <input
-                    type="url"
-                    required={!offerForm.generate_stripe_link}
-                    placeholder="https://buy.stripe.com/..."
-                    value={offerForm.stripe_payment_link_url}
-                    onChange={e => setOfferForm({ ...offerForm, stripe_payment_link_url: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
-                  />
-                </div>
-              )}
-
-              {/* Tier selector for manual mode or editing (where it's optional) */}
-              {(!offerForm.generate_stripe_link || editingOffer) && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Tier</label>
-                  <select
-                    value={offerForm.tier}
-                    onChange={e => setOfferForm({ ...offerForm, tier: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                  >
-                    <option value="">— Any —</option>
-                    <option value="private_basic">Private Basic</option>
-                    <option value="basic">Basic</option>
-                    <option value="plus">Plus</option>
-                    <option value="pro">Pro</option>
-                  </select>
-                </div>
-              )}
+              {/* Tier — when set to 'all', the backend creates one row per subscription tier */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Tier</label>
+                <select
+                  value={offerForm.tier}
+                  onChange={e => setOfferForm({ ...offerForm, tier: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                >
+                  {!editingOffer && <option value="all">All tiers (creates 4 offers)</option>}
+                  <option value="">— Any —</option>
+                  <option value="private_basic">Private Basic</option>
+                  <option value="basic">Basic</option>
+                  <option value="plus">Plus</option>
+                  <option value="pro">Pro</option>
+                </select>
+              </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Terms Summary</label>

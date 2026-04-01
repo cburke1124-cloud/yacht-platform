@@ -2910,6 +2910,7 @@ def list_offers_admin(
             "name": o.name,
             "description": o.description,
             "terms_summary": o.terms_summary,
+            "coupon_id": o.coupon_id,
             "stripe_payment_link_url": o.stripe_payment_link_url,
             "tier": o.tier,
             "sort_order": o.sort_order,
@@ -3024,7 +3025,7 @@ def update_offer_admin(
     if not offer:
         raise ResourceNotFoundException("Offer", offer_id)
 
-    for field in ["name", "description", "terms_summary", "stripe_payment_link_url", "tier", "active"]:
+    for field in ["name", "description", "terms_summary", "stripe_payment_link_url", "tier", "active", "coupon_id"]:
         if field in data:
             setattr(offer, field, data[field])
     if "sort_order" in data:

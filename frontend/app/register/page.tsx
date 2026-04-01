@@ -78,6 +78,7 @@ function RegisterContent() {
     marketing_opt_in: false,
     referral_code: '',
     deal_code: '',
+    coupon_id: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -115,12 +116,14 @@ function RegisterContent() {
     const tier = searchParams.get('subscription_tier');
     const ref = searchParams.get('ref');
     const deal = searchParams.get('deal');
+    const coupon = searchParams.get('coupon');
 
-    if (ref || deal) {
+    if (ref || deal || coupon) {
       setFormData((prev) => ({
         ...prev,
         referral_code: ref || prev.referral_code,
         deal_code: deal || prev.deal_code,
+        coupon_id: coupon || prev.coupon_id,
       }));
     }
 
@@ -210,6 +213,7 @@ function RegisterContent() {
             user_type: formData.user_type,
             success_url: `${window.location.origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${window.location.origin}/register?payment=cancelled&user_type=${formData.user_type}&subscription_tier=${formData.subscription_tier}`,
+            ...(formData.coupon_id ? { coupon_id: formData.coupon_id } : {}),
           }),
         });
 
