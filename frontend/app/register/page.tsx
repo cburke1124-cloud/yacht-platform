@@ -549,15 +549,6 @@ function RegisterContent() {
               )}
 
               <div className="flex items-start">
-                <input id="communications" type="checkbox" checked={formData.agree_communications}
-                  onChange={(e) => setFormData({ ...formData, agree_communications: e.target.checked })}
-                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1" />
-                <label htmlFor="communications" className="ml-2 block text-sm text-dark">
-                  I agree to receive account communications from YachtVersal, including emails and SMS (data rates may apply). *
-                </label>
-              </div>
-
-              <div className="flex items-start">
                 <input id="marketing" type="checkbox" checked={formData.marketing_opt_in}
                   onChange={(e) => setFormData({ ...formData, marketing_opt_in: e.target.checked })}
                   className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded mt-1" />
