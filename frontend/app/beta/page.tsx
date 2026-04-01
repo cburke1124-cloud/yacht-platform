@@ -253,17 +253,16 @@ function AISearchBox() {
         src="/logo/wave-only.png"
         alt=""
         aria-hidden={true}
-        width={900}
-        height={900}
+        width={480}
+        height={480}
         style={{
           position: 'absolute',
-          top: '20%',
+          top: '50%',
           left: '50%',
-          transform: 'translateX(-50%)',
+          transform: 'translate(-50%, -50%)',
+          opacity: 0.08,
           pointerEvents: 'none',
           userSelect: 'none',
-          opacity: 0.25,
-          filter: 'invert(1) sepia(40%) hue-rotate(200deg) saturate(200%)',
         }}
       />
 
@@ -349,12 +348,12 @@ function AISearchBox() {
             lineHeight: '24px',
             fontWeight: 500,
             borderRadius: 999,
-            width: 155,
+            width: 121,
             height: 56,
             flexShrink: 0,
           }}
         >
-          Quick Search
+          Search
         </button>
       </form>
 
