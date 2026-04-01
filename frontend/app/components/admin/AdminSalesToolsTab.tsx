@@ -284,7 +284,7 @@ export default function AdminSalesToolsTab() {
       active: offer.active,
     });
     setShowOfferModal(true);
-  };};
+  };
 
   const fetchDeals = async (token?: string, repId?: string) => {
     setLoadingDeals(true);
