@@ -241,8 +241,14 @@ def scrape_preview(
     try:
         resp = http_requests.get(
             url,
-            timeout=20,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; YachtVersalBot/1.0)"},
+            timeout=25,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Cache-Control": "no-cache",
+            },
             allow_redirects=True,
         )
         resp.raise_for_status()
@@ -250,41 +256,139 @@ def scrape_preview(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not fetch URL: {exc}")
 
-    # Strip HTML tags to get plain text
-    text = re.sub(r"<[^>]+>", " ", raw_html)
+    from urllib.parse import urlparse, urljoin
+    parsed_url = urlparse(url)
+    base_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    def make_absolute(img_url: str) -> str:
+        if not img_url or img_url.startswith("data:"):
+            return ""
+        if img_url.startswith("//"):
+            return "https:" + img_url
+        if img_url.startswith("http"):
+            return img_url
+        return urljoin(base_origin, img_url)
+
+    # ── Extract structured data BEFORE stripping HTML ──────────────────────
+
+    # Open Graph tags (title, image, price)
+    og_title = None
+    og_image = None
+    og_price = None
+    for m in re.finditer(r'<meta[^>]+>', raw_html, re.IGNORECASE | re.DOTALL):
+        tag = m.group(0)
+        prop_m = re.search(r'(?:property|name)=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+        content_m = re.search(r'content=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+        if not prop_m or not content_m:
+            continue
+        prop = prop_m.group(1).lower()
+        val = content_m.group(1)
+        if prop == "og:image" and not og_image:
+            og_image = make_absolute(val)
+        elif prop == "og:title" and not og_title:
+            og_title = val
+        elif prop in ("og:price:amount", "product:price:amount") and not og_price:
+            og_price = val
+
+    # JSON-LD structured data
+    jsonld_text = ""
+    for m in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', raw_html, re.IGNORECASE | re.DOTALL):
+        jsonld_text += " " + m.group(1)
+
+    # ── Image extraction with smart filtering ─────────────────────────────
+
+    LOGO_SKIP = re.compile(
+        r'logo|icon|avatar|placeholder|sprite|banner|\.gif|tracking|pixel|1x1|blank|'
+        r'header|footer|nav-|menu|button|bg-|background|social|share|arrow|chevron|'
+        r'star|rating|loading|spinner|close|search|badge|seal|cert',
+        re.IGNORECASE
+    )
+    MIN_DIM = 150  # skip images explicitly declared smaller than this
+
+    seen_urls: set = set()
+    candidate_images: list = []
+
+    # Priority 1: OG image
+    if og_image and og_image not in seen_urls and not LOGO_SKIP.search(og_image):
+        seen_urls.add(og_image)
+        candidate_images.append(og_image)
+
+    # Priority 2: Full <img> tag analysis
+    for img_tag in re.finditer(r'<img[^>]+>', raw_html, re.IGNORECASE | re.DOTALL):
+        tag = img_tag.group(0)
+
+        # Try best-quality src attributes in order
+        img_url = None
+        for attr in ["data-original", "data-zoom-image", "data-full", "data-large",
+                     "data-lazy-src", "data-src", "src"]:
+            m = re.search(rf'\b{attr}=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+            if m and m.group(1) and not m.group(1).startswith("data:"):
+                candidate = m.group(1).strip()
+                if re.search(r'\.(jpg|jpeg|png|webp)(\?|$)', candidate, re.IGNORECASE):
+                    img_url = candidate
+                    break
+
+        if not img_url:
+            continue
+
+        # Skip obvious logos/icons by URL pattern
+        if LOGO_SKIP.search(img_url):
+            continue
+
+        # Skip explicitly small images
+        w_m = re.search(r'\bwidth=["\']?(\d+)', tag, re.IGNORECASE)
+        h_m = re.search(r'\bheight=["\']?(\d+)', tag, re.IGNORECASE)
+        if w_m and int(w_m.group(1)) < MIN_DIM:
+            continue
+        if h_m and int(h_m.group(1)) < MIN_DIM:
+            continue
+
+        abs_url = make_absolute(img_url)
+        if not abs_url or abs_url in seen_urls:
+            continue
+        seen_urls.add(abs_url)
+        candidate_images.append(abs_url)
+
+    # Priority 3: srcset (high-res variants)
+    for srcset_m in re.finditer(r'srcset=["\']([^"\']+)["\']', raw_html, re.IGNORECASE):
+        # Take the last (highest-res) entry in the srcset
+        parts = [p.strip() for p in srcset_m.group(1).split(",") if p.strip()]
+        if parts:
+            best = parts[-1].split()[0]
+            abs_url = make_absolute(best)
+            if abs_url and abs_url not in seen_urls and not LOGO_SKIP.search(abs_url):
+                if re.search(r'\.(jpg|jpeg|png|webp)(\?|$)', abs_url, re.IGNORECASE):
+                    seen_urls.add(abs_url)
+                    candidate_images.append(abs_url)
+
+    images = [{"url": u, "is_primary": i == 0} for i, u in enumerate(candidate_images[:20])]
+
+    # ── Build plain text for extraction ───────────────────────────────────
+
+    text = re.sub(r"<script[^>]*>.*?</script>", " ", raw_html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"&nbsp;", " ", text)
     text = re.sub(r"&amp;", "&", text)
     text = re.sub(r"&lt;", "<", text)
     text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&#\d+;", " ", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
+
+    # Prepend JSON-LD text for better extraction context
+    if jsonld_text:
+        text = jsonld_text + " " + text
 
     # Try Claude extraction first
     extracted = _claude_extract(text)
     if not extracted:
         extracted = _fallback_parse(text)
 
-    # Try to pull images from HTML
-    image_urls = re.findall(
-        r'(?:src|data-src|data-lazy-src)=["\']([^"\']+\.(?:jpg|jpeg|png|webp)[^"\']*)["\']',
-        raw_html, re.IGNORECASE
-    )
-    # Deduplicate and filter out tiny icons / tracking pixels
-    seen = set()
-    images = []
-    for img_url in image_urls:
-        if img_url in seen:
-            continue
-        seen.add(img_url)
-        # Make absolute
-        if img_url.startswith("//"):
-            img_url = "https:" + img_url
-        elif img_url.startswith("/"):
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            img_url = f"{parsed.scheme}://{parsed.netloc}{img_url}"
-        images.append({"url": img_url, "is_primary": len(images) == 0})
-        if len(images) >= 20:
-            break
+    # Merge OG hints for fields that weren't found
+    if og_price and not extracted.get("price"):
+        extracted["price"] = _to_float(re.sub(r"[^\d.]", "", og_price))
+    if og_title and not extracted.get("title"):
+        extracted["title"] = og_title
 
     extracted["images"] = images
     extracted["source_url"] = url
@@ -319,21 +423,33 @@ def _first(patterns, text, flags=re.IGNORECASE):
 
 def _fallback_parse(text: str) -> dict:
     lines = [l.strip() for l in text.replace("\r", "").split("\n") if l.strip()]
-    year = _first([r"\b(19\d{2}|20\d{2})\b"], text)
-    price = _first([r"price\s*[:\-]?\s*\$?\s*([\d,]+(?:\.\d+)?)", r"\$\s*([\d,]+(?:\.\d+)?)"], text)
+    # Prefer year that appears near a label; avoid copyright noise
+    year = _first([
+        r'(?:year|built|model\s+year)\s*[:\-]?\s*(19[5-9]\d|20[0-2]\d)',
+        r'\b(19[5-9]\d|20[0-2]\d)\b(?!\s*(?:united|yachts|sales|©|copyright))',
+    ], text)
+    price = _first([
+        r'(?:asking\s*price|price|list\s*price)\s*[:\-]?\s*\$?\s*([\d,]+(?:\.\d+)?)',
+        r'\$\s*([\d,]+(?:\.\d+)?)',
+    ], text)
     length = _first([r"(?:loa|length(?:\s+overall)?)\s*[:\-]?\s*([\d.]+)", r"\b([\d.]+)\s*(?:ft|feet|')"], text)
     make = _first([
         r"\b(Azimut|Beneteau|Bertram|Boston\s*Whaler|Cabo|Carver|Chris-Craft|Ferretti|Formula|"
-        r"Hatteras|Jeanneau|Leopard|Meridian|Monterey|Nordhavn|Pershing|Princess|"
+        r"Hatteras|Jeanneau|Leopard|Meridian|Monterey|Nordhavn|Oceanco|Pershing|Princess|"
         r"Regal|Riva|Sanlorenzo|Sea\s*Ray|Sunseeker|Tiara|Viking|Yellowfin)\b"
     ], text)
     cabins = _first([r"cabins?\s*[:\-]?\s*(\d+)"], text)
     berths = _first([r"(?:berths?|sleeps?)\s*[:\-]?\s*(\d+)"], text)
     heads = _first([r"heads?\s*[:\-]?\s*(\d+)"], text)
-    city_state = _first([r"located\s+in\s+([^\n]+)"], text)
+    fuel_cap = _first([r"fuel\s*(?:capacity|cap\.?)\s*[:\-]?\s*([\d,]+(?:\.\d+)?)"], text)
+    water_cap = _first([r"water\s*(?:capacity|cap\.?)\s*[:\-]?\s*([\d,]+(?:\.\d+)?)"], text)
+    beam = _first([r"beam\s*[:\-]?\s*([\d.]+)"], text)
+    location_raw = _first([
+        r'(?:location|located\s+in|homeport)\s*[:\-]?\s*([^\n<|]{3,50})',
+    ], text)
     city = state = country = None
-    if city_state:
-        parts = [p.strip() for p in city_state.split(",") if p.strip()]
+    if location_raw:
+        parts = [p.strip() for p in location_raw.split(",") if p.strip()]
         city = parts[0] if parts else None
         state = parts[1] if len(parts) > 1 else None
         country = parts[2] if len(parts) > 2 else None
@@ -341,8 +457,10 @@ def _fallback_parse(text: str) -> dict:
     return {
         "title": lines[0] if lines else None,
         "make": make, "year": _to_int(year), "price": _to_float(price),
-        "length_feet": _to_float(length), "cabins": _to_int(cabins),
-        "berths": _to_int(berths), "heads": _to_int(heads),
+        "length_feet": _to_float(length), "beam_feet": _to_float(beam),
+        "cabins": _to_int(cabins), "berths": _to_int(berths), "heads": _to_int(heads),
+        "fuel_capacity_gallons": _to_float(fuel_cap),
+        "water_capacity_gallons": _to_float(water_cap),
         "city": city, "state": state, "country": country,
         "description": text[:3000],
         "feature_bullets": bullets[:8] if bullets else [],
