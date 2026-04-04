@@ -86,7 +86,7 @@ export default function PreviewListingPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API_ROOT}/api/preview/listings/view/${token}`)
+    fetch(`${API_ROOT}/preview/listings/view/${token}`)
       .then((r) => {
         if (!r.ok) { setNotFound(true); return null; }
         return r.json();

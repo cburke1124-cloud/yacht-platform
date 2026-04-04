@@ -160,9 +160,10 @@ export default function AdminPreviewListingsTab() {
   const loadListings = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(apiUrl('/api/preview/listings'), { headers: authHeaders() });
+      const res = await fetch(apiUrl('/preview/listings'), { headers: authHeaders() });
       if (!res.ok) throw new Error(await res.text());
-      setListings(await res.json());
+      const json = await res.json();
+      setListings(json.previews ?? json);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -183,13 +184,14 @@ export default function AdminPreviewListingsTab() {
     setScraping(true);
     setScrapeError('');
     try {
-      const res = await fetch(apiUrl('/api/preview/listings/scrape'), {
+      const res = await fetch(apiUrl('/preview/listings/scrape'), {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ url: scrapeUrl.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Scrape failed');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || 'Scrape failed');
+      const data = json.data ?? json;  // backend returns { success, data: {...} }
 
       setForm((prev) => ({
         ...prev,
@@ -214,7 +216,7 @@ export default function AdminPreviewListingsTab() {
         description: data.description ?? prev.description,
         feature_bullets: data.feature_bullets?.length ? data.feature_bullets : prev.feature_bullets,
         images: data.images?.length
-          ? data.images.map((u: string) => ({ url: u }))
+          ? data.images.map((img: any) => typeof img === 'string' ? { url: img } : img)
           : prev.images,
         seller_name: data.seller_name ?? prev.seller_name,
         seller_phone: data.seller_phone ?? prev.seller_phone,
@@ -234,8 +236,8 @@ export default function AdminPreviewListingsTab() {
     try {
       const payload = { ...form };
       const url = editTarget
-        ? apiUrl(`/api/preview/listings/${editTarget.id}`)
-        : apiUrl('/api/preview/listings');
+        ? apiUrl(`/preview/listings/${editTarget.id}`)
+        : apiUrl('/preview/listings');
       const method = editTarget ? 'PUT' : 'POST';
       const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
       if (!res.ok) throw new Error(await res.text());
@@ -253,7 +255,7 @@ export default function AdminPreviewListingsTab() {
     if (!confirm('Delete this preview listing? This cannot be undone.')) return;
     setDeleting(id);
     try {
-      const res = await fetch(apiUrl(`/api/preview/listings/${id}`), {
+      const res = await fetch(apiUrl(`/preview/listings/${id}`), {
         method: 'DELETE',
         headers: authHeaders(),
       });
