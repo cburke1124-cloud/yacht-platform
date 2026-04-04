@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
+import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -96,7 +97,7 @@ interface TierData {
   is_custom_pricing?: boolean;
 }
 
-type Tab = 'overview' | 'deals' | 'dealers' | 'register' | 'demo' | 'resources';
+type Tab = 'overview' | 'deals' | 'dealers' | 'register' | 'demo' | 'resources' | 'preview';
 
 /* ================================================================== */
 /*  Sidebar tabs                                                       */
@@ -109,6 +110,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'register',  label: 'Register Broker',  icon: UserPlus },
   { id: 'demo',      label: 'Demo Portal',      icon: Monitor },
   { id: 'resources', label: 'Resources',        icon: BookOpen },
+  { id: 'preview',   label: 'Preview Listings', icon: Eye },
 ];
 
 const TIER_ICONS: Record<string, any> = {
@@ -1090,6 +1092,8 @@ export default function SalesRepDashboard() {
     )}
   </>
 )}
+
+          {activeTab === 'preview' && <AdminPreviewListingsTab />}
 
           </section>
         </div>

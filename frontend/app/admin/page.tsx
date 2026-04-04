@@ -14,6 +14,7 @@ import AdminMediaDashboard from '@/app/components/admin/AdminMediaDashboard';
 import AdminSystemTab from '@/app/components/admin/AdminSystemTab';
 import AdminDemoAccountsTab from '@/app/components/admin/AdminDemoAccountsTab';
 import AdminSalesToolsTab from '@/app/components/admin/AdminSalesToolsTab';
+import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3 } from 'lucide-react';
 
@@ -34,7 +35,8 @@ function AdminPageContent() {
     { id: 'settings', label: 'Settings', icon: '⚙️' },
     { id: 'sales-reps', label: 'Sales Reps', icon: '💼' },
     { id: 'sales-tools', label: 'Sales Tools', icon: '🏷️' },
-    { id: 'system', label: 'System', icon: '🛠️' }
+    { id: 'system', label: 'System', icon: '🛠️' },
+    { id: 'preview-listings', label: 'Preview Listings', icon: '👁️' }
   ];
 
   return (
@@ -80,6 +82,7 @@ function AdminPageContent() {
           {activeTab === 'demo-accounts' && <AdminDemoAccountsTab />}
           {activeTab === 'settings' && <AdminSettingsPage />}
           {activeTab === 'system' && <AdminSystemTab />}
+          {activeTab === 'preview-listings' && <AdminPreviewListingsTab />}
         </section>
       </div>
     </AdminLayout>

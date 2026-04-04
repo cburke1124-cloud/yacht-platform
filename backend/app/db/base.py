@@ -62,3 +62,4 @@ from app.models.partner_growth import (
 )
 
 from app.models.catalog import VesselMake, VesselModel
+from app.models.preview_listing import PreviewListing
