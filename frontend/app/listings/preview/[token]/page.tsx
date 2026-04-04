@@ -169,7 +169,7 @@ export default function PreviewListingPage() {
                 </h1>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-3xl font-bold" style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}>
-                    {formatPrice(data.price, data.currency)}
+                    {formatPrice(data.price, data.currency ?? undefined)}
                   </span>
                   {data.condition && (
                     <span
