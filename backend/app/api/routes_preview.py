@@ -244,10 +244,11 @@ def scrape_preview(
             timeout=25,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate, br",
                 "Cache-Control": "no-cache",
+                "Referer": "https://www.google.com/",
             },
             allow_redirects=True,
         )
@@ -259,22 +260,29 @@ def scrape_preview(
     from urllib.parse import urlparse, urljoin
     parsed_url = urlparse(url)
     base_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    hostname = parsed_url.netloc.lower().removeprefix("www.")
 
-    def make_absolute(img_url: str) -> str:
-        if not img_url or img_url.startswith("data:"):
+    def make_absolute(href: str) -> str:
+        if not href or href.startswith("data:"):
             return ""
-        if img_url.startswith("//"):
-            return "https:" + img_url
-        if img_url.startswith("http"):
-            return img_url
-        return urljoin(base_origin, img_url)
+        if href.startswith("//"):
+            return "https:" + href
+        if href.startswith("http"):
+            return href
+        return urljoin(base_origin + parsed_url.path, href)
 
-    # ── Extract structured data BEFORE stripping HTML ──────────────────────
+    def is_image_url(u: str) -> bool:
+        return bool(re.search(r'\.(jpg|jpeg|png|webp)(\?[^"\']*)?$', u, re.IGNORECASE))
 
-    # Open Graph tags (title, image, price)
-    og_title = None
-    og_image = None
-    og_price = None
+    # ── Brokerage name from domain ─────────────────────────────────────────
+    # e.g. "unitedyacht.com" → "United Yacht", "yachtworld.com" → "YachtWorld"
+    domain_name = re.sub(r'\.(com|net|org|co\.uk|io|us|ca)$', '', hostname, flags=re.IGNORECASE)
+    domain_name = re.sub(r'[-_]', ' ', domain_name).strip().title()
+    site_brokerage_name = domain_name or None
+
+    # ── Extract meta / OG tags ─────────────────────────────────────────────
+    og_title = og_image = og_price = og_description = None
+    meta_site_name = None
     for m in re.finditer(r'<meta[^>]+>', raw_html, re.IGNORECASE | re.DOTALL):
         tag = m.group(0)
         prop_m = re.search(r'(?:property|name)=["\']([^"\']+)["\']', tag, re.IGNORECASE)
@@ -282,113 +290,255 @@ def scrape_preview(
         if not prop_m or not content_m:
             continue
         prop = prop_m.group(1).lower()
-        val = content_m.group(1)
+        val = content_m.group(1).strip()
         if prop == "og:image" and not og_image:
             og_image = make_absolute(val)
         elif prop == "og:title" and not og_title:
             og_title = val
+        elif prop in ("og:description", "description") and not og_description:
+            og_description = val
         elif prop in ("og:price:amount", "product:price:amount") and not og_price:
             og_price = val
+        elif prop == "og:site_name" and not meta_site_name:
+            meta_site_name = val.strip()
 
-    # JSON-LD structured data
+    # og:site_name beats domain derivation
+    if meta_site_name:
+        site_brokerage_name = meta_site_name
+
+    # ── JSON-LD structured data ────────────────────────────────────────────
+    jsonld_objects: list = []
     jsonld_text = ""
-    for m in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', raw_html, re.IGNORECASE | re.DOTALL):
-        jsonld_text += " " + m.group(1)
+    for m in re.finditer(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        raw_html, re.IGNORECASE | re.DOTALL
+    ):
+        blob = m.group(1).strip()
+        jsonld_text += " " + blob
+        try:
+            obj = json.loads(blob)
+            if isinstance(obj, list):
+                jsonld_objects.extend(obj)
+            else:
+                jsonld_objects.append(obj)
+        except Exception:
+            pass
 
-    # ── Image extraction with smart filtering ─────────────────────────────
+    # ── Extract broker/agent info from JSON-LD ─────────────────────────────
+    ld_seller_name = ld_seller_email = ld_seller_phone = None
+    ld_brokerage_name = ld_brokerage_logo = ld_brokerage_website = None
 
+    def _walk_ld(obj, depth=0):
+        nonlocal ld_seller_name, ld_seller_email, ld_seller_phone
+        nonlocal ld_brokerage_name, ld_brokerage_logo, ld_brokerage_website
+        if depth > 5 or not isinstance(obj, dict):
+            return
+        t = obj.get("@type", "")
+        if isinstance(t, list):
+            t = " ".join(t)
+        t = t.lower()
+        is_person = "person" in t or "agent" in t or "broker" in t
+        is_org = "organization" in t or "realestate" in t or "localbusiness" in t
+        name = obj.get("name") or obj.get("legalName")
+        email = obj.get("email")
+        phone = obj.get("telephone") or obj.get("phone")
+        logo = obj.get("logo")
+        if isinstance(logo, dict):
+            logo = logo.get("url") or logo.get("contentUrl")
+        website = obj.get("url") or obj.get("sameAs")
+        if isinstance(website, list):
+            website = next((w for w in website if isinstance(w, str) and w.startswith("http")), None)
+        if is_person and name and not ld_seller_name:
+            ld_seller_name = name
+        if email and not ld_seller_email:
+            ld_seller_email = email
+        if phone and not ld_seller_phone:
+            ld_seller_phone = phone
+        if is_org and name and not ld_brokerage_name:
+            ld_brokerage_name = name
+            ld_brokerage_logo = logo or ld_brokerage_logo
+            ld_brokerage_website = website or ld_brokerage_website
+        for v in obj.values():
+            if isinstance(v, dict):
+                _walk_ld(v, depth + 1)
+            elif isinstance(v, list):
+                for item in v:
+                    _walk_ld(item, depth + 1)
+
+    for ld_obj in jsonld_objects:
+        _walk_ld(ld_obj)
+
+    # ── Extract broker/contact from raw HTML patterns ──────────────────────
+    html_seller_name = html_seller_email = html_seller_phone = None
+    html_brokerage_logo = None
+
+    # mailto: links
+    email_m = re.search(r'mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})', raw_html, re.IGNORECASE)
+    if email_m:
+        html_seller_email = email_m.group(1)
+
+    # tel: links
+    tel_m = re.search(r'tel:([\+0-9\s\-\(\)\.]{7,20})', raw_html, re.IGNORECASE)
+    if tel_m:
+        html_seller_phone = tel_m.group(1).strip()
+
+    # Agent/broker name patterns in plain text vicinity of "agent", "broker", "contact", "listed by"
+    agent_block = re.search(
+        r'(?:listed\s+by|listing\s+agent|contact|broker|agent|sales\s+rep)[:\s]*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})',
+        raw_html, re.IGNORECASE
+    )
+    if agent_block:
+        name_candidate = re.sub(r'<[^>]+>', '', agent_block.group(1)).strip()
+        if 2 <= len(name_candidate.split()) <= 4:
+            html_seller_name = name_candidate
+
+    # Site logo — look for <img> near header/logo/brand with class or id containing "logo"
+    logo_m = re.search(
+        r'<img[^>]+(?:class|id)=["\'][^"\']*logo[^"\']*["\'][^>]*(?:src|data-src)=["\']([^"\']+)["\']|'
+        r'<img[^>]+(?:src|data-src)=["\']([^"\']+)["\'][^>]*(?:class|id)=["\'][^"\']*logo[^"\']*["\']',
+        raw_html, re.IGNORECASE | re.DOTALL
+    )
+    if logo_m:
+        raw_logo = logo_m.group(1) or logo_m.group(2)
+        if raw_logo:
+            html_brokerage_logo = make_absolute(raw_logo)
+
+    # ── Merge broker/brokerage: JSON-LD > HTML patterns > None ────────────
+    final_seller_name     = ld_seller_name or html_seller_name
+    final_seller_email    = ld_seller_email or html_seller_email
+    final_seller_phone    = ld_seller_phone or html_seller_phone
+    final_brokerage_name  = ld_brokerage_name or site_brokerage_name
+    final_brokerage_logo  = ld_brokerage_logo or html_brokerage_logo
+    final_brokerage_website = ld_brokerage_website or base_origin
+
+    # ── Image extraction ───────────────────────────────────────────────────
     LOGO_SKIP = re.compile(
-        r'logo|icon|avatar|placeholder|sprite|banner|\.gif|tracking|pixel|1x1|blank|'
-        r'header|footer|nav-|menu|button|bg-|background|social|share|arrow|chevron|'
-        r'star|rating|loading|spinner|close|search|badge|seal|cert',
+        r'logo|icon|avatar|sprite|\.gif$|tracking|pixel|1x1|blank|'
+        r'/nav|/menu|/button|/bg[-_]|/background|/social|/share|/arrow|'
+        r'/chevron|/star|/rating|/loading|/spinner|/close|/search|/badge|'
+        r'/seal|/cert|/header|/footer|thumbnail.*\d{1,2}x\d{1,2}|'
+        r'width=\d{1,2}&|_\d{1,2}x\d{1,2}\.',
         re.IGNORECASE
     )
-    MIN_DIM = 150  # skip images explicitly declared smaller than this
 
     seen_urls: set = set()
-    candidate_images: list = []
+    gallery_images: list = []   # highest priority — explicit gallery/lightbox refs
+    regular_images: list = []   # fallback img src tags
+    srcset_images: list = []    # srcset fallback
 
-    # Priority 1: OG image
-    if og_image and og_image not in seen_urls and not LOGO_SKIP.search(og_image):
-        seen_urls.add(og_image)
-        candidate_images.append(og_image)
+    def add_img(url_str: str, bucket: list):
+        abs_u = make_absolute(url_str)
+        if not abs_u or not is_image_url(abs_u):
+            return
+        # Normalise — strip query params for dedup but keep the full URL
+        norm = re.sub(r'\?.*$', '', abs_u)
+        if norm in seen_urls:
+            return
+        seen_urls.add(norm)
+        bucket.append(abs_u)
 
-    # Priority 2: Full <img> tag analysis
+    # Priority 0: OG image
+    if og_image and is_image_url(og_image) and not LOGO_SKIP.search(og_image):
+        add_img(og_image, gallery_images)
+
+    # Priority 1: <a href="...jpg"> anchors — these are almost always full-size
+    for a_m in re.finditer(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>', raw_html, re.IGNORECASE):
+        href = a_m.group(1).strip()
+        if is_image_url(href) and not LOGO_SKIP.search(href):
+            add_img(href, gallery_images)
+
+    # Priority 2: data-fancybox / data-lightbox / data-photoswipe / data-gallery
+    # href or data-src on the same element
+    for attr_m in re.finditer(
+        r'<(?:a|div|figure|li)[^>]+(?:data-fancybox|data-lightbox|data-photoswipe|data-gallery)[^>]*>',
+        raw_html, re.IGNORECASE | re.DOTALL
+    ):
+        tag = attr_m.group(0)
+        for attr in ["data-full", "data-zoom", "data-original", "data-src", "href", "src"]:
+            vm = re.search(rf'\b{attr}=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+            if vm and is_image_url(vm.group(1)) and not LOGO_SKIP.search(vm.group(1)):
+                add_img(vm.group(1), gallery_images)
+                break
+
+    # Priority 3: <img> tags with gallery-hinting class names or data attributes
+    GALLERY_CLASS = re.compile(r'gallery|carousel|slider|photo|listing[-_]img|boat[-_]img|yacht[-_]img|main[-_]img|feature', re.IGNORECASE)
     for img_tag in re.finditer(r'<img[^>]+>', raw_html, re.IGNORECASE | re.DOTALL):
         tag = img_tag.group(0)
 
-        # Try best-quality src attributes in order
+        # Check class for gallery hint
+        class_m = re.search(r'\bclass=["\']([^"\']+)["\']', tag, re.IGNORECASE)
+        is_gallery_hint = bool(class_m and GALLERY_CLASS.search(class_m.group(1)))
+
         img_url = None
         for attr in ["data-original", "data-zoom-image", "data-full", "data-large",
                      "data-lazy-src", "data-src", "src"]:
-            m = re.search(rf'\b{attr}=["\']([^"\']+)["\']', tag, re.IGNORECASE)
-            if m and m.group(1) and not m.group(1).startswith("data:"):
-                candidate = m.group(1).strip()
-                if re.search(r'\.(jpg|jpeg|png|webp)(\?|$)', candidate, re.IGNORECASE):
-                    img_url = candidate
-                    break
+            vm = re.search(rf'\b{attr}=["\']([^"\']*\.(?:jpg|jpeg|png|webp)[^"\']*)["\']', tag, re.IGNORECASE)
+            if vm and vm.group(1) and not vm.group(1).startswith("data:"):
+                img_url = vm.group(1).strip()
+                break
 
-        if not img_url:
+        if not img_url or LOGO_SKIP.search(img_url):
             continue
 
-        # Skip obvious logos/icons by URL pattern
-        if LOGO_SKIP.search(img_url):
-            continue
-
-        # Skip explicitly small images
+        # Skip explicitly tiny declared dimensions
         w_m = re.search(r'\bwidth=["\']?(\d+)', tag, re.IGNORECASE)
         h_m = re.search(r'\bheight=["\']?(\d+)', tag, re.IGNORECASE)
-        if w_m and int(w_m.group(1)) < MIN_DIM:
+        if w_m and int(w_m.group(1)) < 120:
             continue
-        if h_m and int(h_m.group(1)) < MIN_DIM:
+        if h_m and int(h_m.group(1)) < 120:
             continue
 
-        abs_url = make_absolute(img_url)
-        if not abs_url or abs_url in seen_urls:
-            continue
-        seen_urls.add(abs_url)
-        candidate_images.append(abs_url)
+        bucket = gallery_images if is_gallery_hint else regular_images
+        add_img(img_url, bucket)
 
-    # Priority 3: srcset (high-res variants)
+    # Priority 4: srcset — highest-res entry
     for srcset_m in re.finditer(r'srcset=["\']([^"\']+)["\']', raw_html, re.IGNORECASE):
-        # Take the last (highest-res) entry in the srcset
         parts = [p.strip() for p in srcset_m.group(1).split(",") if p.strip()]
         if parts:
             best = parts[-1].split()[0]
-            abs_url = make_absolute(best)
-            if abs_url and abs_url not in seen_urls and not LOGO_SKIP.search(abs_url):
-                if re.search(r'\.(jpg|jpeg|png|webp)(\?|$)', abs_url, re.IGNORECASE):
-                    seen_urls.add(abs_url)
-                    candidate_images.append(abs_url)
+            if not LOGO_SKIP.search(best):
+                add_img(best, srcset_images)
 
-    images = [{"url": u, "is_primary": i == 0} for i, u in enumerate(candidate_images[:20])]
+    # Combine buckets (gallery first)
+    all_images = (gallery_images + regular_images + srcset_images)[:20]
+    images = [{"url": u, "is_primary": i == 0} for i, u in enumerate(all_images)]
 
-    # ── Build plain text for extraction ───────────────────────────────────
-
+    # ── Plain text for field extraction ───────────────────────────────────
     text = re.sub(r"<script[^>]*>.*?</script>", " ", raw_html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"&nbsp;", " ", text)
-    text = re.sub(r"&amp;", "&", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
+    for entity, char in [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"')]:
+        text = text.replace(entity, char)
     text = re.sub(r"&#\d+;", " ", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
 
-    # Prepend JSON-LD text for better extraction context
     if jsonld_text:
         text = jsonld_text + " " + text
 
-    # Try Claude extraction first
-    extracted = _claude_extract(text)
-    if not extracted:
-        extracted = _fallback_parse(text)
+    # ── Field extraction ───────────────────────────────────────────────────
+    extracted = _claude_extract(text) or _fallback_parse(text)
 
-    # Merge OG hints for fields that weren't found
+    # Merge OG/meta hints for missing fields
     if og_price and not extracted.get("price"):
         extracted["price"] = _to_float(re.sub(r"[^\d.]", "", og_price))
     if og_title and not extracted.get("title"):
         extracted["title"] = og_title
+    if og_description and not extracted.get("description"):
+        extracted["description"] = og_description
+
+    # Merge broker/brokerage (only fill if not already extracted by Claude)
+    if not extracted.get("seller_name"):
+        extracted["seller_name"] = final_seller_name
+    if not extracted.get("seller_email"):
+        extracted["seller_email"] = final_seller_email
+    if not extracted.get("seller_phone"):
+        extracted["seller_phone"] = final_seller_phone
+    if not extracted.get("brokerage_name"):
+        extracted["brokerage_name"] = final_brokerage_name
+    if not extracted.get("brokerage_logo_url"):
+        extracted["brokerage_logo_url"] = final_brokerage_logo
+    if not extracted.get("brokerage_website"):
+        extracted["brokerage_website"] = final_brokerage_website
 
     extracted["images"] = images
     extracted["source_url"] = url
@@ -486,7 +636,12 @@ hull_material (one of: "Fiberglass","Aluminum","Steel","Wood","Composite","Carbo
 hull_type (one of: "Monohull","Catamaran","Trimaran","Planing","Displacement","Semi-Displacement" or null),
 condition ("new" or "used" or null),
 feature_bullets (array of up to 8 short strings),
-description (first 2000 chars of main description text).
+description (first 2000 chars of main description text),
+seller_name (individual broker/agent full name, or null),
+seller_email (broker contact email, or null),
+seller_phone (broker contact phone, or null),
+brokerage_name (company/brokerage name, or null),
+brokerage_website (brokerage website URL, or null).
 """
     try:
         response = http_requests.post(
