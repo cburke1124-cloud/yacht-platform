@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Head from 'next/head';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
-  MapPin, Ruler, Bed, Fuel, Gauge, Waves, ChevronLeft, ChevronRight,
-  Phone, Mail, Globe, Building2, User, X, Ship,
+  MapPin, ChevronLeft, ChevronRight, X, Ship,
+  Phone, Mail, Globe, Building2, User, Ruler,
+  Bed, Fuel, Gauge, Waves, Users, Wrench,
+  ZoomIn, ZoomOut, ArrowLeft, ExternalLink,
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
@@ -57,20 +57,35 @@ interface PreviewData {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatPrice(price?: number | null, currency = 'USD') {
-  if (!price) return 'Price on Request';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0 }).format(price);
+const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+function formatPrice(price: number, currency: string | null | undefined) {
+  const cur = currency || 'USD';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: cur, maximumFractionDigits: 0,
+  }).format(price);
 }
 
-function SpecRow({ label, value }: { label: string; value: string | number | null | undefined }) {
-  if (!value && value !== 0) return null;
+function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
   return (
-    <div className="flex justify-between py-2.5 border-b border-gray-100 last:border-0">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">{String(value)}</span>
+    <div className="flex justify-between items-baseline py-2.5 border-b border-gray-100">
+      <span className="text-sm text-[#10214F] font-poppins">{label}</span>
+      <span className="text-sm text-[#10214F] text-right font-semibold font-poppins">{value}</span>
     </div>
   );
 }
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-5">
+      <h3 className="text-2xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">{children}</h3>
+      <div className="h-[1px] bg-[#01BBDC]" />
+    </div>
+  );
+}
+
+const FALLBACK = '/images/listing-fallback1.png';
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -81,332 +96,292 @@ export default function PreviewListingPage() {
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [imageIndex, setImageIndex] = useState(0);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // gallery
+  const [mainIdx, setMainIdx] = useState(0);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     if (!token) return;
     fetch(`${API_ROOT}/preview/listings/view/${token}`)
-      .then((r) => {
-        if (!r.ok) { setNotFound(true); return null; }
-        return r.json();
-      })
+      .then((r) => { if (!r.ok) { setNotFound(true); return null; } return r.json(); })
       .then((d) => { if (d) setData(d); })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [token]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#f8fafc' }}>
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2" style={{ borderColor: '#01BBDC' }} />
-      </div>
-    );
-  }
+  useEffect(() => { if (lightbox !== null) setZoom(1); }, [lightbox]);
 
-  if (notFound || !data) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ backgroundColor: '#f8fafc' }}>
-        <Ship size={48} style={{ color: '#10214F', opacity: 0.3 }} />
-        <h1 className="text-2xl font-bold" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
-          Preview Not Found
-        </h1>
-        <p className="text-gray-500">This listing preview link may have expired or been removed.</p>
-        <Link href="/" className="text-sm font-medium" style={{ color: '#01BBDC' }}>← Back to YachtVersal</Link>
-      </div>
-    );
-  }
+  // ── inject noindex ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const m = document.createElement('meta');
+    m.name = 'robots'; m.content = 'noindex, nofollow';
+    document.head.appendChild(m);
+    return () => { document.head.removeChild(m); };
+  }, []);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="w-14 h-14 rounded-full border-4 border-t-[#01BBDC] border-[#01BBDC]/20 animate-spin" />
+    </div>
+  );
+
+  if (notFound || !data) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-white">
+      <Ship size={48} className="text-[#10214F] opacity-20" />
+      <h1 className="text-2xl font-bold text-[#10214F] font-bahnschrift">Preview Not Found</h1>
+      <p className="text-gray-500 text-sm">This listing preview link may have expired or been removed.</p>
+      <Link href="/" className="text-sm font-medium text-[#01BBDC]">← Back to YachtVersal</Link>
+    </div>
+  );
 
   const images = data.images || [];
-  const currentImage = images[imageIndex];
-  const location = [data.city, data.state, data.country].filter(Boolean).join(', ');
+  const locationParts = [data.city, data.state, data.country].filter(Boolean);
+  const location = locationParts.join(', ');
   const displayTitle = data.title || [data.year, data.make, data.model].filter(Boolean).join(' ') || 'Yacht Preview';
+  const galleryThumbs = images.slice(1, 5);
+  const remaining = Math.max(images.length - 5, 0);
+
+  const keySpecs = [
+    { icon: <Ruler size={28} className="text-[#01BBDC]" />,  label: 'Length',      value: data.length_feet ? `${data.length_feet} ft` : null },
+    { icon: <Users size={28} className="text-[#01BBDC]" />,  label: 'Guests',       value: data.berths ? String(data.berths) : null },
+    { icon: <Bed size={28} className="text-[#01BBDC]" />,    label: 'Cabins',       value: data.cabins ? String(data.cabins) : null },
+    { icon: <Ship size={28} className="text-[#01BBDC]" />,   label: 'Type',         value: data.boat_type },
+    { icon: <Wrench size={28} className="text-[#01BBDC]" />, label: 'Make',         value: data.make },
+    { icon: <Gauge size={28} className="text-[#01BBDC]" />,  label: 'Year',         value: data.year ? String(data.year) : null },
+    { icon: <Waves size={28} className="text-[#01BBDC]" />,  label: 'Cruise Speed', value: data.cruising_speed_knots ? `${data.cruising_speed_knots} kts` : null },
+    { icon: <Gauge size={28} className="text-[#01BBDC]" />,  label: 'Max Speed',    value: data.max_speed_knots ? `${data.max_speed_knots} kts` : null },
+    { icon: <Fuel size={28} className="text-[#01BBDC]" />,   label: 'Fuel Type',    value: data.fuel_type },
+    { icon: <Ship size={28} className="text-[#01BBDC]" />,   label: 'Engines',      value: data.engine_count ? String(data.engine_count) : null },
+    { icon: <MapPin size={28} className="text-[#01BBDC]" />, label: 'Location',     value: location || null },
+  ].filter(s => s.value);
 
   return (
-    <>
-      {/* noindex meta — we don't want these pages in search engines */}
-      <meta name="robots" content="noindex, nofollow" />
+    <div className="min-h-screen bg-white">
 
-      <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+      {/* ── Preview Banner ─────────────────────────────────────────────────── */}
+      <div className="text-center py-2.5 px-4 text-sm font-medium bg-[#10214F]">
+        <span className="text-white/80">
+          🔗 This is a <strong className="text-[#01BBDC]">confidential preview</strong> prepared by YachtVersal — not a live listing.{' '}
+        </span>
+        <Link href="/register" className="text-[#01BBDC] underline font-semibold">
+          List on YachtVersal →
+        </Link>
+      </div>
 
-        {/* ── Preview Banner ─────────────────────────────────────────────── */}
+      {/* ── Lightbox ───────────────────────────────────────────────────────── */}
+      {lightbox !== null && images.length > 0 && (
         <div
-          className="text-center py-3 px-4 text-sm font-medium"
-          style={{ backgroundColor: '#10214F', color: 'rgba(255,255,255,0.85)', fontFamily: 'Poppins, sans-serif' }}
+          className="fixed inset-0 bg-black/95 flex items-center justify-center"
+          style={{ zIndex: 9999 }}
+          onClick={() => setLightbox(null)}
         >
-          🔗 This is a <strong style={{ color: '#01BBDC' }}>confidential preview</strong> prepared by YachtVersal — not a live listing.
-          &nbsp;
-          <Link href="/register" style={{ color: '#01BBDC', textDecoration: 'underline' }}>
-            List on YachtVersal →
-          </Link>
+          <button className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all"
+            onClick={() => setLightbox(null)}>
+            <X size={22} className="text-white" />
+          </button>
+          <div className="absolute top-6 right-20 flex items-center gap-2">
+            <button onClick={e => { e.stopPropagation(); setZoom(z => Math.max(1, z - 0.25)); }}
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+              <ZoomOut size={18} className="text-white" />
+            </button>
+            <button onClick={e => { e.stopPropagation(); setZoom(z => Math.min(3, z + 0.25)); }}
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+              <ZoomIn size={18} className="text-white" />
+            </button>
+          </div>
+          <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) - 1 + images.length) % images.length); }}
+            className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+            <ChevronLeft size={28} className="text-white" />
+          </button>
+          <img
+            src={images[lightbox]?.url || FALLBACK}
+            alt={`${displayTitle} photo ${lightbox + 1}`}
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
+            style={{ transform: `scale(${zoom})` }}
+            onClick={e => e.stopPropagation()}
+          />
+          <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) + 1) % images.length); }}
+            className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+            <ChevronRight size={28} className="text-white" />
+          </button>
+          <div className="absolute bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
+            {(lightbox ?? 0) + 1} / {images.length}
+          </div>
+          {/* Thumbnail strip */}
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
+            <div className="flex gap-2 justify-center">
+              {images.map((img, idx) => (
+                <button key={idx} type="button"
+                  onClick={e => { e.stopPropagation(); setLightbox(idx); }}
+                  className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition flex-shrink-0 ${idx === lightbox ? 'border-[#01BBDC]' : 'border-white/20'}`}>
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Page ───────────────────────────────────────────────────────────── */}
+      <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Back */}
+        <Link href="/"
+          className="flex items-center gap-2 text-sm mb-6 text-[#10214F] hover:text-[#01BBDC] transition-colors group w-fit">
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> YachtVersal Home
+        </Link>
+
+        {/* ── Title + Price ─────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-baseline justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#10214F] tracking-tight mb-2 font-bahnschrift">
+              {displayTitle}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[#10214F] font-poppins">
+              {location && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={15} className="text-[#01BBDC]" />
+                  {location}
+                </span>
+              )}
+              {data.condition && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 capitalize">
+                  {data.condition}
+                </span>
+              )}
+            </div>
+          </div>
+          {data.price && (
+            <span className="text-4xl md:text-5xl font-bold text-[#01BBDC] font-bahnschrift">
+              {formatPrice(data.price, data.currency)}
+            </span>
+          )}
         </div>
 
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 16px 80px' }}>
+        {/* ── Hero image + contact card ─────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
-          {/* ── Back link ──────────────────────────────────────────────────── */}
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-sm mb-6"
-            style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-          >
-            <ChevronLeft size={16} /> YachtVersal Home
-          </Link>
+          {/* Hero image — 8 cols */}
+          <div className="lg:col-span-8">
+            <div
+              className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
+              style={{ height: 500 }}
+              onClick={() => setLightbox(mainIdx)}
+            >
+              <img
+                src={images[mainIdx]?.url || FALLBACK}
+                alt={`${displayTitle} main photo`}
+                className="w-full h-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }}
+              />
+            </div>
+          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
+          {/* Contact card — 4 cols */}
+          <div className="lg:col-span-4">
+            <div className="rounded-3xl border border-gray-200 bg-white">
 
-            {/* ── Left column ─────────────────────────────────────────────── */}
-            <div>
+              {(data.seller_name || data.brokerage_name) ? (
+                <div className="p-6">
+                  {/* Seller info */}
+                  <div className="flex gap-4 mb-5">
+                    {data.brokerage_logo_url ? (
+                      <img src={data.brokerage_logo_url} alt={data.brokerage_name || 'Brokerage'}
+                        className="w-16 h-16 rounded-2xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
+                        <Building2 size={28} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0 pt-1">
+                      {data.brokerage_name && (
+                        data.brokerage_website ? (
+                          <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
+                            className="font-bold text-lg text-[#01BBDC] mb-0.5 hover:underline block truncate">
+                            {data.brokerage_name}
+                          </a>
+                        ) : (
+                          <p className="font-bold text-lg text-[#01BBDC] mb-0.5 truncate">{data.brokerage_name}</p>
+                        )
+                      )}
+                      {data.seller_name && (
+                        <p className="text-sm text-gray-600 flex items-center gap-1">
+                          <User size={12} /> {data.seller_name}
+                        </p>
+                      )}
+                      {data.seller_phone && (
+                        <a href={`tel:${data.seller_phone}`}
+                          className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors mt-1 block">
+                          {data.seller_phone}
+                        </a>
+                      )}
+                    </div>
+                  </div>
 
-              {/* Title / price */}
-              <div className="mb-4">
-                <h1
-                  style={{
-                    color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                    fontSize: 'clamp(22px, 3vw, 34px)', fontWeight: 600, lineHeight: 1.2, marginBottom: 8,
-                  }}
-                >
-                  {displayTitle}
-                </h1>
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-3xl font-bold" style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}>
-                    {formatPrice(data.price, data.currency ?? undefined)}
-                  </span>
-                  {data.condition && (
-                    <span
-                      className="px-3 py-1 rounded-full text-xs font-medium capitalize"
-                      style={{ backgroundColor: '#f0feff', color: '#01BBDC', border: '1px solid #b2edf7' }}
-                    >
-                      {data.condition}
-                    </span>
-                  )}
-                  {location && (
-                    <span className="flex items-center gap-1 text-sm" style={{ color: '#6b7280' }}>
-                      <MapPin size={14} style={{ color: '#01BBDC' }} />
-                      {location}
-                    </span>
-                  )}
-                </div>
-              </div>
+                  <div className="h-px bg-gray-200 mb-5" />
 
-              {/* Image gallery */}
-              {images.length > 0 && (
-                <div className="mb-6">
-                  <div
-                    className="relative rounded-xl overflow-hidden cursor-zoom-in"
-                    style={{ aspectRatio: '16/9', backgroundColor: '#e5e7eb' }}
-                    onClick={() => setLightboxOpen(true)}
-                  >
-                    <img
-                      src={currentImage.url}
-                      alt={displayTitle}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                    {images.length > 1 && (
-                      <>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setImageIndex((i) => (i - 1 + images.length) % images.length); }}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition-colors"
-                        >
-                          <ChevronLeft size={18} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setImageIndex((i) => (i + 1) % images.length); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition-colors"
-                        >
-                          <ChevronRight size={18} />
-                        </button>
-                        <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                          {imageIndex + 1} / {images.length}
-                        </div>
-                      </>
+                  {/* CTA buttons */}
+                  <div className="flex flex-col gap-3">
+                    {data.seller_email && (
+                      <a href={`mailto:${data.seller_email}`}
+                        className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#01BBDC] hover:opacity-90">
+                        <Mail size={18} /> Contact Broker
+                      </a>
+                    )}
+                    {data.seller_phone && (
+                      <a href={`tel:${data.seller_phone}`}
+                        className="w-full py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all border-2 border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white">
+                        <Phone size={18} /> Call Broker
+                      </a>
                     )}
                   </div>
-
-                  {/* Thumbnails */}
-                  {images.length > 1 && (
-                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-                      {images.slice(0, 10).map((img, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setImageIndex(i)}
-                          className="flex-shrink-0 rounded-lg overflow-hidden transition-opacity"
-                          style={{
-                            width: 72, height: 50,
-                            border: i === imageIndex ? '2px solid #01BBDC' : '2px solid transparent',
-                            opacity: i === imageIndex ? 1 : 0.65,
-                          }}
-                        >
-                          <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                </div>
+              ) : (
+                <div className="p-6 flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                    <Building2 size={36} className="text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">Contact information not available</p>
                 </div>
               )}
 
-              {/* Description */}
-              {data.description && (
-                <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-                  <h2 className="font-semibold mb-3" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 18 }}>
-                    Description
-                  </h2>
-                  <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#374151' }}>
-                    {data.description}
-                  </p>
-                </div>
-              )}
-
-              {/* Feature bullets */}
-              {data.feature_bullets?.length > 0 && (
-                <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-                  <h2 className="font-semibold mb-3" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 18 }}>
-                    Features & Equipment
-                  </h2>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {data.feature_bullets.map((b, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm" style={{ color: '#374151' }}>
-                        <span className="mt-1 flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#01BBDC' }}>
-                          <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </span>
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Specs */}
-              <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
-                <h2 className="font-semibold mb-3" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 18 }}>
-                  Specifications
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-                  <div>
-                    <SpecRow label="Year" value={data.year} />
-                    <SpecRow label="Make" value={data.make} />
-                    <SpecRow label="Model" value={data.model} />
-                    <SpecRow label="Type" value={data.boat_type} />
-                    <SpecRow label="Condition" value={data.condition ? data.condition.charAt(0).toUpperCase() + data.condition.slice(1) : null} />
-                    <SpecRow label="Length" value={data.length_feet ? `${data.length_feet} ft` : null} />
-                    <SpecRow label="Beam" value={data.beam_feet ? `${data.beam_feet} ft` : null} />
-                    <SpecRow label="Draft" value={data.draft_feet ? `${data.draft_feet} ft` : null} />
-                    <SpecRow label="Hull Material" value={data.hull_material} />
-                    <SpecRow label="Hull Type" value={data.hull_type} />
-                  </div>
-                  <div>
-                    <SpecRow label="Engines" value={data.engine_count} />
-                    <SpecRow label="Engine Hours" value={data.engine_hours ? `${data.engine_hours} hrs` : null} />
-                    <SpecRow label="Fuel Type" value={data.fuel_type} />
-                    <SpecRow label="Max Speed" value={data.max_speed_knots ? `${data.max_speed_knots} kts` : null} />
-                    <SpecRow label="Cruising Speed" value={data.cruising_speed_knots ? `${data.cruising_speed_knots} kts` : null} />
-                    <SpecRow label="Fuel Capacity" value={data.fuel_capacity_gallons ? `${data.fuel_capacity_gallons} gal` : null} />
-                    <SpecRow label="Water Capacity" value={data.water_capacity_gallons ? `${data.water_capacity_gallons} gal` : null} />
-                    <SpecRow label="Cabins" value={data.cabins} />
-                    <SpecRow label="Berths" value={data.berths} />
-                    <SpecRow label="Heads" value={data.heads} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Right column: Contact card ───────────────────────────────── */}
-            <div className="flex flex-col gap-5">
-
-              {/* Brokerage / seller card */}
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                <h3 className="font-semibold mb-4" style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 16 }}>
-                  Listed By
-                </h3>
-
-                {data.brokerage_logo_url && (
-                  <img
-                    src={data.brokerage_logo_url}
-                    alt={data.brokerage_name || 'Brokerage'}
-                    style={{ maxHeight: 56, maxWidth: '100%', objectFit: 'contain', marginBottom: 12 }}
-                  />
-                )}
-
-                {data.brokerage_name && (
-                  <div className="flex items-center gap-2 mb-3">
-                    <Building2 size={16} style={{ color: '#01BBDC' }} />
-                    <span className="font-medium text-sm" style={{ color: '#10214F' }}>{data.brokerage_name}</span>
-                  </div>
-                )}
-
-                {data.seller_name && (
-                  <div className="flex items-center gap-2 mb-3">
-                    <User size={16} style={{ color: '#01BBDC' }} />
-                    <span className="text-sm" style={{ color: '#374151' }}>{data.seller_name}</span>
-                  </div>
-                )}
-
-                {data.seller_phone && (
-                  <a
-                    href={`tel:${data.seller_phone}`}
-                    className="flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity"
-                  >
-                    <Phone size={16} style={{ color: '#01BBDC' }} />
-                    <span className="text-sm" style={{ color: '#374151' }}>{data.seller_phone}</span>
-                  </a>
-                )}
-
-                {data.seller_email && (
-                  <a
-                    href={`mailto:${data.seller_email}`}
-                    className="flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity"
-                  >
-                    <Mail size={16} style={{ color: '#01BBDC' }} />
-                    <span className="text-sm" style={{ color: '#374151' }}>{data.seller_email}</span>
-                  </a>
-                )}
-
-                {data.brokerage_website && (
-                  <a
-                    href={data.brokerage_website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                  >
-                    <Globe size={16} style={{ color: '#01BBDC' }} />
-                    <span className="text-sm" style={{ color: '#01BBDC', textDecoration: 'underline' }}>
+              {/* Brokerage website footer */}
+              {data.brokerage_website && (
+                <div className="px-6 py-5 border-t border-gray-200 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <Globe size={14} className="text-[#01BBDC] flex-shrink-0" />
+                    <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-[#01BBDC] hover:underline truncate">
                       {data.brokerage_website.replace(/^https?:\/\/(www\.)?/, '')}
-                    </span>
-                  </a>
-                )}
-              </div>
+                    </a>
+                    <ExternalLink size={11} className="text-gray-400 flex-shrink-0" />
+                  </div>
+                </div>
+              )}
 
               {/* YachtVersal CTA */}
-              <div
-                className="rounded-xl p-6"
-                style={{ background: 'linear-gradient(135deg, #10214F 0%, #0d3a70 100%)' }}
-              >
-                <h3 className="font-semibold text-white mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 16 }}>
-                  Want listings like this?
-                </h3>
-                <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                  List your fleet on YachtVersal and reach qualified buyers worldwide.
-                </p>
-                <Link
-                  href="/register?user_type=dealer"
-                  className="block text-center py-2.5 px-4 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: '#01BBDC', color: '#fff', fontFamily: 'Poppins, sans-serif' }}
-                >
-                  Get Started →
-                </Link>
+              <div className={`px-6 pb-6 pt-4 ${data.brokerage_website ? '' : 'border-t border-gray-200'}`}>
+                <div className="rounded-2xl p-4 bg-[#10214F]">
+                  <p className="font-semibold text-white text-sm mb-1 font-bahnschrift">Want listings like this?</p>
+                  <p className="text-xs text-white/60 mb-3">List your fleet on YachtVersal and reach qualified buyers worldwide.</p>
+                  <Link href="/register?user_type=dealer"
+                    className="block text-center py-2.5 px-4 rounded-xl text-sm font-semibold bg-[#01BBDC] text-white hover:opacity-90 transition-opacity">
+                    Get Started →
+                  </Link>
+                </div>
               </div>
 
-              {/* Source URL note */}
+              {/* Source URL */}
               {data.source_url && (
-                <div className="rounded-xl p-4 border border-gray-200 bg-white">
-                  <p className="text-xs text-gray-400 mb-1">Original listing source</p>
-                  <a
-                    href={data.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs break-all hover:underline"
-                    style={{ color: '#01BBDC' }}
-                  >
-                    {data.source_url}
+                <div className="px-6 pb-6">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Original Listing</p>
+                  <a href={data.source_url} target="_blank" rel="noopener noreferrer"
+                    className="text-xs break-all hover:underline text-[#01BBDC] flex items-start gap-1">
+                    <ExternalLink size={11} className="flex-shrink-0 mt-0.5" />
+                    {data.source_url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60)}{data.source_url.length > 80 ? '…' : ''}
                   </a>
                 </div>
               )}
@@ -414,47 +389,125 @@ export default function PreviewListingPage() {
           </div>
         </div>
 
-        {/* ── Lightbox ─────────────────────────────────────────────────────── */}
-        {lightboxOpen && images.length > 0 && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ backgroundColor: 'rgba(0,0,0,0.92)' }}
-            onClick={() => setLightboxOpen(false)}
-          >
-            <button
-              className="absolute top-4 right-4 text-white hover:opacity-70 transition-opacity"
-              onClick={() => setLightboxOpen(false)}
-            >
-              <X size={28} />
-            </button>
-            {images.length > 1 && (
-              <>
-                <button
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:opacity-70 p-2"
-                  onClick={(e) => { e.stopPropagation(); setImageIndex((i) => (i - 1 + images.length) % images.length); }}
+        {/* ── Thumbnail strip ───────────────────────────────────────────── */}
+        {images.length > 1 && (
+          <div className="flex gap-3 mb-12 overflow-hidden lg:w-[calc(66.666%-12px)]">
+            {galleryThumbs.map((img, idx) => {
+              const isLast = idx === galleryThumbs.length - 1;
+              return (
+                <button key={idx} type="button"
+                  className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                  style={{ height: 160, width: 'calc(25% - 9px)' }}
+                  onClick={() => { setMainIdx(idx + 1); setLightbox(idx + 1); }}
                 >
-                  <ChevronLeft size={32} />
+                  <img src={img.url} alt={`${displayTitle} photo ${idx + 2}`} className="w-full h-full object-cover"
+                    onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }} />
+                  {isLast && remaining > 0 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+                    </div>
+                  )}
                 </button>
-                <button
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:opacity-70 p-2"
-                  onClick={(e) => { e.stopPropagation(); setImageIndex((i) => (i + 1) % images.length); }}
-                >
-                  <ChevronRight size={32} />
-                </button>
-              </>
-            )}
-            <img
-              src={images[imageIndex].url}
-              alt={displayTitle}
-              style={{ maxHeight: '90vh', maxWidth: '90vw', objectFit: 'contain', borderRadius: 8 }}
-              onClick={(e) => e.stopPropagation()}
-            />
-            <div className="absolute bottom-4 text-white text-sm opacity-60">
-              {imageIndex + 1} / {images.length}
-            </div>
+              );
+            })}
           </div>
         )}
+
+        {/* ── Key Specs + Features + Description ───────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
+          <div className="lg:col-span-8 space-y-8">
+
+            {/* Key Specifications icon grid */}
+            {keySpecs.length > 0 && (
+              <div>
+                <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Specifications</h3>
+                <div className="h-[1px] bg-[#01BBDC] mb-5" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+                  {keySpecs.map(s => (
+                    <div key={s.label} className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white">
+                        {s.icon}
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#10214F]/60 uppercase tracking-wide font-bahnschrift">{s.label}</p>
+                        <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Key Features */}
+            {data.feature_bullets?.length > 0 && (
+              <div>
+                <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Features</h3>
+                <div className="h-[1px] bg-[#01BBDC] mb-2" />
+                <ul className="space-y-2">
+                  {data.feature_bullets.slice(0, 8).map((f, i) => (
+                    <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
+                      <span className="text-[#01BBDC] mt-1 flex-shrink-0">✓</span>
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Description */}
+            {data.description && (
+              <div>
+                <SectionHeading>Description</SectionHeading>
+                <p className="text-base leading-relaxed text-[#10214F] font-poppins whitespace-pre-line">
+                  {data.description}
+                </p>
+              </div>
+            )}
+
+          </div>
+
+          {/* Right 4 cols — spacer (contact card already above) */}
+          <div className="lg:col-span-4" />
+        </div>
+
+        {/* ── Full Specifications ───────────────────────────────────────── */}
+        <div className="mb-10">
+          <SectionHeading>Specifications</SectionHeading>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-1">
+              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">General</h4>
+              <SpecRow label="Make"      value={data.make} />
+              <SpecRow label="Model"     value={data.model} />
+              <SpecRow label="Year"      value={data.year ? String(data.year) : null} />
+              <SpecRow label="Type"      value={data.boat_type} />
+              <SpecRow label="Condition" value={data.condition ? data.condition.charAt(0).toUpperCase() + data.condition.slice(1) : null} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">Dimensions</h4>
+              <SpecRow label="LOA"           value={data.length_feet ? `${data.length_feet} ft` : null} />
+              <SpecRow label="Beam"          value={data.beam_feet ? `${data.beam_feet} ft` : null} />
+              <SpecRow label="Draft"         value={data.draft_feet ? `${data.draft_feet} ft` : null} />
+              <SpecRow label="Hull Material" value={data.hull_material} />
+              <SpecRow label="Hull Type"     value={data.hull_type} />
+              <h4 className="font-bold text-[#10214F] mb-3 mt-5 text-sm uppercase tracking-wide font-bahnschrift">Accommodations</h4>
+              <SpecRow label="Cabins"  value={data.cabins ? String(data.cabins) : null} />
+              <SpecRow label="Berths"  value={data.berths ? String(data.berths) : null} />
+              <SpecRow label="Heads"   value={data.heads  ? String(data.heads)  : null} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">Performance</h4>
+              <SpecRow label="Max Speed"      value={data.max_speed_knots ? `${data.max_speed_knots} kts` : null} />
+              <SpecRow label="Cruise Speed"   value={data.cruising_speed_knots ? `${data.cruising_speed_knots} kts` : null} />
+              <SpecRow label="Fuel Type"      value={data.fuel_type} />
+              <SpecRow label="Fuel Capacity"  value={data.fuel_capacity_gallons ? `${fmt(data.fuel_capacity_gallons)} gal` : null} />
+              <SpecRow label="Water Capacity" value={data.water_capacity_gallons ? `${fmt(data.water_capacity_gallons)} gal` : null} />
+              <SpecRow label="Engine Count"   value={data.engine_count ? String(data.engine_count) : null} />
+              <SpecRow label="Engine Hours"   value={data.engine_hours ? `${fmt(data.engine_hours)} hrs` : null} />
+            </div>
+          </div>
+        </div>
+
       </div>
-    </>
+    </div>
   );
 }
