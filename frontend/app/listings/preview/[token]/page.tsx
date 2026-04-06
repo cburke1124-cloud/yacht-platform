@@ -123,6 +123,28 @@ export default function PreviewListingPage() {
     return () => { document.head.removeChild(m); };
   }, []);
 
+  // ── CTA click tracking ──────────────────────────────────────────────────
+  function trackCtaClick(label: string) {
+    // Fire GTM dataLayer event (works if/when GTM is added)
+    if (typeof window !== 'undefined') {
+      (window as any).dataLayer = (window as any).dataLayer || [];
+      (window as any).dataLayer.push({
+        event: 'preview_cta_click',
+        cta_label: label,
+        preview_token: token,
+      });
+    }
+    // Fire-and-forget backend tracking
+    if (token) {
+      fetch(`${API_ROOT}/preview/listings/${token}/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: label }),
+        keepalive: true,
+      }).catch(() => {/* ignore */});
+    }
+  }
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="w-14 h-14 rounded-full border-4 border-t-[#01BBDC] border-[#01BBDC]/20 animate-spin" />
@@ -167,7 +189,8 @@ export default function PreviewListingPage() {
         <span className="text-white/80">
           🔗 This is a <strong className="text-[#01BBDC]">confidential preview</strong> prepared by YachtVersal — not a live listing.{' '}
         </span>
-        <Link href="/register" className="text-[#01BBDC] underline font-semibold">
+        <Link href="/register" className="text-[#01BBDC] underline font-semibold"
+          onClick={() => trackCtaClick('banner_list_on_yachtversal')}>
           List on YachtVersal →
         </Link>
       </div>
@@ -179,11 +202,12 @@ export default function PreviewListingPage() {
           style={{ zIndex: 9999 }}
           onClick={() => setLightbox(null)}
         >
-          <button className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all"
+          {/* z-10 on all controls keeps them above the transform-scaled image */}
+          <button className="absolute z-10 top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all"
             onClick={() => setLightbox(null)}>
             <X size={22} className="text-white" />
           </button>
-          <div className="absolute top-6 right-20 flex items-center gap-2">
+          <div className="absolute z-10 top-6 right-20 flex items-center gap-2">
             <button onClick={e => { e.stopPropagation(); setZoom(z => Math.max(1, z - 0.25)); }}
               className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
               <ZoomOut size={18} className="text-white" />
@@ -194,25 +218,25 @@ export default function PreviewListingPage() {
             </button>
           </div>
           <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) - 1 + images.length) % images.length); }}
-            className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+            className="absolute z-10 left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronLeft size={28} className="text-white" />
           </button>
           <img
             src={images[lightbox]?.url || FALLBACK}
             alt={`${displayTitle} photo ${lightbox + 1}`}
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
+            className="relative z-0 max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
             style={{ transform: `scale(${zoom})` }}
             onClick={e => e.stopPropagation()}
           />
           <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) + 1) % images.length); }}
-            className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+            className="absolute z-10 right-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronRight size={28} className="text-white" />
           </button>
-          <div className="absolute bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
+          <div className="absolute z-10 bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
             {(lightbox ?? 0) + 1} / {images.length}
           </div>
           {/* Thumbnail strip */}
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
+          <div className="absolute z-10 left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
             <div className="flex gap-2 justify-center">
               {images.map((img, idx) => (
                 <button key={idx} type="button"
@@ -417,12 +441,14 @@ export default function PreviewListingPage() {
               {/* ── Action row matching Save / Compare / Share layout ── */}
               <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
                 <Link href="/register"
-                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors rounded-bl-3xl">
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors rounded-bl-3xl"
+                  onClick={() => trackCtaClick('save_button')}>
                   <Heart size={18} strokeWidth={2} />
                   Save
                 </Link>
                 <Link href="/register"
-                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors">
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors"
+                  onClick={() => trackCtaClick('compare_button')}>
                   <Plus size={18} strokeWidth={2} />
                   Compare
                 </Link>

@@ -376,10 +376,11 @@ export default function ListingDetailPage() {
         <div className="fixed inset-0 bg-black/95 flex items-center justify-center"
           style={{ zIndex: 9999 }}
           onClick={() => setLightbox(null)}>
-          <button className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all" aria-label="Close">
+          {/* z-10 on all controls keeps them above the transform-scaled image */}
+          <button className="absolute z-10 top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all" aria-label="Close">
             <X size={22} className="text-white" />
           </button>
-          <div className="absolute top-6 right-20 flex items-center gap-2">
+          <div className="absolute z-10 top-6 right-20 flex items-center gap-2">
             <button
               type="button"
               onClick={e => { e.stopPropagation(); setLightboxZoom(z => Math.max(1, z - 0.25)); }}
@@ -396,21 +397,21 @@ export default function ListingDetailPage() {
             </button>
           </div>
           <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) - 1 + imageLightboxItems.length) % imageLightboxItems.length); }}
-            className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+            className="absolute z-10 left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronLeft size={28} className="text-white" />
           </button>
-          <img src={mediaUrl(imageLightboxItems[lightbox]?.url) || FALLBACK_LISTING_IMAGE} className="max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
+          <img src={mediaUrl(imageLightboxItems[lightbox]?.url) || FALLBACK_LISTING_IMAGE} className="relative z-0 max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
             style={{ transform: `scale(${lightboxZoom})` }}
             alt={imageLightboxItems[lightbox]?.alt_text || imageLightboxItems[lightbox]?.caption || `${listing.title} photo ${(lightbox ?? 0) + 1}`}
             onClick={e => e.stopPropagation()} />
           <button onClick={e => { e.stopPropagation(); setLightbox(i => ((i ?? 0) + 1) % imageLightboxItems.length); }}
-            className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
+            className="absolute z-10 right-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronRight size={28} className="text-white" />
           </button>
-          <div className="absolute bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
+          <div className="absolute z-10 bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
             {(lightbox ?? 0) + 1} / {imageLightboxItems.length}
           </div>
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
+          <div className="absolute z-10 left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
             <div className="flex gap-2 justify-center">
               {imageLightboxItems.map((item, idx) => (
                 <button

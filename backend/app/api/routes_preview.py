@@ -6,6 +6,7 @@ GET    /preview/listings               — list all preview listings (admin or s
 PUT    /preview/listings/{id}          — update a preview listing
 DELETE /preview/listings/{id}          — delete a preview listing
 GET    /preview/listings/view/{token}  — public view by share token (no auth)
+POST   /preview/listings/{token}/track — anonymous CTA click tracking (no auth)
 POST   /preview/listings/scrape        — scrape a URL and return fields (no DB write)
 """
 
@@ -13,6 +14,7 @@ import uuid
 import re
 import json
 import os
+from datetime import datetime, timezone
 from typing import Optional, List
 from datetime import datetime
 
@@ -224,7 +226,35 @@ def get_preview_by_token(
     return _serialize(pl)
 
 
-@router.post("/scrape")
+class TrackEventRequest(BaseModel):
+    event: str
+
+
+@router.post("/view/{token}/track", status_code=204)
+def track_preview_cta(
+    token: str,
+    body: TrackEventRequest,
+    db: Session = Depends(get_db),
+):
+    """Anonymous CTA click tracking — records event + timestamp in additional_specs."""
+    pl = db.query(PreviewListing).filter(
+        PreviewListing.share_token == token,
+        PreviewListing.is_active == True,
+    ).first()
+    if not pl:
+        return  # Silently ignore — don't expose 404 to anonymous callers
+    specs = dict(pl.additional_specs or {})
+    events = specs.setdefault("cta_clicks", [])
+    events.append({
+        "event": body.event[:100],  # cap length
+        "ts": datetime.now(timezone.utc).isoformat(),
+    })
+    from sqlalchemy.orm.attributes import flag_modified
+    pl.additional_specs = specs
+    flag_modified(pl, "additional_specs")
+    db.commit()
+
+
 def scrape_preview(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
