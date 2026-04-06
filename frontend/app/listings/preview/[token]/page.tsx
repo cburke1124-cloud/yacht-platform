@@ -8,6 +8,7 @@ import {
   Phone, Mail, Globe, Building2, User, Ruler,
   Bed, Fuel, Gauge, Waves, Users, Wrench,
   ZoomIn, ZoomOut, ArrowLeft, ExternalLink,
+  Heart, Plus, Share2,
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
@@ -101,6 +102,7 @@ export default function PreviewListingPage() {
   const [mainIdx, setMainIdx] = useState(0);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [shared, setShared] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -283,39 +285,57 @@ export default function PreviewListingPage() {
           <div className="lg:col-span-4">
             <div className="rounded-3xl border border-gray-200 bg-white">
 
+              {/* ── Main contact: salesperson (or brokerage when no seller) ── */}
               {(data.seller_name || data.brokerage_name) ? (
                 <div className="p-6">
-                  {/* Seller info */}
                   <div className="flex gap-4 mb-5">
-                    {data.brokerage_logo_url ? (
+                    {/* w-20 h-20 rounded-2xl matches real listing page salesman photo */}
+                    {!data.seller_name && data.brokerage_logo_url ? (
                       <img src={data.brokerage_logo_url} alt={data.brokerage_name || 'Brokerage'}
                         className="w-16 h-16 rounded-2xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     ) : (
-                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
-                        <Building2 size={28} className="text-gray-400" />
+                      <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
+                        <User size={36} className="text-gray-400" />
                       </div>
                     )}
                     <div className="min-w-0 pt-1">
-                      {data.brokerage_name && (
+                      {/* Primary name in cyan — seller name takes priority over brokerage */}
+                      {data.seller_name ? (
+                        <p className="font-bold text-lg text-[#01BBDC] mb-0.5">{data.seller_name}</p>
+                      ) : data.brokerage_name ? (
                         data.brokerage_website ? (
                           <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
-                            className="font-bold text-lg text-[#01BBDC] mb-0.5 hover:underline block truncate">
+                            className="font-bold text-lg text-[#01BBDC] mb-0.5 hover:underline block">
                             {data.brokerage_name}
                           </a>
                         ) : (
-                          <p className="font-bold text-lg text-[#01BBDC] mb-0.5 truncate">{data.brokerage_name}</p>
+                          <p className="font-bold text-lg text-[#01BBDC] mb-0.5">{data.brokerage_name}</p>
                         )
-                      )}
+                      ) : null}
+                      {/* "Broker" title row — matches real page sc.title display */}
                       {data.seller_name && (
-                        <p className="text-sm text-gray-600 flex items-center gap-1">
-                          <User size={12} /> {data.seller_name}
+                        <p className="text-sm text-gray-600 mb-1">Broker</p>
+                      )}
+                      {/* Brokerage-only: show city/state under name */}
+                      {!data.seller_name && (data.city || data.state) && (
+                        <p className="text-sm text-gray-600 flex items-center gap-1 mb-1">
+                          <MapPin size={12} className="text-[#01BBDC]" />
+                          {[data.city, data.state].filter(Boolean).join(', ')}
                         </p>
                       )}
+                      {/* Phone with Phone icon — matches real page sc.phone display */}
                       {data.seller_phone && (
                         <a href={`tel:${data.seller_phone}`}
-                          className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors mt-1 block">
-                          {data.seller_phone}
+                          className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors flex items-center gap-1">
+                          <Phone size={12} /> {data.seller_phone}
+                        </a>
+                      )}
+                      {/* Email xs gray — matches real page sc.email display */}
+                      {data.seller_email && (
+                        <a href={`mailto:${data.seller_email}`}
+                          className="text-xs text-gray-500 hover:text-[#01BBDC] transition-colors block mt-1">
+                          {data.seller_email}
                         </a>
                       )}
                     </div>
@@ -323,10 +343,10 @@ export default function PreviewListingPage() {
 
                   <div className="h-px bg-gray-200 mb-5" />
 
-                  {/* CTA buttons */}
                   <div className="flex flex-col gap-3">
-                    {data.seller_email && (
-                      <a href={`mailto:${data.seller_email}`}
+                    {(data.seller_email || data.source_url) && (
+                      <a href={data.seller_email ? `mailto:${data.seller_email}` : data.source_url!}
+                        {...(!data.seller_email ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                         className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#01BBDC] hover:opacity-90">
                         <Mail size={18} /> Contact Broker
                       </a>
@@ -348,43 +368,72 @@ export default function PreviewListingPage() {
                 </div>
               )}
 
-              {/* Brokerage website footer */}
-              {data.brokerage_website && (
+              {/* ── Brokerage sub-section (when seller + brokerage both present) */}
+              {data.seller_name && data.brokerage_name && (
                 <div className="px-6 py-5 border-t border-gray-200 bg-gray-50">
-                  <div className="flex items-center gap-2">
-                    <Globe size={14} className="text-[#01BBDC] flex-shrink-0" />
-                    <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-[#01BBDC] hover:underline truncate">
-                      {data.brokerage_website.replace(/^https?:\/\/(www\.)?/, '')}
-                    </a>
-                    <ExternalLink size={11} className="text-gray-400 flex-shrink-0" />
+                  <div className="flex gap-3 items-start">
+                    {data.brokerage_logo_url ? (
+                      <img src={data.brokerage_logo_url} alt={data.brokerage_name}
+                        className="w-14 h-14 rounded-xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
+                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border border-gray-100">
+                        <Building2 size={24} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      {/* Brokerage name in NAVY — matches real page dealer sub-section */}
+                      {data.brokerage_website ? (
+                        <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
+                          className="font-bold text-[#10214F] truncate text-sm hover:text-[#01BBDC] hover:underline block">
+                          {data.brokerage_name}
+                        </a>
+                      ) : (
+                        <p className="font-bold text-[#10214F] truncate text-sm">{data.brokerage_name}</p>
+                      )}
+                      {(data.city || data.state) && (
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                          <MapPin size={10} /> {[data.city, data.state].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+                      {data.brokerage_website && (
+                        <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 mt-1.5 text-xs hover:underline text-[#01BBDC]">
+                          <Globe size={11} />
+                          {data.brokerage_website.replace(/^https?:\/\//, '')}
+                        </a>
+                      )}
+                    </div>
+                    {data.brokerage_website && (
+                      <a href={data.brokerage_website} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-semibold hover:underline flex items-center gap-1 flex-shrink-0 text-[#01BBDC]">
+                        View all <ExternalLink size={10} />
+                      </a>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* YachtVersal CTA */}
-              <div className={`px-6 pb-6 pt-4 ${data.brokerage_website ? '' : 'border-t border-gray-200'}`}>
-                <div className="rounded-2xl p-4 bg-[#10214F]">
-                  <p className="font-semibold text-white text-sm mb-1 font-bahnschrift">Want listings like this?</p>
-                  <p className="text-xs text-white/60 mb-3">List your fleet on YachtVersal and reach qualified buyers worldwide.</p>
-                  <Link href="/register?user_type=dealer"
-                    className="block text-center py-2.5 px-4 rounded-xl text-sm font-semibold bg-[#01BBDC] text-white hover:opacity-90 transition-opacity">
-                    Get Started →
-                  </Link>
-                </div>
+              {/* ── Action row matching Save / Compare / Share layout ── */}
+              <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
+                <Link href="/register"
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors rounded-bl-3xl">
+                  <Heart size={18} strokeWidth={2} />
+                  Save
+                </Link>
+                <Link href="/register"
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors">
+                  <Plus size={18} strokeWidth={2} />
+                  Compare
+                </Link>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(window.location.href); setShared(true); setTimeout(() => setShared(false), 2000); }}
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors rounded-br-3xl"
+                  style={{ color: shared ? '#01BBDC' : '#10214F' }}>
+                  <Share2 size={18} strokeWidth={2} />
+                  {shared ? 'Copied!' : 'Share'}
+                </button>
               </div>
-
-              {/* Source URL */}
-              {data.source_url && (
-                <div className="px-6 pb-6">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Original Listing</p>
-                  <a href={data.source_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs break-all hover:underline text-[#01BBDC] flex items-start gap-1">
-                    <ExternalLink size={11} className="flex-shrink-0 mt-0.5" />
-                    {data.source_url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60)}{data.source_url.length > 80 ? '…' : ''}
-                  </a>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -466,8 +515,19 @@ export default function PreviewListingPage() {
 
           </div>
 
-          {/* Right 4 cols — spacer (contact card already above) */}
-          <div className="lg:col-span-4" />
+          {/* Right 4 cols — source URL card */}
+          <div className="lg:col-span-4">
+            {data.source_url && (
+              <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Original Listing Source</p>
+                <a href={data.source_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs break-all hover:underline text-[#01BBDC] flex items-start gap-1">
+                  <ExternalLink size={12} className="flex-shrink-0 mt-0.5" />
+                  {data.source_url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 80)}{data.source_url.length > 90 ? '\u2026' : ''}
+                </a>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Full Specifications ───────────────────────────────────────── */}
