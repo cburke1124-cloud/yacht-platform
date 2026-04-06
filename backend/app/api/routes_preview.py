@@ -27,6 +27,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.preview_listing import PreviewListing
+from app.models.partner_growth import AffiliateAccount
 
 router = APIRouter()
 
@@ -93,7 +94,17 @@ def _require_staff(user: User):
         raise HTTPException(status_code=403, detail="Staff access required")
 
 
-def _serialize(pl: PreviewListing) -> dict:
+def _serialize(pl: PreviewListing, db: Session = None) -> dict:
+    # Look up the creator's affiliate code so the frontend can append ?ref= to CTAs
+    creator_affiliate_code = None
+    if db and pl.created_by:
+        af = db.query(AffiliateAccount).filter(
+            AffiliateAccount.user_id == pl.created_by,
+            AffiliateAccount.account_type == "sales_rep",
+            AffiliateAccount.active == True,
+        ).first()
+        creator_affiliate_code = af.code if af else None
+
     return {
         "id": pl.id,
         "share_token": pl.share_token,
@@ -139,6 +150,7 @@ def _serialize(pl: PreviewListing) -> dict:
         "source_url": pl.source_url,
         "internal_note": pl.internal_note,
         "is_active": pl.is_active,
+        "creator_affiliate_code": creator_affiliate_code,
     }
 
 
@@ -164,7 +176,7 @@ def create_preview_listing(
     db.add(pl)
     db.commit()
     db.refresh(pl)
-    return {"success": True, "preview": _serialize(pl)}
+    return {"success": True, "preview": _serialize(pl, db)}
 
 
 @router.get("")
@@ -174,7 +186,7 @@ def list_preview_listings(
 ):
     _require_staff(current_user)
     rows = db.query(PreviewListing).filter(PreviewListing.is_active == True).order_by(PreviewListing.created_at.desc()).all()
-    return {"previews": [_serialize(r) for r in rows]}
+    return {"previews": [_serialize(r, db) for r in rows]}
 
 
 @router.put("/{preview_id}")
@@ -193,7 +205,7 @@ def update_preview_listing(
     pl.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(pl)
-    return {"success": True, "preview": _serialize(pl)}
+    return {"success": True, "preview": _serialize(pl, db)}
 
 
 @router.delete("/{preview_id}")
@@ -223,7 +235,7 @@ def get_preview_by_token(
     ).first()
     if not pl:
         raise HTTPException(status_code=404, detail="Preview not found or expired")
-    return _serialize(pl)
+    return _serialize(pl, db)
 
 
 class TrackEventRequest(BaseModel):

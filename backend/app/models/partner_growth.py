@@ -48,9 +48,13 @@ class PartnerDeal(Base):
     end_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Optional link back to the preview listing this deal was created for
+    preview_listing_id = Column(Integer, ForeignKey("preview_listings.id"), nullable=True)
+
     creator_user = relationship("User", foreign_keys=[created_by])
     owner_sales_rep = relationship("User", foreign_keys=[owner_sales_rep_id])
     affiliate_account = relationship("AffiliateAccount", foreign_keys=[affiliate_account_id])
+    preview_listing = relationship("PreviewListing", foreign_keys=[preview_listing_id])
 
 
 class PartnerOffer(Base):

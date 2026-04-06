@@ -54,6 +54,7 @@ interface PreviewData {
   brokerage_website: string | null;
   images: { url: string; is_primary?: boolean }[];
   source_url: string | null;
+  creator_affiliate_code: string | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ export default function PreviewListingPage() {
         <span className="text-white/80">
           🔗 This is a <strong className="text-[#01BBDC]">confidential preview</strong> prepared by YachtVersal — not a live listing.{' '}
         </span>
-        <Link href="/register" className="text-[#01BBDC] underline font-semibold"
+        <Link href={data.creator_affiliate_code ? `/register?ref=${encodeURIComponent(data.creator_affiliate_code)}` : '/register'} className="text-[#01BBDC] underline font-semibold"
           onClick={() => trackCtaClick('banner_list_on_yachtversal')}>
           List on YachtVersal →
         </Link>
@@ -440,13 +441,13 @@ export default function PreviewListingPage() {
 
               {/* ── Action row matching Save / Compare / Share layout ── */}
               <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
-                <Link href="/register"
+                <Link href={data.creator_affiliate_code ? `/register?ref=${encodeURIComponent(data.creator_affiliate_code)}` : '/register'}
                   className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors rounded-bl-3xl"
                   onClick={() => trackCtaClick('save_button')}>
                   <Heart size={18} strokeWidth={2} />
                   Save
                 </Link>
-                <Link href="/register"
+                <Link href={data.creator_affiliate_code ? `/register?ref=${encodeURIComponent(data.creator_affiliate_code)}` : '/register'}
                   className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors"
                   onClick={() => trackCtaClick('compare_button')}>
                   <Plus size={18} strokeWidth={2} />
