@@ -16,7 +16,6 @@ import AdminDemoAccountsTab from '@/app/components/admin/AdminDemoAccountsTab';
 import AdminSalesToolsTab from '@/app/components/admin/AdminSalesToolsTab';
 import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
-import ScraperReviewPage from '@/app/admin/scraper-review/page';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3 } from 'lucide-react';
 
 function AdminPageContent() {
@@ -38,7 +37,6 @@ function AdminPageContent() {
     { id: 'sales-tools', label: 'Sales Tools', icon: '🏷️' },
     { id: 'system', label: 'System', icon: '🛠️' },
     { id: 'preview-listings', label: 'Preview Listings', icon: '👁️' },
-    { id: 'scraper-review', label: 'Scraper Review', icon: '🔍' }
   ];
 
   return (
@@ -85,7 +83,6 @@ function AdminPageContent() {
           {activeTab === 'settings' && <AdminSettingsPage />}
           {activeTab === 'system' && <AdminSystemTab />}
           {activeTab === 'preview-listings' && <AdminPreviewListingsTab />}
-          {activeTab === 'scraper-review' && <ScraperReviewPage />}
         </section>
       </div>
     </AdminLayout>

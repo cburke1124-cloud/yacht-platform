@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ScraperReviewPage from '@/app/admin/scraper-review/page';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ function fmtDate(iso?: string) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -308,6 +309,9 @@ export default function AdminScraperTab() {
           <button onClick={() => setSection('test')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'test' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             Test Tools
           </button>
+          <button onClick={() => setSection('review')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'review' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Review Queue
+          </button>
         </div>
       </div>
 
@@ -525,6 +529,13 @@ export default function AdminScraperTab() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══ REVIEW QUEUE ══════════════════════════════════════════════════ */}
+      {section === 'review' && (
+        <div className="p-6">
+          <ScraperReviewPage />
         </div>
       )}
 

@@ -692,11 +692,13 @@ brokerage_website (brokerage website URL, or null).
         response = http_requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-sonnet-4-20250514", "max_tokens": 4096,
+            json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 4096,
                   "messages": [{"role": "user", "content": prompt}]},
-            timeout=25,
+            timeout=40,
         )
         if not response.ok:
+            import sys
+            print(f"[preview scraper] Claude API error {response.status_code}: {response.text[:300]}", file=sys.stderr)
             return None
         content = response.json().get("content", [])
         if not content:
@@ -704,5 +706,7 @@ brokerage_website (brokerage website URL, or null).
         blob = re.sub(r"^```json\s*|\s*```$", "", content[0].get("text", "").strip())
         parsed = json.loads(blob)
         return parsed if isinstance(parsed, dict) else None
-    except Exception:
+    except Exception as exc:
+        import sys
+        print(f"[preview scraper] _claude_extract exception: {exc}", file=sys.stderr)
         return None
