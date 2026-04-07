@@ -549,19 +549,33 @@ def scrape_preview(
     images = [{"url": u, "is_primary": i == 0} for i, u in enumerate(all_images)]
 
     # ── Plain text for field extraction ───────────────────────────────────
-    text = re.sub(r"<script[^>]*>.*?</script>", " ", raw_html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
+    clean_text = re.sub(r"<script[^>]*>.*?</script>", " ", raw_html, flags=re.DOTALL | re.IGNORECASE)
+    clean_text = re.sub(r"<style[^>]*>.*?</style>", " ", clean_text, flags=re.DOTALL | re.IGNORECASE)
+    clean_text = re.sub(r"<[^>]+>", " ", clean_text)
     for entity, char in [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"')]:
-        text = text.replace(entity, char)
-    text = re.sub(r"&#\d+;", " ", text)
-    text = re.sub(r"\s{2,}", " ", text).strip()
+        clean_text = clean_text.replace(entity, char)
+    clean_text = re.sub(r"&#\d+;", " ", clean_text)
+    clean_text = re.sub(r"\s{2,}", " ", clean_text).strip()
 
-    if jsonld_text:
-        text = jsonld_text + " " + text
+    # Give Claude the structured JSON-LD as context first, then the page text.
+    # But keep clean_text separate so _fallback_parse never sees raw JSON blobs.
+    claude_text = (jsonld_text + "\n\nPAGE TEXT:\n" + clean_text) if jsonld_text else clean_text
 
     # ── Field extraction ───────────────────────────────────────────────────
-    extracted = _claude_extract(text) or _fallback_parse(text)
+    extracted = _claude_extract(claude_text) or _fallback_parse(clean_text)
+
+    # ── Sanitize: discard fields that came back as raw JSON / nav text ─────
+    def _looks_like_json(v: str) -> bool:
+        return bool(v and re.match(r'^\s*[\{\[]', v.strip()))
+    if _looks_like_json(extracted.get("title", "") or ""):
+        extracted["title"] = og_title
+    if _looks_like_json(extracted.get("description", "") or ""):
+        extracted["description"] = og_description
+    # City/state shouldn't be long sentences (nav text contamination)
+    if extracted.get("city") and (len(extracted["city"]) > 60 or re.search(r'search|browse|filter|sale|price', extracted["city"], re.IGNORECASE)):
+        extracted["city"] = None
+    if extracted.get("state") and len(extracted["state"]) > 30:
+        extracted["state"] = None
 
     # Merge OG/meta hints for missing fields
     if og_price and not extracted.get("price"):
@@ -649,15 +663,31 @@ def _fallback_parse(text: str) -> dict:
         state = parts[1] if len(parts) > 1 else None
         country = parts[2] if len(parts) > 2 else None
     bullets = [re.sub(r"^[-•*]\s+", "", l).strip() for l in lines if re.match(r"^[-•*]\s+", l)]
+
+    # Find a real description: prefer long sentences over nav/junk lines
+    desc_sentences = re.findall(r'[A-Z][^.!?\n]{60,}[.!?]', text)
+    description = " ".join(desc_sentences[:6]).strip() if desc_sentences else None
+    # Fall back to the longest non-nav paragraph
+    if not description:
+        paras = [l for l in lines if len(l) > 80 and not re.search(r'cookie|privacy|copyright|menu|nav|©', l, re.IGNORECASE)]
+        description = paras[0][:3000] if paras else None
+
+    # Pick a title: first line that looks like a boat name (not a single char or JSON)
+    title = None
+    for line in lines:
+        if len(line) > 5 and not line.startswith("{") and not line.startswith("["):
+            title = line
+            break
+
     return {
-        "title": lines[0] if lines else None,
+        "title": title,
         "make": make, "year": _to_int(year), "price": _to_float(price),
         "length_feet": _to_float(length), "beam_feet": _to_float(beam),
         "cabins": _to_int(cabins), "berths": _to_int(berths), "heads": _to_int(heads),
         "fuel_capacity_gallons": _to_float(fuel_cap),
         "water_capacity_gallons": _to_float(water_cap),
         "city": city, "state": state, "country": country,
-        "description": text[:3000],
+        "description": description,
         "feature_bullets": bullets[:8] if bullets else [],
     }
 
