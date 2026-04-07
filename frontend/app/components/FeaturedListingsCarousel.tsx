@@ -98,9 +98,9 @@ export default function FeaturedListingsCarousel() {
 
   if (loading) {
     return (
-      <section className="py-12 bg-gradient-to-r bg-secondary">
+      <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-light">Loading featured yachts...</div>
+          <div className="text-center text-[#10214F]">Loading featured yachts...</div>
         </div>
       </section>
     );
@@ -116,12 +116,12 @@ export default function FeaturedListingsCarousel() {
   const imageUrl = mediaUrl(currentListing?.images?.[0]?.url);
 
   return (
-    <section className="py-12 bg-gradient-to-r bg-secondary">
+    <section className="py-12 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex items-center justify-center mb-8">
           <Star className="text-yellow-400 fill-yellow-400 mr-3" size={32} />
-          <h2 className="text-3xl font-bold text-white">Featured Yachts</h2>
+          <h2 className="text-3xl font-bold text-[#10214F]">Featured Yachts</h2>
           <Star className="text-yellow-400 fill-yellow-400 ml-3" size={32} />
         </div>
 
@@ -203,8 +203,8 @@ export default function FeaturedListingsCarousel() {
                         onClick={() => setCurrentIndex(idx)}
                         className={`h-2 rounded-full transition-all ${
                           idx === currentIndex
-                            ? 'w-8 bg-primary'
-                            : 'w-2 bg-light/30 hover:bg-light/50'
+                            ? 'w-8 bg-[#01BBDC]'
+                            : 'w-2 bg-[#10214F]/20 hover:bg-[#10214F]/40'
                         }`}
                         aria-label={`Go to slide ${idx + 1}`}
                       />
@@ -217,8 +217,8 @@ export default function FeaturedListingsCarousel() {
         </div>
 
         {/* Info Text */}
-        <p className="text-center text-light/70 text-sm mt-6">
-          Want to feature your yacht? <Link href="/pricing" className="underline hover:text-light">Learn more</Link>
+        <p className="text-center text-[#10214F]/60 text-sm mt-6">
+          Want to feature your yacht? <Link href="/pricing" className="underline hover:text-[#10214F]">Learn more</Link>
         </p>
       </div>
     </section>

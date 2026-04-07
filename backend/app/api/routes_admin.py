@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from datetime import datetime, timedelta
 from typing import Optional
+from pydantic import BaseModel
 import secrets
 import sys
 import platform
@@ -24,7 +25,7 @@ from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.partner_growth import PartnerDeal
 from app.models.partner_growth import PartnerOffer
-from app.models.misc import SiteSettings
+from app.models.misc import SiteSettings, ScraperJob, ScrapedListing
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -3322,3 +3323,112 @@ def admin_set_user_tier(
         "old_tier": old_tier,
         "new_tier": new_tier,
     }
+
+
+# ---------------------------------------------------------------------------
+# Scraped listing review queue — admin-only
+# ---------------------------------------------------------------------------
+
+@router.get("/scraper/listings")
+def list_scraped_listings_for_review(
+    status: Optional[str] = Query(None, description="Filter by status (default: awaiting_review)"),
+    dealer_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Return all scraped listings pending admin review.
+    Includes dealer info, detected agent name, and the dealer's salespeople list.
+    """
+    filter_status = status or "awaiting_review"
+    q = (
+        db.query(Listing)
+        .filter(Listing.source == "scraped", Listing.status == filter_status, Listing.deleted_at == None)
+        .order_by(Listing.created_at.desc())
+    )
+    if dealer_id:
+        q = q.filter(Listing.user_id == dealer_id)
+
+    listings = q.all()
+
+    # Build a lookup of dealer info and their salespeople — batch to avoid N+1
+    dealer_ids = list({l.user_id for l in listings})
+    dealer_map: dict = {}
+    for d in db.query(User).filter(User.id.in_(dealer_ids)).all():
+        dealer_map[d.id] = d
+
+    # Salespeople keyed by dealer_id
+    salespeople_map: dict = {}
+    if dealer_ids:
+        for sp in (
+            db.query(User)
+            .filter(User.parent_dealer_id.in_(dealer_ids), User.user_type == "salesman")
+            .all()
+        ):
+            salespeople_map.setdefault(sp.parent_dealer_id, []).append({
+                "id": sp.id,
+                "name": f"{sp.first_name or ''} {sp.last_name or ''}".strip(),
+                "email": sp.email,
+            })
+
+    def _serialize(l: Listing) -> dict:
+        dealer = dealer_map.get(l.user_id)
+        specs = l.additional_specs or {}
+        return {
+            "id": l.id,
+            "title": l.title,
+            "make": l.make,
+            "model": l.model,
+            "year": l.year,
+            "price": l.price,
+            "currency": l.currency or "USD",
+            "length_feet": l.length_feet,
+            "city": l.city,
+            "state": l.state,
+            "country": l.country,
+            "status": l.status,
+            "source_url": l.source_url,
+            "assigned_salesman_id": l.assigned_salesman_id,
+            "detected_agent_name": specs.get("detected_agent_name"),
+            "images": [img.url for img in (l.images or [])][:1],
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+            "dealer": {
+                "id": dealer.id if dealer else None,
+                "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip() if dealer else None,
+                "email": dealer.email if dealer else None,
+                "company_name": dealer.dealer_profile.company_name if dealer and dealer.dealer_profile else None,
+            },
+            "salespeople": salespeople_map.get(l.user_id, []),
+        }
+
+    return {"listings": [_serialize(l) for l in listings], "total": len(listings)}
+
+
+class ScrapedListingPatch(BaseModel):
+    title: Optional[str] = None
+    price: Optional[float] = None
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
+    status: Optional[str] = None
+    assigned_salesman_id: Optional[int] = None
+
+
+@router.patch("/scraper/listings/{listing_id}")
+def patch_scraped_listing(
+    listing_id: int,
+    body: ScrapedListingPatch,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Update fields of a scraped listing and/or change its status (e.g. approve → active)."""
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    updates = body.dict(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(listing, field, value)
+    listing.updated_at = datetime.utcnow()
+    db.commit()
+    return {"success": True, "id": listing.id, "status": listing.status}

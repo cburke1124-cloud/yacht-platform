@@ -19,6 +19,7 @@ import logging
 
 from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing
+from app.models.user import User
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,15 @@ class OptimizedYachtScraper:
             },
         }
 
+    # URL patterns that carry a unique-ID query param — must preserve the full URL
+    _ID_QUERY_PARAM_RE = re.compile(
+        r"[?&](?:id|listing_id|boat_id|vessel_id|yacht_id|property_id|item_id)=\d+",
+        re.IGNORECASE,
+    )
+
+    # CSS class that marks a listing card as sold/unavailable
+    _SOLD_CARD_CLASSES = frozenset({"sold", "off-market", "under-contract", "pending", "unavailable"})
+
     # ---------------------------------------------------------
     # BASIC FETCHING
     # ---------------------------------------------------------
@@ -243,6 +253,15 @@ class OptimizedYachtScraper:
             return False, f"Unexpected status {response.status_code}"
         except Exception as e:
             return False, f"Error: {str(e)}"
+
+    # URL patterns that carry a unique-ID query param — must preserve the full URL
+    _ID_QUERY_PARAM_RE = re.compile(
+        r"[?&](?:id|listing_id|boat_id|vessel_id|yacht_id|property_id|item_id)=\d+",
+        re.IGNORECASE,
+    )
+
+    # CSS class (full or partial) that marks a listing card as sold/unavailable
+    _SOLD_CARD_CLASSES = {"sold", "off-market", "under-contract", "pending", "unavailable"}
 
     # ---------------------------------------------------------
     # ---------------------------------------------------------
@@ -356,16 +375,22 @@ class OptimizedYachtScraper:
                     continue
 
                 absolute = urljoin(base_domain, href) if not href.startswith("http") else href
-                abs_clean = absolute.split("#")[0].split("?")[0]
+                # Preserve query params for URLs that use ?id=N style identification
+                # (e.g. yachtsvancouver.com/yacht-details?id=2829623).
+                # Without this, all such listings collapse to one deduplicated URL.
+                abs_no_query = absolute.split("#")[0].split("?")[0]
+                abs_with_query = absolute.split("#")[0]  # keep query, strip fragment only
+                has_id_param = bool(self._ID_QUERY_PARAM_RE.search(abs_with_query))
+                abs_clean = abs_with_query if has_id_param else abs_no_query
 
-                if urlparse(abs_clean).netloc != parsed_base.netloc:
+                if urlparse(abs_no_query).netloc != parsed_base.netloc:
                     continue
                 if abs_clean in visited_pages:
                     continue
 
-                path = urlparse(abs_clean).path
+                path = urlparse(abs_no_query).path
 
-                if looks_like_listing(abs_clean):
+                if has_id_param or looks_like_listing(abs_no_query):
                     listing_urls.add(abs_clean)
                     found_listing_link = True
                 elif abs_clean not in ever_queued:
@@ -378,6 +403,41 @@ class OptimizedYachtScraper:
                         # This handles sites where listings are at non-standard URL shapes.
                         queue.append((abs_clean, False))
                         ever_queued.add(abs_clean)
+
+            # Vessel-card direct extraction: for CMSes that render all listings as
+            # card elements on one page using ?id=N hrefs. Skips sold/unavailable cards.
+            for card in soup.find_all("div", class_=lambda c: c and "vessel-card" in " ".join(c)):
+                card_classes = set(card.get("class") or [])
+                if card_classes & self._SOLD_CARD_CLASSES:
+                    continue  # skip sold / off-market cards
+                for a in card.find_all("a", href=True):
+                    href = a["href"].strip()
+                    if not href or skip_re.search(href):
+                        continue
+                    absolute_href = urljoin(base_domain, href) if not href.startswith("http") else href
+                    abs_href = absolute_href.split("#")[0]  # preserve query params
+                    if urlparse(abs_href.split("?")[0]).netloc != parsed_base.netloc:
+                        continue
+                    listing_urls.add(abs_href)
+                    found_listing_link = True
+
+            # Direct vessel-card extraction: handles sites (e.g. query-param CMSes) that
+            # render all listings on one page as card elements with ?id=N href links.
+            # Only pick up cards NOT marked as sold/unavailable.
+            for card in soup.find_all("div", class_=lambda c: c and "vessel-card" in " ".join(c)):
+                card_classes = set((card.get("class") or []))
+                if card_classes & self._SOLD_CARD_CLASSES:
+                    continue  # skip sold / off-market cards
+                for a in card.find_all("a", href=True):
+                    href = a["href"].strip()
+                    if not href or skip_re.search(href):
+                        continue
+                    absolute_href = urljoin(base_domain, href) if not href.startswith("http") else href
+                    abs_href = absolute_href.split("#")[0]  # preserve query params
+                    if urlparse(abs_href.split("?")[0]).netloc != parsed_base.netloc:
+                        continue
+                    listing_urls.add(abs_href)
+                    found_listing_link = True
 
             # Content-sniff fallback: if we visited a page that was linked from the
             # homepage and it has no conventional listing sub-links, check if the page
@@ -923,6 +983,26 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     stats["errors"] += 1
                     continue
 
+                # Try to match the detected agent name against the dealer's salespeople
+                detected_name = raw.get("detected_agent_name")
+                matched_salesman_id = job.salesman_id  # default to job-level assignment
+                if detected_name and not job.salesman_id:
+                    detected_lower = detected_name.lower()
+                    salespeople = (
+                        db.query(User)
+                        .filter(
+                            User.parent_dealer_id == job.dealer_id,
+                            User.user_type == "salesman",
+                            User.active == True,
+                        )
+                        .all()
+                    )
+                    for sp in salespeople:
+                        full_name = f"{sp.first_name or ''} {sp.last_name or ''}".strip().lower()
+                        if full_name and (full_name in detected_lower or detected_lower in full_name):
+                            matched_salesman_id = sp.id
+                            break
+
                 if existing_scraped and existing_scraped.listing_id:
                     # Update existing listing
                     listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
@@ -931,20 +1011,20 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         # Respect manual broker changes: only restore to active if the scraper
                         # previously auto-archived it (disappeared from site), not if the broker
                         # intentionally set it to "draft" to hide it.
-                        if listing.status != "draft":
+                        if listing.status not in ("draft", "awaiting_review"):
                             listing.status = "active"
                         existing_scraped.last_seen = datetime.utcnow()
                         existing_scraped.still_active = True
                         stats["updated"] += 1
                 else:
-                    # Create new listing — start as draft so broker can review before publishing
+                    # Create new listing — placed in awaiting_review so admin can review before publishing
                     listing = Listing(
                         user_id=job.dealer_id,
                         created_by_user_id=job.created_by_id or job.dealer_id,
-                        assigned_salesman_id=job.salesman_id,
+                        assigned_salesman_id=matched_salesman_id,
                         source="scraped",
                         source_url=url,
-                        status="draft",
+                        status="awaiting_review",
                         bin=_generate_bin(db),
                         condition="used",
                     )
@@ -1062,6 +1142,12 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     listing.user_id = job.dealer_id
     if job.salesman_id:
         listing.assigned_salesman_id = job.salesman_id
+
+    # Persist the raw detected agent name into additional_specs for admin review UI
+    if raw.get("detected_agent_name"):
+        specs = dict(listing.additional_specs or {})
+        specs["detected_agent_name"] = raw["detected_agent_name"]
+        listing.additional_specs = specs
 
 
 # ---------------------------------------------------------
