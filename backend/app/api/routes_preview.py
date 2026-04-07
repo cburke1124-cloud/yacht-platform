@@ -159,6 +159,7 @@ def _serialize(pl: PreviewListing, db: Session = None) -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("")
+@router.post("/")
 def create_preview_listing(
     body: PreviewListingCreate,
     db: Session = Depends(get_db),
@@ -180,6 +181,7 @@ def create_preview_listing(
 
 
 @router.get("")
+@router.get("/")
 def list_preview_listings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
