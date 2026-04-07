@@ -1,10 +1,10 @@
 """Add preview_listing_id to partner_deals
 
-Revision ID: 030_add_preview_listing_id_to_partner_deals
+Revision ID: 030_preview_listing_deal
 Revises: 029_preview_listings
 """
 
-revision = "030_add_preview_listing_id_to_partner_deals"
+revision = "030_preview_listing_deal"
 down_revision = "029_preview_listings"
 
 from alembic import op
