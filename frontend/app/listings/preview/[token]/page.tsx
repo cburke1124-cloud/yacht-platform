@@ -9,6 +9,7 @@ import {
   Bed, Fuel, Gauge, Waves, Users, Wrench,
   ZoomIn, ZoomOut, ArrowLeft, ExternalLink,
   Heart, Plus, Share2,
+  Instagram, Facebook, Linkedin, Twitter,
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
@@ -359,9 +360,39 @@ export default function PreviewListingPage() {
                       {/* Email xs gray — matches real page sc.email display */}
                       {data.seller_email && (
                         <a href={`mailto:${data.seller_email}`}
-                          className="text-xs text-gray-500 hover:text-[#01BBDC] transition-colors block mt-1">
+                          className="text-xs text-gray-500 hover:text-[#01BBDC] transition-colors flex items-center gap-1 mt-1">
+                          <Mail size={11} />
                           {data.seller_email}
                         </a>
+                      )}
+                      {/* Social links from additional_specs */}
+                      {(data.additional_specs?.instagram || data.additional_specs?.facebook || data.additional_specs?.linkedin || data.additional_specs?.twitter || data.additional_specs?.x) && (
+                        <div className="flex items-center gap-2 mt-2">
+                          {data.additional_specs?.instagram && (
+                            <a href={data.additional_specs.instagram} target="_blank" rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-[#E1306C] transition-colors" title="Instagram">
+                              <Instagram size={14} />
+                            </a>
+                          )}
+                          {data.additional_specs?.facebook && (
+                            <a href={data.additional_specs.facebook} target="_blank" rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-[#1877F2] transition-colors" title="Facebook">
+                              <Facebook size={14} />
+                            </a>
+                          )}
+                          {data.additional_specs?.linkedin && (
+                            <a href={data.additional_specs.linkedin} target="_blank" rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-[#0A66C2] transition-colors" title="LinkedIn">
+                              <Linkedin size={14} />
+                            </a>
+                          )}
+                          {(data.additional_specs?.twitter || data.additional_specs?.x) && (
+                            <a href={data.additional_specs.twitter || data.additional_specs.x} target="_blank" rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-[#10214F] transition-colors" title="X / Twitter">
+                              <Twitter size={14} />
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -442,22 +473,19 @@ export default function PreviewListingPage() {
               {/* ── Action row matching Save / Compare / Share layout ── */}
               <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
                 <Link href={data.creator_affiliate_code ? `/register?ref=${encodeURIComponent(data.creator_affiliate_code)}` : '/register'}
-                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors rounded-bl-3xl"
+                  className="flex items-center justify-center py-2.5 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors rounded-bl-3xl"
                   onClick={() => trackCtaClick('save_button')}>
-                  <Heart size={18} strokeWidth={2} />
                   Save
                 </Link>
                 <Link href={data.creator_affiliate_code ? `/register?ref=${encodeURIComponent(data.creator_affiliate_code)}` : '/register'}
-                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors"
+                  className="flex items-center justify-center py-2.5 text-xs font-semibold text-[#10214F] hover:bg-white transition-colors"
                   onClick={() => trackCtaClick('compare_button')}>
-                  <Plus size={18} strokeWidth={2} />
                   Compare
                 </Link>
                 <button
                   onClick={() => { navigator.clipboard.writeText(window.location.href); setShared(true); setTimeout(() => setShared(false), 2000); }}
-                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors rounded-br-3xl"
+                  className="flex items-center justify-center py-2.5 text-xs font-semibold hover:bg-white transition-colors rounded-br-3xl"
                   style={{ color: shared ? '#01BBDC' : '#10214F' }}>
-                  <Share2 size={18} strokeWidth={2} />
                   {shared ? 'Copied!' : 'Share'}
                 </button>
               </div>
