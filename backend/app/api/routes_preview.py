@@ -567,9 +567,11 @@ def scrape_preview(
     # ── Sanitize: discard fields that came back as raw JSON / nav text ─────
     def _looks_like_json(v: str) -> bool:
         return bool(v and re.match(r'^\s*[\{\[]', v.strip()))
-    if _looks_like_json(extracted.get("title", "") or ""):
+    def _looks_like_nav(v: str) -> bool:
+        return bool(v and re.search(r'→|-->|Search By|For Sale|Yachts For Sale|Search Used', v))
+    if _looks_like_json(extracted.get("title", "") or "") or _looks_like_nav(extracted.get("title", "") or ""):
         extracted["title"] = og_title
-    if _looks_like_json(extracted.get("description", "") or ""):
+    if _looks_like_json(extracted.get("description", "") or "") or _looks_like_nav(extracted.get("description", "") or ""):
         extracted["description"] = og_description
     # City/state shouldn't be long sentences (nav text contamination)
     if extracted.get("city") and (len(extracted["city"]) > 60 or re.search(r'search|browse|filter|sale|price', extracted["city"], re.IGNORECASE)):
@@ -664,19 +666,43 @@ def _fallback_parse(text: str) -> dict:
         country = parts[2] if len(parts) > 2 else None
     bullets = [re.sub(r"^[-•*]\s+", "", l).strip() for l in lines if re.match(r"^[-•*]\s+", l)]
 
-    # Find a real description: prefer long sentences over nav/junk lines
-    desc_sentences = re.findall(r'[A-Z][^.!?\n]{60,}[.!?]', text)
-    description = " ".join(desc_sentences[:6]).strip() if desc_sentences else None
-    # Fall back to the longest non-nav paragraph
+    # ── Description: find the first substantial paragraph that isn't nav ──
+    # Nav text hallmarks: contains "→", "-->", " | ", or is a list of short link items
+    NAV_RE = re.compile(
+        r'→|-->|Search By|For Sale|Boat Show|Contact Us|Privacy Policy|'
+        r'Sitemap|Terms|Accessibility|Broker Portal|Finance A Boat|'
+        r'Why List|What\'s My Boat Worth',
+        re.IGNORECASE
+    )
+    description = None
+    # Split on double-space chunks (post-HTML-strip paragraphs)
+    chunks = re.split(r'\s{3,}', text)
+    for chunk in chunks:
+        chunk = chunk.strip()
+        # Skip short chunks and nav-contaminated ones
+        if len(chunk) < 120:
+            continue
+        if NAV_RE.search(chunk):
+            continue
+        # Must read like prose: has multiple words and a period/comma
+        if not re.search(r'\w{4,}.*[.,]\s+\w', chunk):
+            continue
+        description = chunk[:3000]
+        break
+    # Absolute fallback: just anything long enough that's not pure nav
     if not description:
-        paras = [l for l in lines if len(l) > 80 and not re.search(r'cookie|privacy|copyright|menu|nav|©', l, re.IGNORECASE)]
-        description = paras[0][:3000] if paras else None
+        for chunk in chunks:
+            chunk = chunk.strip()
+            if len(chunk) > 80 and not re.search(r'cookie|privacy|©|sitemap', chunk, re.IGNORECASE):
+                description = chunk[:3000]
+                break
 
-    # Pick a title: first line that looks like a boat name (not a single char or JSON)
+    # ── Title: first line that looks like a yacht name, not nav/json ──────
+    NAV_TITLE_RE = re.compile(r'→|-->|Search|Browse|Filter|Menu|Login|Sign', re.IGNORECASE)
     title = None
     for line in lines:
-        if len(line) > 5 and not line.startswith("{") and not line.startswith("["):
-            title = line
+        if len(line) > 5 and not line.startswith("{") and not line.startswith("[") and not NAV_TITLE_RE.search(line):
+            title = line[:200]
             break
 
     return {
@@ -693,8 +719,10 @@ def _fallback_parse(text: str) -> dict:
 
 
 def _claude_extract(text: str):
+    import sys
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
     if not api_key:
+        print("[preview scraper] No API key found", file=sys.stderr)
         return None
     prompt = f"""Extract yacht listing fields from the text below and return a single JSON object — no markdown, no explanation, only raw JSON.
 
@@ -711,7 +739,7 @@ hull_material (one of: "Fiberglass","Aluminum","Steel","Wood","Composite","Carbo
 hull_type (one of: "Monohull","Catamaran","Trimaran","Planing","Displacement","Semi-Displacement" or null),
 condition ("new" or "used" or null),
 feature_bullets (array of up to 8 short strings),
-description (first 2000 chars of main description text),
+description (the main listing description text only, NOT navigation menus or breadcrumbs),
 seller_name (individual broker/agent full name, or null),
 seller_email (broker contact email, or null),
 seller_phone (broker contact phone, or null),
@@ -719,24 +747,16 @@ brokerage_name (company/brokerage name, or null),
 brokerage_website (brokerage website URL, or null).
 """
     try:
-        response = http_requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 4096,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=40,
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
         )
-        if not response.ok:
-            import sys
-            print(f"[preview scraper] Claude API error {response.status_code}: {response.text[:300]}", file=sys.stderr)
-            return None
-        content = response.json().get("content", [])
-        if not content:
-            return None
-        blob = re.sub(r"^```json\s*|\s*```$", "", content[0].get("text", "").strip())
+        blob = re.sub(r"^```json\s*|\s*```$", "", message.content[0].text.strip())
         parsed = json.loads(blob)
         return parsed if isinstance(parsed, dict) else None
     except Exception as exc:
-        import sys
         print(f"[preview scraper] _claude_extract exception: {exc}", file=sys.stderr)
         return None
