@@ -269,6 +269,7 @@ def track_preview_cta(
     db.commit()
 
 
+@router.post("/scrape")
 def scrape_preview(
     body: ScrapeRequest,
     db: Session = Depends(get_db),
