@@ -302,6 +302,31 @@ def scrape_preview(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not fetch URL: {exc}")
 
+    # ── Sold listing detection — bail early and auto-remove from DB ───────
+    _SOLD_TITLE_RE = re.compile(r'\b(?:sold|under\s+contract|sale\s+pending)\b', re.IGNORECASE)
+    _SOLD_BADGE_RE = re.compile(
+        r'class=["\'][^"\']*\bsold\b[^"\']*["\']|'
+        r'(?:data-status|data-condition)\s*=\s*["\']sold["\']',
+        re.IGNORECASE
+    )
+    _ptitle_m = re.search(r'<title[^>]*>([^<]+)</title>', raw_html[:3000], re.IGNORECASE)
+    _ptitle = _ptitle_m.group(1) if _ptitle_m else ""
+    if _SOLD_TITLE_RE.search(_ptitle) or _SOLD_BADGE_RE.search(raw_html[:20000]):
+        existing_sold = db.query(PreviewListing).filter(
+            PreviewListing.source_url == url
+        ).first()
+        if existing_sold:
+            db.delete(existing_sold)
+            db.commit()
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "This listing has been sold and was removed from your preview listings."
+                if existing_sold else
+                "This listing appears to be sold and is no longer available."
+            ),
+        )
+
     # ── For JS-heavy pages: try to pull a WP REST API listing if detected ──
     # Sites like yachtsvancouver.com render listing details via JS; their data
     # may be available as a WP/custom REST endpoint or embedded in a script tag.
@@ -332,27 +357,52 @@ def scrape_preview(
             except Exception:
                 pass
 
-    # Extract embedded JS data objects from script tags (handles sites that hydrate via JS)
+    # Extract embedded JS data objects from script tags (handles JS-heavy / PHP-hydrated sites).
+    # Uses a brace-counter to handle deeply nested structures reliably.
     embedded_json_blobs: list = []
     for script_m in re.finditer(
         r'<script(?![^>]*type=["\']text/css)[^>]*>(.*?)</script>',
         raw_html, re.DOTALL | re.IGNORECASE
     ):
         script_text = script_m.group(1).strip()
-        # Skip JSON-LD (handled separately) and tiny scripts
         if 'application/ld+json' in script_m.group(0) or len(script_text) < 50:
             continue
-        # Look for JSON objects assigned to variables or window properties
-        for json_m in re.finditer(
-            r'(?:window\.[\w.]+|var\s+\w+|let\s+\w+|const\s+\w+)\s*=\s*(\{[^;]{100,}\})',
-            script_text, re.DOTALL
+        # Find variable/property assignments whose RHS starts with { or [
+        for assign_m in re.finditer(
+            r'(?:window\.[\w.]+|(?:var|let|const)\s+\w+)\s*=\s*(?=[{\[])',
+            script_text,
         ):
-            try:
-                obj = json.loads(json_m.group(1))
-                if isinstance(obj, dict):
-                    embedded_json_blobs.append(obj)
-            except Exception:
-                pass
+            start = assign_m.end()
+            if start >= len(script_text):
+                continue
+            opener = script_text[start]
+            closer = '}' if opener == '{' else ']'
+            depth, i, in_str, str_char = 0, start, False, ''
+            while i < min(start + 60000, len(script_text)):
+                c = script_text[i]
+                if in_str:
+                    if c == '\\':
+                        i += 2
+                        continue
+                    if c == str_char:
+                        in_str = False
+                elif c in ('"', "'", '`'):
+                    in_str, str_char = True, c
+                elif c == opener:
+                    depth += 1
+                elif c == closer:
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            obj = json.loads(script_text[start : i + 1])
+                            if isinstance(obj, (dict, list)) and (
+                                isinstance(obj, list) or len(obj) >= 3
+                            ):
+                                embedded_json_blobs.append(obj)
+                        except Exception:
+                            pass
+                        break
+                i += 1
     base_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
     hostname = parsed_url.netloc.lower().removeprefix("www.")
 
@@ -570,6 +620,42 @@ def scrape_preview(
         seen_urls.add(norm)
         bucket.append(abs_u)
 
+    # Priority -1: Images from embedded JS blobs and WP REST rendered HTML
+    def _scan_blob_images(node, bucket):
+        if isinstance(node, dict):
+            for key in ('images', 'photos', 'gallery', 'media', 'pictures',
+                        'slideshow', 'attachments', 'slides'):
+                val = node.get(key)
+                if not val:
+                    continue
+                items = val if isinstance(val, list) else [val]
+                for item in items:
+                    if isinstance(item, str) and not LOGO_SKIP.search(item):
+                        add_img(item, bucket)
+                    elif isinstance(item, dict):
+                        for sk in ('url', 'src', 'full', 'large', 'original',
+                                   'path', 'link', 'image_url', 'photo_url', 'source_url'):
+                            v = item.get(sk)
+                            if v and isinstance(v, str) and not LOGO_SKIP.search(v):
+                                add_img(v, bucket)
+                                break
+        elif isinstance(node, list):
+            for item in node:
+                _scan_blob_images(item, bucket)
+
+    for blob in embedded_json_blobs:
+        _scan_blob_images(blob, gallery_images)
+
+    if wp_api_json:
+        _wp_rendered = (wp_api_json.get("content") or {}).get("rendered") or ""
+        if _wp_rendered:
+            for _wm in re.finditer(
+                r'<(?:img|a)[^>]+(?:src|href)=["\']([^"\']+\.(?:jpg|jpeg|png|webp)(?:\?[^"\']*)?)["\']',
+                _wp_rendered, re.IGNORECASE,
+            ):
+                if not LOGO_SKIP.search(_wm.group(1)):
+                    add_img(make_absolute(_wm.group(1)), gallery_images)
+
     # Priority 0: OG image
     if og_image and is_image_url(og_image) and not LOGO_SKIP.search(og_image):
         add_img(og_image, gallery_images)
@@ -684,7 +770,14 @@ def scrape_preview(
 
     # Merge OG/meta hints for missing fields
     if og_price and not extracted.get("price"):
-        extracted["price"] = _to_float(re.sub(r"[^\d.]", "", og_price))
+        _og_val, _og_cur = _detect_currency(og_price + " " + clean_text[:500])
+        extracted["price"] = _og_val or _to_float(re.sub(r"[^\d.]", "", og_price))
+        if not extracted.get("currency") and _og_cur:
+            extracted["currency"] = _og_cur
+    # Ensure currency is always set — scan page text if not already detected
+    if not extracted.get("currency"):
+        _, _page_cur = _detect_currency(clean_text[:5000])
+        extracted["currency"] = _page_cur  # defaults to "USD"
     if og_title and not extracted.get("title"):
         extracted["title"] = og_title
     if og_description and not extracted.get("description"):
@@ -743,6 +836,34 @@ def _first(patterns, text, flags=re.IGNORECASE):
     return None
 
 
+def _detect_currency(text: str):
+    """Scan text for currency indicators; return (price_float_or_None, iso_code_str)."""
+    _cur_patterns = [
+        (r'(?:CAD|C\$|CA\$|CDN)\s*\$?\s*([\d,]+(?:\.\d+)?)', "CAD"),
+        (r'([\d,]+(?:\.\d+)?)\s*(?:CAD|CDN)\b', "CAD"),
+        (r'(?:AUD|AU\$|A\$)\s*([\d,]+(?:\.\d+)?)', "AUD"),
+        (r'([\d,]+(?:\.\d+)?)\s*AUD\b', "AUD"),
+        (r'(?:NZD|NZ\$)\s*([\d,]+(?:\.\d+)?)', "NZD"),
+        (r'([\d,]+(?:\.\d+)?)\s*NZD\b', "NZD"),
+        (r'\u20ac\s*([\d,]+(?:\.\d+)?)', "EUR"),
+        (r'([\d,]+(?:\.\d+)?)\s*\u20ac', "EUR"),
+        (r'\bEUR\s+([\d,]+(?:\.\d+)?)', "EUR"),
+        (r'\u00a3\s*([\d,]+(?:\.\d+)?)', "GBP"),
+        (r'\bGBP\s+([\d,]+(?:\.\d+)?)', "GBP"),
+        (r'(?:USD|US\$)\s*([\d,]+(?:\.\d+)?)', "USD"),
+        (r'(?:asking\s*price|price|list\s*price)\s*[:\-]?\s*\$\s*([\d,]+(?:\.\d+)?)', "USD"),
+        (r'\$\s*([\d,]+(?:\.\d+)?)', "USD"),
+        (r'(?:asking\s*price|price|list\s*price)\s*[:\-]?\s*([\d,]+(?:\.\d+)?)', "USD"),
+    ]
+    for pat, cur in _cur_patterns:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            val = _to_float(re.sub(r"[^\d.]", "", m.group(1)))
+            if val and val > 100:
+                return val, cur
+    return None, "USD"
+
+
 def _fallback_parse(text: str) -> dict:
     lines = [l.strip() for l in text.replace("\r", "").split("\n") if l.strip()]
     # Prefer year that appears near a label; avoid copyright noise
@@ -750,10 +871,7 @@ def _fallback_parse(text: str) -> dict:
         r'(?:year|built|model\s+year)\s*[:\-]?\s*(19[5-9]\d|20[0-2]\d)',
         r'\b(19[5-9]\d|20[0-2]\d)\b(?!\s*(?:united|yachts|sales|©|copyright))',
     ], text)
-    price = _first([
-        r'(?:asking\s*price|price|list\s*price)\s*[:\-]?\s*\$?\s*([\d,]+(?:\.\d+)?)',
-        r'\$\s*([\d,]+(?:\.\d+)?)',
-    ], text)
+    price, currency = _detect_currency(text[:8000])
     length = _first([r"(?:loa|length(?:\s+overall)?)\s*[:\-]?\s*([\d.]+)", r"\b([\d.]+)\s*(?:ft|feet|')"], text)
     make = _first([
         r"\b(Azimut|Beneteau|Bertram|Boston\s*Whaler|Cabo|Carver|Chris-Craft|Ferretti|Formula|"
@@ -818,7 +936,7 @@ def _fallback_parse(text: str) -> dict:
 
     return {
         "title": title,
-        "make": make, "year": _to_int(year), "price": _to_float(price),
+        "make": make, "year": _to_int(year), "price": price, "currency": currency,
         "length_feet": _to_float(length), "beam_feet": _to_float(beam),
         "cabins": _to_int(cabins), "berths": _to_int(berths), "heads": _to_int(heads),
         "fuel_capacity_gallons": _to_float(fuel_cap),
@@ -855,7 +973,8 @@ seller_name (individual broker/agent full name, or null),
 seller_email (broker contact email, or null),
 seller_phone (broker contact phone, or null),
 brokerage_name (company/brokerage name, or null),
-brokerage_website (brokerage website URL, or null).
+brokerage_website (brokerage website URL, or null),
+currency (ISO-4217 code detected from price context — "USD", "CAD", "EUR", "GBP", "AUD", "NZD" — default "USD").
 """
     try:
         import anthropic as _anthropic

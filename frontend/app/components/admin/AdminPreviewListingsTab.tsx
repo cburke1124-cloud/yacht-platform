@@ -199,6 +199,11 @@ export default function AdminPreviewListingsTab() {
         body: JSON.stringify({ url: scrapeUrl.trim() }),
       });
       const json = await res.json();
+      if (res.status === 422) {
+        setScrapeError(json.detail || 'This listing is no longer available.');
+        await loadListings();
+        return;
+      }
       if (!res.ok) throw new Error(json.detail || 'Scrape failed');
       const data = json.data ?? json;  // backend returns { success, data: {...} }
 
@@ -210,6 +215,7 @@ export default function AdminPreviewListingsTab() {
         model: data.model ?? prev.model,
         year: data.year ?? prev.year,
         price: data.price ?? prev.price,
+        currency: data.currency ?? prev.currency,
         condition: data.condition ?? prev.condition,
         boat_type: data.boat_type ?? prev.boat_type,
         length_feet: data.length_feet ?? prev.length_feet,
@@ -527,8 +533,23 @@ export default function AdminPreviewListingsTab() {
                     <Input label="Make" value={form.make || ''} onChange={(v) => setField('make', v)} />
                     <Input label="Model" value={form.model || ''} onChange={(v) => setField('model', v)} />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <Input label="Price" value={form.price?.toString() || ''} onChange={(v) => setField('price', v ? parseFloat(v) : null)} type="number" />
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Currency</label>
+                      <select
+                        value={form.currency || 'USD'}
+                        onChange={(e) => setField('currency', e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                      >
+                        <option value="USD">USD ($)</option>
+                        <option value="CAD">CAD (C$)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="AUD">AUD (A$)</option>
+                        <option value="NZD">NZD (NZ$)</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Condition</label>
                       <select
