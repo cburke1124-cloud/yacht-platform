@@ -826,10 +826,15 @@ except Exception as e:
                         if not href or skip_re.search(href):
                             continue
                         absolute_href = urljoin(base_domain, href) if not href.startswith("http") else href
-                        abs_href = absolute_href.split("#")[0]
-                        if urlparse(abs_href.split("?")[0]).netloc != parsed_base.netloc:
+                        abs_card_no_query = absolute_href.split("#")[0].split("?")[0]
+                        abs_card_with_query = absolute_href.split("#")[0]
+                        has_card_id = bool(self._ID_QUERY_PARAM_RE.search(abs_card_with_query))
+                        abs_card_clean = abs_card_with_query if has_card_id else abs_card_no_query
+                        if urlparse(abs_card_no_query).netloc != parsed_base.netloc:
                             continue
-                        found.add(abs_href)
+                        # Only add if it looks like a real listing (same check as main loop)
+                        if has_card_id or any(re.search(p, abs_card_no_query, re.IGNORECASE) for p in listing_path_patterns):
+                            found.add(abs_card_clean)
             
             logger.info(f"Headless browser discovery found {len(found)} listings")
             
