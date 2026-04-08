@@ -28,10 +28,11 @@ except Exception:
     _CurlSession = None
     _CURL_CFFI_AVAILABLE = False
 
-# Playwright: Headless browser for AJAX-heavy sites
-# Allows rendering JavaScript-dependent content that static requests can't fetch.
+# Playwright: Headless browser for AJAX-heavy sites (subprocess-based; see fetch_page_headless).
+# We only check that the package is importable here — we never call sync_playwright()
+# in the main process because FastAPI's threadpool runs inside an asyncio loop.
 try:
-    from playwright.sync_api import sync_playwright, Page, Browser
+    import playwright as _pw_pkg  # noqa: F401 — presence check only
     _PLAYWRIGHT_AVAILABLE = True
 except Exception:
     _PLAYWRIGHT_AVAILABLE = False
@@ -263,111 +264,122 @@ class OptimizedYachtScraper:
             logger.warning(f"fetch_page failed for {url}: {exc}")
             return None
 
-    def _init_browser(self):
-        """Lazily initialize Playwright browser on first use."""
-        if not _PLAYWRIGHT_AVAILABLE or self._browser is not None:
-            return
+    # ------------------------------------------------------------------ #
+    # Subprocess-based headless fetch                                      #
+    # ------------------------------------------------------------------ #
+    # We intentionally avoid using sync_playwright() / _init_browser()    #
+    # inside the main process because:                                     #
+    #   1. FastAPI's sync route handlers run inside a threadpool that is   #
+    #      attached to a running asyncio event loop; sync_playwright()     #
+    #      tries to create its own loop and raises "Sync API inside the    #
+    #      asyncio loop" error.                                            #
+    #   2. Runtime `playwright install --with-deps` requires sudo/root     #
+    #      which is not available on Render's web service containers.      #
+    #                                                                      #
+    # Solution: spawn a fresh Python subprocess that has no asyncio loop,  #
+    # run the entire Playwright session there, and return the HTML over    #
+    # stdout.  The binary is installed at build time (`render.yaml`) so   #
+    # the subprocess can launch it without any install step.              #
+    # ------------------------------------------------------------------ #
+
+    # Inline Python script executed by the subprocess.
+    _HEADLESS_SCRIPT = """\
+import sys, json
+from playwright.sync_api import sync_playwright
+
+url = sys.argv[1]
+wait_sel = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != "__none__" else None
+timeout_ms = int(sys.argv[3]) * 1000 if len(sys.argv) > 3 else 30000
+
+try:
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        ctx = browser.new_context(user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ))
+        page = ctx.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        if wait_sel:
+            try:
+                page.wait_for_selector(wait_sel, timeout=5000)
+            except Exception:
+                pass
         try:
-            self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=True)
-            self._context = self._browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            )
-            logger.info("Playwright headless browser initialized")
-        except Exception as exc:
-            err = str(exc)
-            # Binary missing — happens when the build-time playwright install failed
-            # silently (|| true).  Run it once at startup and retry the launch.
-            if "Executable doesn't exist" in err or "executable" in err.lower():
-                logger.warning("Playwright browser binary missing; attempting auto-install...")
-                try:
-                    import subprocess
-                    result = subprocess.run(
-                        ["python", "-m", "playwright", "install", "chromium", "--with-deps"],
-                        capture_output=True, text=True, timeout=180,
-                    )
-                    logger.info(f"playwright install stdout: {result.stdout[-500:]}")
-                    if result.returncode == 0:
-                        # Clean up the failed start() before retrying
-                        try:
-                            if self._playwright:
-                                self._playwright.stop()
-                        except Exception:
-                            pass
-                        self._playwright = sync_playwright().start()
-                        self._browser = self._playwright.chromium.launch(headless=True)
-                        self._context = self._browser.new_context(
-                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                        )
-                        logger.info("Playwright initialized after auto-install")
-                        return
-                    else:
-                        logger.error(f"playwright install failed: {result.stderr[-500:]}")
-                except Exception as install_exc:
-                    logger.error(f"Auto-install failed: {install_exc}")
-            logger.error(f"Failed to initialize Playwright: {exc}")
-            self._playwright = None
-            self._browser = None
-            self._context = None
+            page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass
+        html = page.content()
+        browser.close()
+    print(json.dumps({"ok": True, "html": html}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": str(e)}))
+"""
+
+    def _init_browser(self):
+        """No-op: headless fetching is now subprocess-based (see fetch_page_headless)."""
+        pass
 
     def _cleanup_browser(self):
-        """Close browser and free resources."""
-        try:
-            if self._context:
-                self._context.close()
-            if self._browser:
-                self._browser.close()
-            if self._playwright:
-                self._playwright.stop()
-        except Exception as exc:
-            logger.warning(f"Error cleaning up browser: {exc}")
-        finally:
-            self._context = None
-            self._browser = None
-            self._playwright = None
+        """No-op: each subprocess-based fetch is self-contained."""
+        pass
 
     def fetch_page_headless(self, url: str, wait_selector: Optional[str] = None, timeout: int = 30) -> Optional[str]:
-        """Fetch a page using headless browser (executes JavaScript, handles AJAX content).
-        
-        Args:
-            url: URL to fetch
-            wait_selector: CSS selector to wait for before returning (e.g. for AJAX-loaded content)
-            timeout: Max time to wait in seconds
-        
-        Returns:
-            HTML content or None if fetch fails
+        """Fetch a page using a headless Chromium subprocess.
+
+        Spawns a fresh Python process with no asyncio loop so sync_playwright()
+        works regardless of the calling context (FastAPI threadpool, etc.).
+        Falls back to static fetch if Playwright is unavailable or fails.
         """
         if not _PLAYWRIGHT_AVAILABLE:
             logger.debug("Playwright not available, falling back to fetch_page()")
             return self.fetch_page(url)
-        
+
+        import subprocess, json as _json, sys as _sys, tempfile, os
+
         try:
-            self._init_browser()
-            if not self._context:
-                logger.warning("Browser context failed to initialize, using static fetch")
-                return self.fetch_page(url)
-            
-            page = self._context.new_page()
+            # Write the inline script to a temp file so we avoid shell-quoting hell
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False, encoding="utf-8"
+            ) as tf:
+                tf.write(self._HEADLESS_SCRIPT)
+                script_path = tf.name
+
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
-                
-                # Wait for specific element if provided (e.g. pagination controls or listings)
-                if wait_selector:
-                    try:
-                        page.wait_for_selector(wait_selector, timeout=5000)
-                    except Exception:
-                        logger.debug(f"Selector '{wait_selector}' not found in time")
-                
-                # Allow JavaScript to finish rendering (wait for network to be idle)
-                page.wait_for_load_state("networkidle", timeout=5000)
-                
-                html = page.content()
-                return html
+                result = subprocess.run(
+                    [
+                        _sys.executable, script_path,
+                        url,
+                        wait_selector or "__none__",
+                        str(timeout),
+                    ],
+                    capture_output=True, text=True, timeout=timeout + 15,
+                )
             finally:
-                page.close()
+                try:
+                    os.unlink(script_path)
+                except OSError:
+                    pass
+
+            stdout = result.stdout.strip()
+            if not stdout:
+                logger.warning(f"fetch_page_headless: empty output for {url}; stderr={result.stderr[-300:]}")
+                return self.fetch_page(url)
+
+            data = _json.loads(stdout)
+            if data.get("ok"):
+                return data["html"]
+            else:
+                logger.warning(f"fetch_page_headless subprocess error for {url}: {data.get('error')}")
+                return self.fetch_page(url)
+
+        except subprocess.TimeoutExpired:
+            logger.warning(f"fetch_page_headless timed out for {url}")
+            return self.fetch_page(url)
         except Exception as exc:
             logger.warning(f"fetch_page_headless failed for {url}: {exc}")
-            return None
+            return self.fetch_page(url)
 
     def check_listing_still_live(self, url: str) -> Tuple[bool, str]:
         """Fast, no-AI check to see if a listing is still active."""
@@ -768,9 +780,9 @@ class OptimizedYachtScraper:
         
         try:
             self._init_browser()
-            if not self._context:
-                return found
-            
+            # Note: _init_browser is a no-op; headless fetching is subprocess-based.
+            # fetch_page_headless() handles everything — just call it directly.
+
             # Fetch up to 5 inventory pages with headless browser
             for page_url, _ in inventory_pages[:5]:
                 if urlparse(page_url).netloc != parsed_base.netloc:
