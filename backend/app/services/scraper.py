@@ -602,6 +602,27 @@ class OptimizedYachtScraper:
                 if self._looks_like_single_listing(text, self.extract_price_from_text):
                     listing_urls.add(clean_url)
 
+        # ── Headless browser retry for AJAX-heavy sites ──────────────────────
+        # Run BEFORE WP REST / sitemap so a JS-rendered inventory page gets a
+        # real render pass first. Fires when static BFS found fewer than 5 URLs.
+        if _PLAYWRIGHT_AVAILABLE and len(listing_urls) < 5:
+            # Prefer remaining queue items; fall back to the original start URL
+            # so we always have at least one inventory page to render.
+            headless_targets = list(queue) if queue else []
+            # Also include visited inventory-like pages (e.g. the start URL)
+            for vp in list(visited_pages)[:10]:
+                vp_path = urlparse(vp).path
+                if is_inventory_page(vp_path.lower()):
+                    if not any(vp == t[0] for t in headless_targets):
+                        headless_targets.append((vp, False))
+            if not headless_targets:
+                headless_targets = [(site_url, True)]
+            logger.info(f"Static crawl found {len(listing_urls)} listings; retrying with headless browser")
+            headless_urls = self._discover_with_headless(base_domain, headless_targets, inventory_keywords, listing_path_patterns)
+            if headless_urls:
+                listing_urls.update(headless_urls)
+                logger.info(f"Headless browser added {len(headless_urls)} listings, total now: {len(listing_urls)}")
+
         # ── WP REST API discovery — works even on Cloudflare-protected WP sites ──────
         # JSON endpoints are typically NOT behind CF HTML challenges, making this
         # the most reliable discovery method for WP-based broker sites.
@@ -611,16 +632,6 @@ class OptimizedYachtScraper:
         # ── Sitemap fallback ──────────────────────────────────────────────────
         if not listing_urls:
             listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
-
-        # ── Headless browser retry for small result sets ──────────────────────
-        # If discovery found very few listings (< 5), site likely uses AJAX pagination.
-        # Try fetching inventory pages with headless browser to render JavaScript.
-        if _PLAYWRIGHT_AVAILABLE and listing_urls and len(listing_urls) < 5:
-            logger.info(f"Discovered only {len(listing_urls)} listings, retrying with headless browser")
-            headless_urls = self._discover_with_headless(base_domain, list(queue), inventory_keywords, listing_path_patterns)
-            if headless_urls:
-                listing_urls.update(headless_urls)
-                logger.info(f"Headless browser added {len(headless_urls)} listings, total now: {len(listing_urls)}")
 
         return list(listing_urls)
 
@@ -719,7 +730,7 @@ class OptimizedYachtScraper:
                 if urlparse(page_url).netloc != parsed_base.netloc:
                     continue
                 
-                html = self.fetch_page_headless(page_url, wait_selector="a[href*='/yacht-sales/']", timeout=30)
+                html = self.fetch_page_headless(page_url, timeout=30)
                 if not html:
                     continue
                 
