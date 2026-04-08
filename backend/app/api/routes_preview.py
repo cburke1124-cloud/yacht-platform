@@ -282,51 +282,69 @@ def scrape_preview(
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
 
-    # Fetch page HTML — use a cookie-aware session and warm up with the base domain
-    # first so the server sees a browsing session rather than a cold bot hit.
-    # Removing 'br' encoding because Python's requests can't decompress brotli by
-    # default — a mismatch that causes some servers to reset the connection.
-    _site_origin = re.match(r'(https?://[^/?#]+)', url)
-    _site_origin = _site_origin.group(1) if _site_origin else url
-    _scrape_session = http_requests.Session()
-    _scrape_session.headers.update({
+    # ── Parse URL params up front — needed for WP REST pre-fetch and embedded JS ─
+    from urllib.parse import urlparse, urljoin, parse_qs
+    parsed_url = urlparse(url)
+    qs_params = parse_qs(parsed_url.query)
+    base_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    hostname = parsed_url.netloc.lower().removeprefix("www.")
+    listing_id_from_qs = None
+    for _k in ('id', 'boat_id', 'listing_id', 'yacht_id', 'vessel_id'):
+        if _k in qs_params:
+            listing_id_from_qs = qs_params[_k][0]
+            break
+
+    # ── For ?id= sites: try WP REST API FIRST ───────────────────────────────
+    # JSON API endpoints bypass Cloudflare HTML challenges. This is the primary
+    # data source for JS-rendered / CF-protected broker sites (e.g. yachtsvancouver.com).
+    # Must happen BEFORE the HTML fetch so data is available when HTML is blocked.
+    wp_api_json = None
+    _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    if listing_id_from_qs:
+        for _wp_path in (
+            f"/wp-json/wp/v2/listings/{listing_id_from_qs}",
+            f"/wp-json/wp/v2/boats/{listing_id_from_qs}",
+            f"/wp-json/wp/v2/yachts/{listing_id_from_qs}",
+            f"/wp-json/wp/v2/posts/{listing_id_from_qs}",
+        ):
+            try:
+                _ar = http_requests.get(f"{base_origin}{_wp_path}", timeout=10, headers=_api_hdrs)
+                if _ar.ok and 'json' in _ar.headers.get('content-type', ''):
+                    wp_api_json = _ar.json()
+                    break
+            except Exception:
+                pass
+
+    # ── Fetch page HTML ────────────────────────────────────────────────
+    # Minimal headers only — Sec-Fetch-* headers and session warm-ups make
+    # server-side Python requests MORE detectable by Cloudflare (the TLS
+    # fingerprint doesn't match Chrome regardless of what headers claim).
+    _html_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate",
-        "Cache-Control": "no-cache",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-    })
+    }
+    raw_html = ""
     try:
-        _scrape_session.get(_site_origin, timeout=8, allow_redirects=True)
-    except Exception:
-        pass  # warm-up failure is non-fatal
-    try:
-        resp = _scrape_session.get(
-            url,
-            timeout=25,
-            headers={"Referer": _site_origin, "Sec-Fetch-Site": "same-origin"},
-            allow_redirects=True,
-        )
+        resp = http_requests.get(url, timeout=20, headers=_html_headers, allow_redirects=True)
         resp.raise_for_status()
         raw_html = resp.text
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Could not fetch URL: {exc}")
+        if not wp_api_json:
+            raise HTTPException(status_code=400, detail=f"Could not fetch URL: {exc}")
+        # WP REST succeeded — continue without HTML
 
     # ── Sold listing detection — bail early and auto-remove from DB ───────
-    _SOLD_TITLE_RE = re.compile(r'\b(?:sold|under\s+contract|sale\s+pending)\b', re.IGNORECASE)
-    _SOLD_BADGE_RE = re.compile(
-        r'class=["\'][^"\']*\bsold\b[^"\']*["\']|'
-        r'(?:data-status|data-condition)\s*=\s*["\']sold["\']',
-        re.IGNORECASE
-    )
-    _ptitle_m = re.search(r'<title[^>]*>([^<]+)</title>', raw_html[:3000], re.IGNORECASE)
-    _ptitle = _ptitle_m.group(1) if _ptitle_m else ""
-    if _SOLD_TITLE_RE.search(_ptitle) or _SOLD_BADGE_RE.search(raw_html[:20000]):
+    if raw_html:
+        _SOLD_TITLE_RE = re.compile(r'\b(?:sold|under\s+contract|sale\s+pending)\b', re.IGNORECASE)
+        _SOLD_BADGE_RE = re.compile(
+            r'class=["\'][^"\']*\bsold\b[^"\']*["\']|'
+            r'(?:data-status|data-condition)\s*=\s*["\']sold["\']',
+            re.IGNORECASE
+        )
+        _ptitle_m = re.search(r'<title[^>]*>([^<]+)</title>', raw_html[:3000], re.IGNORECASE)
+        _ptitle = _ptitle_m.group(1) if _ptitle_m else ""
+    if raw_html and (_SOLD_TITLE_RE.search(_ptitle) or _SOLD_BADGE_RE.search(raw_html[:20000])):
         existing_sold = db.query(PreviewListing).filter(
             PreviewListing.source_url == url
         ).first()
@@ -342,37 +360,7 @@ def scrape_preview(
             ),
         )
 
-    # ── For JS-heavy pages: try to pull a WP REST API listing if detected ──
-    # Sites like yachtsvancouver.com render listing details via JS; their data
-    # may be available as a WP/custom REST endpoint or embedded in a script tag.
-    from urllib.parse import urlparse, urljoin, parse_qs
-    parsed_url = urlparse(url)
-    qs_params = parse_qs(parsed_url.query)
-    listing_id_from_qs = None
-    for k in ('id', 'boat_id', 'listing_id', 'yacht_id', 'vessel_id'):
-        if k in qs_params:
-            listing_id_from_qs = qs_params[k][0]
-            break
-
-    # Attempt WP REST API if there's an id param and we got little content
-    wp_api_json = None
-    if listing_id_from_qs:
-        for wp_path in (
-            f"/wp-json/wp/v2/listings/{listing_id_from_qs}",
-            f"/wp-json/wp/v2/boats/{listing_id_from_qs}",
-            f"/wp-json/wp/v2/yachts/{listing_id_from_qs}",
-            f"/wp-json/wp/v2/posts/{listing_id_from_qs}",
-        ):
-            try:
-                api_resp = http_requests.get(f"{parsed_url.scheme}://{parsed_url.netloc}{wp_path}",
-                    timeout=10, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-                if api_resp.ok and 'json' in api_resp.headers.get('content-type', ''):
-                    wp_api_json = api_resp.json()
-                    break
-            except Exception:
-                pass
-
-    # Extract embedded JS data objects from script tags (handles JS-heavy / PHP-hydrated sites).
+    # ── Extract embedded JS data objects from script tags (JS-heavy / PHP-hydrated sites)
     # Uses a brace-counter to handle deeply nested structures reliably.
     embedded_json_blobs: list = []
     for script_m in re.finditer(
@@ -418,9 +406,6 @@ def scrape_preview(
                             pass
                         break
                 i += 1
-    base_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
-    hostname = parsed_url.netloc.lower().removeprefix("www.")
-
     def make_absolute(href: str) -> str:
         if not href or href.startswith("data:"):
             return ""

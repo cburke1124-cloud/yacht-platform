@@ -186,19 +186,11 @@ class OptimizedYachtScraper:
             ),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate",
-            "Cache-Control": "no-cache",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
         }
-        # Persistent session so cookies carry across requests within one scrape job.
-        # _visited_origins tracks which base domains have been warmed-up already.
+        # Persistent session — carries cookies across requests within one scrape job
+        # (e.g. sites that set a session cookie on the first page load).
         self._session = requests.Session()
         self._session.headers.update(self.headers)
-        self._visited_origins: set = set()
 
         # Known site patterns for fast structured extraction
         self.site_patterns = {
@@ -226,29 +218,13 @@ class OptimizedYachtScraper:
     # BASIC FETCHING
     # ---------------------------------------------------------
     def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
-        """Fetch a page using a cookie-aware persistent session.
-        Warms up by visiting the site root once per origin so the server
-        sees a browsing session rather than a cold isolated bot request."""
-        from urllib.parse import urlparse as _up
+        """Fetch a page via the persistent session (shares cookies within a job)."""
         try:
-            _p = _up(url)
-            origin = f"{_p.scheme}://{_p.netloc}"
-            if origin not in self._visited_origins:
-                self._visited_origins.add(origin)
-                try:
-                    self._session.get(origin, timeout=8, allow_redirects=True,
-                                      headers={"Referer": "https://www.google.com/",
-                                               "Sec-Fetch-Site": "none"})
-                except Exception:
-                    pass  # warm-up failure is non-fatal
-            response = self._session.get(
-                url, timeout=timeout, allow_redirects=True,
-                headers={"Referer": origin, "Sec-Fetch-Site": "same-origin"},
-            )
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            logger.warning(f"fetch_page failed for {url}: {e}")
+            resp = self._session.get(url, timeout=timeout, allow_redirects=True)
+            resp.raise_for_status()
+            return resp.text
+        except Exception as exc:
+            logger.warning(f"fetch_page failed for {url}: {exc}")
             return None
 
     def check_listing_still_live(self, url: str) -> Tuple[bool, str]:
@@ -478,13 +454,49 @@ class OptimizedYachtScraper:
                 if self._looks_like_single_listing(text, self.extract_price_from_text):
                     listing_urls.add(clean_url)
 
-        # ── Sitemap fallback for JS-heavy sites ─────────────────────────────
-        # When static HTML crawling yields nothing (JS-rendered sites), try
-        # sitemap.xml / sitemap_index.xml for direct listing URL lists.
+        # ── WP REST API discovery — works even on Cloudflare-protected WP sites ──────
+        # JSON endpoints are typically NOT behind CF HTML challenges, making this
+        # the most reliable discovery method for WP-based broker sites.
+        if not listing_urls:
+            listing_urls = self._discover_from_wp_rest(base_domain)
+
+        # ── Sitemap fallback ──────────────────────────────────────────────────
         if not listing_urls:
             listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
 
         return list(listing_urls)
+
+    def _discover_from_wp_rest(self, base_domain: str) -> set:
+        """
+        Query the WordPress REST API to discover all listing URLs.
+        WP REST JSON endpoints are typically NOT behind Cloudflare HTML challenges,
+        making this the most reliable discovery path for CF-protected WP broker sites.
+        """
+        found: set = set()
+        _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+        for post_type in ('listings', 'boats', 'yachts', 'vessels', 'motorboats', 'sailboats'):
+            page = 1
+            while page <= 5:  # up to 500 items per post type
+                try:
+                    r = requests.get(
+                        f"{base_domain}/wp-json/wp/v2/{post_type}",
+                        params={"per_page": 100, "page": page, "_fields": "id,link"},
+                        headers=_api_hdrs, timeout=10,
+                    )
+                    if not r.ok:
+                        break
+                    items = r.json()
+                    if not isinstance(items, list) or not items:
+                        break
+                    for item in items:
+                        if isinstance(item, dict) and item.get('link'):
+                            found.add(item['link'].rstrip('/'))
+                    if len(items) < 100:
+                        break
+                    page += 1
+                except Exception:
+                    break
+        return found
 
     def _discover_from_sitemap(self, base_domain: str, listing_path_patterns: list) -> set:
         """Return a set of listing URLs parsed from sitemap.xml / sitemap_index.xml."""
@@ -496,7 +508,11 @@ class OptimizedYachtScraper:
                 return
             visited_sitemaps.add(sm_url)
             try:
-                r = self._session.get(sm_url, timeout=10, allow_redirects=True)
+                r = requests.get(
+                    sm_url,
+                    headers={"User-Agent": "Mozilla/5.0", "Accept": "application/xml,text/xml,*/*"},
+                    timeout=10, allow_redirects=True,
+                )
                 if not r.ok:
                     return
                 for loc_m in re.finditer(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', r.text):
@@ -944,19 +960,17 @@ Content: {content[:12000]}"""
     # SCRAPE A SINGLE LISTING URL â†’ raw data dict
     # ---------------------------------------------------------
     def scrape_single_listing(self, url: str) -> Dict:
-        html = self.fetch_page(url)
-        if not html:
-            return {"error": "Failed to load page"}
-
-        # ── WP REST API supplement for ?id=N style JS-heavy sites ─────────
-        # Fetch additional structured data from WP REST endpoints when the page
-        # uses a query-param ID (e.g. yachtsvancouver.com/yacht-details/?id=2829150).
+        # ── WP REST API FIRST — must run before fetch_page ────────────────────────
+        # JSON endpoints bypass Cloudflare HTML challenges. This must happen
+        # BEFORE fetch_page so data is available if HTML is blocked by CF.
         _wp_extra_text = ""
+        _wp_images: List[str] = []
         _parsed_url = urlparse(url)
         _qs = dict(pair.split('=', 1) for pair in _parsed_url.query.split('&') if '=' in pair)
-        _lid = _qs.get('id') or _qs.get('boat_id') or _qs.get('listing_id') or _qs.get('yacht_id')
+        _lid = _qs.get('id') or _qs.get('boat_id') or _qs.get('listing_id') or _qs.get('yacht_id') or _qs.get('vessel_id')
         if _lid:
             _base = f"{_parsed_url.scheme}://{_parsed_url.netloc}"
+            _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
             for _wp_path in (
                 f"/wp-json/wp/v2/listings/{_lid}",
                 f"/wp-json/wp/v2/boats/{_lid}",
@@ -964,37 +978,36 @@ Content: {content[:12000]}"""
                 f"/wp-json/wp/v2/posts/{_lid}",
             ):
                 try:
-                    _r = requests.get(
-                        f"{_base}{_wp_path}",
-                        headers={**self.headers, "Accept": "application/json"},
-                        timeout=8,
-                    )
+                    _r = requests.get(f"{_base}{_wp_path}", headers=_api_hdrs, timeout=8)
                     if _r.ok and 'json' in _r.headers.get('content-type', ''):
                         _wp = _r.json()
                         _rendered = (_wp.get('content') or {}).get('rendered') or ''
                         if _rendered:
-                            from bs4 import BeautifulSoup as _BS
-                            _wp_extra_text = _BS(_rendered, 'html.parser').get_text(' ', strip=True)[:4000]
-                        # Also inject key meta fields as text hints for the AI
+                            _wp_extra_text = BeautifulSoup(_rendered, 'html.parser').get_text(' ', strip=True)[:4000]
                         for _k in ('title', 'acf', 'meta', 'custom_fields'):
                             _v = _wp.get(_k)
                             if isinstance(_v, dict):
                                 _wp_extra_text += ' ' + json.dumps(_v)[:2000]
                             elif isinstance(_v, str):
                                 _wp_extra_text += ' ' + _v[:500]
-                        # Pull images directly from WP REST _embedded media
                         _embedded = _wp.get('_embedded') or {}
-                        for _media_list in (_embedded.get('wp:featuredmedia') or [], _embedded.get('wp:attachment') or []):
-                            for _media in (_media_list if isinstance(_media_list, list) else [_media_list]):
-                                for _size_key in ('full', 'large', 'medium_large', 'source_url'):
-                                    _sizes = (_media.get('media_details') or {}).get('sizes') or {}
-                                    _img_url = (_sizes.get(_size_key) or {}).get('source_url') or _media.get('source_url')
-                                    if _img_url:
-                                        _wp_extra_text += f' WPIMG:{_img_url}'
+                        for _ml in (_embedded.get('wp:featuredmedia') or [], _embedded.get('wp:attachment') or []):
+                            for _media in (_ml if isinstance(_ml, list) else [_ml]):
+                                for _sk in ('full', 'large', 'medium_large', 'source_url'):
+                                    _sz = (_media.get('media_details') or {}).get('sizes') or {}
+                                    _iu = (_sz.get(_sk) or {}).get('source_url') or _media.get('source_url')
+                                    if _iu:
+                                        _wp_images.append(_iu)
                                         break
                         break
                 except Exception:
                     pass
+
+        # ── Fetch HTML (may fail on CF-protected pages; WP REST data is sufficient fallback)
+        html = self.fetch_page(url)
+        if not html and not _wp_extra_text:
+            return {"error": "Failed to load page"}
+        html = html or ""  # allow processing when only WP REST data is available
 
         structured = self.try_structured_extraction(html, url)
         # Parse spec tables + Elementor divs + map location from raw HTML
@@ -1065,6 +1078,14 @@ Content: {content[:12000]}"""
             yacht_data["description"] = partial["description"]
 
         images = self.extract_images(html, url)
+        # Prepend WP REST images — more reliable on JS-rendered / CF-blocked pages
+        if _wp_images:
+            _seen_norms = {u.split('?')[0] for u in images}
+            for _wu in _wp_images:
+                if _wu.split('?')[0] not in _seen_norms:
+                    images.insert(0, _wu)
+                    _seen_norms.add(_wu.split('?')[0])
+        images = images[:20]
         yacht_data.update({
             "source_url": url,
             "source": "scraped",
