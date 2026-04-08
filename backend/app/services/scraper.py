@@ -191,6 +191,11 @@ class OptimizedYachtScraper:
         # (e.g. sites that set a session cookie on the first page load).
         self._session = requests.Session()
         self._session.headers.update(self.headers)
+        # URL → (post_type, wp_post_id) populated by _discover_from_wp_rest.
+        # On CF-protected WP sites the ?id= URL parameter is a CUSTOM/EXTERNAL ID
+        # (e.g. from a boat-listing plugin), not the WP post ID. We must use the
+        # WP post ID returned by the REST API to fetch individual listing content.
+        self._wp_rest_id_map: Dict[str, Tuple[str, str]] = {}
 
         # Known site patterns for fast structured extraction
         self.site_patterns = {
@@ -489,8 +494,12 @@ class OptimizedYachtScraper:
                     if not isinstance(items, list) or not items:
                         break
                     for item in items:
-                        if isinstance(item, dict) and item.get('link'):
-                            found.add(item['link'].rstrip('/'))
+                        if isinstance(item, dict) and item.get('link') and item.get('id'):
+                            norm_url = item['link'].rstrip('/')
+                            found.add(norm_url)
+                            # Cache (post_type, wp_post_id) so scrape_single_listing
+                            # can fetch by the real WP ID, not the custom ?id= param.
+                            self._wp_rest_id_map[norm_url] = (post_type, str(item['id']))
                     if len(items) < 100:
                         break
                     page += 1
@@ -966,42 +975,72 @@ Content: {content[:12000]}"""
         _wp_extra_text = ""
         _wp_images: List[str] = []
         _parsed_url = urlparse(url)
-        _qs = dict(pair.split('=', 1) for pair in _parsed_url.query.split('&') if '=' in pair)
-        _lid = _qs.get('id') or _qs.get('boat_id') or _qs.get('listing_id') or _qs.get('yacht_id') or _qs.get('vessel_id')
-        if _lid:
-            _base = f"{_parsed_url.scheme}://{_parsed_url.netloc}"
-            _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-            for _wp_path in (
-                f"/wp-json/wp/v2/listings/{_lid}",
-                f"/wp-json/wp/v2/boats/{_lid}",
-                f"/wp-json/wp/v2/yachts/{_lid}",
-                f"/wp-json/wp/v2/posts/{_lid}",
-            ):
-                try:
-                    _r = requests.get(f"{_base}{_wp_path}", headers=_api_hdrs, timeout=8)
-                    if _r.ok and 'json' in _r.headers.get('content-type', ''):
-                        _wp = _r.json()
-                        _rendered = (_wp.get('content') or {}).get('rendered') or ''
-                        if _rendered:
-                            _wp_extra_text = BeautifulSoup(_rendered, 'html.parser').get_text(' ', strip=True)[:4000]
-                        for _k in ('title', 'acf', 'meta', 'custom_fields'):
-                            _v = _wp.get(_k)
-                            if isinstance(_v, dict):
-                                _wp_extra_text += ' ' + json.dumps(_v)[:2000]
-                            elif isinstance(_v, str):
-                                _wp_extra_text += ' ' + _v[:500]
-                        _embedded = _wp.get('_embedded') or {}
-                        for _ml in (_embedded.get('wp:featuredmedia') or [], _embedded.get('wp:attachment') or []):
-                            for _media in (_ml if isinstance(_ml, list) else [_ml]):
-                                for _sk in ('full', 'large', 'medium_large', 'source_url'):
-                                    _sz = (_media.get('media_details') or {}).get('sizes') or {}
-                                    _iu = (_sz.get(_sk) or {}).get('source_url') or _media.get('source_url')
-                                    if _iu:
-                                        _wp_images.append(_iu)
-                                        break
-                        break
-                except Exception:
-                    pass
+        _base = f"{_parsed_url.scheme}://{_parsed_url.netloc}"
+        _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+
+        # Look up the real WP post ID from the discovery cache (populated by
+        # _discover_from_wp_rest during broker inventory scan). On CF-protected
+        # WP sites the ?id= URL param is a CUSTOM field value, NOT the WP post ID.
+        _wp_cached = self._wp_rest_id_map.get(url.rstrip('/'))
+
+        # If not in cache (e.g. direct Single Listing test with no prior discovery),
+        # try to find the WP post ID by scanning the REST listing pages.
+        if not _wp_cached and _parsed_url.query:
+            _qs = dict(pair.split('=', 1) for pair in _parsed_url.query.split('&') if '=' in pair)
+            if any(k in _qs for k in ('id', 'boat_id', 'listing_id', 'yacht_id', 'vessel_id')):
+                for _pt in ('listings', 'boats', 'yachts', 'vessels', 'motorboats', 'sailboats'):
+                    try:
+                        _sr = requests.get(
+                            f"{_base}/wp-json/wp/v2/{_pt}",
+                            params={"per_page": 100, "page": 1, "_fields": "id,link"},
+                            headers=_api_hdrs, timeout=10,
+                        )
+                        if not _sr.ok:
+                            continue
+                        _items = _sr.json()
+                        if not isinstance(_items, list):
+                            continue
+                        for _item in _items:
+                            if isinstance(_item, dict) and _item.get('id') and _item.get('link'):
+                                _norm = _item['link'].rstrip('/')
+                                self._wp_rest_id_map[_norm] = (_pt, str(_item['id']))
+                        _wp_cached = self._wp_rest_id_map.get(url.rstrip('/'))
+                        if _wp_cached:
+                            break
+                    except Exception:
+                        continue
+
+        # Fetch full listing data from WP REST using the exact WP post ID.
+        if _wp_cached:
+            _pt, _wp_id = _wp_cached
+            try:
+                _r = requests.get(
+                    f"{_base}/wp-json/wp/v2/{_pt}/{_wp_id}",
+                    params={"_embed": "1"},
+                    headers=_api_hdrs, timeout=10,
+                )
+                if _r.ok and 'json' in _r.headers.get('content-type', ''):
+                    _wp = _r.json()
+                    _rendered = (_wp.get('content') or {}).get('rendered') or ''
+                    if _rendered:
+                        _wp_extra_text = BeautifulSoup(_rendered, 'html.parser').get_text(' ', strip=True)[:4000]
+                    for _k in ('title', 'acf', 'meta', 'custom_fields'):
+                        _v = _wp.get(_k)
+                        if isinstance(_v, dict):
+                            _wp_extra_text += ' ' + json.dumps(_v)[:2000]
+                        elif isinstance(_v, str):
+                            _wp_extra_text += ' ' + _v[:500]
+                    _embedded = _wp.get('_embedded') or {}
+                    for _ml in (_embedded.get('wp:featuredmedia') or [], _embedded.get('wp:attachment') or []):
+                        for _media in (_ml if isinstance(_ml, list) else [_ml]):
+                            for _sk in ('full', 'large', 'medium_large', 'source_url'):
+                                _sz = (_media.get('media_details') or {}).get('sizes') or {}
+                                _iu = (_sz.get(_sk) or {}).get('source_url') or _media.get('source_url')
+                                if _iu:
+                                    _wp_images.append(_iu)
+                                    break
+            except Exception:
+                pass
 
         # ── Fetch HTML (may fail on CF-protected pages; WP REST data is sufficient fallback)
         html = self.fetch_page(url)

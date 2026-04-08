@@ -298,20 +298,45 @@ def scrape_preview(
     # JSON API endpoints bypass Cloudflare HTML challenges. This is the primary
     # data source for JS-rendered / CF-protected broker sites (e.g. yachtsvancouver.com).
     # Must happen BEFORE the HTML fetch so data is available when HTML is blocked.
+    #
+    # IMPORTANT: The ?id= URL parameter is a CUSTOM/EXTERNAL listing ID (e.g. from
+    # a boat-listing plugin), NOT the WP post ID. We cannot use it directly with
+    # /wp-json/wp/v2/{type}/{id}. Instead we must scan the WP REST listing index to
+    # find the item whose 'link' matches our URL, then use its WP post ID.
     wp_api_json = None
     _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
     if listing_id_from_qs:
-        for _wp_path in (
-            f"/wp-json/wp/v2/listings/{listing_id_from_qs}",
-            f"/wp-json/wp/v2/boats/{listing_id_from_qs}",
-            f"/wp-json/wp/v2/yachts/{listing_id_from_qs}",
-            f"/wp-json/wp/v2/posts/{listing_id_from_qs}",
-        ):
+        for _post_type in ('listings', 'boats', 'yachts', 'vessels', 'motorboats', 'sailboats'):
+            if wp_api_json:
+                break
             try:
-                _ar = http_requests.get(f"{base_origin}{_wp_path}", timeout=10, headers=_api_hdrs)
+                # Step 1: find WP post ID by matching our URL against the listing index
+                _idx = http_requests.get(
+                    f"{base_origin}/wp-json/wp/v2/{_post_type}",
+                    params={"per_page": 100, "page": 1, "_fields": "id,link"},
+                    headers=_api_hdrs, timeout=10,
+                )
+                if not _idx.ok:
+                    continue
+                _items = _idx.json()
+                if not isinstance(_items, list):
+                    continue
+                _wp_post_id = None
+                _norm_url = url.rstrip('/')
+                for _item in _items:
+                    if isinstance(_item, dict) and _item.get('link', '').rstrip('/') == _norm_url:
+                        _wp_post_id = _item.get('id')
+                        break
+                if not _wp_post_id:
+                    continue
+                # Step 2: fetch full listing content by WP post ID
+                _ar = http_requests.get(
+                    f"{base_origin}/wp-json/wp/v2/{_post_type}/{_wp_post_id}",
+                    params={"_embed": "1"},
+                    headers=_api_hdrs, timeout=10,
+                )
                 if _ar.ok and 'json' in _ar.headers.get('content-type', ''):
                     wp_api_json = _ar.json()
-                    break
             except Exception:
                 pass
 
