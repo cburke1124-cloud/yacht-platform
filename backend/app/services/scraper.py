@@ -28,6 +28,14 @@ except Exception:
     _CurlSession = None
     _CURL_CFFI_AVAILABLE = False
 
+# Playwright: Headless browser for AJAX-heavy sites
+# Allows rendering JavaScript-dependent content that static requests can't fetch.
+try:
+    from playwright.sync_api import sync_playwright, Page, Browser
+    _PLAYWRIGHT_AVAILABLE = True
+except Exception:
+    _PLAYWRIGHT_AVAILABLE = False
+
 from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing
 from app.models.user import User
@@ -205,6 +213,11 @@ class OptimizedYachtScraper:
         # curl_cffi session for CF-protected sites — produces a Chrome TLS fingerprint
         # so Cloudflare's bot detection passes the TLS handshake rather than sending TCP RST.
         self._curl_session = _CurlSession(impersonate="chrome124") if _CURL_CFFI_AVAILABLE else None
+        # Playwright headless browser for AJAX-heavy sites
+        # Initialized lazily on first use, shared across all requests in one job
+        self._playwright = None
+        self._browser = None
+        self._context = None
         # URL → (post_type, wp_post_id) populated by _discover_from_wp_rest.
         # On CF-protected WP sites the ?id= URL parameter is a CUSTOM/EXTERNAL ID
         # (e.g. from a boat-listing plugin), not the WP post ID. We must use the
@@ -248,6 +261,82 @@ class OptimizedYachtScraper:
             return resp.text
         except Exception as exc:
             logger.warning(f"fetch_page failed for {url}: {exc}")
+            return None
+
+    def _init_browser(self):
+        """Lazily initialize Playwright browser on first use."""
+        if not _PLAYWRIGHT_AVAILABLE or self._browser is not None:
+            return
+        try:
+            self._playwright = sync_playwright().start()
+            self._browser = self._playwright.chromium.launch(headless=True)
+            self._context = self._browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            )
+            logger.info("Playwright headless browser initialized")
+        except Exception as exc:
+            logger.error(f"Failed to initialize Playwright: {exc}")
+            self._playwright = None
+            self._browser = None
+            self._context = None
+
+    def _cleanup_browser(self):
+        """Close browser and free resources."""
+        try:
+            if self._context:
+                self._context.close()
+            if self._browser:
+                self._browser.close()
+            if self._playwright:
+                self._playwright.stop()
+        except Exception as exc:
+            logger.warning(f"Error cleaning up browser: {exc}")
+        finally:
+            self._context = None
+            self._browser = None
+            self._playwright = None
+
+    def fetch_page_headless(self, url: str, wait_selector: Optional[str] = None, timeout: int = 30) -> Optional[str]:
+        """Fetch a page using headless browser (executes JavaScript, handles AJAX content).
+        
+        Args:
+            url: URL to fetch
+            wait_selector: CSS selector to wait for before returning (e.g. for AJAX-loaded content)
+            timeout: Max time to wait in seconds
+        
+        Returns:
+            HTML content or None if fetch fails
+        """
+        if not _PLAYWRIGHT_AVAILABLE:
+            logger.debug("Playwright not available, falling back to fetch_page()")
+            return self.fetch_page(url)
+        
+        try:
+            self._init_browser()
+            if not self._context:
+                logger.warning("Browser context failed to initialize, using static fetch")
+                return self.fetch_page(url)
+            
+            page = self._context.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+                
+                # Wait for specific element if provided (e.g. pagination controls or listings)
+                if wait_selector:
+                    try:
+                        page.wait_for_selector(wait_selector, timeout=5000)
+                    except Exception:
+                        logger.debug(f"Selector '{wait_selector}' not found in time")
+                
+                # Allow JavaScript to finish rendering (wait for network to be idle)
+                page.wait_for_load_state("networkidle", timeout=5000)
+                
+                html = page.content()
+                return html
+            finally:
+                page.close()
+        except Exception as exc:
+            logger.warning(f"fetch_page_headless failed for {url}: {exc}")
             return None
 
     def check_listing_still_live(self, url: str) -> Tuple[bool, str]:
@@ -520,6 +609,16 @@ class OptimizedYachtScraper:
         if not listing_urls:
             listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
 
+        # ── Headless browser retry for small result sets ──────────────────────
+        # If discovery found very few listings (< 5), site likely uses AJAX pagination.
+        # Try fetching inventory pages with headless browser to render JavaScript.
+        if _PLAYWRIGHT_AVAILABLE and listing_urls and len(listing_urls) < 5:
+            logger.info(f"Discovered only {len(listing_urls)} listings, retrying with headless browser")
+            headless_urls = self._discover_with_headless(base_domain, list(queue), inventory_keywords, listing_path_patterns)
+            if headless_urls:
+                listing_urls.update(headless_urls)
+                logger.info(f"Headless browser added {len(headless_urls)} listings, total now: {len(listing_urls)}")
+
         return list(listing_urls)
 
     def _discover_from_wp_rest(self, base_domain: str) -> set:
@@ -590,6 +689,83 @@ class OptimizedYachtScraper:
             _parse(f"{base_domain}{path}")
             if found:
                 break  # stop after first successful sitemap
+        return found
+
+    def _discover_with_headless(self, base_domain: str, inventory_pages: List[Tuple[str, bool]], 
+                                inventory_keywords: List[str], listing_path_patterns: List[str]) -> set:
+        """Retry discovery using headless browser for AJAX-heavy sites.
+        Fetches known inventory pages with JavaScript executed and extracts listings."""
+        if not _PLAYWRIGHT_AVAILABLE or not inventory_pages:
+            return set()
+        
+        found: set = set()
+        parsed_base = urlparse(base_domain)
+        skip_re = re.compile(
+            r"\.(css|js|jpg|jpeg|png|gif|svg|pdf|xml|ico|woff2?|ttf|map)($|\?)"
+            r"|^mailto:|^tel:|javascript:",
+            re.IGNORECASE,
+        )
+        
+        try:
+            self._init_browser()
+            if not self._context:
+                return found
+            
+            # Fetch up to 5 inventory pages with headless browser
+            for page_url, _ in inventory_pages[:5]:
+                if urlparse(page_url).netloc != parsed_base.netloc:
+                    continue
+                
+                html = self.fetch_page_headless(page_url, wait_selector="a[href*='/yacht-sales/']", timeout=30)
+                if not html:
+                    continue
+                
+                logger.info(f"Headless: fetched {page_url}")
+                
+                soup = BeautifulSoup(html, "html.parser")
+                
+                # Extract listing links from rendered content
+                for a in soup.find_all("a", href=True):
+                    href = a["href"].strip()
+                    if skip_re.search(href):
+                        continue
+                    
+                    absolute = urljoin(base_domain, href) if not href.startswith("http") else href
+                    abs_no_query = absolute.split("#")[0].split("?")[0]
+                    abs_with_query = absolute.split("#")[0]
+                    has_id_param = bool(self._ID_QUERY_PARAM_RE.search(abs_with_query))
+                    abs_clean = abs_with_query if has_id_param else abs_no_query
+                    
+                    if urlparse(abs_no_query).netloc != parsed_base.netloc:
+                        continue
+                    
+                    # Check if looks like listing
+                    if any(re.search(p, abs_no_query, re.IGNORECASE) for p in listing_path_patterns):
+                        found.add(abs_clean)
+                
+                # Also check for vessel-card elements
+                for card in soup.find_all("div", class_=lambda c: c and "vessel-card" in " ".join(c)):
+                    card_classes = set(card.get("class") or [])
+                    if card_classes & self._SOLD_CARD_CLASSES:
+                        continue
+                    
+                    for a in card.find_all("a", href=True):
+                        href = a["href"].strip()
+                        if not href or skip_re.search(href):
+                            continue
+                        absolute_href = urljoin(base_domain, href) if not href.startswith("http") else href
+                        abs_href = absolute_href.split("#")[0]
+                        if urlparse(abs_href.split("?")[0]).netloc != parsed_base.netloc:
+                            continue
+                        found.add(abs_href)
+            
+            logger.info(f"Headless browser discovery found {len(found)} listings")
+            
+        except Exception as exc:
+            logger.warning(f"Headless browser discovery failed: {exc}")
+        finally:
+            self._cleanup_browser()
+        
         return found
 
     # ---------------------------------------------------------
