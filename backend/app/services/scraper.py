@@ -182,9 +182,23 @@ class OptimizedYachtScraper:
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0 Safari/537.36"
-            )
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate",
+            "Cache-Control": "no-cache",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
         }
+        # Persistent session so cookies carry across requests within one scrape job.
+        # _visited_origins tracks which base domains have been warmed-up already.
+        self._session = requests.Session()
+        self._session.headers.update(self.headers)
+        self._visited_origins: set = set()
 
         # Known site patterns for fast structured extraction
         self.site_patterns = {
@@ -211,9 +225,26 @@ class OptimizedYachtScraper:
     # ---------------------------------------------------------
     # BASIC FETCHING
     # ---------------------------------------------------------
-    def fetch_page(self, url: str, timeout: int = 10) -> Optional[str]:
+    def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
+        """Fetch a page using a cookie-aware persistent session.
+        Warms up by visiting the site root once per origin so the server
+        sees a browsing session rather than a cold isolated bot request."""
+        from urllib.parse import urlparse as _up
         try:
-            response = requests.get(url, headers=self.headers, timeout=timeout)
+            _p = _up(url)
+            origin = f"{_p.scheme}://{_p.netloc}"
+            if origin not in self._visited_origins:
+                self._visited_origins.add(origin)
+                try:
+                    self._session.get(origin, timeout=8, allow_redirects=True,
+                                      headers={"Referer": "https://www.google.com/",
+                                               "Sec-Fetch-Site": "none"})
+                except Exception:
+                    pass  # warm-up failure is non-fatal
+            response = self._session.get(
+                url, timeout=timeout, allow_redirects=True,
+                headers={"Referer": origin, "Sec-Fetch-Site": "same-origin"},
+            )
             response.raise_for_status()
             return response.text
         except Exception as e:
@@ -465,7 +496,7 @@ class OptimizedYachtScraper:
                 return
             visited_sitemaps.add(sm_url)
             try:
-                r = requests.get(sm_url, headers=self.headers, timeout=10)
+                r = self._session.get(sm_url, timeout=10, allow_redirects=True)
                 if not r.ok:
                     return
                 for loc_m in re.finditer(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', r.text):

@@ -282,19 +282,34 @@ def scrape_preview(
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
 
-    # Fetch page HTML
+    # Fetch page HTML — use a cookie-aware session and warm up with the base domain
+    # first so the server sees a browsing session rather than a cold bot hit.
+    # Removing 'br' encoding because Python's requests can't decompress brotli by
+    # default — a mismatch that causes some servers to reset the connection.
+    _site_origin = re.match(r'(https?://[^/?#]+)', url)
+    _site_origin = _site_origin.group(1) if _site_origin else url
+    _scrape_session = http_requests.Session()
+    _scrape_session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate",
+        "Cache-Control": "no-cache",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+    })
     try:
-        resp = http_requests.get(
+        _scrape_session.get(_site_origin, timeout=8, allow_redirects=True)
+    except Exception:
+        pass  # warm-up failure is non-fatal
+    try:
+        resp = _scrape_session.get(
             url,
             timeout=25,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Cache-Control": "no-cache",
-                "Referer": "https://www.google.com/",
-            },
+            headers={"Referer": _site_origin, "Sec-Fetch-Site": "same-origin"},
             allow_redirects=True,
         )
         resp.raise_for_status()
