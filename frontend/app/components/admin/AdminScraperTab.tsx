@@ -1,11 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X, Terminal } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ScraperReviewPage from '@/app/admin/scraper-review/page';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface LogLine {
+  t: string;
+  level: string;
+  logger: string;
+  msg: string;
+}
 
 interface ScraperJob {
   id: number;
@@ -40,6 +47,53 @@ interface TeamMember {
   name: string;
   email: string;
   role?: string;
+}
+
+// ─── Log panel ────────────────────────────────────────────────────────────────
+
+function LogPanel({ logs, loading }: { logs: LogLine[]; loading: boolean }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
+
+  if (!loading && logs.length === 0) return null;
+
+  const levelClass = (level: string) => {
+    if (level === 'ERROR') return 'text-red-400';
+    if (level === 'WARNING') return 'text-yellow-300';
+    if (level === 'DEBUG') return 'text-gray-500';
+    return 'text-green-400';
+  };
+
+  const loggerColor = (logger: string) => {
+    if (logger === 'scraper') return 'text-blue-400';
+    if (logger === 'connectionpool') return 'text-gray-500';
+    return 'text-purple-400';
+  };
+
+  return (
+    <div className="mt-4 rounded-lg overflow-hidden border border-gray-700 bg-gray-950">
+      <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 border-b border-gray-700">
+        <Terminal size={12} className="text-gray-400" />
+        <span className="text-xs font-medium text-gray-400">Scrape Log</span>
+        {loading && <span className="text-xs text-blue-400 animate-pulse ml-auto">● running…</span>}
+        {!loading && logs.length > 0 && <span className="text-xs text-gray-500 ml-auto">{logs.length} entries</span>}
+      </div>
+      <div className="p-2 overflow-y-auto max-h-80 font-mono text-xs space-y-0.5">
+        {loading && logs.length === 0 && (
+          <p className="text-gray-500 py-2 text-center animate-pulse">Waiting for scraper output…</p>
+        )}
+        {logs.map((line, i) => (
+          <div key={i} className="flex gap-2 leading-5 hover:bg-gray-900/50 px-1 rounded">
+            <span className="text-gray-600 shrink-0 select-none">{line.t}</span>
+            <span className={`shrink-0 select-none ${levelClass(line.level)}`}>[{line.level.padEnd(5)}]</span>
+            <span className={`shrink-0 select-none ${loggerColor(line.logger)}`}>[{line.logger}]</span>
+            <span className="text-gray-200 break-all">{line.msg}</span>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+    </div>
+  );
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -106,6 +160,8 @@ export default function AdminScraperTab() {
   const [brokerLoading, setBrokerLoading] = useState(false);
   const [brokerResult, setBrokerResult] = useState<any>(null);
   const [brokerError, setBrokerError] = useState('');
+  const [brokerLogs, setBrokerLogs] = useState<LogLine[]>([]);
+  const [singleLogs, setSingleLogs] = useState<LogLine[]>([]);
 
   // ── Data loading ──
   const loadJobs = useCallback(async () => {
@@ -247,10 +303,11 @@ export default function AdminScraperTab() {
   // ── Test tools ──
   async function handleScrapeSingle() {
     if (!singleUrl) { setSingleError('Please enter a URL'); return; }
-    setSingleLoading(true); setSingleError(''); setSingleResult(null); setImportResult(null); setImportError('');
+    setSingleLoading(true); setSingleError(''); setSingleResult(null); setImportResult(null); setImportError(''); setSingleLogs([]);
     try {
       const res = await fetch(apiUrl('/scraper/single'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: singleUrl }) });
       const data = await res.json();
+      setSingleLogs(data.logs || []);
       if (data.success) setSingleResult(data.data);
       else setSingleError(data.error || 'Failed to scrape');
     } catch (err: any) { setSingleError(err.message || 'Network error'); }
@@ -279,10 +336,11 @@ export default function AdminScraperTab() {
 
   async function handleScrapeBroker() {
     if (!brokerUrl) { setBrokerError('Please enter a broker URL'); return; }
-    setBrokerLoading(true); setBrokerError(''); setBrokerResult(null);
+    setBrokerLoading(true); setBrokerError(''); setBrokerResult(null); setBrokerLogs([]);
     try {
       const res = await fetch(apiUrl('/scraper/broker'), { method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: brokerUrl, preview_count: 3 }) });
       const data = await res.json();
+      setBrokerLogs(data.logs || []);
       if (data.success) setBrokerResult(data);
       else setBrokerError(data.message || 'Failed to scrape');
     } catch (err: any) { setBrokerError(err.message || 'Network error'); }
@@ -575,6 +633,8 @@ export default function AdminScraperTab() {
                 {singleLoading ? 'Scraping...' : '🔍 Scrape & Preview'}
               </button>
 
+              <LogPanel logs={singleLogs} loading={singleLoading} />
+
               {singleResult && (
                 <div className="mt-4 space-y-4">
                   {/* Scraped data preview */}
@@ -689,6 +749,8 @@ export default function AdminScraperTab() {
                 className="mt-4 w-full px-6 py-3 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
                 {brokerLoading ? 'Scanning...' : '🚀 Preview Broker Inventory'}
               </button>
+
+              <LogPanel logs={brokerLogs} loading={brokerLoading} />
             </div>
           )}
         </div>

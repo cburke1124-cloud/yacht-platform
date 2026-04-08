@@ -26,11 +26,46 @@ from urllib.parse import urlparse
 import os
 import re
 import json
+import logging
 import threading
+from datetime import datetime as _dt
 
 import requests
 
 from app.db.session import get_db
+
+
+# ---------------------------------------------------------------------------
+# Lightweight log capture — collects scraper log lines during a test request
+# ---------------------------------------------------------------------------
+_CAPTURE_LOGGERS = ("app.services.scraper", "urllib3.connectionpool")
+
+class _LogCapture(logging.Handler):
+    """Thread-local log capture for test endpoints."""
+    def __init__(self):
+        super().__init__(level=logging.DEBUG)
+        self.lines: list = []
+        self.setFormatter(logging.Formatter("%(message)s"))
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self.lines.append({
+                "t": _dt.utcnow().strftime("%H:%M:%S.%f")[:-3],
+                "level": record.levelname,
+                "logger": record.name.split(".")[-1],
+                "msg": self.format(record),
+            })
+        except Exception:
+            pass
+
+    def __enter__(self):
+        for name in _CAPTURE_LOGGERS:
+            logging.getLogger(name).addHandler(self)
+        return self
+
+    def __exit__(self, *_):
+        for name in _CAPTURE_LOGGERS:
+            logging.getLogger(name).removeHandler(self)
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing, ListingImage
@@ -514,10 +549,11 @@ def test_scrape_single(
     from app.services.scraper import OptimizedYachtScraper
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
-    result = scraper.scrape_single_listing(data.url)
+    with _LogCapture() as cap:
+        result = scraper.scrape_single_listing(data.url)
     if "error" in result:
-        return {"success": False, "error": result["error"]}
-    return {"success": True, "data": result}
+        return {"success": False, "error": result["error"], "logs": cap.lines}
+    return {"success": True, "data": result, "logs": cap.lines}
 
 
 # -----------------------------------------------------------------------
@@ -536,16 +572,18 @@ def test_broker_inventory(
     from app.services.scraper import OptimizedYachtScraper
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
-    urls = scraper.find_listing_urls(data.url)
-    previews = []
-    for url in urls[: data.preview_count]:
-        raw = scraper.scrape_single_listing(url)
-        previews.append({"url": url, "data": raw if "error" not in raw else None, "error": raw.get("error")})
+    with _LogCapture() as cap:
+        urls = scraper.find_listing_urls(data.url)
+        previews = []
+        for url in urls[: data.preview_count]:
+            raw = scraper.scrape_single_listing(url)
+            previews.append({"url": url, "data": raw if "error" not in raw else None, "error": raw.get("error")})
     return {
         "success": True,
         "total_found": len(urls),
         "all_urls": urls,
         "previews": previews,
+        "logs": cap.lines,
     }
 
 
