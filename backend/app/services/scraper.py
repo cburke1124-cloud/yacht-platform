@@ -447,6 +447,7 @@ class OptimizedYachtScraper:
             r"-for-sale",
             r"-yacht$",
             r"-boat$",
+            r"-sales/",          # e.g. /yacht-sales/year-make-model
         ]
 
         # Keywords in a path that suggest an inventory index page worth crawling deeper
@@ -455,6 +456,7 @@ class OptimizedYachtScraper:
             "/fleet", "/available", "/for-sale", "/vessels", "/buy",
             "/powerboats", "/sailboats", "/catamarans", "/motor-yachts",
             "/our-boats", "/our-yachts", "/center-console", "/express-cruiser",
+            "/yacht-condition", "/boat-condition", "/vessel-condition",  # e.g. /yacht-condition/used
         ]
 
         skip_re = re.compile(
