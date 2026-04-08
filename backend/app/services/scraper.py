@@ -232,6 +232,11 @@ class OptimizedYachtScraper:
         # (e.g. from a boat-listing plugin), not the WP post ID. We must use the
         # WP post ID returned by the REST API to fetch individual listing content.
         self._wp_rest_id_map: Dict[str, Tuple[str, str]] = {}
+        # Cache for sites that serve all listing data via a custom JSON API (e.g.
+        # Squarespace sites backed by a Cloudflare Worker proxy like yachtzero.com).
+        # Populated by _discover_from_json_proxy().
+        # Maps synthetic_url → pre-built listing data dict.
+        self._json_api_cache: Dict[str, Dict] = {}
 
         # Known site patterns for fast structured extraction
         self.site_patterns = {
@@ -734,7 +739,133 @@ except Exception as e:
         if not listing_urls:
             listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
 
+        # ── Custom JSON proxy API (e.g. Squarespace + Cloudflare Worker) ──────
+        # Some sites (e.g. yachtzero.com) don't have individual listing pages at
+        # all — the entire inventory is served by a custom JSON API referenced in
+        # a JS variable on the page.  Detect it and pre-build all listing dicts.
+        if not listing_urls:
+            listing_urls = self._discover_from_json_proxy(base_domain, site_url)
+
         return list(listing_urls)
+
+    # ------------------------------------------------------------------
+    # JSON PROXY API DISCOVERY
+    # ------------------------------------------------------------------
+    def _discover_from_json_proxy(self, base_domain: str, site_url: str) -> set:
+        """Detect a custom JSON proxy API baked into the page's JavaScript
+        (pattern: ``var PROXY = "https://..."``), fetch it, and build pre-cached
+        listing data for every item.  Returns a set of synthetic fragment URLs.
+
+        This handles sites like yachtzero.com which use a Squarespace front-end
+        backed by a Cloudflare Worker that proxies a YachtWay / YachtWay-style API.
+        """
+        found: set = set()
+        try:
+            html = self.fetch_page(site_url)
+            if not html:
+                return found
+
+            # Look for: var PROXY = "https://some-cloudflare-worker.workers.dev"
+            proxy_match = re.search(
+                r'var\s+PROXY\s*=\s*["\']([^"\'\']+)["\']',
+                html,
+            )
+            if not proxy_match:
+                return found
+
+            proxy_url = proxy_match.group(1).strip()
+            logger.info(f"JSON proxy API detected: {proxy_url}")
+
+            resp = requests.get(
+                proxy_url,
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=15,
+            )
+            if not resp.ok:
+                logger.warning(f"JSON proxy API returned {resp.status_code}: {proxy_url}")
+                return found
+
+            data = resp.json()
+            items = data if isinstance(data, list) else data.get("data", [])
+            if not isinstance(items, list):
+                return found
+
+            logger.info(f"JSON proxy API returned {len(items)} listings")
+
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                uid = item.get("id") or item.get("uuid")
+                if not uid:
+                    continue
+
+                # Build a stable synthetic URL so the ORM can track this listing.
+                synthetic_url = f"{site_url}#listing-id={uid}"
+
+                # --- Map JSON fields → scraper data dict ---
+                make = item.get("make") or ""
+                model = item.get("model") or ""
+                year = item.get("year")
+                title = " ".join(filter(None, [str(year) if year else "", make, model])).strip()
+
+                price_obj = item.get("price") or {}
+                price_val = price_obj.get("value") if isinstance(price_obj, dict) else None
+                currency = price_obj.get("currency", "USD") if isinstance(price_obj, dict) else "USD"
+
+                loc = item.get("location") or {}
+                city = loc.get("city")
+                state = loc.get("state")
+                country_raw = loc.get("country")
+                # Normalize ISO-2 country codes
+                if country_raw and len(country_raw) == 2:
+                    country_raw = self.normalize_location(None, None, country_raw)[2] or country_raw
+
+                engines_obj = item.get("engines") or {}
+                fuel_type = (engines_obj.get("fuelType") or "").capitalize() or None
+                engine_count = len(engines_obj.get("engines") or []) or None
+                # Average engine hours across all engines
+                hours_list = [
+                    e.get("engineHours")
+                    for e in (engines_obj.get("engines") or [])
+                    if isinstance(e, dict) and e.get("engineHours")
+                ]
+                engine_hours = (sum(hours_list) / len(hours_list)) if hours_list else None
+
+                features_list = item.get("features") or []
+                features_text = ", ".join(features_list) if features_list else None
+
+                image_url = item.get("imageUrl")
+                images = [image_url] if image_url else []
+
+                listing_data: Dict = {
+                    "title": title or None,
+                    "make": make or None,
+                    "model": model or None,
+                    "year": int(year) if year else None,
+                    "price": float(price_val) if price_val else None,
+                    "currency": currency,
+                    "length_feet": float(item["lengthOverall"]) if item.get("lengthOverall") else None,
+                    "max_speed_knots": float(item["topSpeed"]) if item.get("topSpeed") else None,
+                    "cabins": int(item["cabins"]) if item.get("cabins") else None,
+                    "fuel_type": fuel_type,
+                    "engine_count": engine_count,
+                    "engine_hours": engine_hours,
+                    "city": city,
+                    "state": state,
+                    "country": country_raw,
+                    "features": features_text,
+                    "feature_bullets": features_list or None,
+                    "images": images,
+                    "detected_agent_name": item.get("offeredBy"),
+                }
+
+                self._json_api_cache[synthetic_url] = listing_data
+                found.add(synthetic_url)
+
+        except Exception as exc:
+            logger.warning(f"_discover_from_json_proxy failed for {site_url}: {exc}")
+
+        return found
 
     def _discover_from_wp_rest(self, base_domain: str) -> set:
         """
@@ -1362,6 +1493,13 @@ Content: {content[:12000]}"""
     # SCRAPE A SINGLE LISTING URL â†’ raw data dict
     # ---------------------------------------------------------
     def scrape_single_listing(self, url: str) -> Dict:
+        # ── JSON proxy API cache — pre-built data, no fetch needed ──────────────
+        # Populated by _discover_from_json_proxy() for sites whose entire inventory
+        # is served by a custom JSON API (e.g. yachtzero.com / Squarespace + CF Worker).
+        if url in self._json_api_cache:
+            logger.info(f"scrape_single_listing: returning pre-cached JSON API data for {url}")
+            return self._json_api_cache[url]
+
         # ── WP REST API FIRST — must run before fetch_page ────────────────────────
         # JSON endpoints bypass Cloudflare HTML challenges. This must happen
         # BEFORE fetch_page so data is available if HTML is blocked by CF.
