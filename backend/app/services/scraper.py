@@ -380,6 +380,19 @@ class OptimizedYachtScraper:
         def is_inventory_page(path: str) -> bool:
             return any(kw in path for kw in inventory_keywords)
 
+        def is_pagination_link(href: str, base_url: str) -> bool:
+            """Detect pagination links (page=X, /page/X, rel=next, etc.)"""
+            # Check for explicit page/paging parameters
+            if re.search(r'[?&](?:page|paged|p)=\d+', href, re.IGNORECASE):
+                return True
+            # Check for /page/X/ pattern (common in WordPress)
+            if re.search(r'/page/\d+/?$', href, re.IGNORECASE):
+                return True
+            # Check for ?offset=X or ?start=X patterns
+            if re.search(r'[?&](?:offset|start|skip)=\d+', href, re.IGNORECASE):
+                return True
+            return False
+
         pages_crawled = 0
         while queue and pages_crawled < max_pages:
             page_url, from_start = queue.pop(0)
@@ -431,6 +444,26 @@ class OptimizedYachtScraper:
                         # On the homepage, follow ALL internal sub-page links that aren't
                         # obviously non-listing pages (contact/about/etc).
                         # This handles sites where listings are at non-standard URL shapes.
+                        queue.append((abs_clean, False))
+                        ever_queued.add(abs_clean)
+
+            # ── Pagination detection: add pagination links to queue if on inventory page ──
+            if is_inventory_page(path.lower()):
+                for a in soup.find_all("a", href=True):
+                    href = a["href"].strip()
+                    if skip_re.search(href):
+                        continue
+                    absolute = urljoin(base_domain, href) if not href.startswith("http") else href
+                    abs_no_query = absolute.split("#")[0].split("?")[0]
+                    abs_with_query = absolute.split("#")[0]
+                    abs_clean = abs_with_query
+                    
+                    if urlparse(abs_no_query).netloc != parsed_base.netloc:
+                        continue
+                    if abs_clean in visited_pages or abs_clean in ever_queued:
+                        continue
+                    
+                    if is_pagination_link(href, base_domain):
                         queue.append((abs_clean, False))
                         ever_queued.add(abs_clean)
 
