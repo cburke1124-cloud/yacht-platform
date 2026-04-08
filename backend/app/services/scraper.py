@@ -652,24 +652,6 @@ except Exception as e:
                     listing_urls.add(abs_href)
                     found_listing_link = True
 
-            # Direct vessel-card extraction: handles sites (e.g. query-param CMSes) that
-            # render all listings on one page as card elements with ?id=N href links.
-            # Only pick up cards NOT marked as sold/unavailable.
-            for card in soup.find_all("div", class_=lambda c: c and "vessel-card" in " ".join(c)):
-                card_classes = set((card.get("class") or []))
-                if card_classes & self._SOLD_CARD_CLASSES:
-                    continue  # skip sold / off-market cards
-                for a in card.find_all("a", href=True):
-                    href = a["href"].strip()
-                    if not href or skip_re.search(href):
-                        continue
-                    absolute_href = urljoin(base_domain, href) if not href.startswith("http") else href
-                    abs_href = absolute_href.split("#")[0]  # preserve query params
-                    if urlparse(abs_href.split("?")[0]).netloc != parsed_base.netloc:
-                        continue
-                    listing_urls.add(abs_href)
-                    found_listing_link = True
-
             # Content-sniff fallback: if we visited a page that was linked from the
             # homepage and it has no conventional listing sub-links, check if the page
             # itself looks like a single vessel detail page (small brokers often do this).
@@ -714,17 +696,58 @@ except Exception as e:
     def _discover_from_wp_rest(self, base_domain: str) -> set:
         """
         Query the WordPress REST API to discover all listing URLs.
-        WP REST JSON endpoints are typically NOT behind Cloudflare HTML challenges,
-        making this the most reliable discovery path for CF-protected WP broker sites.
+        First auto-discovers registered custom post types via /wp-json/wp/v2/types
+        (finds the actual rest_base slug, e.g. "sale" on taityachts.net), then falls
+        back to a hardcoded list of common slugs if discovery returns nothing.
         """
         found: set = set()
         _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-        for post_type in (
+
+        # ── Step 1: auto-discover post types via /wp-json/wp/v2/types ────────
+        # Built-in WP types and known non-listing plugin types to skip
+        _BUILTIN_WP = {
+            'post', 'page', 'attachment', 'nav_menu_item', 'revision',
+            'wp_block', 'wp_template', 'wp_template_part', 'wp_global_styles',
+            'wp_navigation', 'wp_font_family', 'wp_font_face',
+        }
+        _NON_LISTING_REST_BASES = {
+            'posts', 'pages', 'menu-items', 'blocks', 'templates', 'template-parts',
+            'global-styles', 'navigation', 'font-families', 'kadence_form',
+            'kadence_navigation', 'kadence_header', 'kadence_lottie', 'kadence_vector',
+            'gp_elements', 'gp_font', 'widgetopts_snippet', 'guest_book_entry',
+            'charter',  # charter yachts, not for-sale listings
+        }
+        discovered_bases: list = []
+        try:
+            r = requests.get(
+                f"{base_domain}/wp-json/wp/v2/types",
+                headers=_api_hdrs, timeout=10,
+            )
+            if r.ok:
+                types_data = r.json()
+                if isinstance(types_data, dict):
+                    for type_slug, type_info in types_data.items():
+                        if type_slug in _BUILTIN_WP or not isinstance(type_info, dict):
+                            continue
+                        rest_base = type_info.get('rest_base', '')
+                        # Skip complex REST base patterns and known non-listing types
+                        if rest_base and '(?P<' not in rest_base and rest_base not in _NON_LISTING_REST_BASES:
+                            discovered_bases.append(rest_base)
+                            logger.info(f"WP REST type discovered: {type_slug} → rest_base={rest_base}")
+        except Exception:
+            pass
+
+        # ── Step 2: hardcoded fallback slugs (used if discovery finds nothing) ─
+        _HARDCODED = [
             'listings', 'boats', 'yachts', 'vessels', 'motorboats', 'sailboats',
-            'yacht-sales', 'yacht_sales',   # taityachts.net style
-            'boat-listings', 'used-boats', 'new-boats',  # other common WP slugs
+            'sale',           # taityachts.net (post type slug: sale, rest_base: sale)
+            'yacht-sales', 'yacht_sales', 'boat-listings',
             'product', 'property',
-        ):
+        ]
+        # Merge: discovered bases first, then hardcoded ones not already present
+        all_rest_bases = discovered_bases + [t for t in _HARDCODED if t not in discovered_bases]
+
+        for post_type in all_rest_bases:
             page = 1
             while page <= 5:  # up to 500 items per post type
                 try:
