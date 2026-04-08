@@ -51,6 +51,7 @@ interface PreviewListing {
   internal_note: string | null;
   is_active: boolean;
   created_at: string;
+  additional_specs: Record<string, any> | null;
 }
 
 type FieldKey = keyof Omit<PreviewListing, 'id' | 'share_token' | 'is_active' | 'created_at'>;
@@ -93,6 +94,7 @@ const EMPTY_FORM: Omit<PreviewListing, 'id' | 'share_token' | 'is_active' | 'cre
   images: [],
   source_url: null,
   internal_note: null,
+  additional_specs: null,
 };
 
 const SHARE_BASE = 'https://yachtversal.com/listings/preview';
@@ -178,6 +180,13 @@ export default function AdminPreviewListingsTab() {
     setForm((prev) => ({ ...prev, [key]: value === '' ? null : value }));
   };
 
+  const setAdditionalSpec = (key: string, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      additional_specs: { ...(prev.additional_specs || {}), [key]: value || undefined },
+    }));
+  };
+
   // ── Scrape ───────────────────────────────────────────────────────────────
   const handleScrape = async () => {
     if (!scrapeUrl.trim()) return;
@@ -222,6 +231,8 @@ export default function AdminPreviewListingsTab() {
         seller_phone: data.seller_phone ?? prev.seller_phone,
         brokerage_name: data.brokerage_name ?? prev.brokerage_name,
         brokerage_website: data.brokerage_website ?? prev.brokerage_website,
+        brokerage_logo_url: data.brokerage_logo_url ?? prev.brokerage_logo_url,
+        additional_specs: { ...(prev.additional_specs || {}), ...(data.additional_specs || {}) },
       }));
     } catch (e: any) {
       setScrapeError(e.message);
@@ -555,7 +566,18 @@ export default function AdminPreviewListingsTab() {
                     <Input label="Brokerage Name" value={form.brokerage_name || ''} onChange={(v) => setField('brokerage_name', v)} />
                     <Input label="Brokerage Website" value={form.brokerage_website || ''} onChange={(v) => setField('brokerage_website', v)} />
                   </div>
-                  <Input label="Brokerage Logo URL" value={form.brokerage_logo_url || ''} onChange={(v) => setField('brokerage_logo_url', v)} placeholder="https://..." />
+                  <div>
+                    <Input label="Brokerage Logo URL" value={form.brokerage_logo_url || ''} onChange={(v) => setField('brokerage_logo_url', v)} placeholder="https://..." />
+                    {form.brokerage_logo_url && (
+                      <img src={form.brokerage_logo_url} alt="logo preview" className="mt-1.5 h-10 max-w-[160px] object-contain rounded border border-gray-100" />
+                    )}
+                  </div>
+                  <div>
+                    <Input label="Seller Photo URL" value={form.additional_specs?.seller_photo_url || ''} onChange={(v) => setAdditionalSpec('seller_photo_url', v)} placeholder="https://..." />
+                    {form.additional_specs?.seller_photo_url && (
+                      <img src={form.additional_specs.seller_photo_url} alt="seller photo preview" className="mt-1.5 h-14 w-14 object-cover rounded-full border border-gray-100" />
+                    )}
+                  </div>
                 </div>
               </div>
 

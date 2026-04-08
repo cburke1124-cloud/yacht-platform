@@ -302,8 +302,57 @@ def scrape_preview(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not fetch URL: {exc}")
 
-    from urllib.parse import urlparse, urljoin
+    # ── For JS-heavy pages: try to pull a WP REST API listing if detected ──
+    # Sites like yachtsvancouver.com render listing details via JS; their data
+    # may be available as a WP/custom REST endpoint or embedded in a script tag.
+    from urllib.parse import urlparse, urljoin, parse_qs
     parsed_url = urlparse(url)
+    qs_params = parse_qs(parsed_url.query)
+    listing_id_from_qs = None
+    for k in ('id', 'boat_id', 'listing_id', 'yacht_id', 'vessel_id'):
+        if k in qs_params:
+            listing_id_from_qs = qs_params[k][0]
+            break
+
+    # Attempt WP REST API if there's an id param and we got little content
+    wp_api_json = None
+    if listing_id_from_qs:
+        for wp_path in (
+            f"/wp-json/wp/v2/listings/{listing_id_from_qs}",
+            f"/wp-json/wp/v2/boats/{listing_id_from_qs}",
+            f"/wp-json/wp/v2/yachts/{listing_id_from_qs}",
+            f"/wp-json/wp/v2/posts/{listing_id_from_qs}",
+        ):
+            try:
+                api_resp = http_requests.get(f"{parsed_url.scheme}://{parsed_url.netloc}{wp_path}",
+                    timeout=10, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+                if api_resp.ok and 'json' in api_resp.headers.get('content-type', ''):
+                    wp_api_json = api_resp.json()
+                    break
+            except Exception:
+                pass
+
+    # Extract embedded JS data objects from script tags (handles sites that hydrate via JS)
+    embedded_json_blobs: list = []
+    for script_m in re.finditer(
+        r'<script(?![^>]*type=["\']text/css)[^>]*>(.*?)</script>',
+        raw_html, re.DOTALL | re.IGNORECASE
+    ):
+        script_text = script_m.group(1).strip()
+        # Skip JSON-LD (handled separately) and tiny scripts
+        if 'application/ld+json' in script_m.group(0) or len(script_text) < 50:
+            continue
+        # Look for JSON objects assigned to variables or window properties
+        for json_m in re.finditer(
+            r'(?:window\.[\w.]+|var\s+\w+|let\s+\w+|const\s+\w+)\s*=\s*(\{[^;]{100,}\})',
+            script_text, re.DOTALL
+        ):
+            try:
+                obj = json.loads(json_m.group(1))
+                if isinstance(obj, dict):
+                    embedded_json_blobs.append(obj)
+            except Exception:
+                pass
     base_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
     hostname = parsed_url.netloc.lower().removeprefix("www.")
 
@@ -448,6 +497,37 @@ def scrape_preview(
         if raw_logo:
             html_brokerage_logo = make_absolute(raw_logo)
 
+    # Broker/agent profile photo — look for <img> near agent/broker contact sections
+    html_seller_photo = None
+    # Find a broker card block first, then grab the nearest img inside it
+    broker_card_m = re.search(
+        r'(?:<div|<section|<article)[^>]+(?:class|id)=["\'][^"\']*'
+        r'(?:broker|agent|listing-agent|contact|team|staff|salesman|advisor)[^"\']*["\']'
+        r'(.*?)</(?:div|section|article)>',
+        raw_html, re.IGNORECASE | re.DOTALL
+    )
+    if broker_card_m:
+        card_html = broker_card_m.group(1)
+        photo_m = re.search(
+            r'<img[^>]+(?:src|data-src)=["\']([^"\']+\.(?:jpg|jpeg|png|webp)(?:\?[^"\']*)?)["\']',
+            card_html, re.IGNORECASE
+        )
+        if photo_m:
+            candidate = make_absolute(photo_m.group(1))
+            if candidate and not LOGO_SKIP.search(photo_m.group(1)):
+                html_seller_photo = candidate
+    # Fallback: look for img tags with class/id containing photo/headshot/agent/broker
+    if not html_seller_photo:
+        photo_tag_m = re.search(
+            r'<img[^>]+(?:class|id)=["\'][^"\']*(?:headshot|portrait|agent[-_]photo|broker[-_]photo|staff[-_]photo|team[-_]photo|profile[-_]pic|profile[-_]photo)[^"\']*["\'][^>]*(?:src|data-src)=["\']([^"\']+)["\']|'
+            r'<img[^>]+(?:src|data-src)=["\']([^"\']+)["\'][^>]*(?:class|id)=["\'][^"\']*(?:headshot|portrait|agent[-_]photo|broker[-_]photo|profile[-_]photo)[^"\']*["\']',
+            raw_html, re.IGNORECASE | re.DOTALL
+        )
+        if photo_tag_m:
+            raw_photo = photo_tag_m.group(1) or photo_tag_m.group(2)
+            if raw_photo:
+                html_seller_photo = make_absolute(raw_photo)
+
     # ── Merge broker/brokerage: JSON-LD > HTML patterns > None ────────────
     final_seller_name     = ld_seller_name or html_seller_name
     final_seller_email    = ld_seller_email or html_seller_email
@@ -455,6 +535,7 @@ def scrape_preview(
     final_brokerage_name  = ld_brokerage_name or site_brokerage_name
     final_brokerage_logo  = ld_brokerage_logo or html_brokerage_logo
     final_brokerage_website = ld_brokerage_website or base_origin
+    final_seller_photo    = html_seller_photo
 
     # ── Image extraction ───────────────────────────────────────────────────
     LOGO_SKIP = re.compile(
@@ -462,7 +543,14 @@ def scrape_preview(
         r'/nav|/menu|/button|/bg[-_]|/background|/social|/share|/arrow|'
         r'/chevron|/star|/rating|/loading|/spinner|/close|/search|/badge|'
         r'/seal|/cert|/header|/footer|thumbnail.*\d{1,2}x\d{1,2}|'
-        r'width=\d{1,2}&|_\d{1,2}x\d{1,2}\.',
+        r'width=\d{1,2}&|_\d{1,2}x\d{1,2}\.|'
+        # UI chrome element filenames
+        r'x-out|xout|-close|-out\b|close-|btn[-_]|[-_]btn|'
+        r'hamburger|placeholder|no-image|no_image|default-image|'
+        r'play-btn|pause-btn|next-btn|prev-btn|arrow-|caret-|'
+        # Path-based UI suppression
+        r'/assets/images/[a-z_-]+\.(png|gif)$|'
+        r'/ui/|/icons?/|/buttons?/',
         re.IGNORECASE
     )
 
@@ -557,9 +645,24 @@ def scrape_preview(
     clean_text = re.sub(r"&#\d+;", " ", clean_text)
     clean_text = re.sub(r"\s{2,}", " ", clean_text).strip()
 
+    # Supplement with embedded JS data and WP REST JSON for JS-heavy sites
+    extra_context = ""
+    for blob in embedded_json_blobs:
+        try:
+            extra_context += " " + json.dumps(blob)[:2000]
+        except Exception:
+            pass
+    if wp_api_json:
+        # WP REST: extract rendered content
+        rendered = wp_api_json.get("content", {}).get("rendered", "") or wp_api_json.get("excerpt", {}).get("rendered", "")
+        if rendered:
+            rendered_clean = re.sub(r"<[^>]+>", " ", rendered)
+            extra_context += " " + rendered_clean[:3000]
+        extra_context += " " + json.dumps({k: v for k, v in wp_api_json.items() if k not in ('content', 'excerpt', '_links')})[:3000]
+
     # Give Claude the structured JSON-LD as context first, then the page text.
     # But keep clean_text separate so _fallback_parse never sees raw JSON blobs.
-    claude_text = (jsonld_text + "\n\nPAGE TEXT:\n" + clean_text) if jsonld_text else clean_text
+    claude_text = ((jsonld_text + "\n") if jsonld_text else "") + (extra_context + "\n" if extra_context else "") + "PAGE TEXT:\n" + clean_text
 
     # ── Field extraction ───────────────────────────────────────────────────
     extracted = _claude_extract(claude_text) or _fallback_parse(clean_text)
@@ -600,6 +703,14 @@ def scrape_preview(
         extracted["brokerage_logo_url"] = final_brokerage_logo
     if not extracted.get("brokerage_website"):
         extracted["brokerage_website"] = final_brokerage_website
+
+    # Store broker photo + logo in additional_specs so frontend can populate those fields
+    additional = dict(extracted.get("additional_specs") or {})
+    if final_seller_photo and not additional.get("seller_photo_url"):
+        additional["seller_photo_url"] = final_seller_photo
+    if final_brokerage_logo and not additional.get("brokerage_logo_url"):
+        additional["brokerage_logo_url"] = final_brokerage_logo
+    extracted["additional_specs"] = additional
 
     extracted["images"] = images
     extracted["source_url"] = url
