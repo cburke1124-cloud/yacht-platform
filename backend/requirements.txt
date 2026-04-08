@@ -12,12 +12,6 @@ beautifulsoup4==4.12.0
 html5lib==1.1
 requests==2.31.0
 aiohttp==3.9.0
-# curl-cffi: Chrome TLS impersonation — bypasses Cloudflare JA3/TLS fingerprint bot detection.
-# Python's requests/urllib3 uses OpenSSL which has a different TLS ClientHello signature than
-# Chrome (BoringSSL). CF Bot Management detects this at the TLS handshake level and sends TCP RST
-# before any HTTP data is exchanged. curl-cffi uses a custom libcurl build that produces the
-# exact same TLS ClientHello as Chrome, passing CF's fingerprint check.
-curl-cffi>=0.7.0
 
 # Required for auth, hashing, JWT, multipart, and DB drivers
 passlib[bcrypt]==1.7.4
