@@ -23,6 +23,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+# curl-cffi: Chrome TLS impersonation for Cloudflare-protected sites.
+# CF Bot Management detects Python requests by its TLS ClientHello (JA3 fingerprint) and
+# sends TCP RST during the TLS handshake — before any HTTP data is exchanged.
+# curl-cffi uses libcurl built with Chrome's BoringSSL cipher/extension order, passing CF.
+try:
+    from curl_cffi.requests import Session as _PreviewCurlCffiSession
+    _PREVIEW_CURL_CFFI_AVAILABLE = True
+except ImportError:
+    _PreviewCurlCffiSession = None
+    _PREVIEW_CURL_CFFI_AVAILABLE = False
+
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -341,9 +352,9 @@ def scrape_preview(
                 pass
 
     # ── Fetch page HTML ────────────────────────────────────────────────
-    # Minimal headers only — Sec-Fetch-* headers and session warm-ups make
-    # server-side Python requests MORE detectable by Cloudflare (the TLS
-    # fingerprint doesn't match Chrome regardless of what headers claim).
+    # curl-cffi impersonates Chrome's TLS fingerprint (JA3) so Cloudflare's bot
+    # detection passes the handshake. Python requests uses OpenSSL which has a
+    # different ClientHello signature and gets TCP RST from CF before sending HTTP.
     _html_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -351,7 +362,11 @@ def scrape_preview(
     }
     raw_html = ""
     try:
-        resp = http_requests.get(url, timeout=20, headers=_html_headers, allow_redirects=True)
+        if _PREVIEW_CURL_CFFI_AVAILABLE:
+            with _PreviewCurlCffiSession(impersonate="chrome124") as _cs:
+                resp = _cs.get(url, timeout=20, allow_redirects=True)
+        else:
+            resp = http_requests.get(url, timeout=20, headers=_html_headers, allow_redirects=True)
         resp.raise_for_status()
         raw_html = resp.text
     except Exception as exc:

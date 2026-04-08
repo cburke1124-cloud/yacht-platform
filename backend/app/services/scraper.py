@@ -17,6 +17,17 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 
+# curl-cffi: Chrome TLS impersonation for Cloudflare-protected sites.
+# CF Bot Management detects Python requests by its TLS ClientHello (JA3 fingerprint),
+# which differs from Chrome's BoringSSL, and sends TCP RST during the TLS handshake.
+# curl-cffi uses a custom libcurl build with Chrome's exact TLS fingerprint.
+try:
+    from curl_cffi.requests import Session as _CurlSession
+    _CURL_CFFI_AVAILABLE = True
+except ImportError:
+    _CurlSession = None
+    _CURL_CFFI_AVAILABLE = False
+
 from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing
 from app.models.user import User
@@ -191,6 +202,9 @@ class OptimizedYachtScraper:
         # (e.g. sites that set a session cookie on the first page load).
         self._session = requests.Session()
         self._session.headers.update(self.headers)
+        # curl_cffi session for CF-protected sites — produces a Chrome TLS fingerprint
+        # so Cloudflare's bot detection passes the TLS handshake rather than sending TCP RST.
+        self._curl_session = _CurlSession(impersonate="chrome124") if _CURL_CFFI_AVAILABLE else None
         # URL → (post_type, wp_post_id) populated by _discover_from_wp_rest.
         # On CF-protected WP sites the ?id= URL parameter is a CUSTOM/EXTERNAL ID
         # (e.g. from a boat-listing plugin), not the WP post ID. We must use the
@@ -223,9 +237,13 @@ class OptimizedYachtScraper:
     # BASIC FETCHING
     # ---------------------------------------------------------
     def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
-        """Fetch a page via the persistent session (shares cookies within a job)."""
+        """Fetch a page. Uses curl-cffi Chrome TLS impersonation when installed,
+        so Cloudflare's JA3 fingerprint check passes. Falls back to plain requests."""
         try:
-            resp = self._session.get(url, timeout=timeout, allow_redirects=True)
+            if self._curl_session is not None:
+                resp = self._curl_session.get(url, timeout=timeout, allow_redirects=True)
+            else:
+                resp = self._session.get(url, timeout=timeout, allow_redirects=True)
             resp.raise_for_status()
             return resp.text
         except Exception as exc:
