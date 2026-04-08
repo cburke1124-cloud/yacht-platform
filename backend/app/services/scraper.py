@@ -566,6 +566,7 @@ except Exception as e:
             r"-yacht$",
             r"-boat$",
             r"-sales/",          # e.g. /yacht-sales/year-make-model
+            r"-prk/",            # yacht broker CMS individual listing pages (e.g. rickobeyyachtsales.com)
         ]
 
         # Keywords in a path that suggest an inventory index page worth crawling deeper
@@ -600,21 +601,31 @@ except Exception as e:
             # Check for ?offset=X or ?start=X patterns
             if re.search(r'[?&](?:offset|start|skip)=\d+', href, re.IGNORECASE):
                 return True
+            # Yacht broker CMS pattern: ?SERVICE=YACHTS&TG_KE_PRODUCT_STATS=<obfuscated hex>
+            # Used by sites like rickobeyyachtsales.com for paginating their inventory.
+            if 'TG_KE_PRODUCT_STATS=' in href or 'SERVICE=YACHTS' in href or 'SERVICE=YACHTWORLD' in href:
+                return True
             return False
 
         pages_crawled = 0
         while queue and pages_crawled < max_pages:
             page_url, from_start = queue.pop(0)
-            clean_url = page_url.split("#")[0].split("?")[0].rstrip("/")
+            url_no_frag = page_url.split("#")[0]           # full URL, fragment stripped
+            clean_url = url_no_frag.split("?")[0].rstrip("/")  # path only
             # Normalize http -> https to avoid double-visiting the same page
             if clean_url.startswith("http://"):
                 clean_url = "https://" + clean_url[7:]
-            if clean_url in visited_pages:
+                url_no_frag = "https://" + url_no_frag[7:]
+            # For URLs with query params (paginated pages like ?page=2 or ?SERVICE=YACHTS&...),
+            # use the FULL URL as the dedup key so each paginated page is visited separately.
+            # For plain path URLs, the path-only clean_url is the stable identity.
+            dedup_key = url_no_frag if "?" in url_no_frag else clean_url
+            if dedup_key in visited_pages:
                 continue
-            visited_pages.add(clean_url)
+            visited_pages.add(dedup_key)
             pages_crawled += 1
 
-            html = self.fetch_page(clean_url)
+            html = self.fetch_page(url_no_frag)  # fetch with full URL so paginated pages work
             if not html:
                 continue
 
@@ -664,7 +675,10 @@ except Exception as e:
                             ever_queued.add(abs_clean)
 
             # ── Pagination detection: add pagination links to queue if on inventory page ──
-            if is_inventory_page(current_page_path.lower()):
+            # Fires when we're on a known inventory/listing index page, OR when listing
+            # links were found on the current page (handles non-standard index pages like
+            # /Featured-Yachts-Available-Now-srk/ on custom yacht-broker CMSes).
+            if found_listing_link or is_inventory_page(current_page_path.lower()):
                 for a in soup.find_all("a", href=True):
                     href = a["href"].strip()
                     if skip_re.search(href):
