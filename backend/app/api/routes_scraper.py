@@ -218,20 +218,14 @@ For boat_type: infer from context — e.g. "triple Yamaha outboards" + fishing m
 For hull_material: most production boats are Fiberglass unless text says otherwise.
 For hull_type: Catamaran if catamaran, Displacement if slow trawler/sailboat, Planing if fast powerboat, Monohull if monohull sailboat, else null."""
     try:
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-sonnet-4-20250514", "max_tokens": 4096,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=25,
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
         )
-        if not response.ok:
-            return None
-        payload = response.json()
-        content = payload.get("content", [])
-        if not content:
-            return None
-        text_blob = re.sub(r"^```json\s*|\s*```$", "", content[0].get("text", "").strip())
+        text_blob = re.sub(r"^```json\s*|\s*```$", "", message.content[0].text.strip())
         parsed = json.loads(text_blob)
         return parsed if isinstance(parsed, dict) else None
     except Exception:

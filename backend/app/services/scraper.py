@@ -447,7 +447,43 @@ class OptimizedYachtScraper:
                 if self._looks_like_single_listing(text, self.extract_price_from_text):
                     listing_urls.add(clean_url)
 
+        # ── Sitemap fallback for JS-heavy sites ─────────────────────────────
+        # When static HTML crawling yields nothing (JS-rendered sites), try
+        # sitemap.xml / sitemap_index.xml for direct listing URL lists.
+        if not listing_urls:
+            listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
+
         return list(listing_urls)
+
+    def _discover_from_sitemap(self, base_domain: str, listing_path_patterns: list) -> set:
+        """Return a set of listing URLs parsed from sitemap.xml / sitemap_index.xml."""
+        found: set = set()
+        visited_sitemaps: set = set()
+
+        def _parse(sm_url: str):
+            if sm_url in visited_sitemaps or len(visited_sitemaps) > 10:
+                return
+            visited_sitemaps.add(sm_url)
+            try:
+                r = requests.get(sm_url, headers=self.headers, timeout=10)
+                if not r.ok:
+                    return
+                for loc_m in re.finditer(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', r.text):
+                    loc = loc_m.group(1).strip()
+                    if loc.lower().endswith('.xml'):
+                        _parse(loc)  # recurse into sub-sitemaps / sitemap-index entries
+                    else:
+                        has_id = bool(self._ID_QUERY_PARAM_RE.search(loc))
+                        if has_id or any(re.search(p, loc, re.IGNORECASE) for p in listing_path_patterns):
+                            found.add(loc)
+            except Exception:
+                pass
+
+        for path in ('/sitemap.xml', '/sitemap_index.xml'):
+            _parse(f"{base_domain}{path}")
+            if found:
+                break  # stop after first successful sitemap
+        return found
 
     # ---------------------------------------------------------
     # STRUCTURED EXTRACTION
@@ -808,24 +844,70 @@ Content: {content[:12000]}"""
     # ---------------------------------------------------------
     def extract_images(self, html: str, base_url: str) -> List[str]:
         soup = BeautifulSoup(html, "html.parser")
-        images = []
-        skip_keywords = ["logo", "icon", "avatar", "banner", "/ad", "spacer", "pixel", "tracking"]
-        for img in soup.find_all("img"):
+        seen: set = set()
+        images: List[str] = []
+        skip_re = re.compile(
+            r'logo|icon|avatar|banner|/ad|spacer|pixel|tracking|'
+            r'x-out|xout|spinner|placeholder|no.image|no_image|'
+            r'/ui/|/icons?/|/buttons?/',
+            re.IGNORECASE,
+        )
+        img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp)(\?.*)?$', re.IGNORECASE)
+
+        def _add(url_str: str):
+            if not url_str or url_str.startswith('data:'):
+                return
+            absolute = urljoin(base_url, url_str) if not url_str.startswith('http') else url_str
+            if not absolute.startswith('http'):
+                return
+            if not img_ext_re.search(absolute.split('?')[0]):
+                return
+            norm = absolute.split('?')[0]
+            if norm in seen or skip_re.search(norm):
+                return
+            seen.add(norm)
+            images.append(absolute)
+
+        # Priority 1: <a href="...jpg"> gallery anchors (full-size links)
+        for a in soup.find_all('a', href=True):
+            _add(a['href'].strip())
+
+        # Priority 2: elements with data-fancybox / data-lightbox / data-gallery attrs
+        for elem in soup.find_all(attrs={}):
+            for attr in ('data-fancybox', 'data-lightbox', 'data-photoswipe', 'data-gallery'):
+                if elem.get(attr) is not None:
+                    for src_attr in ('href', 'data-src', 'data-full', 'data-zoom', 'src'):
+                        val = elem.get(src_attr, '')
+                        if val:
+                            _add(val.strip())
+                            break
+
+        # Priority 3: <img> tags (with lazy-load data attrs)
+        for img in soup.find_all('img'):
             src = (
-                img.get("src") or img.get("data-src") or img.get("data-lazy-src")
-                or img.get("data-original") or img.get("data-image") or img.get("data-full")
+                img.get('data-original') or img.get('data-zoom-image') or
+                img.get('data-full') or img.get('data-large') or
+                img.get('data-lazy-src') or img.get('data-src') or img.get('src')
             )
-            if not src and img.get("srcset"):
-                candidates = [s.strip().split()[0] for s in img["srcset"].split(",") if s.strip()]
+            if not src and img.get('srcset'):
+                candidates = [s.strip().split()[0] for s in img['srcset'].split(',') if s.strip()]
                 src = candidates[-1] if candidates else None
-            alt_text = (img.get("alt") or "").lower()
-            if src and not any(kw in src.lower() for kw in skip_keywords) and not any(kw in alt_text for kw in skip_keywords):
-                absolute = urljoin(base_url, src)
-                if absolute.startswith("http") and any(
-                    absolute.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]
-                ):
-                    images.append(absolute)
-        return list(dict.fromkeys(images))[:15]
+            alt_text = (img.get('alt') or '').lower()
+            if src and 'logo' not in alt_text and 'icon' not in alt_text and not src.startswith('data:'):
+                _add(src.strip())
+
+        # Priority 4: embedded JS blobs — scan script tags for image URL arrays
+        _js_img_re = re.compile(r'["\']((https?://[^"\'\s]+\.(?:jpg|jpeg|png|webp))["\'])', re.IGNORECASE)
+        for script in soup.find_all('script'):
+            if script.get('type', '').lower() == 'application/ld+json':
+                continue
+            blob = script.get_text() or ''
+            if 'photo' not in blob.lower() and 'image' not in blob.lower() and 'gallery' not in blob.lower():
+                continue
+            for m in _js_img_re.finditer(blob):
+                _add(m.group(1))
+
+        return images[:20]
 
     # ---------------------------------------------------------
     # SCRAPE A SINGLE LISTING URL â†’ raw data dict
@@ -835,10 +917,60 @@ Content: {content[:12000]}"""
         if not html:
             return {"error": "Failed to load page"}
 
+        # ── WP REST API supplement for ?id=N style JS-heavy sites ─────────
+        # Fetch additional structured data from WP REST endpoints when the page
+        # uses a query-param ID (e.g. yachtsvancouver.com/yacht-details/?id=2829150).
+        _wp_extra_text = ""
+        _parsed_url = urlparse(url)
+        _qs = dict(pair.split('=', 1) for pair in _parsed_url.query.split('&') if '=' in pair)
+        _lid = _qs.get('id') or _qs.get('boat_id') or _qs.get('listing_id') or _qs.get('yacht_id')
+        if _lid:
+            _base = f"{_parsed_url.scheme}://{_parsed_url.netloc}"
+            for _wp_path in (
+                f"/wp-json/wp/v2/listings/{_lid}",
+                f"/wp-json/wp/v2/boats/{_lid}",
+                f"/wp-json/wp/v2/yachts/{_lid}",
+                f"/wp-json/wp/v2/posts/{_lid}",
+            ):
+                try:
+                    _r = requests.get(
+                        f"{_base}{_wp_path}",
+                        headers={**self.headers, "Accept": "application/json"},
+                        timeout=8,
+                    )
+                    if _r.ok and 'json' in _r.headers.get('content-type', ''):
+                        _wp = _r.json()
+                        _rendered = (_wp.get('content') or {}).get('rendered') or ''
+                        if _rendered:
+                            from bs4 import BeautifulSoup as _BS
+                            _wp_extra_text = _BS(_rendered, 'html.parser').get_text(' ', strip=True)[:4000]
+                        # Also inject key meta fields as text hints for the AI
+                        for _k in ('title', 'acf', 'meta', 'custom_fields'):
+                            _v = _wp.get(_k)
+                            if isinstance(_v, dict):
+                                _wp_extra_text += ' ' + json.dumps(_v)[:2000]
+                            elif isinstance(_v, str):
+                                _wp_extra_text += ' ' + _v[:500]
+                        # Pull images directly from WP REST _embedded media
+                        _embedded = _wp.get('_embedded') or {}
+                        for _media_list in (_embedded.get('wp:featuredmedia') or [], _embedded.get('wp:attachment') or []):
+                            for _media in (_media_list if isinstance(_media_list, list) else [_media_list]):
+                                for _size_key in ('full', 'large', 'medium_large', 'source_url'):
+                                    _sizes = (_media.get('media_details') or {}).get('sizes') or {}
+                                    _img_url = (_sizes.get(_size_key) or {}).get('source_url') or _media.get('source_url')
+                                    if _img_url:
+                                        _wp_extra_text += f' WPIMG:{_img_url}'
+                                        break
+                        break
+                except Exception:
+                    pass
+
         structured = self.try_structured_extraction(html, url)
         # Parse spec tables + Elementor divs + map location from raw HTML
         html_specs = self.parse_spec_tables(html)
         text = self.clean_html(html)
+        if _wp_extra_text:
+            text = _wp_extra_text + "\n\n" + text
         regex_specs = self.extract_specs_from_text(text)
         price = self.extract_price_from_text(text)
         if price:
