@@ -275,6 +275,36 @@ class OptimizedYachtScraper:
             )
             logger.info("Playwright headless browser initialized")
         except Exception as exc:
+            err = str(exc)
+            # Binary missing — happens when the build-time playwright install failed
+            # silently (|| true).  Run it once at startup and retry the launch.
+            if "Executable doesn't exist" in err or "executable" in err.lower():
+                logger.warning("Playwright browser binary missing; attempting auto-install...")
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["python", "-m", "playwright", "install", "chromium", "--with-deps"],
+                        capture_output=True, text=True, timeout=180,
+                    )
+                    logger.info(f"playwright install stdout: {result.stdout[-500:]}")
+                    if result.returncode == 0:
+                        # Clean up the failed start() before retrying
+                        try:
+                            if self._playwright:
+                                self._playwright.stop()
+                        except Exception:
+                            pass
+                        self._playwright = sync_playwright().start()
+                        self._browser = self._playwright.chromium.launch(headless=True)
+                        self._context = self._browser.new_context(
+                            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                        )
+                        logger.info("Playwright initialized after auto-install")
+                        return
+                    else:
+                        logger.error(f"playwright install failed: {result.stderr[-500:]}")
+                except Exception as install_exc:
+                    logger.error(f"Auto-install failed: {install_exc}")
             logger.error(f"Failed to initialize Playwright: {exc}")
             self._playwright = None
             self._browser = None
@@ -654,7 +684,12 @@ class OptimizedYachtScraper:
         """
         found: set = set()
         _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-        for post_type in ('listings', 'boats', 'yachts', 'vessels', 'motorboats', 'sailboats'):
+        for post_type in (
+            'listings', 'boats', 'yachts', 'vessels', 'motorboats', 'sailboats',
+            'yacht-sales', 'yacht_sales',   # taityachts.net style
+            'boat-listings', 'used-boats', 'new-boats',  # other common WP slugs
+            'product', 'property',
+        ):
             page = 1
             while page <= 5:  # up to 500 items per post type
                 try:
