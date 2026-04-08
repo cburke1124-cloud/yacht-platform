@@ -12,3 +12,5 @@ services:
         sync: false
       - key: ENVIRONMENT
         value: production
+      - key: SCRAPER_PROXY_URL
+        sync: false

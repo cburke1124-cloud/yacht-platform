@@ -8,6 +8,7 @@ Optimized Yacht Scraper - Hybrid AI + Traditional Extraction
 
 import anthropic
 import requests
+import os as _os
 from bs4 import BeautifulSoup
 import json
 import re
@@ -16,6 +17,13 @@ from urllib.parse import urljoin, urlparse
 import asyncio
 from datetime import datetime, timedelta
 import logging
+
+# Optional proxy for sites that IP-block cloud provider ranges (e.g. Render/AWS).
+# Set SCRAPER_PROXY_URL to route fetch_page and headless requests through a
+# residential/rotating proxy — e.g. an HTTP proxy from ScraperAPI, BrightData, etc.
+# Format: http://user:pass@host:port  OR  socks5://user:pass@host:port
+# If unset, direct connections are used (works for most sites).
+_SCRAPER_PROXY_URL: str = _os.getenv('SCRAPER_PROXY_URL', '')
 
 # curl-cffi: Chrome TLS impersonation for Cloudflare-protected sites.
 # CF Bot Management detects Python requests by its TLS ClientHello (JA3 fingerprint),
@@ -250,9 +258,27 @@ class OptimizedYachtScraper:
     # ---------------------------------------------------------
     # BASIC FETCHING
     # ---------------------------------------------------------
+
+    # Error signatures that indicate a network-level IP block rather than an
+    # application-layer rejection.  When these appear, retrying via proxy is
+    # the only option; retrying directly will always fail.
+    _BLOCKED_ERRORS = (
+        'Connection reset by peer',
+        'ConnectionReset',
+        'ERR_CONNECTION_RESET',
+        'Connection refused',
+        '104',  # ECONNRESET errno on Linux
+    )
+
+    def _is_blocked_error(self, exc: Exception) -> bool:
+        s = str(exc)
+        return any(sig in s for sig in self._BLOCKED_ERRORS)
+
     def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
         """Fetch a page. Uses curl-cffi Chrome TLS impersonation when installed,
-        so Cloudflare's JA3 fingerprint check passes. Falls back to plain requests."""
+        so Cloudflare's JA3 fingerprint check passes. Falls back to plain requests.
+        If the direct connection is IP-blocked (TCP RST), retries via SCRAPER_PROXY_URL
+        when configured."""
         try:
             if self._curl_session is not None:
                 resp = self._curl_session.get(url, timeout=timeout, allow_redirects=True)
@@ -261,6 +287,20 @@ class OptimizedYachtScraper:
             resp.raise_for_status()
             return resp.text
         except Exception as exc:
+            # If blocked at the IP/TCP level and a proxy is configured, route through it
+            if self._is_blocked_error(exc) and _SCRAPER_PROXY_URL:
+                logger.info(f"fetch_page: direct connection blocked for {url}, retrying via proxy")
+                try:
+                    proxies = {'http': _SCRAPER_PROXY_URL, 'https': _SCRAPER_PROXY_URL}
+                    resp = requests.get(
+                        url, headers=self.headers, proxies=proxies,
+                        timeout=timeout, allow_redirects=True,
+                    )
+                    resp.raise_for_status()
+                    return resp.text
+                except Exception as proxy_exc:
+                    logger.warning(f"fetch_page proxy also failed for {url}: {proxy_exc}")
+                    return None
             logger.warning(f"fetch_page failed for {url}: {exc}")
             return None
 
@@ -286,17 +326,19 @@ class OptimizedYachtScraper:
 
     # Inline Python script executed by the subprocess.
     _HEADLESS_SCRIPT = """\
-import sys, json, subprocess as _sp
+import sys, json, subprocess as _sp, os as _os
 from playwright.sync_api import sync_playwright
 
 url = sys.argv[1]
 wait_sel = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != "__none__" else None
 timeout_ms = int(sys.argv[3]) * 1000 if len(sys.argv) > 3 else 30000
+proxy_url = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != "__none__" else None
 
 def _launch(p):
+    proxy_settings = {"server": proxy_url} if proxy_url else None
     for attempt in range(2):
         try:
-            return p.chromium.launch(headless=True)
+            return p.chromium.launch(headless=True, proxy=proxy_settings)
         except Exception as e:
             if attempt == 0 and ("Executable doesn't exist" in str(e) or "executable" in str(e).lower()):
                 # Binary not present — install without --with-deps (no sudo needed)
@@ -376,6 +418,7 @@ except Exception as e:
                         url,
                         wait_selector or "__none__",
                         str(timeout),
+                        _SCRAPER_PROXY_URL or "__none__",
                     ],
                     capture_output=True, text=True, timeout=effective_timeout,
                 )
