@@ -417,6 +417,11 @@ class OptimizedYachtScraper:
         """
         parsed_base = urlparse(site_url)
         base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
+        # start_path is the URL path of the seed URL (e.g. "/yacht-condition/used").
+        # When it's non-root we restrict the broad "follow everything" expansion so that
+        # starting from /used doesn't accidentally crawl /new, /charter, or the full site.
+        start_path = parsed_base.path.rstrip('/')
+        is_root_start = start_path in ('', '/')
 
         visited_pages: set = set()
         listing_urls: set = set()
@@ -535,11 +540,15 @@ class OptimizedYachtScraper:
                         queue.append((abs_clean, False))
                         ever_queued.add(abs_clean)
                     elif from_start and not self._NON_LISTING_PATHS.search(path):
-                        # On the homepage, follow ALL internal sub-page links that aren't
-                        # obviously non-listing pages (contact/about/etc).
-                        # This handles sites where listings are at non-standard URL shapes.
-                        queue.append((abs_clean, False))
-                        ever_queued.add(abs_clean)
+                        # For root-domain starts: follow all internal non-admin links.
+                        # This handles brokers where listings live at non-standard URL paths.
+                        # For sub-page starts (e.g. /yacht-condition/used): stay within the
+                        # same path scope so we don't accidentally crawl /new or /charter
+                        # sections and inflate the listing count.
+                        path_in_scope = is_root_start or path.lower().startswith(start_path.lower())
+                        if path_in_scope:
+                            queue.append((abs_clean, False))
+                            ever_queued.add(abs_clean)
 
             # ── Pagination detection: add pagination links to queue if on inventory page ──
             if is_inventory_page(current_page_path.lower()):

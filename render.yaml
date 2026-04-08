@@ -3,7 +3,7 @@ services:
     name: yacht-platform-backend
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt ; pip install "curl-cffi==0.6.4" --prefer-binary --quiet || true ; python -m playwright install chromium-headless-shell --with-deps || python -m playwright install chromium --with-deps || true
+    buildCommand: pip install -r requirements.txt ; pip install "curl-cffi>=0.7.0" --prefer-binary --quiet || true ; PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/pw-browsers python -m playwright install chromium || true
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
@@ -12,3 +12,5 @@ services:
         sync: false
       - key: ENVIRONMENT
         value: production
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/pw-browsers
