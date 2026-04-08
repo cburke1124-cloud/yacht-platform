@@ -267,33 +267,51 @@ class OptimizedYachtScraper:
     # ------------------------------------------------------------------ #
     # Subprocess-based headless fetch                                      #
     # ------------------------------------------------------------------ #
-    # We intentionally avoid using sync_playwright() / _init_browser()    #
-    # inside the main process because:                                     #
-    #   1. FastAPI's sync route handlers run inside a threadpool that is   #
-    #      attached to a running asyncio event loop; sync_playwright()     #
-    #      tries to create its own loop and raises "Sync API inside the    #
-    #      asyncio loop" error.                                            #
-    #   2. Runtime `playwright install --with-deps` requires sudo/root     #
-    #      which is not available on Render's web service containers.      #
+    # We intentionally avoid using sync_playwright() in the main process  #
+    # because FastAPI's sync route handlers run inside a threadpool that  #
+    # is attached to a running asyncio event loop, causing "Sync API       #
+    # inside the asyncio loop" errors.                                    #
     #                                                                      #
-    # Solution: spawn a fresh Python subprocess that has no asyncio loop,  #
-    # run the entire Playwright session there, and return the HTML over    #
-    # stdout.  The binary is installed at build time (`render.yaml`) so   #
-    # the subprocess can launch it without any install step.              #
+    # Playwright browser binaries installed at build time do NOT persist  #
+    # to the Render runtime container (build and runtime filesystems are  #
+    # separate).  The subprocess therefore self-heals on first use:       #
+    #   - Detects missing binary (chromium-headless-shell)                #
+    #   - Runs `playwright install chromium-headless-shell` WITHOUT       #
+    #     --with-deps (no sudo/root needed — headless-shell is            #
+    #     self-contained)                                                 #
+    #   - Retries the launch                                              #
+    # The binary is cached in ~/.cache/ms-playwright/ for subsequent     #
+    # calls within the same Render deployment.                           #
     # ------------------------------------------------------------------ #
 
     # Inline Python script executed by the subprocess.
     _HEADLESS_SCRIPT = """\
-import sys, json
+import sys, json, subprocess as _sp
 from playwright.sync_api import sync_playwright
 
 url = sys.argv[1]
 wait_sel = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != "__none__" else None
 timeout_ms = int(sys.argv[3]) * 1000 if len(sys.argv) > 3 else 30000
 
+def _launch(p):
+    for attempt in range(2):
+        try:
+            return p.chromium.launch(headless=True)
+        except Exception as e:
+            if attempt == 0 and ("Executable doesn't exist" in str(e) or "executable" in str(e).lower()):
+                # Binary not present — install without --with-deps (no sudo needed)
+                r = _sp.run(
+                    [sys.executable, "-m", "playwright", "install", "chromium-headless-shell"],
+                    capture_output=True, text=True, timeout=300,
+                )
+                if r.returncode != 0:
+                    raise RuntimeError(f"install failed: {r.stderr[-400:]}")
+                continue  # retry launch
+            raise
+
 try:
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = _launch(p)
         ctx = browser.new_context(user_agent=(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -330,6 +348,8 @@ except Exception as e:
 
         Spawns a fresh Python process with no asyncio loop so sync_playwright()
         works regardless of the calling context (FastAPI threadpool, etc.).
+        On first use after a fresh deploy the subprocess self-installs the
+        Playwright chromium-headless-shell binary (~120 MB, ~2 min one-time).
         Falls back to static fetch if Playwright is unavailable or fails.
         """
         if not _PLAYWRIGHT_AVAILABLE:
@@ -339,13 +359,16 @@ except Exception as e:
         import subprocess, json as _json, sys as _sys, tempfile, os
 
         try:
-            # Write the inline script to a temp file so we avoid shell-quoting hell
+            # Write the inline script to a temp file to avoid shell-quoting issues
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".py", delete=False, encoding="utf-8"
             ) as tf:
                 tf.write(self._HEADLESS_SCRIPT)
                 script_path = tf.name
 
+            # On a fresh deploy the first call may trigger a ~2 min self-install;
+            # allow up to 360 s total (300 s install + 60 s page fetch overhead).
+            effective_timeout = max(timeout + 15, 360)
             try:
                 result = subprocess.run(
                     [
@@ -354,7 +377,7 @@ except Exception as e:
                         wait_selector or "__none__",
                         str(timeout),
                     ],
-                    capture_output=True, text=True, timeout=timeout + 15,
+                    capture_output=True, text=True, timeout=effective_timeout,
                 )
             finally:
                 try:
