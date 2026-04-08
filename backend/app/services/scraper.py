@@ -500,6 +500,9 @@ class OptimizedYachtScraper:
 
             soup = BeautifulSoup(html, "html.parser")
             found_listing_link = False
+            # current_page_path is used by the post-loop pagination check;
+            # must be defined here so it's always set even if the loop finds no links.
+            current_page_path = urlparse(clean_url).path
 
             for a in soup.find_all("a", href=True):
                 href = a["href"].strip()
@@ -537,7 +540,7 @@ class OptimizedYachtScraper:
                         ever_queued.add(abs_clean)
 
             # ── Pagination detection: add pagination links to queue if on inventory page ──
-            if is_inventory_page(path.lower()):
+            if is_inventory_page(current_page_path.lower()):
                 for a in soup.find_all("a", href=True):
                     href = a["href"].strip()
                     if skip_re.search(href):
@@ -1271,6 +1274,13 @@ Content: {content[:12000]}"""
 
         # ── Fetch HTML (may fail on CF-protected pages; WP REST data is sufficient fallback)
         html = self.fetch_page(url)
+        # If page is sparse (JS-rendered shell or CF challenge, typically < 5 KB),
+        # retry with headless browser to get fully-rendered content.
+        if _PLAYWRIGHT_AVAILABLE and (not html or len(html) < 5000):
+            logger.info(f"scrape_single_listing: sparse/missing HTML for {url}, retrying headless")
+            headless_html = self.fetch_page_headless(url)
+            if headless_html and len(headless_html) > len(html or ""):
+                html = headless_html
         if not html and not _wp_extra_text:
             return {"error": "Failed to load page"}
         html = html or ""  # allow processing when only WP REST data is available
