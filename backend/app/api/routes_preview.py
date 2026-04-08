@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 try:
     from curl_cffi.requests import Session as _PreviewCurlCffiSession
     _PREVIEW_CURL_CFFI_AVAILABLE = True
-except ImportError:
+except Exception:
     _PreviewCurlCffiSession = None
     _PREVIEW_CURL_CFFI_AVAILABLE = False
 

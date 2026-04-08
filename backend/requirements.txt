@@ -17,7 +17,7 @@ aiohttp==3.9.0
 # Chrome (BoringSSL). CF Bot Management detects this at the TLS handshake level and sends TCP RST
 # before any HTTP data is exchanged. curl-cffi uses a custom libcurl build that produces the
 # exact same TLS ClientHello as Chrome, passing CF's fingerprint check.
-curl-cffi>=0.6.0
+curl-cffi>=0.7.0
 
 # Required for auth, hashing, JWT, multipart, and DB drivers
 passlib[bcrypt]==1.7.4

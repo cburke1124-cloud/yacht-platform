@@ -24,7 +24,7 @@ import logging
 try:
     from curl_cffi.requests import Session as _CurlSession
     _CURL_CFFI_AVAILABLE = True
-except ImportError:
+except Exception:
     _CurlSession = None
     _CURL_CFFI_AVAILABLE = False
 
