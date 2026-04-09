@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle, XCircle, Clock, User, ExternalLink, RefreshCw,
-  AlertTriangle, Pencil, Save, X, Building2,
+  AlertTriangle, Pencil, Save, X, Building2, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -57,9 +57,10 @@ export default function ScraperReviewPage() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('awaiting_review');
   const [dealerFilter, setDealerFilter] = useState('');
-  const [dealers, setDealers] = useState<{ id: number; name: string }[]>([]);
+  const [dealers, setDealers] = useState<{ id: number; name: string; count: number }[]>([]);
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editSalesmanId, setEditSalesmanId] = useState('');
@@ -79,21 +80,35 @@ export default function ScraperReviewPage() {
     }
   }, [statusFilter, dealerFilter]);
 
-  const loadDealers = useCallback(async () => {
+  const loadDealers = useCallback(async (status: string) => {
     try {
-      const res = await fetch(apiUrl('/users?user_type=dealer&limit=200'), { headers: authHeaders() });
-      const data = await res.json();
-      const list = (data.users || data || []) as any[];
-      setDealers(list.map((d: any) => ({
-        id: d.id,
-        name: d.dealer_profile?.company_name || d.company_name ||
-          `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.email,
-      })));
+      // Fetch all accounts for this status (no dealer filter) to compute per-account counts
+      const [usersRes, countsRes] = await Promise.all([
+        fetch(apiUrl('/users?user_type=dealer&limit=200'), { headers: authHeaders() }),
+        fetch(apiUrl(`/admin/scraper/listings?status=${status}`), { headers: authHeaders() }),
+      ]);
+      const usersData = await usersRes.json();
+      const countsData = await countsRes.json();
+      const allListings: ScrapedListing[] = countsData.listings || [];
+      const countMap: Record<number, number> = {};
+      for (const l of allListings) {
+        if (l.dealer.id != null) countMap[l.dealer.id] = (countMap[l.dealer.id] || 0) + 1;
+      }
+      const list = (usersData.users || usersData || []) as any[];
+      const populated = list
+        .map((d: any) => ({
+          id: d.id,
+          name: d.dealer_profile?.company_name || d.company_name ||
+            `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.email,
+          count: countMap[d.id] || 0,
+        }))
+        .filter(d => d.count > 0); // only show accounts that have listings in this status
+      setDealers(populated);
     } catch { /* silent */ }
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { loadDealers(); }, [loadDealers]);
+  useEffect(() => { loadDealers(statusFilter); }, [statusFilter, loadDealers]);
 
   async function patch(id: number, updates: Record<string, any>) {
     setSaving(s => ({ ...s, [id]: true }));
@@ -173,15 +188,12 @@ export default function ScraperReviewPage() {
             onChange={e => setDealerFilter(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:ring-2 focus:ring-[#01BBDC] focus:border-[#01BBDC]"
           >
-            <option value="">All Accounts ({listings.length})</option>
-            {dealers.map(d => {
-              const count = listings.filter(l => l.dealer.id === d.id).length;
-              return (
-                <option key={d.id} value={d.id}>
-                  {d.name}{dealerFilter === String(d.id) ? '' : count ? ` (${count})` : ''}
-                </option>
-              );
-            })}
+            <option value="">All Accounts</option>
+            {dealers.map(d => (
+              <option key={d.id} value={d.id}>
+                {d.name} ({d.count})
+              </option>
+            ))}
           </select>
           {dealerFilter && (
             <button
@@ -226,160 +238,216 @@ export default function ScraperReviewPage() {
             {listings.map(l => {
               const isEditing = editingId === l.id;
               const isSaving = saving[l.id];
+              const isExpanded = expandedId === l.id;
               return (
                 <div
                   key={l.id}
-                  className="border border-gray-200 rounded-xl p-4 flex gap-4 items-start hover:border-[#01BBDC]/60 transition-colors"
+                  className="border border-gray-200 rounded-xl p-4 hover:border-[#01BBDC]/60 transition-colors"
                 >
-                  {/* Thumbnail */}
-                  <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden bg-gray-100">
-                    {l.images[0] ? (
-                      <img src={l.images[0]} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
-                        No image
-                      </div>
-                    )}
-                  </div>
+                  {/* Top row: thumbnail + info + actions */}
+                  <div className="flex gap-4 items-start">
+                    {/* Thumbnail */}
+                    <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden bg-gray-100">
+                      {l.images[0] ? (
+                        <img src={l.images[0]} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
+                          No image
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Main info */}
-                  <div className="flex-1 min-w-0">
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editTitle}
-                        onChange={e => setEditTitle(e.target.value)}
-                        className="w-full px-2 py-1 border border-[#01BBDC] rounded text-sm font-semibold text-[#10214F] mb-1"
-                      />
-                    ) : (
-                      <p className="font-semibold text-[#10214F] truncate">
-                        {l.title || <span className="italic text-gray-400">No title</span>}
-                      </p>
-                    )}
-
-                    <p className="text-xs text-gray-500">
-                      {[l.year, l.make, l.model].filter(Boolean).join(' ')}
-                      {l.length_feet ? ` · ${l.length_feet}ft` : ''}
-                      {(l.city || l.state || l.country)
-                        ? ` · ${[l.city, l.state, l.country].filter(Boolean).join(', ')}`
-                        : ''}
-                    </p>
-
-                    {/* Price row */}
-                    <div className="flex items-center gap-3 mt-1">
+                    {/* Main info */}
+                    <div className="flex-1 min-w-0">
                       {isEditing ? (
                         <input
-                          type="number"
-                          value={editPrice}
-                          onChange={e => setEditPrice(e.target.value)}
-                          placeholder="Price"
-                          className="w-36 px-2 py-1 border border-[#01BBDC] rounded text-sm"
+                          type="text"
+                          value={editTitle}
+                          onChange={e => setEditTitle(e.target.value)}
+                          className="w-full px-2 py-1 border border-[#01BBDC] rounded text-sm font-semibold text-[#10214F] mb-1"
                         />
                       ) : (
-                        <span className="text-sm font-bold text-[#01BBDC]">
-                          {l.price ? `${l.currency} ${fmt(l.price)}` : '—'}
-                        </span>
+                        <p className="font-semibold text-[#10214F] truncate">
+                          {l.title || <span className="italic text-gray-400">No title</span>}
+                        </p>
                       )}
 
-                      {/* Dealer */}
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full truncate max-w-[200px]">
-                        {l.dealer.company_name || l.dealer.name || l.dealer.email || '—'}
-                      </span>
+                      <p className="text-xs text-gray-500">
+                        {[l.year, l.make, l.model].filter(Boolean).join(' ')}
+                        {l.length_feet ? ` · ${l.length_feet}ft` : ''}
+                        {(l.city || l.state || l.country)
+                          ? ` · ${[l.city, l.state, l.country].filter(Boolean).join(', ')}`
+                          : ''}
+                      </p>
 
+                      {/* Price row */}
+                      <div className="flex items-center gap-3 mt-1">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editPrice}
+                            onChange={e => setEditPrice(e.target.value)}
+                            placeholder="Price"
+                            className="w-36 px-2 py-1 border border-[#01BBDC] rounded text-sm"
+                          />
+                        ) : (
+                          <span className="text-sm font-bold text-[#01BBDC]">
+                            {l.price ? `${l.currency} ${fmt(l.price)}` : '—'}
+                          </span>
+                        )}
+
+                        {/* Dealer */}
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full truncate max-w-[200px]">
+                          {l.dealer.company_name || l.dealer.name || l.dealer.email || '—'}
+                        </span>
+
+                        {/* Source URL */}
+                        {l.source_url && (
+                          <a
+                            href={l.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#01BBDC] hover:underline flex items-center gap-1"
+                          >
+                            Source <ExternalLink size={11} />
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Detected agent name */}
+                      {l.detected_agent_name && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 w-fit">
+                          <AlertTriangle size={11} />
+                          Detected agent: <strong>{l.detected_agent_name}</strong>
+                          {!l.assigned_salesman_id && ' — unmatched, assign below'}
+                        </div>
+                      )}
+
+                      {/* Salesperson assignment */}
+                      <div className="mt-2 flex items-center gap-2">
+                        <User size={13} className="text-gray-400 flex-shrink-0" />
+                        {isEditing ? (
+                          <select
+                            value={editSalesmanId}
+                            onChange={e => setEditSalesmanId(e.target.value)}
+                            className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-[#01BBDC]"
+                          >
+                            <option value="">— No salesperson —</option>
+                            {l.salespeople.map(sp => (
+                              <option key={sp.id} value={sp.id}>{sp.name} ({sp.email})</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-600">
+                            {l.assigned_salesman_id
+                              ? (l.salespeople.find(s => s.id === l.assigned_salesman_id)?.name
+                                ?? `Salesperson #${l.assigned_salesman_id}`)
+                              : <span className="italic text-gray-400">No salesperson assigned</span>}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => saveEdit(l)}
+                            disabled={isSaving}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10214F] text-white rounded-lg text-xs font-medium hover:bg-[#1a3470] disabled:opacity-60"
+                          >
+                            <Save size={13} /> Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200"
+                          >
+                            <X size={13} /> Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {l.status !== 'active' && (
+                            <button
+                              onClick={() => patch(l.id, { status: 'active' })}
+                              disabled={isSaving}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-60"
+                            >
+                              <CheckCircle size={13} /> Approve
+                            </button>
+                          )}
+                          {l.status !== 'draft' && (
+                            <button
+                              onClick={() => patch(l.id, { status: 'draft' })}
+                              disabled={isSaving}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 disabled:opacity-60"
+                            >
+                              <XCircle size={13} /> Draft
+                            </button>
+                          )}
+                          <button
+                            onClick={() => startEdit(l)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#01BBDC]/10 text-[#10214F] rounded-lg text-xs font-medium hover:bg-[#01BBDC]/20"
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : l.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-100 border border-gray-200"
+                          >
+                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            Details
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expand detail panel */}
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-700 space-y-2">
+                      {/* All images */}
+                      {l.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {l.images.map((img, i) => (
+                            <img key={i} src={img} alt="" className="w-20 h-14 object-cover rounded-md border border-gray-200" />
+                          ))}
+                        </div>
+                      )}
+                      {/* Spec fields */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-1">
+                        {l.make && <span><span className="text-gray-400">Make:</span> {l.make}</span>}
+                        {l.model && <span><span className="text-gray-400">Model:</span> {l.model}</span>}
+                        {l.year && <span><span className="text-gray-400">Year:</span> {l.year}</span>}
+                        {l.length_feet && <span><span className="text-gray-400">Length:</span> {l.length_feet} ft</span>}
+                        {l.city && <span><span className="text-gray-400">City:</span> {l.city}</span>}
+                        {l.state && <span><span className="text-gray-400">State/Prov:</span> {l.state}</span>}
+                        {l.country && <span><span className="text-gray-400">Country:</span> {l.country}</span>}
+                        {(l as any).hull_material && <span><span className="text-gray-400">Hull:</span> {(l as any).hull_material}</span>}
+                        {(l as any).fuel_type && <span><span className="text-gray-400">Fuel:</span> {(l as any).fuel_type}</span>}
+                        {(l as any).hours != null && <span><span className="text-gray-400">Hours:</span> {(l as any).hours}</span>}
+                        {(l as any).condition && <span><span className="text-gray-400">Condition:</span> {(l as any).condition}</span>}
+                        {l.currency && <span><span className="text-gray-400">Currency:</span> {l.currency}</span>}
+                      </div>
+                      {/* Description */}
+                      {(l as any).description && (
+                        <div>
+                          <span className="text-gray-400 font-medium">Description:</span>
+                          <p className="mt-0.5 text-gray-600 whitespace-pre-wrap line-clamp-6">{(l as any).description}</p>
+                        </div>
+                      )}
                       {/* Source URL */}
                       {l.source_url && (
-                        <a
-                          href={l.source_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-[#01BBDC] hover:underline flex items-center gap-1"
-                        >
-                          Source <ExternalLink size={11} />
-                        </a>
+                        <div>
+                          <span className="text-gray-400">Source: </span>
+                          <a href={l.source_url} target="_blank" rel="noopener noreferrer" className="text-[#01BBDC] hover:underline break-all">
+                            {l.source_url}
+                          </a>
+                        </div>
                       )}
                     </div>
-
-                    {/* Detected agent name */}
-                    {l.detected_agent_name && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 w-fit">
-                        <AlertTriangle size={11} />
-                        Detected agent: <strong>{l.detected_agent_name}</strong>
-                        {!l.assigned_salesman_id && ' — unmatched, assign below'}
-                      </div>
-                    )}
-
-                    {/* Salesperson assignment */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <User size={13} className="text-gray-400 flex-shrink-0" />
-                      {isEditing ? (
-                        <select
-                          value={editSalesmanId}
-                          onChange={e => setEditSalesmanId(e.target.value)}
-                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-[#01BBDC]"
-                        >
-                          <option value="">— No salesperson —</option>
-                          {l.salespeople.map(sp => (
-                            <option key={sp.id} value={sp.id}>{sp.name} ({sp.email})</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-xs text-gray-600">
-                          {l.assigned_salesman_id
-                            ? (l.salespeople.find(s => s.id === l.assigned_salesman_id)?.name
-                              ?? `Salesperson #${l.assigned_salesman_id}`)
-                            : <span className="italic text-gray-400">No salesperson assigned</span>}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="flex flex-col gap-2 flex-shrink-0">
-                    {isEditing ? (
-                      <>
-                        <button
-                          onClick={() => saveEdit(l)}
-                          disabled={isSaving}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10214F] text-white rounded-lg text-xs font-medium hover:bg-[#1a3470] disabled:opacity-60"
-                        >
-                          <Save size={13} /> Save
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200"
-                        >
-                          <X size={13} /> Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {l.status !== 'active' && (
-                          <button
-                            onClick={() => patch(l.id, { status: 'active' })}
-                            disabled={isSaving}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-60"
-                          >
-                            <CheckCircle size={13} /> Approve
-                          </button>
-                        )}
-                        {l.status !== 'draft' && (
-                          <button
-                            onClick={() => patch(l.id, { status: 'draft' })}
-                            disabled={isSaving}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 disabled:opacity-60"
-                          >
-                            <XCircle size={13} /> Draft
-                          </button>
-                        )}
-                        <button
-                          onClick={() => startEdit(l)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#01BBDC]/10 text-[#10214F] rounded-lg text-xs font-medium hover:bg-[#01BBDC]/20"
-                        >
-                          <Pencil size={13} /> Edit
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  )}
                 </div>
               );
             })}

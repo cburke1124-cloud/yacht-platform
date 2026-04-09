@@ -752,6 +752,20 @@ def create_scraper_job(
     return {"success": True, "job": _job_to_dict(job)}
 
 
+@router.get("/scraper/jobs/{job_id}")
+def get_scraper_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return a single job's current state — used by the frontend to poll during a run."""
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"success": True, "job": _job_to_dict(job)}
+
+
 @router.put("/scraper/jobs/{job_id}")
 def update_scraper_job(
     job_id: int,

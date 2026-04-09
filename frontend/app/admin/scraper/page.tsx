@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Globe, AlertCircle, CheckCircle, Play, Trash2, Plus, RefreshCw,
   Settings, ToggleLeft, ToggleRight, Clock, ChevronDown, ChevronUp, Cpu
@@ -262,6 +262,33 @@ export default function AdminScraperPage() {
   const [expandedJobs, setExpandedJobs] = useState<Set<number>>(new Set());
   const [brokerExpandedPreviews, setBrokerExpandedPreviews] = useState<Set<number>>(new Set());
   const [actionMsg, setActionMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
+  const pollingRef = useRef<Record<number, ReturnType<typeof setInterval>>>({});
+
+  // Poll a single job until it leaves 'running' state, updating live stats
+  const pollJob = useCallback((jobId: number) => {
+    if (pollingRef.current[jobId]) return; // already polling
+    pollingRef.current[jobId] = setInterval(async () => {
+      try {
+        const res = await fetch(apiUrl(`/scraper/jobs/${jobId}`), { headers: authHeaders() });
+        const data = await res.json();
+        if (data.success && data.job) {
+          setJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...data.job } : j));
+          if (data.job.status !== 'running') {
+            clearInterval(pollingRef.current[jobId]);
+            delete pollingRef.current[jobId];
+            setActionMsg({ id: jobId, msg: data.job.status === 'completed' ? '✓ Completed' : `Status: ${data.job.status}`, ok: data.job.status === 'completed' });
+            setTimeout(() => setActionMsg(null), 5000);
+          }
+        }
+      } catch { /* ignore poll errors */ }
+    }, 3000);
+  }, []);
+
+  // Clean up intervals on unmount
+  useEffect(() => {
+    const refs = pollingRef.current;
+    return () => { Object.values(refs).forEach(clearInterval); };
+  }, []);
 
   const loadJobs = useCallback(async () => {
     setJobsLoading(true);
@@ -290,6 +317,10 @@ export default function AdminScraperPage() {
   }, []);
 
   useEffect(() => { loadJobs(); loadDealers(); }, [loadJobs, loadDealers]);
+  // On mount, start polling any jobs that are already in 'running' state
+  useEffect(() => {
+    jobs.forEach(j => { if (j.status === 'running') pollJob(j.id); });
+  }, [jobs.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadSalesmen(formDealerId); }, [formDealerId, loadSalesmen]);
 
   function startEdit(job: ScraperJob) {
@@ -354,14 +385,23 @@ export default function AdminScraperPage() {
 
   async function runJobNow(job: ScraperJob) {
     setActionMsg({ id: job.id, msg: 'Starting…', ok: true });
+    // Immediately show running state so spinner appears at once
+    setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'running' } : j));
     try {
       const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/run`), { method: 'POST', headers: authHeaders() });
       const data = await res.json();
-      setActionMsg({ id: job.id, msg: data.message || (data.success ? 'Started!' : 'Error'), ok: !!data.success });
-      setTimeout(() => { setActionMsg(null); loadJobs(); }, 3000);
+      if (data.success) {
+        setActionMsg({ id: job.id, msg: 'Running…', ok: true });
+        pollJob(job.id);
+      } else {
+        setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'idle' } : j));
+        setActionMsg({ id: job.id, msg: data.message || 'Error starting job', ok: false });
+        setTimeout(() => setActionMsg(null), 4000);
+      }
     } catch (e: any) {
+      setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'idle' } : j));
       setActionMsg({ id: job.id, msg: e.message, ok: false });
-      setTimeout(() => setActionMsg(null), 3000);
+      setTimeout(() => setActionMsg(null), 4000);
     }
   }
 
@@ -462,13 +502,24 @@ export default function AdminScraperPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-gray-900 truncate">{job.site_name || job.broker_url}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[job.status] || statusColor.idle}`}>{job.status}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${statusColor[job.status] || statusColor.idle}`}>
+                            {job.status === 'running' && <RefreshCw size={10} className="animate-spin" />}
+                            {job.status}
+                          </span>
                           {!job.enabled && <span className="text-xs text-gray-400">(disabled)</span>}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5 flex gap-3 flex-wrap">
                           <span><Clock size={10} className="inline mr-1" />{scheduleLabel(job.schedule_hours)}</span>
                           {job.last_run_at && <span>Last run: {fmt(job.last_run_at)}</span>}
-                          {job.total_runs > 0 && <span>Runs: {job.total_runs} · Created: {job.listings_created} · Updated: {job.listings_updated} · Archived: {job.listings_removed}</span>}
+                          {(job.status === 'running' || job.total_runs > 0) && (
+                            <span className={job.status === 'running' ? 'text-blue-600 font-medium' : ''}>
+                              {job.status === 'running' ? '⟳ ' : ''}
+                              Found: {job.listings_found ?? 0}
+                              {' · '}Created: {job.listings_created ?? 0}
+                              {' · '}Updated: {job.listings_updated ?? 0}
+                              {' · '}Archived: {job.listings_removed ?? 0}
+                            </span>
+                          )}
                         </div>
                         {msg && <p className={`text-xs mt-1 ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.msg}</p>}
                         {job.last_error && !msg && <p className="text-xs text-red-500 mt-1 truncate">Error: {job.last_error}</p>}

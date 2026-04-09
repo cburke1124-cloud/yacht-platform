@@ -1378,18 +1378,62 @@ except Exception as e:
     # REGEX EXTRACTION
     # ---------------------------------------------------------
     def extract_price_from_text(self, text: str) -> Optional[float]:
+        """Extract a price value from text. Returns just the numeric value for backwards-compat.
+        For full (price, currency) use extract_price_with_currency."""
+        result = self.extract_price_with_currency(text)
+        return result[0] if result else None
+
+    def extract_price_with_currency(self, text: str) -> Optional[tuple]:
+        """Return (price_float, currency_str) or None if no price found.
+
+        Detects:
+          USD  — $ / US$ / USD
+          CAD  — C$ / CA$ / CAD / CDN$ / Can$
+          EUR  — € / EUR
+          GBP  — £ / GBP
+          AUD  — A$ / AUD
+          NZD  — NZ$ / NZD
+        """
+        # Each pattern: (regex, currency_code)
+        # Ordered most-specific first so "C$" is tried before bare "$"
         patterns = [
-            r"[$â‚¬Â£Â¥]\s*(\d{1,3}(?:[,.\s]\d{3})*(?:[,.]?\d{2})?)",
-            r"(\d{1,3}(?:[,.\s]\d{3})*)\s*(?:USD|EUR|GBP)",
+            # CAD explicit labels
+            (r"(?:C\$|CA\$|CDN\$|Can\$|CAD)\s*(\d[\d,.\s]*)", "CAD"),
+            # USD explicit labels
+            (r"(?:US\$|USD)\s*(\d[\d,.\s]*)", "USD"),
+            # AUD explicit labels
+            (r"(?:A\$|AUD)\s*(\d[\d,.\s]*)", "AUD"),
+            # NZD explicit labels
+            (r"(?:NZ\$|NZD)\s*(\d[\d,.\s]*)", "NZD"),
+            # EUR
+            (r"(?:€|EUR)\s*(\d[\d,.\s]*)", "EUR"),
+            # GBP
+            (r"(?:£|GBP)\s*(\d[\d,.\s]*)", "GBP"),
+            # Trailing currency label: "150,000 CAD", "150,000 USD", "150,000 EUR"
+            (r"(\d[\d,.\s]+)\s*\b(CAD|USD|EUR|GBP|AUD|NZD)\b", None),
+            # Bare CAD label before price (case-insensitive context: "Price in CAD")
+            # handled by the trailing label above
+            # Plain $ — ambiguous, treat as USD
+            (r"\$\s*(\d[\d,.\s]*)", "USD"),
         ]
-        for pattern in patterns:
-            match = re.search(pattern, text)
-            if match:
-                cleaned = match.group(1).replace(",", "").replace(".", "").replace(" ", "")
-                try:
-                    return float(cleaned)
-                except ValueError:
+        for pat, currency in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if not m:
+                continue
+            if currency is None:
+                # Trailing-label pattern — group 1 is digits, group 2 is currency
+                raw_num = m.group(1)
+                currency = m.group(2).upper()
+            else:
+                raw_num = m.group(1)
+            cleaned = re.sub(r"[,\s]", "", raw_num).rstrip(".")
+            try:
+                val = float(cleaned)
+                if val < 1000:  # sanity — no yacht for under $1000
                     continue
+                return val, currency
+            except ValueError:
+                continue
         return None
 
     def extract_specs_from_text(self, text: str) -> Dict:
@@ -1959,9 +2003,10 @@ Content: {content[:12000]}"""
         if _wp_extra_text:
             text = _wp_extra_text + "\n\n" + text
         regex_specs = self.extract_specs_from_text(text)
-        price = self.extract_price_from_text(text)
-        if price:
-            regex_specs["price"] = price
+        price_result = self.extract_price_with_currency(text)
+        if price_result:
+            regex_specs["price"] = price_result[0]
+            regex_specs["currency"] = price_result[1]
 
         # Merge: regex first, html_specs override, structured last (most authoritative)
         partial = {**regex_specs, **html_specs, **(structured or {})}
@@ -2105,6 +2150,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
         logger.info(f"[Job {job_id}] Discovering listings at {job.broker_url}")
         discovered_urls = scraper.find_listing_urls(job.broker_url, template=_template)
         stats["found"] = len(discovered_urls)
+        # Flush found count immediately so the frontend sees it while listing scraping runs
+        job.listings_found = stats["found"]
+        db.commit()
         logger.info(f"[Job {job_id}] Found {len(discovered_urls)} listing URLs")
 
         discovered_url_set = set(discovered_urls)
@@ -2233,6 +2281,13 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     )
                     db.add(scraped_record)
                     stats["created"] += 1
+
+                # Flush live stats to DB every 5 listings so frontend polling sees progress
+                if (stats["created"] + stats["updated"] + stats["errors"]) % 5 == 0:
+                    job.listings_found = stats["found"]
+                    job.listings_created = stats["created"]
+                    job.listings_updated = stats["updated"]
+                    db.commit()
 
             except Exception as e:
                 logger.error(f"[Job {job_id}] Error processing {url}: {e}")
