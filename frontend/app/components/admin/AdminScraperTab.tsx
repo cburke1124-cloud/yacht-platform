@@ -601,36 +601,28 @@ export default function AdminScraperTab() {
                     <div className="mt-4 space-y-5">
                       {/* Bookmarklet helper */}
                       <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900">
-                        <p className="font-semibold mb-2">🔖 Visual Picker (recommended)</p>
-                        <p className="mb-1"><strong>Step 1:</strong> Drag the <em>⚓ YP Selector Picker</em> link below to your browser&apos;s bookmarks bar — OR click <strong>📋 Copy Link</strong>, then manually create a bookmark and paste as the URL.</p>
-                        <p className="mb-2"><strong>Step 2:</strong> Navigate to the broker&apos;s listing page, click the bookmark, then click elements to tag them. When done click <strong>Copy JSON</strong> in the panel and paste it below.</p>
+                        <p className="font-semibold mb-2">🔖 Visual Picker — Install as a Bookmark</p>
+                        <p className="mb-1">Click <strong>📋 Copy Bookmarklet URL</strong>, then create a new bookmark in your browser and paste it as the URL.</p>
+                        <p className="mb-2 text-indigo-700">Chrome/Edge: right-click bookmarks bar → <em>Add Page…</em> → paste URL. Firefox: Bookmarks menu → <em>Manage Bookmarks</em> → New Bookmark → paste URL.</p>
                         {editingJob && (
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <a
-                              href={getBookmarkletHref(editingJob)}
-                              className="inline-block px-3 py-1.5 bg-indigo-700 text-white rounded font-medium hover:bg-indigo-800 cursor-grab select-none"
-                              title="Drag this to your bookmarks bar — do NOT click it here">
-                              ⚓ YP Selector Picker
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const url = getBookmarkletHref(editingJob);
-                                navigator.clipboard?.writeText(url).catch(() => {
-                                  const el = document.createElement('textarea');
-                                  el.value = url;
-                                  document.body.appendChild(el);
-                                  el.select();
-                                  document.execCommand('copy');
-                                  document.body.removeChild(el);
-                                });
-                              }}
-                              className="px-3 py-1.5 bg-white border border-indigo-300 text-indigo-700 rounded font-medium hover:bg-indigo-50">
-                              📋 Copy Link
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = getBookmarkletHref(editingJob);
+                              navigator.clipboard?.writeText(url).catch(() => {
+                                const el = document.createElement('textarea');
+                                el.value = url;
+                                document.body.appendChild(el);
+                                el.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(el);
+                              });
+                            }}
+                            className="px-3 py-1.5 bg-indigo-700 text-white rounded font-medium hover:bg-indigo-800">
+                            📋 Copy Bookmarklet URL
+                          </button>
                         )}
-                        <p className="mt-1.5 text-indigo-600">💡 To manually add: right-click bookmarks bar → Add bookmark → paste the copied URL as the bookmark&apos;s address.</p>
+                        <p className="mt-2 text-indigo-700"><strong>Step 2:</strong> Navigate to any broker listing page, click your new bookmark, then click elements to tag them. Click <strong>Copy JSON</strong> in the sidebar, then paste below.</p>
                       </div>
 
                       {/* Import JSON from bookmarklet */}
@@ -750,23 +742,28 @@ export default function AdminScraperTab() {
                                 {(tmplTestResult.images?.length ?? 0) > 0 && <p><strong>Images:</strong> {tmplTestResult.images.length} found</p>}
                               </div>
                             </div>
-                            {tmplTestResult._tmpl_sections && Object.keys(tmplTestResult._tmpl_sections).length > 0 && (
-                              Object.entries(tmplTestResult._tmpl_sections as Record<string, any>).map(([secName, secData]) => (
-                                <div key={secName} className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-                                  <p className="font-semibold text-blue-800 mb-2">\ud83d\udccc {secName} ({Array.isArray(secData) ? `${(secData as string[]).length} items` : `${Object.keys(secData as object).length} fields`})</p>
-                                  {Array.isArray(secData) ? (
-                                    <ul className="list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto text-blue-900">
-                                      {(secData as string[]).slice(0, 30).map((item, i) => <li key={i}>{item}</li>)}
-                                    </ul>
-                                  ) : (
-                                    <div className="space-y-0.5 max-h-48 overflow-y-auto text-blue-900">
-                                      {Object.entries(secData as Record<string, string>).map(([k, v]) => (
-                                        <p key={k}><strong>{k}:</strong> {String(v)}</p>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
+                            {tmplTestResult._tmpl_sections && typeof tmplTestResult._tmpl_sections === 'object' && Object.keys(tmplTestResult._tmpl_sections).length > 0 && (
+                              Object.entries(tmplTestResult._tmpl_sections as Record<string, any>).map(([secName, secData]) => {
+                                const isList = Array.isArray(secData);
+                                const isObj = secData && typeof secData === 'object' && !isList;
+                                const fieldCount = isObj ? Object.keys(secData).length : 0;
+                                return (
+                                  <div key={secName} className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                                    <p className="font-semibold text-blue-800 mb-2">\ud83d\udccc {secName} ({isList ? `${(secData as string[]).length} items` : isObj ? `${fieldCount} fields` : 'no data'})</p>
+                                    {isList ? (
+                                      <ul className="list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto text-blue-900">
+                                        {(secData as string[]).slice(0, 30).map((item, i) => <li key={i}>{String(item)}</li>)}
+                                      </ul>
+                                    ) : isObj ? (
+                                      <div className="space-y-0.5 max-h-48 overflow-y-auto text-blue-900">
+                                        {Object.entries(secData as Record<string, string>).map(([k, v]) => (
+                                          <p key={k}><strong>{k}:</strong> {String(v)}</p>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
                         )}
