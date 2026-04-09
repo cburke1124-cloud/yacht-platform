@@ -592,7 +592,7 @@ export default function AdminScraperTab() {
                     <span className="text-base leading-none">{tmplExpanded ? '\u25be' : '\u25b8'}</span>
                     \ud83c\udfaf Field Selectors
                     <span className="ml-1 text-xs font-normal text-gray-400">(configure once for precision scraping)</span>
-                    {Object.values(tmpl).some(v => v && (v as string).trim()) && (
+                    {Object.values(tmpl).some(v => v && (typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.length > 0 : false)) && (
                       <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">configured</span>
                     )}
                   </button>
