@@ -394,9 +394,9 @@ export default function AdminScraperPage() {
           <div className="max-w-xl space-y-5">
             <h3 className="text-lg font-semibold text-gray-900">{editingJob ? `Edit Job #${editingJob.id}` : 'New Scraper Job'}</h3>
 
-            {jobSubTab === 'basic' && ({/* Sub-tabs: Basic / Field Selectors (only when editing) */}
+            {/* Sub-tabs shown only when editing an existing job */}
             {editingJob && (
-              <div className="flex border-b -mx-0">
+              <div className="flex border-b">
                 {(['basic', 'selectors'] as const).map(t => (
                   <button key={t} onClick={() => setJobSubTab(t)}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -410,66 +410,69 @@ export default function AdminScraperPage() {
 
             {/* ── BASIC SETTINGS ── */}
             {jobSubTab === 'basic' && (
-              <label className="block text-sm font-medium text-gray-700 mb-1">Dealer *</label>
-              <select value={formDealerId} onChange={e => setFormDealerId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="">— Select dealer —</option>
-                {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || `${d.first_name} ${d.last_name}`} (#{d.id})</option>)}
-              </select>
-            </div>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dealer *</label>
+                  <select value={formDealerId} onChange={e => setFormDealerId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">— Select dealer —</option>
+                    {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || `${d.first_name} ${d.last_name}`} (#{d.id})</option>)}
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Salesman <span className="text-gray-400 font-normal">(optional)</span></label>
-              <select value={formSalesmanId} onChange={e => setFormSalesmanId(e.target.value)} disabled={!formDealerId} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
-                <option value="">— No specific salesman —</option>
-                {salesmen.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} (#{s.id})</option>)}
-              </select>
-              {!formDealerId && <p className="text-xs text-gray-400 mt-1">Select a dealer first</p>}
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Salesman <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <select value={formSalesmanId} onChange={e => setFormSalesmanId(e.target.value)} disabled={!formDealerId} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
+                    <option value="">— No specific salesman —</option>
+                    {salesmen.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} (#{s.id})</option>)}
+                  </select>
+                  {!formDealerId && <p className="text-xs text-gray-400 mt-1">Select a dealer first</p>}
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Site Name</label>
-              <input type="text" value={formSiteName} onChange={e => setFormSiteName(e.target.value)} placeholder="e.g. Suntex Marina Fleet" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Site Name</label>
+                  <input type="text" value={formSiteName} onChange={e => setFormSiteName(e.target.value)} placeholder="e.g. Suntex Marina Fleet" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Broker Inventory URL *</label>
-              <input type="url" value={formBrokerUrl} onChange={e => setFormBrokerUrl(e.target.value)} placeholder="https://broker-website.com/yachts-for-sale" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-              <p className="text-xs text-gray-400 mt-1">The inventory listing page — the scraper crawls it to discover individual listing URLs.</p>
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Broker Inventory URL *</label>
+                  <input type="url" value={formBrokerUrl} onChange={e => setFormBrokerUrl(e.target.value)} placeholder="https://broker-website.com/yachts-for-sale" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  <p className="text-xs text-gray-400 mt-1">The inventory listing page — the scraper crawls it to discover individual listing URLs.</p>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sync Schedule</label>
-              <select value={formSchedule} onChange={e => setFormSchedule(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="6">Every 6 hours</option>
-                <option value="12">Every 12 hours</option>
-                <option value="24">Daily (every 24 hours)</option>
-                <option value="48">Every 2 days</option>
-                <option value="168">Weekly</option>
-              </select>
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sync Schedule</label>
+                  <select value={formSchedule} onChange={e => setFormSchedule(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="6">Every 6 hours</option>
+                    <option value="12">Every 12 hours</option>
+                    <option value="24">Daily (every 24 hours)</option>
+                    <option value="48">Every 2 days</option>
+                    <option value="168">Weekly</option>
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(internal)</span></label>
-              <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={3} placeholder="e.g. Permission granted 2024-01, contact: john@broker.com" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(internal)</span></label>
+                  <textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={3} placeholder="e.g. Permission granted 2024-01, contact: john@broker.com" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
 
-            <div className="flex items-center gap-3">
-              <button onClick={() => setFormEnabled(v => !v)}>
-                {formEnabled ? <ToggleRight size={28} className="text-green-500" /> : <ToggleLeft size={28} className="text-gray-400" />}
-              </button>
-              <span className="text-sm text-gray-700">{formEnabled ? 'Enabled — will run on schedule' : 'Disabled — will not run automatically'}</span>
-            </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setFormEnabled(v => !v)}>
+                    {formEnabled ? <ToggleRight size={28} className="text-green-500" /> : <ToggleLeft size={28} className="text-gray-400" />}
+                  </button>
+                  <span className="text-sm text-gray-700">{formEnabled ? 'Enabled — will run on schedule' : 'Disabled — will not run automatically'}</span>
+                </div>
 
-            {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-800"><AlertCircle size={16} className="shrink-0 mt-0.5" /> {formError}</div>}
-            {formSuccess && <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2 text-sm text-green-800"><CheckCircle size={16} className="shrink-0 mt-0.5" /> {formSuccess}</div>}
+                {formError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-800"><AlertCircle size={16} className="shrink-0 mt-0.5" /> {formError}</div>}
+                {formSuccess && <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2 text-sm text-green-800"><CheckCircle size={16} className="shrink-0 mt-0.5" /> {formSuccess}</div>}
 
-            <div className="flex gap-3">
-              <button onClick={handleSaveJob} disabled={formLoading} className="flex-1 px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium">
-                {formLoading ? 'Saving…' : editingJob ? 'Save Changes' : 'Create Job'}
-              </button>
-              <button onClick={() => { resetForm(); setTab('jobs'); }} className="px-5 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">Cancel</button>
-            </div>
-            </div>}
+                <div className="flex gap-3">
+                  <button onClick={handleSaveJob} disabled={formLoading} className="flex-1 px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium">
+                    {formLoading ? 'Saving…' : editingJob ? 'Save Changes' : 'Create Job'}
+                  </button>
+                  <button onClick={() => { resetForm(); setTab('jobs'); }} className="px-5 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">Cancel</button>
+                </div>
+              </div>
+            )}
 
             {/* ── FIELD SELECTORS (edit mode only) ── */}
             {jobSubTab === 'selectors' && editingJob && (
