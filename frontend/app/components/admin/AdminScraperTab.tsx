@@ -589,8 +589,8 @@ export default function AdminScraperTab() {
                 <div className="mt-5 border-t border-gray-200 pt-4">
                   <button type="button" onClick={() => setTmplExpanded(v => !v)}
                     className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary w-full text-left">
-                    <span className="text-base leading-none">{tmplExpanded ? '\u25be' : '\u25b8'}</span>
-                    \ud83c\udfaf Field Selectors
+                    <span className="text-base leading-none">{tmplExpanded ? '▾' : '▸'}</span>
+                    🎯 Field Selectors
                     <span className="ml-1 text-xs font-normal text-gray-400">(configure once for precision scraping)</span>
                     {Object.values(tmpl).some(v => v && (typeof v === 'string' ? v.trim() : Array.isArray(v) ? v.length > 0 : false)) && (
                       <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">configured</span>
@@ -673,7 +673,7 @@ export default function AdminScraperTab() {
                                   type="text"
                                   value={(tmpl as any)[key] || ''}
                                   onChange={e => setTmpl(prev => ({ ...prev, [key]: e.target.value }))}
-                                  placeholder="CSS selector\u2026"
+                                  placeholder="CSS selector…"
                                   className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary"
                                 />
                                 <p className="text-xs text-gray-400 mt-0.5 leading-tight">{hint}</p>
@@ -714,7 +714,7 @@ export default function AdminScraperTab() {
 
                       <button type="button" onClick={() => saveTemplate(editingJob.id)} disabled={tmplSaving}
                         className="px-5 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50">
-                        {tmplSaving ? 'Saving\u2026' : '\ud83d\udcbe Save Field Selectors'}
+                        {tmplSaving ? 'Saving…' : '💾 Save Field Selectors'}
                       </button>
 
                       {/* ── Live test widget ── */}
@@ -727,14 +727,14 @@ export default function AdminScraperTab() {
                             className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary" />
                           <button type="button" onClick={runTemplateTest} disabled={tmplTesting || !tmplTestUrl}
                             className="px-4 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-medium hover:bg-gray-900 disabled:opacity-50 whitespace-nowrap">
-                            {tmplTesting ? 'Testing\u2026' : '\u25b6 Run Test'}
+                            {tmplTesting ? 'Testing…' : '▶ Run Test'}
                           </button>
                         </div>
                         {tmplTestError && <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{tmplTestError}</div>}
                         {tmplTestResult && (
                           <div className="mt-3 space-y-3">
                             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs">
-                              <p className="font-semibold text-green-800 mb-2">\u2713 Core fields</p>
+                              <p className="font-semibold text-green-800 mb-2">✓ Core fields</p>
                               <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-green-900">
                                 {(['title', 'make', 'model', 'year', 'price', 'length_feet', 'location', 'detected_agent_name'] as const).map(f =>
                                   tmplTestResult[f] ? <p key={f}><strong className="capitalize">{f.replace(/_/g, ' ')}:</strong> {String(tmplTestResult[f])}</p> : null
@@ -749,7 +749,7 @@ export default function AdminScraperTab() {
                                 const fieldCount = isObj ? Object.keys(secData).length : 0;
                                 return (
                                   <div key={secName} className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-                                    <p className="font-semibold text-blue-800 mb-2">\ud83d\udccc {secName} ({isList ? `${(secData as string[]).length} items` : isObj ? `${fieldCount} fields` : 'no data'})</p>
+                                    <p className="font-semibold text-blue-800 mb-2">📌 {secName} ({isList ? `${(secData as string[]).length} items` : isObj ? `${fieldCount} fields` : 'no data'})</p>
                                     {isList ? (
                                       <ul className="list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto text-blue-900">
                                         {(secData as string[]).slice(0, 30).map((item, i) => <li key={i}>{String(item)}</li>)}
