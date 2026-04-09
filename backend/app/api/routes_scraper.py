@@ -21,7 +21,7 @@ Admin-only endpoints:
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 from urllib.parse import urlparse
 import os
 import re
@@ -852,9 +852,9 @@ class SiteTemplateRequest(BaseModel):
     images_selector: Optional[str] = None          # CSS: selects <img> tags in gallery
     agent_name_selector: Optional[str] = None
     agent_photo_selector: Optional[str] = None
-    # Section-level selectors — auto-parse all fields within a container
-    specs_section_selector: Optional[str] = None   # CSS: container holding spec key/value pairs
-    features_section_selector: Optional[str] = None  # CSS: container holding feature list items
+    # Dynamic named sections — each entry auto-extracts all fields inside a container
+    # [{\"name\": \"Propulsion\", \"selector\": \".prop-specs\"}, ...]
+    sections: Optional[List[Dict[str, str]]] = None
 
 
 @router.get("/scraper/jobs/{job_id}/template")
@@ -910,6 +910,205 @@ def clear_job_template(
     return {"success": True, "message": "Template cleared"}
 
 
+# BOOKMARKLET — visual selector picker (served as text/javascript)
+# -----------------------------------------------------------------------
+
+@router.get("/scraper/bookmarklet.js", include_in_schema=False)
+def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
+    """
+    Returns the visual selector picker script parameterised with job ID and site name.
+    Embed in a bookmark as:
+      javascript:void(function(){var s=document.createElement('script');
+        s.src='API_BASE/api/scraper/bookmarklet.js?job=JOB_ID&name=SITE_NAME&_='+Date.now();
+        document.head.appendChild(s)}())
+    """
+    import html as _html
+    safe_name = _html.escape(str(name)[:80]).replace('"', '\\"')
+    job_id = job
+
+    script = (
+        "/* Yacht Platform Visual Selector Picker */\n"
+        "(function(){\n"
+        "'use strict';\n"
+        f"var JOB_ID={job_id};\n"
+        f'var SITE_NAME="{safe_name}";\n'
+        "if(window.__ypPickerLoaded){"
+        "var p=document.getElementById('__yp-sidebar');"
+        "if(p)p.style.display=p.style.display==='none'?'flex':'none';"
+        "return;}\n"
+        "window.__ypPickerLoaded=true;\n"
+        "var tmpl={},sections=[];\n"
+        "function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}\n"
+        # --- CSS selector generator ---
+        "function getSel(el){\n"
+        "if(!el||el===document.body)return 'body';\n"
+        "var parts=[],cur=el;\n"
+        "while(cur&&cur!==document.body&&cur!==document.documentElement){\n"
+        "var seg=cur.tagName.toLowerCase();\n"
+        "if(cur.id&&/^[a-zA-Z][\\w-]*$/.test(cur.id)&&document.querySelectorAll('#'+cur.id).length===1){parts.unshift('#'+cur.id);break;}\n"
+        "var cls=Array.from(cur.classList).filter(function(c){return c.length>2&&!/^(active|hover|focus|selected|open|js-|is-|has-|ng-)/.test(c);}).slice(0,2);\n"
+        "if(cls.length)seg+='.'+cls.join('.');\n"
+        "parts.unshift(seg);\n"
+        "var full=parts.join(' > ');\n"
+        "if(document.querySelectorAll(full).length===1)break;\n"
+        "if(cur.parentElement){"
+        "var idx=Array.from(cur.parentElement.children).indexOf(cur)+1;"
+        "parts[0]=seg+':nth-child('+idx+')';"
+        "}\n"
+        "if(document.querySelectorAll(parts.join(' > ')).length===1)break;\n"
+        "cur=cur.parentElement;if(parts.length>=7)break;}\n"
+        "return parts.join(' > ');}\n"
+        # --- Hover / pick ---
+        "var hl=null,oOut='',oOff='',pick=false;\n"
+        "function startPick(){pick=true;document.body.style.cursor='crosshair';setStatus('Click any element to tag it \u2014 Esc cancels');}\n"
+        "function stopPick(){pick=false;document.body.style.cursor='';if(hl){hl.style.outline=oOut;hl.style.outlineOffset=oOff;hl=null;}}\n"
+        "document.addEventListener('mouseover',function(e){\n"
+        "if(!pick)return;\n"
+        "if(e.target.closest&&(e.target.closest('#__yp-sidebar')||e.target.closest('#__yp-modal')))return;\n"
+        "if(hl&&hl!==e.target){hl.style.outline=oOut;hl.style.outlineOffset=oOff;}\n"
+        "hl=e.target;oOut=e.target.style.outline;oOff=e.target.style.outlineOffset;\n"
+        "e.target.style.outline='2px solid #e63946';e.target.style.outlineOffset='2px';\n"
+        "},true);\n"
+        "document.addEventListener('click',function(e){\n"
+        "if(!pick)return;\n"
+        "if(e.target.closest&&(e.target.closest('#__yp-sidebar')||e.target.closest('#__yp-modal')))return;\n"
+        "e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();\n"
+        "var el=e.target,sel=getSel(el);stopPick();showModal(el,sel);\n"
+        "},true);\n"
+        "document.addEventListener('keydown',function(e){"
+        "if(e.key==='Escape'){if(pick)stopPick();else closePicker();}});\n"
+        # --- Field list ---
+        "var FIELDS=[\n"
+        "{key:'listing_link_selector',label:'Listing Links',hint:'<a> tags to individual listings on the inventory page'},\n"
+        "{key:'next_page_selector',label:'Next Page Button',hint:'Pagination link to the next page of results'},\n"
+        "{key:'title_selector',label:'Title',hint:'Boat name or headline'},\n"
+        "{key:'price_selector',label:'Price',hint:'Asking price'},\n"
+        "{key:'description_selector',label:'Description',hint:'Main description text block'},\n"
+        "{key:'year_selector',label:'Year',hint:'Model year'},\n"
+        "{key:'make_selector',label:'Make / Brand',hint:'Manufacturer'},\n"
+        "{key:'model_selector',label:'Model',hint:'Model name'},\n"
+        "{key:'length_selector',label:'Length',hint:'LOA or length value'},\n"
+        "{key:'location_selector',label:'Location',hint:'Marina, port, or city'},\n"
+        "{key:'images_selector',label:'Gallery Images',hint:'<img> tags inside the photo gallery'},\n"
+        "{key:'agent_name_selector',label:'Agent Name',hint:'Listing agent name element'},\n"
+        "{key:'agent_photo_selector',label:'Agent Photo',hint:'Agent headshot <img> element'},\n"
+        "{key:'__section',label:'+ Named Section (specs / features / propulsion\u2026)',hint:'Auto-extracts ALL fields from this container. Give it a name.',section:true},\n"
+        "];\n"
+        # --- Modal ---
+        "var pendSel=null;\n"
+        "function showModal(el,sel){\n"
+        "pendSel=sel;\n"
+        "var m=document.getElementById('__yp-modal');if(m)m.remove();\n"
+        "m=document.createElement('div');m.id='__yp-modal';\n"
+        "m.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a2e;color:#fff;border:1px solid #334155;border-radius:12px;padding:20px;z-index:2147483647;width:400px;max-width:95vw;font-family:-apple-system,sans-serif;font-size:13px;box-shadow:0 20px 60px rgba(0,0,0,0.7);';\n"
+        "var mc=document.querySelectorAll(sel).length;\n"
+        "var prev=(el.textContent||'').trim().replace(/\\s+/g,' ').slice(0,70);\n"
+        "m.innerHTML='<p style=\"font-size:11px;color:#94a3b8;margin:0 0 3px\">Selector:</p>'\n"
+        "+'<code style=\"font-size:10px;color:#4ade80;background:#0f3460;padding:3px 7px;border-radius:4px;display:block;word-break:break-all;margin-bottom:4px\">'+esc(sel)+'</code>'\n"
+        "+'<p style=\"font-size:11px;margin:0 0 12px;color:'+(mc===1?'#4ade80':'#fbbf24')+'\">Matches '+mc+' element'+(mc===1?' \u2713':' \u26a0 may be too broad')+(prev?' \u00b7 \\\"'+esc(prev.slice(0,50))+'\\\"':'')+'</p>'\n"
+        "+'<p style=\"font-size:12px;font-weight:600;margin:0 0 6px\">Tag this element as:</p>'\n"
+        "+'<select id=\"__yp-fsel\" style=\"width:100%;padding:8px;background:#0f3460;color:#fff;border:1px solid #1e4080;border-radius:6px;font-size:13px;margin-bottom:6px\">'\n"
+        "+FIELDS.map(function(f){return'<option value=\"'+f.key+'\">'+f.label+'</option>';}).join('')\n"
+        "+'</select>'\n"
+        "+'<div id=\"__yp-secrow\" style=\"display:none;margin-bottom:6px\">'\n"
+        "+'<input id=\"__yp-secname\" placeholder=\"Name this section (e.g. Propulsion, Features, Electronics\u2026)\" style=\"width:100%;padding:8px;background:#0f3460;color:#fff;border:1px solid #1e4080;border-radius:6px;font-size:13px;box-sizing:border-box\"/>'\n"
+        "+'</div>'\n"
+        "+'<p id=\"__yp-hint\" style=\"font-size:11px;color:#64748b;margin:0 0 10px\"></p>'\n"
+        "+'<div style=\"display:flex;gap:8px\">'\n"
+        "+'<button id=\"__yp-ok\" style=\"flex:1;padding:8px;background:#e63946;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer\">Tag It</button>'\n"
+        "+'<button id=\"__yp-cx\" style=\"padding:8px 14px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer\">Cancel</button>'\n"
+        "+'</div>';\n"
+        "document.body.appendChild(m);\n"
+        "var fsel=document.getElementById('__yp-fsel');\n"
+        "var secrow=document.getElementById('__yp-secrow');\n"
+        "var hint=document.getElementById('__yp-hint');\n"
+        "function updHint(){var f=FIELDS.find(function(x){return x.key===fsel.value;});hint.textContent=f?f.hint:'';secrow.style.display=fsel.value==='__section'?'block':'none';}\n"
+        "fsel.addEventListener('change',updHint);updHint();\n"
+        "document.getElementById('__yp-ok').onclick=function(){\n"
+        "var fk=fsel.value;\n"
+        "if(fk==='__section'){\n"
+        "var sn=(document.getElementById('__yp-secname').value||'').trim();\n"
+        "if(!sn){document.getElementById('__yp-secname').focus();return;}\n"
+        "var ei=sections.findIndex(function(s){return s.name.toLowerCase()===sn.toLowerCase();});\n"
+        "if(ei>=0)sections[ei].selector=pendSel;else sections.push({name:sn,selector:pendSel});\n"
+        "}else{tmpl[fk]=pendSel;}\n"
+        "m.remove();renderList();\n"
+        "var fl=FIELDS.find(function(x){return x.key===fk;});\n"
+        "setStatus('\u2713 Tagged as \\\"'+(fk==='__section'?(document.getElementById('__yp-secname')||{value:'?'}).value:fl?fl.label:fk)+'\\\"');\n"
+        "};\n"
+        "document.getElementById('__yp-cx').onclick=function(){m.remove();};\n"
+        "}\n"
+        # --- Sidebar panel ---
+        "function createPanel(){\n"
+        "var p=document.createElement('div');p.id='__yp-sidebar';\n"
+        "p.style.cssText='position:fixed;top:0;right:0;width:280px;height:100vh;background:#1a1a2e;color:#fff;z-index:2147483646;display:flex;flex-direction:column;font-family:-apple-system,sans-serif;font-size:13px;box-shadow:-4px 0 30px rgba(0,0,0,0.6);';\n"
+        "p.innerHTML=\n"
+        "'<div style=\"background:#16213e;padding:11px 13px;border-bottom:1px solid #0f3460;display:flex;align-items:center;gap:8px;flex-shrink:0\">'\n"
+        "+'<span style=\"font-size:18px\">\u2693</span>'\n"
+        "+'<div><div style=\"font-weight:700\">YP Selector Picker</div><div style=\"font-size:11px;color:#94a3b8\">'+esc(SITE_NAME)+'</div></div>'\n"
+        "+'<button id=\"__yp-close\" style=\"margin-left:auto;background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;line-height:1\">\u00d7</button>'\n"
+        "+'</div>'\n"
+        "+'<div style=\"padding:10px 12px;border-bottom:1px solid #0f3460;flex-shrink:0\">'\n"
+        "+'<button id=\"__yp-pick\" style=\"width:100%;padding:9px;background:#e63946;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer\">\U0001f3af Pick Element</button>'\n"
+        "+'</div>'\n"
+        "+'<div id=\"__yp-list\" style=\"flex:1;overflow-y:auto;padding:8px 10px\"></div>'\n"
+        "+'<div id=\"__yp-status\" style=\"padding:6px 12px;font-size:11px;color:#94a3b8;border-top:1px solid #0f3460;flex-shrink:0\">Ready \u2014 click Pick Element to start</div>'\n"
+        "+'<div style=\"padding:10px 12px;border-top:1px solid #0f3460;display:flex;gap:6px;flex-shrink:0\">'\n"
+        "+'<button id=\"__yp-copy\" style=\"flex:1;padding:7px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer\">\U0001f4cb Copy JSON</button>'\n"
+        "+'<button id=\"__yp-clr\" style=\"padding:7px 10px;background:#374151;color:#94a3b8;border:none;border-radius:6px;font-size:12px;cursor:pointer\">Clear</button>'\n"
+        "+'</div>';\n"
+        "document.body.appendChild(p);\n"
+        "document.getElementById('__yp-close').onclick=closePicker;\n"
+        "document.getElementById('__yp-pick').onclick=startPick;\n"
+        "document.getElementById('__yp-copy').onclick=copyJSON;\n"
+        "document.getElementById('__yp-clr').onclick=function(){if(confirm('Clear all?')){tmpl={};sections=[];renderList();}};\n"
+        "renderList();\n"
+        "}\n"
+        # --- Render list ---
+        "function renderList(){\n"
+        "var list=document.getElementById('__yp-list');if(!list)return;\n"
+        "var html='',any=false;\n"
+        "FIELDS.filter(function(f){return!f.section;}).forEach(function(f){\n"
+        "if(!tmpl[f.key])return;any=true;\n"
+        "html+='<div style=\"margin-bottom:5px;padding:6px 8px;background:#0f3460;border-radius:6px\">'\n"
+        "+'<div style=\"display:flex;align-items:center\"><span style=\"font-size:11px;font-weight:600;color:#93c5fd\">'+esc(f.label)+'</span>'\n"
+        "+'<button onclick=\"window.__ypD(\\''+f.key+'\\')\" style=\"margin-left:auto;background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px;line-height:1\">\u00d7</button></div>'\n"
+        "+'<code style=\"font-size:10px;color:#4ade80;word-break:break-all\">'+esc(tmpl[f.key])+'</code></div>';\n"
+        "});\n"
+        "sections.forEach(function(s,i){\n"
+        "any=true;\n"
+        "html+='<div style=\"margin-bottom:5px;padding:6px 8px;background:#1e1b4b;border-radius:6px\">'\n"
+        "+'<div style=\"display:flex;align-items:center\"><span style=\"font-size:11px;font-weight:600;color:#c4b5fd\">\U0001f4e6 '+esc(s.name)+'</span>'\n"
+        "+'<button onclick=\"window.__ypDS('+i+')\" style=\"margin-left:auto;background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px;line-height:1\">\u00d7</button></div>'\n"
+        "+'<code style=\"font-size:10px;color:#4ade80;word-break:break-all\">'+esc(s.selector)+'</code></div>';\n"
+        "});\n"
+        "if(!any)html='<p style=\"color:#4b5563;text-align:center;margin-top:20px;font-size:12px\">No selectors tagged yet.<br>Click \\\"Pick Element\\\" to start.</p>';\n"
+        "list.innerHTML=html;\n"
+        "}\n"
+        "window.__ypD=function(k){delete tmpl[k];renderList();};\n"
+        "window.__ypDS=function(i){sections.splice(i,1);renderList();};\n"
+        # --- Copy JSON ---
+        "function buildJSON(){var o=Object.assign({},tmpl);if(sections.length)o.sections=sections.slice();return JSON.stringify(o,null,2);}\n"
+        "function copyJSON(){\n"
+        "var j=buildJSON();\n"
+        "if(navigator.clipboard&&navigator.clipboard.writeText){\n"
+        "navigator.clipboard.writeText(j).then(function(){setStatus('\u2713 Copied! Paste it into Admin \u2192 Field Selectors \u2192 Import JSON');}).catch(function(){fb(j);});\n"
+        "}else{fb(j);}\n"
+        "}\n"
+        "function fb(j){var t=document.createElement('textarea');t.value=j;t.style.cssText='position:fixed;left:-9999px';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();setStatus('\u2713 Copied!');}\n"
+        "function setStatus(m){var e=document.getElementById('__yp-status');if(e)e.textContent=m;}\n"
+        "function closePicker(){stopPick();var m=document.getElementById('__yp-modal');if(m)m.remove();var p=document.getElementById('__yp-sidebar');if(p)p.remove();window.__ypPickerLoaded=false;}\n"
+        "createPanel();\n"
+        "})();\n"
+    )
+
+    from fastapi.responses import Response as _Resp
+    resp = _Resp(content=script, media_type="application/javascript")
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-cache, no-store"
+    return resp
+
+
 # TEMPLATE LIVE TEST — scrape a single listing URL with a given template
 # -----------------------------------------------------------------------
 
@@ -936,7 +1135,13 @@ def test_scrape_with_template(
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
     tmpl = data.template if data.template else None
-    result = scraper.scrape_single_listing(data.url, template=tmpl)
+    try:
+        result = scraper.scrape_single_listing(data.url, template=tmpl)
+    except Exception as exc:
+        logger.exception("test-with-template scrape failed: %s", exc)
+        return {"success": False, "error": f"Scraper error: {exc}"}
+    if result is None:
+        return {"success": False, "error": "Scraper returned no data"}
     if "error" in result:
         return {"success": False, "error": result["error"]}
     return {"success": True, "data": result}

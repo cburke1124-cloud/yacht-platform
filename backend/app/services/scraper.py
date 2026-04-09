@@ -647,66 +647,75 @@ except Exception as e:
                 if src:
                     data['detected_agent_photo'] = src
 
-        # ── Specs section — auto-parse ALL label/value pairs in this container ──
-        # Supports: dt/dd definition lists, table rows (th+td), and sibling div pairs.
-        # Results are merged into additional_specs AND exposed as _tmpl_specs for testing.
-        specs_sel = template.get('specs_section_selector', '').strip()
-        if specs_sel:
-            section = soup.select_one(specs_sel)
-            if section:
-                parsed: Dict[str, str] = {}
-                # Strategy 1: definition list (dt/dd)
+        # ── Named sections — dynamic, each section is auto-parsed ──────────────
+        # Template format: sections = [{name: "Propulsion", selector: ".prop-specs"}, ...]
+        # Each section is parsed with 3 strategies (dt/dd, table, sibling pairs) unless
+        # it looks like a bullet list — then all li/p/span text items are collected.
+        # Results land in additional_specs[section_name] for database storage and in
+        # _tmpl_sections for the live test endpoint response.
+        tmpl_sections_out: Dict[str, Any] = {}
+        for sec_def in (template.get('sections') or []):
+            sec_name = (sec_def.get('name') or '').strip()
+            sec_sel  = (sec_def.get('selector') or '').strip()
+            if not sec_name or not sec_sel:
+                continue
+            section = soup.select_one(sec_sel)
+            if not section:
+                continue
+            # Detect whether it's primarily a bullet list (no dt/td structure)
+            has_list_items = bool(section.find('li'))
+            has_pairs = bool(section.find('dt') or section.find('th'))
+            if has_list_items and not has_pairs:
+                # Bullet-list section: collect all li/p/span text items
+                seen_f: set = set()
+                feature_items: List[str] = []
+                for child in section.find_all(['li', 'p', 'span']):
+                    text = child.get_text(' ', strip=True)
+                    if text and 2 < len(text) < 250 and text not in seen_f:
+                        seen_f.add(text)
+                        feature_items.append(text)
+                if feature_items:
+                    existing = data.get('additional_specs') or {}
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    existing[sec_name] = feature_items
+                    data['additional_specs'] = existing
+                    tmpl_sections_out[sec_name] = feature_items
+            else:
+                # Key/value section: try dt/dd → table rows → sibling pairs
+                parsed_kv: Dict[str, str] = {}
                 for dt in section.find_all('dt'):
                     dd = dt.find_next_sibling('dd')
                     if dd:
                         k = dt.get_text(' ', strip=True)
                         v = dd.get_text(' ', strip=True)
                         if k and v:
-                            parsed[k] = v
-                # Strategy 2: table rows (th/td or td/td)
-                if not parsed:
+                            parsed_kv[k] = v
+                if not parsed_kv:
                     for tr in section.find_all('tr'):
                         cells = tr.find_all(['th', 'td'])
                         if len(cells) >= 2:
                             k = cells[0].get_text(' ', strip=True)
                             v = cells[1].get_text(' ', strip=True)
                             if k and v:
-                                parsed[k] = v
-                # Strategy 3: sibling child pairs (first child = label, second = value)
-                if not parsed:
+                                parsed_kv[k] = v
+                if not parsed_kv:
                     for row in section.find_all(True, recursive=False):
                         children = [c for c in row.find_all(True, recursive=False)]
                         if len(children) >= 2:
                             k = children[0].get_text(' ', strip=True)
                             v = children[1].get_text(' ', strip=True)
                             if k and v and len(k) < 80 and k != v:
-                                parsed[k] = v
-                if parsed:
+                                parsed_kv[k] = v
+                if parsed_kv:
                     existing = data.get('additional_specs') or {}
                     if not isinstance(existing, dict):
                         existing = {}
-                    existing.update(parsed)
+                    existing[sec_name] = parsed_kv
                     data['additional_specs'] = existing
-                    data['_tmpl_specs'] = parsed  # exposed for test endpoint
-
-        # ── Features section — extract list items as a features array ──────────
-        features_sel = template.get('features_section_selector', '').strip()
-        if features_sel:
-            section = soup.select_one(features_sel)
-            if section:
-                seen_f: set = set()
-                items: List[str] = []
-                for child in section.find_all(['li', 'p', 'span']):
-                    text = child.get_text(' ', strip=True)
-                    if text and 2 < len(text) < 250 and text not in seen_f:
-                        seen_f.add(text)
-                        items.append(text)
-                if items:
-                    existing = data.get('additional_specs') or {}
-                    if isinstance(existing, dict):
-                        existing['_features'] = items
-                        data['additional_specs'] = existing
-                    data['_tmpl_features'] = items  # exposed for test endpoint
+                    tmpl_sections_out[sec_name] = parsed_kv
+        if tmpl_sections_out:
+            data['_tmpl_sections'] = tmpl_sections_out  # exposed for test endpoint
 
     def find_listing_urls(self, site_url: str, max_pages: int = 100, template: Optional[Dict] = None) -> List[str]:
         """

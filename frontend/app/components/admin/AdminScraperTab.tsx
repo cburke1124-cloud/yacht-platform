@@ -63,8 +63,7 @@ interface SiteTemplate {
   images_selector?: string;
   agent_name_selector?: string;
   agent_photo_selector?: string;
-  specs_section_selector?: string;
-  features_section_selector?: string;
+  sections?: { name: string; selector: string }[];
 }
 
 // ─── Log panel ────────────────────────────────────────────────────────────────
@@ -169,7 +168,7 @@ export default function AdminScraperTab() {
     year_selector: '', make_selector: '', model_selector: '',
     length_selector: '', location_selector: '', images_selector: '',
     agent_name_selector: '', agent_photo_selector: '',
-    specs_section_selector: '', features_section_selector: '',
+    sections: [],
   };
   const [tmpl, setTmpl] = useState<SiteTemplate>(EMPTY_TMPL);
   const [tmplExpanded, setTmplExpanded] = useState(false);
@@ -179,6 +178,8 @@ export default function AdminScraperTab() {
   const [tmplTesting, setTmplTesting] = useState(false);
   const [tmplTestResult, setTmplTestResult] = useState<any>(null);
   const [tmplTestError, setTmplTestError] = useState('');
+  const [tmplImportJson, setTmplImportJson] = useState('');
+  const [tmplImportError, setTmplImportError] = useState('');
 
   async function loadTemplate(jobId: number) {
     try {
@@ -215,6 +216,27 @@ export default function AdminScraperTab() {
       else setTmplTestError(data.error || data.detail || 'Test failed');
     } catch (e: any) { setTmplTestError(e.message || 'Network error'); }
     finally { setTmplTesting(false); }
+  }
+
+  function importTemplateJson() {
+    setTmplImportError('');
+    try {
+      const parsed = JSON.parse(tmplImportJson.trim());
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Expected a JSON object');
+      setTmpl({ ...EMPTY_TMPL, ...parsed });
+      setTmplImportJson('');
+      setTmplMsg({ ok: true, text: 'Template imported — review fields above then click Save.' });
+    } catch (e: any) {
+      setTmplImportError(e.message || 'Invalid JSON');
+    }
+  }
+
+  function getBookmarkletHref(job: ScraperJob) {
+    const apiBase = typeof window !== 'undefined'
+      ? (process.env.NEXT_PUBLIC_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://yacht-platform.onrender.com'))
+      : 'https://yacht-platform.onrender.com';
+    const scriptUrl = `${apiBase}/api/scraper/bookmarklet.js?job=${job.id}&name=${encodeURIComponent(job.site_name || '')}&_=`;
+    return `javascript:void(function(){var s=document.createElement('script');s.src='${scriptUrl}'+Date.now();document.head.appendChild(s)}())`;
   }
 
   // ── Test tools state ──
@@ -329,6 +351,7 @@ export default function AdminScraperTab() {
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
     setTmplTestUrl(''); setTmplTestResult(null); setTmplTestError('');
+    setTmplImportJson(''); setTmplImportError('');
     loadTemplate(job.id);
     setShowAddForm(true);
   }
@@ -341,6 +364,7 @@ export default function AdminScraperTab() {
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
     setTmplTestUrl(''); setTmplTestResult(null); setTmplTestError('');
+    setTmplImportJson(''); setTmplImportError('');
   }
 
   async function handleSaveJob(e: React.FormEvent) {
@@ -575,10 +599,37 @@ export default function AdminScraperTab() {
 
                   {tmplExpanded && (
                     <div className="mt-4 space-y-5">
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900">
-                        Enter a CSS selector for each field. Leave blank to use auto-detection.
-                        Open the broker site in Chrome DevTools, right-click an element, and copy its selector.
-                        <span className="block opacity-70 mt-1">Examples: <code>h1.listing-title</code> &middot; <code>.price span</code> &middot; <code>.gallery img</code></span>
+                      {/* Bookmarklet helper */}
+                      <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900">
+                        <p className="font-semibold mb-1">🔖 Visual Picker (recommended)</p>
+                        <p className="mb-2">Drag the link below to your browser&apos;s bookmarks bar. Then open any page on the broker site, click the bookmark, and click elements to tag them. When done, click <strong>Copy JSON</strong> in the panel and paste it below.</p>
+                        {editingJob && (
+                          <a
+                            href={getBookmarkletHref(editingJob)}
+                            className="inline-block px-3 py-1.5 bg-indigo-700 text-white rounded font-medium hover:bg-indigo-800 cursor-grab select-none"
+                            onClick={e => e.preventDefault()}
+                            title="Drag this to your bookmarks bar">
+                            ⚓ YP Selector Picker
+                          </a>
+                        )}
+                        <p className="mt-1.5 text-indigo-700">⚠ Right-click won&apos;t work — you must drag it to the bookmarks bar.</p>
+                      </div>
+
+                      {/* Import JSON from bookmarklet */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Import from Bookmarklet JSON</p>
+                        <textarea
+                          rows={3}
+                          value={tmplImportJson}
+                          onChange={e => setTmplImportJson(e.target.value)}
+                          placeholder='Paste the JSON from the "Copy JSON" button in the selector picker panel…'
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary resize-none"
+                        />
+                        {tmplImportError && <p className="text-xs text-red-600 mt-0.5">{tmplImportError}</p>}
+                        <button type="button" onClick={importTemplateJson} disabled={!tmplImportJson.trim()}
+                          className="mt-1.5 px-4 py-1.5 bg-indigo-700 text-white rounded-lg text-xs font-medium hover:bg-indigo-800 disabled:opacity-50">
+                          ↑ Import JSON
+                        </button>
                       </div>
 
                       {([
@@ -596,10 +647,6 @@ export default function AdminScraperTab() {
                           { key: 'length_selector',      label: 'Length',         hint: 'LOA / length' },
                           { key: 'location_selector',    label: 'Location',       hint: 'Marina / city / port' },
                           { key: 'images_selector',      label: 'Gallery Images', hint: '<img> tags in photo gallery (e.g. .gallery img)' },
-                        ]},
-                        { group: 'Section Auto-Parse', fields: [
-                          { key: 'specs_section_selector',    label: 'Specs Section',    hint: 'Container holding all spec rows — engines, beam, draft, tanks, etc. are auto-extracted.' },
-                          { key: 'features_section_selector', label: 'Features Section', hint: 'Container with feature bullets — all list items are imported.' },
                         ]},
                         { group: 'Agent', fields: [
                           { key: 'agent_name_selector',  label: 'Agent Name',  hint: 'Agent name text element' },
@@ -626,6 +673,24 @@ export default function AdminScraperTab() {
                         </div>
                       ))}
 
+                      {/* Named sections from bookmarklet */}
+                      {(tmpl.sections && tmpl.sections.length > 0) && (
+                        <div>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Named Sections (from Bookmarklet)</p>
+                          <div className="space-y-2">
+                            {tmpl.sections.map((sec, i) => (
+                              <div key={i} className="flex items-center gap-2 p-2 bg-purple-50 border border-purple-200 rounded-lg text-xs">
+                                <span className="font-semibold text-purple-800 min-w-[80px]">{sec.name}</span>
+                                <code className="flex-1 text-purple-700 font-mono truncate">{sec.selector}</code>
+                                <button type="button" onClick={() => setTmpl(prev => ({ ...prev, sections: prev.sections?.filter((_, j) => j !== i) }))}
+                                  className="text-gray-400 hover:text-red-500 text-sm leading-none">&times;</button>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">All fields in each container are auto-extracted during scraping.</p>
+                        </div>
+                      )}
+
                       {tmplMsg && (
                         <div className={`p-3 rounded-lg flex items-start gap-2 text-sm ${
                           tmplMsg.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'
@@ -641,64 +706,54 @@ export default function AdminScraperTab() {
                         className="px-5 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50">
                         {tmplSaving ? 'Saving\u2026' : '\ud83d\udcbe Save Field Selectors'}
                       </button>
+
                       {/* ── Live test widget ── */}
                       <div className="mt-4 pt-4 border-t border-gray-200">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Test Current Selectors</p>
-                        <p className="text-xs text-gray-400 mb-2">Enter a single <em>listing</em> URL to preview what these selectors would extract (uses the unsaved values above).</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Test Saved Selectors</p>
+                        <p className="text-xs text-gray-400 mb-2">Enter a single <em>listing</em> URL to preview what the saved selectors extract.</p>
                         <div className="flex gap-2">
-                          <input
-                            type="url"
-                            value={tmplTestUrl}
-                            onChange={e => setTmplTestUrl(e.target.value)}
+                          <input type="url" value={tmplTestUrl} onChange={e => setTmplTestUrl(e.target.value)}
                             placeholder="https://broker.com/listing/yacht-name-123"
-                            className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary"
-                          />
+                            className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary" />
                           <button type="button" onClick={runTemplateTest} disabled={tmplTesting || !tmplTestUrl}
                             className="px-4 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-medium hover:bg-gray-900 disabled:opacity-50 whitespace-nowrap">
-                            {tmplTesting ? 'Testing…' : '▶ Run Test'}
+                            {tmplTesting ? 'Testing\u2026' : '\u25b6 Run Test'}
                           </button>
                         </div>
-                        {tmplTestError && (
-                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{tmplTestError}</div>
-                        )}
+                        {tmplTestError && <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{tmplTestError}</div>}
                         {tmplTestResult && (
                           <div className="mt-3 space-y-3">
                             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs">
-                              <p className="font-semibold text-green-800 mb-2">✓ Extraction result</p>
+                              <p className="font-semibold text-green-800 mb-2">\u2713 Core fields</p>
                               <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-green-900">
                                 {(['title', 'make', 'model', 'year', 'price', 'length_feet', 'location', 'detected_agent_name'] as const).map(f =>
-                                  tmplTestResult[f] ? (
-                                    <p key={f}><strong className="capitalize">{f.replace('_', ' ')}:</strong> {String(tmplTestResult[f])}</p>
-                                  ) : null
+                                  tmplTestResult[f] ? <p key={f}><strong className="capitalize">{f.replace(/_/g, ' ')}:</strong> {String(tmplTestResult[f])}</p> : null
                                 )}
-                                {tmplTestResult.images?.length > 0 && (
-                                  <p><strong>Images:</strong> {tmplTestResult.images.length} found</p>
-                                )}
+                                {(tmplTestResult.images?.length ?? 0) > 0 && <p><strong>Images:</strong> {tmplTestResult.images.length} found</p>}
                               </div>
                             </div>
-                            {tmplTestResult._tmpl_specs && Object.keys(tmplTestResult._tmpl_specs).length > 0 && (
-                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-                                <p className="font-semibold text-blue-800 mb-2">📋 Specs extracted ({Object.keys(tmplTestResult._tmpl_specs).length} fields)</p>
-                                <div className="space-y-0.5 max-h-48 overflow-y-auto text-blue-900">
-                                  {Object.entries(tmplTestResult._tmpl_specs).map(([k, v]) => (
-                                    <p key={k}><strong>{k}:</strong> {String(v)}</p>
-                                  ))}
+                            {tmplTestResult._tmpl_sections && Object.keys(tmplTestResult._tmpl_sections).length > 0 && (
+                              Object.entries(tmplTestResult._tmpl_sections as Record<string, any>).map(([secName, secData]) => (
+                                <div key={secName} className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                                  <p className="font-semibold text-blue-800 mb-2">\ud83d\udccc {secName} ({Array.isArray(secData) ? `${(secData as string[]).length} items` : `${Object.keys(secData as object).length} fields`})</p>
+                                  {Array.isArray(secData) ? (
+                                    <ul className="list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto text-blue-900">
+                                      {(secData as string[]).slice(0, 30).map((item, i) => <li key={i}>{item}</li>)}
+                                    </ul>
+                                  ) : (
+                                    <div className="space-y-0.5 max-h-48 overflow-y-auto text-blue-900">
+                                      {Object.entries(secData as Record<string, string>).map(([k, v]) => (
+                                        <p key={k}><strong>{k}:</strong> {String(v)}</p>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            )}
-                            {tmplTestResult._tmpl_features && tmplTestResult._tmpl_features.length > 0 && (
-                              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs">
-                                <p className="font-semibold text-purple-800 mb-2">✅ Features extracted ({tmplTestResult._tmpl_features.length} items)</p>
-                                <ul className="list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto text-purple-900">
-                                  {(tmplTestResult._tmpl_features as string[]).slice(0, 30).map((f, i) => (
-                                    <li key={i}>{f}</li>
-                                  ))}
-                                </ul>
-                              </div>
+                              ))
                             )}
                           </div>
                         )}
-                      </div>                    </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
