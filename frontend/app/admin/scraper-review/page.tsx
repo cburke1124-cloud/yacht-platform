@@ -84,7 +84,7 @@ export default function ScraperReviewPage() {
     try {
       // Fetch all accounts for this status (no dealer filter) to compute per-account counts
       const [usersRes, countsRes] = await Promise.all([
-        fetch(apiUrl('/users?user_type=dealer&limit=200'), { headers: authHeaders() }),
+        fetch(apiUrl('/admin/users?user_type=dealer&limit=500'), { headers: authHeaders() }),
         fetch(apiUrl(`/admin/scraper/listings?status=${status}`), { headers: authHeaders() }),
       ]);
       const usersData = await usersRes.json();

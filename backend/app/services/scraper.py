@@ -1393,7 +1393,18 @@ except Exception as e:
           GBP  — £ / GBP
           AUD  — A$ / AUD
           NZD  — NZ$ / NZD
+
+        When only a bare "$" is found, the page text is scanned for CAD context
+        (e.g. "CAD", "Canadian", "C$") so that Canadian broker sites that display
+        prices as "$1,250,000" without an explicit C$ label are correctly tagged.
         """
+        # Detect whether the page is predominantly CAD-based so that a bare "$"
+        # can be treated as CAD rather than defaulting to USD.
+        cad_context = bool(re.search(
+            r'\bCAD\b|\bC\$\b|\bCDN\$\b|\bCanadian\s+dollar|\bprix\s+en\s+CAD',
+            text, re.IGNORECASE
+        ))
+
         # Each pattern: (regex, currency_code)
         # Ordered most-specific first so "C$" is tried before bare "$"
         patterns = [
@@ -1411,10 +1422,8 @@ except Exception as e:
             (r"(?:£|GBP)\s*(\d[\d,.\s]*)", "GBP"),
             # Trailing currency label: "150,000 CAD", "150,000 USD", "150,000 EUR"
             (r"(\d[\d,.\s]+)\s*\b(CAD|USD|EUR|GBP|AUD|NZD)\b", None),
-            # Bare CAD label before price (case-insensitive context: "Price in CAD")
-            # handled by the trailing label above
-            # Plain $ — ambiguous, treat as USD
-            (r"\$\s*(\d[\d,.\s]*)", "USD"),
+            # Bare $ — ambiguous; treat as CAD if page has CAD context, else USD
+            (r"\$\s*(\d[\d,.\s]*)", "CAD" if cad_context else "USD"),
         ]
         for pat, currency in patterns:
             m = re.search(pat, text, re.IGNORECASE)

@@ -432,7 +432,7 @@ export default function AdminScraperPage() {
     setBrokerLoading(true); setBrokerError(''); setBrokerResult(null);
     try {
       const res = await fetch(apiUrl('/scraper/broker'), {
-        method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: brokerUrl, preview_count: 2 }),
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ url: brokerUrl, preview_count: 3 }),
       });
       const data = await res.json();
       if (data.success) setBrokerResult(data);
@@ -736,53 +736,23 @@ export default function AdminScraperPage() {
               </div>
             )}
 
-            {testTab === 'broker' && (
+    {testTab === 'broker' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Broker Inventory Page URL</label>
                 <input type="url" value={brokerUrl} onChange={e => setBrokerUrl(e.target.value)} placeholder="https://broker-site.com/inventory" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-                <p className="text-xs text-gray-500 mt-1">Crawls the page, discovers listing URLs, and previews the first 2.</p>
+                <p className="text-xs text-gray-500 mt-1">Discovers all listing URLs and previews the first 3 with full parsed data.</p>
                 {brokerError && <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-800"><AlertCircle size={16} className="shrink-0 mt-0.5" /> {brokerError}</div>}
                 {brokerResult && (
                   <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg text-sm space-y-3">
                     <div className="flex items-center gap-2 text-green-800 font-medium"><CheckCircle size={16} /> Found {brokerResult.total_found} listing URLs</div>
-                    {brokerResult.previews?.map((p: any, i: number) => {
-                      const expanded = brokerExpandedPreviews.has(i);
-                      return (
-                        <div key={i} className="bg-white p-3 rounded border text-gray-700">
-                          <a href={p.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 hover:underline truncate block mb-2">{p.url}</a>
-                          {p.data ? (
-                            <>
-                              {/* Summary row always visible */}
-                              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs mb-2">
-                                {(['title', 'make', 'model', 'year', 'price'] as const).map(f => p.data[f] ? (
-                                  <span key={f}><span className="text-gray-400">{f}:</span> <span className="font-medium">{String(p.data[f])}</span></span>
-                                ) : null)}
-                                {p.data.images?.length > 0 && (
-                                  <span><span className="text-gray-400">images:</span> <span className="font-medium">{p.data.images.length}</span></span>
-                                )}
-                              </div>
-                              {/* Expand toggle */}
-                              <button
-                                onClick={() => setBrokerExpandedPreviews(prev => {
-                                  const next = new Set(prev);
-                                  next.has(i) ? next.delete(i) : next.add(i);
-                                  return next;
-                                })}
-                                className="flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-medium"
-                              >
-                                {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                {expanded ? 'Hide' : 'Show all'} parsed fields
-                              </button>
-                              {expanded && (
-                                <div className="mt-2 pt-2 border-t">
-                                  <ScrapedDataCard data={p.data} />
-                                </div>
-                              )}
-                            </>
-                          ) : <p className="text-xs text-red-500">{p.error || 'Could not scrape'}</p>}
-                        </div>
-                      );
-                    })}
+                    {brokerResult.previews?.map((p: any, i: number) => (
+                      <div key={i} className="bg-white p-3 rounded border text-gray-700">
+                        <a href={p.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 hover:underline truncate block mb-2">{p.url}</a>
+                        {p.data ? (
+                          <ScrapedDataCard data={p.data} />
+                        ) : <p className="text-xs text-red-500">{p.error || 'Could not scrape'}</p>}
+                      </div>
+                    ))}
                     <details>
                       <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">All {brokerResult.all_urls?.length} URLs</summary>
                       <ul className="mt-2 text-xs space-y-1 max-h-48 overflow-auto">
@@ -792,7 +762,7 @@ export default function AdminScraperPage() {
                   </div>
                 )}
                 <button onClick={handleScrapeBroker} disabled={brokerLoading || !brokerUrl} className="mt-4 w-full px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium">
-                  {brokerLoading ? 'Crawling inventory…' : '📦 Discover Listings'}
+                  {brokerLoading ? 'Crawling inventory…' : '🚀 Preview Broker Inventory'}
                 </button>
               </div>
             )}

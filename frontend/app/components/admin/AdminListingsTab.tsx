@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ListingEditor from './ListingEditor';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface QuickEditDraft {
@@ -16,7 +15,6 @@ export default function AdminListingsTab() {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const [editingListing, setEditingListing] = useState<any>(null);
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
@@ -71,30 +69,7 @@ export default function AdminListingsTab() {
   };
 
   const handleEdit = async (listing: any) => {
-    // Fetch full listing details including images
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/listings/${listing.id}`), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const fullListing = await response.json();
-        setEditingListing(fullListing);
-      }
-    } catch (error) {
-      console.error('Failed to fetch listing:', error);
-      setEditingListing(listing); // Fallback to basic data
-    }
-  };
-
-  const handleCloseEditor = () => {
-    setEditingListing(null);
-  };
-
-  const handleSaveEditor = () => {
-    setEditingListing(null);
-    fetchListings();
+    router.push(`/admin/listings/${listing.id}/edit`);
   };
 
   const handleDelete = async (id: number) => {
@@ -410,15 +385,6 @@ export default function AdminListingsTab() {
           </tbody>
         </table>
       </div>
-
-      {/* Edit Modal */}
-      {editingListing && (
-        <ListingEditor
-          listing={editingListing}
-          onClose={handleCloseEditor}
-          onSave={handleSaveEditor}
-        />
-      )}
     </div>
   );
 }
