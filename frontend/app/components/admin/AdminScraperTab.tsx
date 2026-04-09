@@ -231,12 +231,22 @@ export default function AdminScraperTab() {
     }
   }
 
+  function getBookmarkletUrl(job: ScraperJob) {
+    // API_ROOT already ends with /api — just append the route path directly.
+    // We build it at runtime so we always use the correct origin.
+    const root = typeof window !== 'undefined'
+      ? apiUrl('/scraper/bookmarklet.js').replace(/\?.*$/, '')
+      : 'https://yacht-platform.onrender.com/api/scraper/bookmarklet.js';
+    return `${root}?job=${job.id}&name=${encodeURIComponent(job.site_name || '')}`;
+  }
+
   function getBookmarkletHref(job: ScraperJob) {
-    const apiBase = typeof window !== 'undefined'
-      ? (process.env.NEXT_PUBLIC_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://yacht-platform.onrender.com'))
-      : 'https://yacht-platform.onrender.com';
-    const scriptUrl = `${apiBase}/api/scraper/bookmarklet.js?job=${job.id}&name=${encodeURIComponent(job.site_name || '')}&_=`;
-    return `javascript:void(function(){var s=document.createElement('script');s.src='${scriptUrl}'+Date.now();document.head.appendChild(s)}())`;
+    // Avoid single-quotes inside the javascript: string — browsers URL-encode
+    // them as %27 which breaks the JS when the bookmark is clicked.
+    // Use encodeURIComponent around the src string and decode at runtime instead.
+    const src = getBookmarkletUrl(job);
+    // eslint-disable-next-line no-script-url
+    return `javascript:void(function(){var s=document.createElement("script");s.src="${src}&_="+Date.now();document.head.appendChild(s)}())`;
   }
 
   // ── Test tools state ──
