@@ -318,21 +318,44 @@ class OptimizedYachtScraper:
             # If blocked at the IP/TCP level and a proxy is configured, route through it
             if self._is_blocked_error(exc) and _SCRAPER_PROXY_URL:
                 logger.info(f"fetch_page: direct connection blocked for {url}, retrying via proxy")
-                try:
-                    proxies = {'http': _SCRAPER_PROXY_URL, 'https': _SCRAPER_PROXY_URL}
-                    resp = requests.get(
-                        url, headers=self.headers, proxies=proxies,
-                        timeout=timeout, allow_redirects=True,
-                        # ScraperAPI terminates SSL on their end and re-encrypts;
-                        # the origin cert chain is not visible from our side.
-                        verify=False,
-                    )
-                    resp.raise_for_status()
-                    return resp.text
-                except Exception as proxy_exc:
-                    logger.warning(f"fetch_page proxy also failed for {url}: {proxy_exc}")
-                    return None
+                return self._proxy_fetch(url, timeout)
             logger.warning(f"fetch_page failed for {url}: {exc}")
+            return None
+
+    def _proxy_fetch(self, url: str, timeout: int = 15) -> Optional[str]:
+        """Fetch via proxy.  For ScraperAPI we call their direct REST API
+        (api.scraperapi.com?api_key=...&url=...) instead of routing through the
+        CONNECT tunnel — this avoids SSL cert-chain verification failures on
+        sites that don't send their full intermediate-CA certificate chain."""
+        if not _SCRAPER_PROXY_URL:
+            return None
+        try:
+            parsed_proxy = urlparse(_SCRAPER_PROXY_URL)
+            # ── ScraperAPI direct API ────────────────────────────────────────
+            if 'scraperapi.com' in (parsed_proxy.hostname or ''):
+                api_key = parsed_proxy.password or ''
+                if not api_key:
+                    logger.warning("ScraperAPI proxy URL is missing the API key (password field)")
+                    return None
+                from urllib.parse import quote as _q
+                api_endpoint = (
+                    f"https://api.scraperapi.com"
+                    f"?api_key={api_key}"
+                    f"&url={_q(url, safe='')}"
+                )
+                resp = requests.get(api_endpoint, headers=self.headers, timeout=timeout + 20)
+                resp.raise_for_status()
+                return resp.text
+            # ── Generic HTTP/SOCKS proxy — CONNECT tunnel ────────────────────
+            proxies = {'http': _SCRAPER_PROXY_URL, 'https': _SCRAPER_PROXY_URL}
+            resp = requests.get(
+                url, headers=self.headers, proxies=proxies,
+                timeout=timeout, allow_redirects=True, verify=False,
+            )
+            resp.raise_for_status()
+            return resp.text
+        except Exception as proxy_exc:
+            logger.warning(f"fetch_page proxy also failed for {url}: {proxy_exc}")
             return None
 
     # ------------------------------------------------------------------ #
