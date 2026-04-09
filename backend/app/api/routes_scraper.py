@@ -831,6 +831,81 @@ def run_job_now(
     return {"success": True, "message": f"Job {job_id} started in background"}
 
 
+# -----------------------------------------------------------------------
+# SITE TEMPLATE — CSS selector map for reliable per-broker scraping
+# -----------------------------------------------------------------------
+
+class SiteTemplateRequest(BaseModel):
+    # Discovery selectors
+    listing_link_selector: Optional[str] = None   # CSS: links to individual listings
+    next_page_selector: Optional[str] = None       # CSS: "next page" pagination anchor
+    # Detail-page field selectors
+    title_selector: Optional[str] = None
+    price_selector: Optional[str] = None
+    description_selector: Optional[str] = None
+    year_selector: Optional[str] = None
+    make_selector: Optional[str] = None
+    model_selector: Optional[str] = None
+    length_selector: Optional[str] = None
+    location_selector: Optional[str] = None
+    images_selector: Optional[str] = None          # CSS: selects <img> tags in gallery
+    agent_name_selector: Optional[str] = None
+    agent_photo_selector: Optional[str] = None
+
+
+@router.get("/scraper/jobs/{job_id}/template")
+def get_job_template(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"success": True, "template": job.site_template or {}}
+
+
+@router.put("/scraper/jobs/{job_id}/template")
+def save_job_template(
+    job_id: int,
+    data: SiteTemplateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Save (replace) the CSS selector template for a scraper job.
+    Empty strings are treated as unset — only non-empty values are stored.
+    """
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Strip empty strings so heuristics still kick in for unset fields
+    template = {k: v for k, v in data.model_dump().items() if v and v.strip()}
+    job.site_template = template if template else None
+    db.commit()
+    db.refresh(job)
+    return {"success": True, "template": job.site_template or {}}
+
+
+@router.delete("/scraper/jobs/{job_id}/template")
+def clear_job_template(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the selector template so the job falls back to full auto-detection."""
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job.site_template = None
+    db.commit()
+    return {"success": True, "message": "Template cleared"}
+
+
 @router.get("/scraper/jobs/{job_id}/listings")
 def get_job_listings(
     job_id: int,

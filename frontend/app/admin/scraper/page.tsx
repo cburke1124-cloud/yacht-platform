@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Globe, AlertCircle, CheckCircle, Play, Trash2, Plus, RefreshCw,
-  Settings, ToggleLeft, ToggleRight, Clock, ChevronDown, ChevronUp
+  Settings, ToggleLeft, ToggleRight, Clock, ChevronDown, ChevronUp, Cpu
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -26,6 +26,22 @@ interface ScraperJob {
   last_error: string | null;
   notes: string | null;
   completed_at: string | null;
+}
+
+interface SiteTemplate {
+  listing_link_selector?: string;
+  next_page_selector?: string;
+  title_selector?: string;
+  price_selector?: string;
+  description_selector?: string;
+  year_selector?: string;
+  make_selector?: string;
+  model_selector?: string;
+  length_selector?: string;
+  location_selector?: string;
+  images_selector?: string;
+  agent_name_selector?: string;
+  agent_photo_selector?: string;
 }
 
 interface Dealer {
@@ -89,6 +105,42 @@ export default function AdminScraperPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [jobSubTab, setJobSubTab] = useState<'basic' | 'selectors'>('basic');
+
+  // Field selector template state
+  const EMPTY_TEMPLATE: SiteTemplate = {
+    listing_link_selector: '', next_page_selector: '',
+    title_selector: '', price_selector: '', description_selector: '',
+    year_selector: '', make_selector: '', model_selector: '',
+    length_selector: '', location_selector: '', images_selector: '',
+    agent_name_selector: '', agent_photo_selector: '',
+  };
+  const [tmpl, setTmpl] = useState<SiteTemplate>(EMPTY_TEMPLATE);
+  const [tmplLoading, setTmplLoading] = useState(false);
+  const [tmplSaving, setTmplSaving] = useState(false);
+  const [tmplMsg, setTmplMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function loadTemplate(jobId: number) {
+    setTmplLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${jobId}/template`), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) setTmpl({ ...EMPTY_TEMPLATE, ...(data.template || {}) });
+    } catch (e) { console.error(e); } finally { setTmplLoading(false); }
+  }
+
+  async function saveTemplate() {
+    if (!editingJob) return;
+    setTmplSaving(true); setTmplMsg(null);
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${editingJob.id}/template`), {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(tmpl),
+      });
+      const data = await res.json();
+      if (data.success) setTmplMsg({ ok: true, text: 'Selectors saved!' });
+      else setTmplMsg({ ok: false, text: data.detail || 'Save failed' });
+    } catch (e: any) { setTmplMsg({ ok: false, text: e.message }); } finally { setTmplSaving(false); }
+  }
 
   const [testTab, setTestTab] = useState<'single' | 'broker'>('single');
   const [singleUrl, setSingleUrl] = useState('');
@@ -142,6 +194,9 @@ export default function AdminScraperPage() {
     setFormNotes(job.notes || '');
     setFormEnabled(job.enabled);
     setFormError(''); setFormSuccess('');
+    setJobSubTab('basic');
+    setTmpl(EMPTY_TEMPLATE); setTmplMsg(null);
+    loadTemplate(job.id);
     setTab('new');
   }
 
@@ -150,6 +205,7 @@ export default function AdminScraperPage() {
     setFormDealerId(''); setFormSalesmanId(''); setFormSiteName('');
     setFormBrokerUrl(''); setFormSchedule('24'); setFormNotes('');
     setFormEnabled(true); setFormError(''); setFormSuccess('');
+    setJobSubTab('basic'); setTmpl(EMPTY_TEMPLATE); setTmplMsg(null);
   }
 
   async function handleSaveJob() {
@@ -338,7 +394,22 @@ export default function AdminScraperPage() {
           <div className="max-w-xl space-y-5">
             <h3 className="text-lg font-semibold text-gray-900">{editingJob ? `Edit Job #${editingJob.id}` : 'New Scraper Job'}</h3>
 
-            <div>
+            {jobSubTab === 'basic' && ({/* Sub-tabs: Basic / Field Selectors (only when editing) */}
+            {editingJob && (
+              <div className="flex border-b -mx-0">
+                {(['basic', 'selectors'] as const).map(t => (
+                  <button key={t} onClick={() => setJobSubTab(t)}
+                    className={`px-4 py-2 text-sm font-medium transition-colors ${
+                      jobSubTab === t ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-800'
+                    }`}>
+                    {t === 'basic' ? 'Basic Settings' : '🎯 Field Selectors'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* ── BASIC SETTINGS ── */}
+            {jobSubTab === 'basic' && (
               <label className="block text-sm font-medium text-gray-700 mb-1">Dealer *</label>
               <select value={formDealerId} onChange={e => setFormDealerId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                 <option value="">— Select dealer —</option>
@@ -398,6 +469,77 @@ export default function AdminScraperPage() {
               </button>
               <button onClick={() => { resetForm(); setTab('jobs'); }} className="px-5 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">Cancel</button>
             </div>
+            </div>}
+
+            {/* ── FIELD SELECTORS (edit mode only) ── */}
+            {jobSubTab === 'selectors' && editingJob && (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+                  <strong>How it works:</strong> Enter a CSS selector for each field you want the scraper to extract directly from the broker’s page. Leave fields blank to let the scraper auto-detect them. Configure once per broker — the selectors are reused on every sync.
+                  <br /><span className="text-xs opacity-75 mt-1 block">Example selectors: <code>h1.listing-title</code>, <code>.price-wrapper span</code>, <code>.gallery img</code></span>
+                </div>
+
+                {tmplLoading && <p className="text-sm text-gray-400">Loading saved selectors…</p>}
+
+                {([
+                  { group: 'Discovery', fields: [
+                    { key: 'listing_link_selector', label: 'Listing Link Selector', hint: 'CSS to find <a> tags linking to individual listings on the inventory page (e.g. a.listing-card, .boat-item a)' },
+                    { key: 'next_page_selector',    label: 'Next Page Selector',    hint: 'CSS to find the “Next” pagination link, if any (e.g. a.next-page, li.next > a)' },
+                  ]},
+                  { group: 'Listing Details', fields: [
+                    { key: 'title_selector',       label: 'Title',       hint: 'Boat name / listing headline (e.g. h1.listing-title)' },
+                    { key: 'price_selector',       label: 'Price',       hint: 'Asking price element (e.g. .asking-price, span.price)' },
+                    { key: 'description_selector', label: 'Description', hint: 'Main listing description text block' },
+                    { key: 'year_selector',        label: 'Year',        hint: 'Model year' },
+                    { key: 'make_selector',        label: 'Make',        hint: 'Manufacturer / brand' },
+                    { key: 'model_selector',       label: 'Model',       hint: 'Model name' },
+                    { key: 'length_selector',      label: 'Length',      hint: 'LOA / length overall' },
+                    { key: 'location_selector',    label: 'Location',    hint: 'Marina / city / port' },
+                    { key: 'images_selector',      label: 'Gallery Images', hint: 'CSS matching <img> tags in the photo gallery (e.g. .gallery img, .swiper-slide img)' },
+                  ]},
+                  { group: 'Agent / Broker', fields: [
+                    { key: 'agent_name_selector',  label: 'Agent Name',  hint: 'Agent or broker name text' },
+                    { key: 'agent_photo_selector', label: 'Agent Photo', hint: 'Agent headshot <img> tag' },
+                  ]},
+                ] as { group: string; fields: { key: string; label: string; hint: string }[] }[]).map(({ group, fields }) => (
+                  <div key={group}>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{group}</p>
+                    <div className="space-y-3">
+                      {fields.map(({ key, label, hint }) => (
+                        <div key={key}>
+                          <label className="block text-sm font-medium text-gray-700 mb-0.5">{label}</label>
+                          <input
+                            type="text"
+                            value={(tmpl as any)[key] || ''}
+                            onChange={e => setTmpl(prev => ({ ...prev, [key]: e.target.value }))}
+                            placeholder="CSS selector…"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5">{hint}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {tmplMsg && (
+                  <div className={`p-3 rounded-lg flex items-start gap-2 text-sm ${
+                    tmplMsg.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'
+                  }`}>
+                    {tmplMsg.ok ? <CheckCircle size={16} className="shrink-0 mt-0.5" /> : <AlertCircle size={16} className="shrink-0 mt-0.5" />}
+                    {tmplMsg.text}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button onClick={saveTemplate} disabled={tmplSaving}
+                    className="flex-1 px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium flex items-center justify-center gap-2">
+                    <Cpu size={16} /> {tmplSaving ? 'Saving selectors…' : 'Save Field Selectors'}
+                  </button>
+                  <button onClick={() => { resetForm(); setTab('jobs'); }} className="px-5 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">Done</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

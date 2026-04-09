@@ -533,12 +533,139 @@ except Exception as e:
         ]
         return sum(1 for s in signals if s in lower) >= 2
 
-    def find_listing_urls(self, site_url: str, max_pages: int = 100) -> List[str]:
+    # ---------------------------------------------------------
+    # TEMPLATE-GUIDED HELPERS
+    # ---------------------------------------------------------
+    def _discover_with_template(self, site_url: str, template: Dict) -> List[str]:
+        """
+        Use admin-configured CSS selectors to discover listing URLs.
+        Follows pagination via next_page_selector (up to 500 pages).
+        Returns an empty list if no links are found, so the caller can fall
+        back to heuristic discovery.
+        """
+        link_selector = template.get('listing_link_selector', '').strip()
+        next_page_selector = template.get('next_page_selector', '').strip()
+        if not link_selector:
+            return []
+
+        parsed = urlparse(site_url)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        found: List[str] = []
+        seen_urls: set = set()
+        current_url = site_url
+
+        for _page_num in range(1, 501):
+            html = self.fetch_page(current_url)
+            if not html:
+                break
+            soup = BeautifulSoup(html, 'html.parser')
+            page_had_links = False
+            for el in soup.select(link_selector):
+                href = el.get('href') or el.get('data-href') or ''
+                href = href.split('#')[0].strip()
+                if not href:
+                    continue
+                if href.startswith('/'):
+                    href = base + href
+                elif not href.startswith('http'):
+                    href = site_url.rstrip('/') + '/' + href.lstrip('/')
+                if href and href not in seen_urls:
+                    seen_urls.add(href)
+                    found.append(href)
+                    page_had_links = True
+            if not next_page_selector or not page_had_links:
+                break
+            next_el = soup.select_one(next_page_selector)
+            if not next_el:
+                break
+            next_href = (next_el.get('href') or '').split('#')[0].strip()
+            if not next_href:
+                break
+            if next_href.startswith('/'):
+                next_href = base + next_href
+            elif not next_href.startswith('http'):
+                next_href = site_url.rstrip('/') + '/' + next_href.lstrip('/')
+            if next_href in seen_urls or next_href == current_url:
+                break
+            current_url = next_href
+            seen_urls.add(current_url)
+
+        return found
+
+    def _apply_template_selectors(self, data: Dict, soup, template: Dict) -> None:
+        """
+        Override auto-detected fields using admin-configured CSS selectors.
+        Called after standard extraction — template values WIN over heuristics.
+        """
+        _field_map = [
+            ('title',       'title_selector'),
+            ('price',       'price_selector'),
+            ('description', 'description_selector'),
+            ('year',        'year_selector'),
+            ('make',        'make_selector'),
+            ('model',       'model_selector'),
+            ('length_feet', 'length_selector'),
+            ('location',    'location_selector'),
+        ]
+        for field, key in _field_map:
+            sel = template.get(key, '').strip()
+            if not sel:
+                continue
+            el = soup.select_one(sel)
+            if el:
+                text = el.get_text(' ', strip=True)
+                if text:
+                    data[field] = text
+
+        # Images — if selector is present, replace auto-extracted list
+        img_sel = template.get('images_selector', '').strip()
+        if img_sel:
+            tmpl_imgs = []
+            for img in soup.select(img_sel):
+                src = (img.get('src') or img.get('data-src') or
+                       img.get('data-lazy-src') or img.get('data-original') or '')
+                if src.startswith('http'):
+                    tmpl_imgs.append(src)
+            if tmpl_imgs:
+                data['images'] = tmpl_imgs[:_MAX_IMAGES_PER_LISTING]
+
+        # Agent name
+        agent_name_sel = template.get('agent_name_selector', '').strip()
+        if agent_name_sel:
+            el = soup.select_one(agent_name_sel)
+            if el:
+                name = el.get_text(' ', strip=True)
+                if name:
+                    data['detected_agent_name'] = name
+
+        # Agent photo
+        agent_photo_sel = template.get('agent_photo_selector', '').strip()
+        if agent_photo_sel:
+            el = soup.select_one(agent_photo_sel)
+            if el:
+                src = (el.get('src') or el.get('data-src') or '')
+                if src:
+                    data['detected_agent_photo'] = src
+
+    def find_listing_urls(self, site_url: str, max_pages: int = 100, template: Optional[Dict] = None) -> List[str]:
         """
         Crawl a broker site and return a de-duped list of individual listing URLs.
         Handles both conventional /listings/ sub-directories AND sites that put
         listings directly on the homepage or use non-standard URL structures.
+        If `template` contains a `listing_link_selector`, that is tried first.
         """
+        # ── TEMPLATE-GUIDED DISCOVERY (highest priority) ─────────────────────
+        # When an admin has explicitly configured CSS selectors for this broker,
+        # use them as the primary discovery method — far more reliable and precise
+        # than any heuristic.  Falls back to auto-detection if selectors find nothing.
+        if template and template.get('listing_link_selector'):
+            logger.info(f"[Template] Trying listing_link_selector: {template['listing_link_selector']}")
+            tmpl_urls = self._discover_with_template(site_url, template)
+            if tmpl_urls:
+                logger.info(f"[Template] Found {len(tmpl_urls)} listing URLs; skipping heuristic discovery")
+                return tmpl_urls
+            logger.warning("[Template] listing_link_selector matched no links; falling back to auto-detection")
+
         parsed_base = urlparse(site_url)
         base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
         # start_path is the URL path of the seed URL (e.g. "/yacht-condition/used").
@@ -1609,7 +1736,7 @@ Content: {content[:12000]}"""
     # ---------------------------------------------------------
     # SCRAPE A SINGLE LISTING URL â†’ raw data dict
     # ---------------------------------------------------------
-    def scrape_single_listing(self, url: str) -> Dict:
+    def scrape_single_listing(self, url: str, template: Optional[Dict] = None) -> Dict:
         # ── JSON proxy API cache — pre-built data, no fetch needed ──────────────
         # Populated by _discover_from_json_proxy() for sites whose entire inventory
         # is served by a custom JSON API (e.g. yachtzero.com / Squarespace + CF Worker).
@@ -1800,6 +1927,12 @@ Content: {content[:12000]}"""
             if agent_photo:
                 yacht_data["detected_agent_photo"] = agent_photo
 
+        # ── TEMPLATE OVERRIDES (highest priority) ──────────────────────────
+        # Apply any admin-configured CSS selectors — these win over all heuristics.
+        if template:
+            _tmpl_soup = BeautifulSoup(html, 'html.parser')
+            self._apply_template_selectors(yacht_data, _tmpl_soup, template)
+
         return yacht_data
 
 
@@ -1844,8 +1977,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
 
     try:
         # -- Step 1: discover listing URLs --
+        _template = job.site_template or None
+        if _template:
+            logger.info(f"[Job {job_id}] Using site template with selectors: {list(_template.keys())}")
         logger.info(f"[Job {job_id}] Discovering listings at {job.broker_url}")
-        discovered_urls = scraper.find_listing_urls(job.broker_url)
+        discovered_urls = scraper.find_listing_urls(job.broker_url, template=_template)
         stats["found"] = len(discovered_urls)
         logger.info(f"[Job {job_id}] Found {len(discovered_urls)} listing URLs")
 
@@ -1860,7 +1996,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     .first()
                 )
 
-                raw = scraper.scrape_single_listing(url)
+                raw = scraper.scrape_single_listing(url, template=_template)
                 if "error" in raw:
                     stats["errors"] += 1
                     continue

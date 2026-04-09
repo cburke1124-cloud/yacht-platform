@@ -154,6 +154,14 @@ class ScraperJob(Base):
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
 
+    # CSS selector template — set once when configuring a new broker.
+    # Keys: listing_link_selector, next_page_selector, title_selector,
+    #       price_selector, description_selector, year_selector,
+    #       make_selector, model_selector, length_selector,
+    #       location_selector, images_selector,
+    #       agent_name_selector, agent_photo_selector
+    site_template = Column(JSON, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
