@@ -63,6 +63,12 @@ interface SiteTemplate {
   images_selector?: string;
   agent_name_selector?: string;
   agent_photo_selector?: string;
+  broker_email_selector?: string;
+  broker_phone_selector?: string;
+  hull_material_selector?: string;
+  fuel_type_selector?: string;
+  hours_selector?: string;
+  condition_selector?: string;
   sections?: { name: string; selector: string }[];
 }
 
@@ -168,6 +174,8 @@ export default function AdminScraperTab() {
     year_selector: '', make_selector: '', model_selector: '',
     length_selector: '', location_selector: '', images_selector: '',
     agent_name_selector: '', agent_photo_selector: '',
+    broker_email_selector: '', broker_phone_selector: '',
+    hull_material_selector: '', fuel_type_selector: '', hours_selector: '', condition_selector: '',
     sections: [],
   };
   const [tmpl, setTmpl] = useState<SiteTemplate>(EMPTY_TMPL);
@@ -667,10 +675,16 @@ export default function AdminScraperTab() {
                           { key: 'length_selector',      label: 'Length',         hint: 'LOA / length' },
                           { key: 'location_selector',    label: 'Location',       hint: 'Marina / city / port' },
                           { key: 'images_selector',      label: 'Gallery Images', hint: '<img> tags in photo gallery (e.g. .gallery img)' },
+                          { key: 'hull_material_selector', label: 'Hull Material', hint: 'Hull type (fibreglass / aluminium / steel…)' },
+                          { key: 'fuel_type_selector',   label: 'Fuel Type',      hint: 'Fuel type (diesel / petrol / electric…)' },
+                          { key: 'hours_selector',       label: 'Engine Hours',   hint: 'Engine hours meter reading' },
+                          { key: 'condition_selector',   label: 'Condition',      hint: 'New or Used designation' },
                         ]},
-                        { group: 'Agent', fields: [
-                          { key: 'agent_name_selector',  label: 'Agent Name',  hint: 'Agent name text element' },
-                          { key: 'agent_photo_selector', label: 'Agent Photo', hint: 'Agent headshot <img> tag' },
+                        { group: 'Agent / Broker', fields: [
+                          { key: 'agent_name_selector',  label: 'Agent Name',   hint: 'Agent name text element' },
+                          { key: 'agent_photo_selector', label: 'Agent Photo',  hint: 'Agent headshot <img> tag' },
+                          { key: 'broker_email_selector', label: 'Broker Email', hint: 'Broker or agent email address' },
+                          { key: 'broker_phone_selector', label: 'Broker Phone', hint: 'Broker or agent phone number' },
                         ]},
                       ] as { group: string; fields: { key: string; label: string; hint: string }[] }[]).map(({ group, fields }) => (
                         <div key={group}>

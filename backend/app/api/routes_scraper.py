@@ -852,6 +852,12 @@ class SiteTemplateRequest(BaseModel):
     images_selector: Optional[str] = None          # CSS: selects <img> tags in gallery
     agent_name_selector: Optional[str] = None
     agent_photo_selector: Optional[str] = None
+    broker_email_selector: Optional[str] = None
+    broker_phone_selector: Optional[str] = None
+    hull_material_selector: Optional[str] = None
+    fuel_type_selector: Optional[str] = None
+    hours_selector: Optional[str] = None
+    condition_selector: Optional[str] = None
     # Dynamic named sections — each entry auto-extracts all fields inside a container
     # [{\"name\": \"Propulsion\", \"selector\": \".prop-specs\"}, ...]
     sections: Optional[List[Dict[str, str]]] = None
@@ -942,6 +948,9 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "return;}\n"
         "window.__ypPickerLoaded=true;\n"
         "var tmpl={},sections=[];\n"
+        "var STORE_KEY='__yp_'+JOB_ID;\n"
+        "try{var _sto=JSON.parse(localStorage.getItem(STORE_KEY)||'null');if(_sto){if(_sto.tmpl&&typeof _sto.tmpl==='object')Object.assign(tmpl,_sto.tmpl);if(Array.isArray(_sto.sections))sections=_sto.sections;}}catch(e){}\n"
+        "function saveLocal(){try{localStorage.setItem(STORE_KEY,JSON.stringify({tmpl:tmpl,sections:sections}));}catch(e){}}\n"
         "function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}\n"
         # --- CSS selector generator ---
         "function getSel(el){\n"
@@ -996,6 +1005,12 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "{key:'images_selector',label:'Gallery Images',hint:'<img> tags inside the photo gallery'},\n"
         "{key:'agent_name_selector',label:'Agent Name',hint:'Listing agent name element'},\n"
         "{key:'agent_photo_selector',label:'Agent Photo',hint:'Agent headshot <img> element'},\n"
+        "{key:'broker_email_selector',label:'Broker Email',hint:'Broker or agent email address'},\n"
+        "{key:'broker_phone_selector',label:'Broker Phone',hint:'Broker or agent phone number'},\n"
+        "{key:'hull_material_selector',label:'Hull Material',hint:'Hull type (fibreglass / aluminium / steel\u2026)'},\n"
+        "{key:'fuel_type_selector',label:'Fuel Type',hint:'Fuel type (diesel / petrol / electric\u2026)'},\n"
+        "{key:'hours_selector',label:'Engine Hours',hint:'Engine hours meter reading'},\n"
+        "{key:'condition_selector',label:'Condition',hint:'New or Used designation'},\n"
         "{key:'__section',label:'+ Named Section (specs / features / propulsion\u2026)',hint:'Auto-extracts ALL fields from this container. Give it a name.',section:true},\n"
         "];\n"
         # --- Modal ---
@@ -1012,7 +1027,7 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "+'<p style=\"font-size:11px;margin:0 0 12px;color:'+(mc===1?'#4ade80':'#fbbf24')+'\">Matches '+mc+' element'+(mc===1?' \u2713':' \u26a0 may be too broad')+(prev?' \u00b7 \\\"'+esc(prev.slice(0,50))+'\\\"':'')+'</p>'\n"
         "+'<p style=\"font-size:12px;font-weight:600;margin:0 0 6px\">Tag this element as:</p>'\n"
         "+'<select id=\"__yp-fsel\" style=\"width:100%;padding:8px;background:#0f3460;color:#fff;border:1px solid #1e4080;border-radius:6px;font-size:13px;margin-bottom:6px\">'\n"
-        "+FIELDS.map(function(f){return'<option value=\"'+f.key+'\">'+f.label+'</option>';}).join('')\n"
+        "+FIELDS.map(function(f){var done=f.section?sections.length>0:!!tmpl[f.key];return'<option value=\"'+f.key+'\">'+(done?'\u2713 ':'')+f.label+'</option>';}).join('')\n"
         "+'</select>'\n"
         "+'<div id=\"__yp-secrow\" style=\"display:none;margin-bottom:6px\">'\n"
         "+'<input id=\"__yp-secname\" placeholder=\"Name this section (e.g. Propulsion, Features, Electronics\u2026)\" style=\"width:100%;padding:8px;background:#0f3460;color:#fff;border:1px solid #1e4080;border-radius:6px;font-size:13px;box-sizing:border-box\"/>'\n"
@@ -1036,7 +1051,7 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "var ei=sections.findIndex(function(s){return s.name.toLowerCase()===sn.toLowerCase();});\n"
         "if(ei>=0)sections[ei].selector=pendSel;else sections.push({name:sn,selector:pendSel});\n"
         "}else{tmpl[fk]=pendSel;}\n"
-        "m.remove();renderList();\n"
+        "saveLocal();m.remove();renderList();\n"
         "var fl=FIELDS.find(function(x){return x.key===fk;});\n"
         "setStatus('\u2713 Tagged as \\\"'+(fk==='__section'?(document.getElementById('__yp-secname')||{value:'?'}).value:fl?fl.label:fk)+'\\\"');\n"
         "};\n"
@@ -1065,7 +1080,7 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "document.getElementById('__yp-close').onclick=closePicker;\n"
         "document.getElementById('__yp-pick').onclick=startPick;\n"
         "document.getElementById('__yp-copy').onclick=copyJSON;\n"
-        "document.getElementById('__yp-clr').onclick=function(){if(confirm('Clear all?')){tmpl={};sections=[];renderList();}};\n"
+        "document.getElementById('__yp-clr').onclick=function(){if(confirm('Clear all?')){tmpl={};sections=[];try{localStorage.removeItem(STORE_KEY);}catch(e){}renderList();}};\n"
         "renderList();\n"
         "}\n"
         # --- Render list ---
@@ -1089,8 +1104,8 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "if(!any)html='<p style=\"color:#4b5563;text-align:center;margin-top:20px;font-size:12px\">No selectors tagged yet.<br>Click \\\"Pick Element\\\" to start.</p>';\n"
         "list.innerHTML=html;\n"
         "}\n"
-        "window.__ypD=function(k){delete tmpl[k];renderList();};\n"
-        "window.__ypDS=function(i){sections.splice(i,1);renderList();};\n"
+        "window.__ypD=function(k){delete tmpl[k];saveLocal();renderList();};\n"
+        "window.__ypDS=function(i){sections.splice(i,1);saveLocal();renderList();};\n"
         # --- Copy JSON ---
         "function buildJSON(){var o=Object.assign({},tmpl);if(sections.length)o.sections=sections.slice();return JSON.stringify(o,null,2);}\n"
         "function copyJSON(){\n"
