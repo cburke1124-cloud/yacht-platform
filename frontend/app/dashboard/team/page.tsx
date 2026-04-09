@@ -73,6 +73,7 @@ interface GuestBroker {
   title?: string;
   bio?: string;
   photo_url?: string;
+  source?: string; // 'scraper' = auto-imported, 'manual' = added by office
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -230,6 +231,19 @@ export default function TeamManagementPage() {
     setOverview(null);
     setMemberMessages([]);
     setMemberInquiries([]);
+  };
+
+  // Promote guest broker to real account (pre-fills the invite modal)
+  const handlePromoteGuest = (broker: GuestBroker) => {
+    setInviteForm(f => ({
+      ...f,
+      first_name: broker.first_name,
+      last_name: broker.last_name || '',
+      email: broker.email || '',
+      phone: broker.phone || '',
+    }));
+    setShowAddGuestModal(false);
+    setShowInviteModal(true);
   };
 
   const handleInvite = async () => {
@@ -518,14 +532,33 @@ export default function TeamManagementPage() {
                     }
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-secondary">{broker.first_name} {broker.last_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-secondary">{broker.first_name} {broker.last_name}</p>
+                      {broker.source === 'scraper' && (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
+                          Auto-imported
+                        </span>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
                       {broker.title && <span>{broker.title}</span>}
                       {broker.email && <span>{broker.email}</span>}
                       {broker.phone && <span>{broker.phone}</span>}
                     </div>
+                    {broker.source === 'scraper' && (
+                      <p className="text-xs text-gray-400 mt-1">Detected from broker website · messages route to company email until promoted</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {broker.source === 'scraper' && (
+                      <button
+                        onClick={() => handlePromoteGuest(broker)}
+                        title="Create a platform account for this person"
+                        className="px-3 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        Promote to Account
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setEditingGuest(broker);

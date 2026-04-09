@@ -25,6 +25,8 @@ class GuestBroker(Base):
     bio = Column(Text)
     photo_url = Column(String)
     social_links = Column(JSON, default={})
+    # 'scraper' = auto-created by broker site importer; 'manual' = created by office admin
+    source = Column(String, default="manual")
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

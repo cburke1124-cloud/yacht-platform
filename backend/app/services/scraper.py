@@ -48,6 +48,7 @@ except Exception:
 from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing
 from app.models.user import User
+from app.models.guest_broker import GuestBroker
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -1421,6 +1422,60 @@ except Exception as e:
 
         return None
 
+    def detect_agent_photo(self, html: str, agent_name: Optional[str]) -> Optional[str]:
+        """Try to find the listing agent's headshot URL on the page.
+
+        Looks for <img> tags:
+        1. Inside DOM elements whose class names suggest agent/broker/contact
+        2. Near (sibling/parent) the element that contains the agent name text
+        3. With alt text matching the agent name
+        """
+        if not html:
+            return None
+        soup = BeautifulSoup(html, "html.parser")
+        agent_classes = re.compile(
+            r"\b(agent|broker|salesperson|contact.name|agent.name|listing.agent|sales.agent|staff|team.member)\b",
+            re.I,
+        )
+        img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp)(\?.*)?$', re.IGNORECASE)
+
+        def _valid_img(src: str) -> Optional[str]:
+            if not src or src.startswith('data:'):
+                return None
+            if not img_ext_re.search(src.split('?')[0]):
+                return None
+            _SOCIAL_MEDIA_RE = re.compile(
+                r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
+                r'logo|icon|banner|favicon|placeholder|no.image|no_image',
+                re.IGNORECASE,
+            )
+            if _SOCIAL_MEDIA_RE.search(src):
+                return None
+            return src
+
+        # Strategy 1: img inside an agent-class container
+        for tag in soup.find_all(True):
+            cls = " ".join(tag.get("class", []))
+            if agent_classes.search(cls):
+                for img in tag.find_all("img"):
+                    src = img.get("src") or img.get("data-src") or ""
+                    result = _valid_img(src)
+                    if result:
+                        return result
+
+        # Strategy 2: img with alt text matching agent name
+        if agent_name:
+            name_lower = agent_name.lower()
+            for img in soup.find_all("img"):
+                alt = (img.get("alt") or "").lower()
+                if name_lower in alt or alt in name_lower:
+                    src = img.get("src") or img.get("data-src") or ""
+                    result = _valid_img(src)
+                    if result:
+                        return result
+
+        return None
+
     # ---------------------------------------------------------
     # AI EXTRACTION
     # ---------------------------------------------------------
@@ -1484,7 +1539,10 @@ Content: {content[:12000]}"""
         skip_re = re.compile(
             r'logo|icon|avatar|banner|/ad|spacer|pixel|tracking|'
             r'x-out|xout|spinner|placeholder|no.image|no_image|'
-            r'/ui/|/icons?/|/buttons?/',
+            r'/ui/|/icons?/|/buttons?/|'
+            # Social media brand assets
+            r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|snapchat\.|'
+            r'pinterest\.|whatsapp\.|social|share-btn|share_btn',
             re.IGNORECASE,
         )
         img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp)(\?.*)?$', re.IGNORECASE)
@@ -1733,6 +1791,10 @@ Content: {content[:12000]}"""
             yacht_data.pop("agent_name")
         if detected_agent:
             yacht_data["detected_agent_name"] = detected_agent
+            # Also try to grab the agent's headshot while we have the HTML
+            agent_photo = self.detect_agent_photo(html, detected_agent)
+            if agent_photo:
+                yacht_data["detected_agent_photo"] = agent_photo
 
         return yacht_data
 
@@ -1801,14 +1863,17 @@ def run_scraper_job(job_id: int, db) -> Dict:
 
                 # Try to match the detected agent name against the dealer's salespeople
                 detected_name = raw.get("detected_agent_name")
+                detected_photo = raw.get("detected_agent_photo")
                 matched_salesman_id = job.salesman_id  # default to job-level assignment
+                matched_guest_id: Optional[int] = None
                 if detected_name and not job.salesman_id:
                     detected_lower = detected_name.lower()
+                    # Fix: team members use user_type="team_member", not "salesman"
                     salespeople = (
                         db.query(User)
                         .filter(
                             User.parent_dealer_id == job.dealer_id,
-                            User.user_type == "salesman",
+                            User.user_type.in_(["team_member", "salesman"]),
                             User.active == True,
                         )
                         .all()
@@ -1819,11 +1884,47 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             matched_salesman_id = sp.id
                             break
 
+                    # No real account match — auto-create or reuse a GuestBroker
+                    if not matched_salesman_id:
+                        name_parts = detected_name.strip().split()
+                        first = name_parts[0] if name_parts else detected_name
+                        last = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                        existing_guest = (
+                            db.query(GuestBroker)
+                            .filter(
+                                GuestBroker.dealer_id == job.dealer_id,
+                                GuestBroker.first_name == first,
+                                GuestBroker.last_name == last,
+                            )
+                            .first()
+                        )
+                        if existing_guest:
+                            matched_guest_id = existing_guest.id
+                            # Update photo if we found one and they don't have one yet
+                            if detected_photo and not existing_guest.photo_url:
+                                existing_guest.photo_url = detected_photo
+                        else:
+                            new_guest = GuestBroker(
+                                dealer_id=job.dealer_id,
+                                first_name=first,
+                                last_name=last,
+                                photo_url=detected_photo,
+                                source="scraper",
+                            )
+                            db.add(new_guest)
+                            db.flush()
+                            matched_guest_id = new_guest.id
+                            job.team_members_imported = (job.team_members_imported or 0) + 1
+                            logger.info(f"[Job {job.id}] Auto-created GuestBroker #{new_guest.id}: {detected_name}")
+
                 if existing_scraped and existing_scraped.listing_id:
                     # Update existing listing
                     listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
                     if listing:
                         _apply_scraped_data(listing, raw, job)
+                        # Restore guest_salesman_id if we matched/created one
+                        if matched_guest_id and not listing.assigned_salesman_id:
+                            listing.guest_salesman_id = matched_guest_id
                         # Respect manual broker changes: only restore to active if the scraper
                         # previously auto-archived it (disappeared from site), not if the broker
                         # intentionally set it to "draft" to hide it.
@@ -1838,6 +1939,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         user_id=job.dealer_id,
                         created_by_user_id=job.created_by_id or job.dealer_id,
                         assigned_salesman_id=matched_salesman_id,
+                        guest_salesman_id=matched_guest_id,
                         source="scraped",
                         source_url=url,
                         status="awaiting_review",
@@ -1848,9 +1950,16 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     db.add(listing)
                     db.flush()  # get listing.id
 
-                    # Create images
-                    for img_url in raw.get("images", [])[:10]:
-                        db.add(ListingImage(listing_id=listing.id, url=img_url))
+                    # Create images — filter out social media assets and tiny non-boat images
+                    _SKIP_IMAGE_RE = re.compile(
+                        r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
+                        r'logo|icon|favicon|avatar|banner|social|share|'
+                        r'placeholder|no.image|no_image|spinner|pixel|tracking',
+                        re.IGNORECASE,
+                    )
+                    for img_url in raw.get("images", [])[:15]:
+                        if not _SKIP_IMAGE_RE.search(img_url):
+                            db.add(ListingImage(listing_id=listing.id, url=img_url))
 
                     # Track in ScrapedListing
                     scraped_record = ScrapedListing(
