@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 revision = '032_scraper_job_site_template'
-down_revision = '031_guest_broker_source'
+down_revision = '031'
 branch_labels = None
 depends_on = None
 
