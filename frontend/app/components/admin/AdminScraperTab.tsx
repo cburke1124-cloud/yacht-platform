@@ -49,6 +49,22 @@ interface TeamMember {
   role?: string;
 }
 
+interface SiteTemplate {
+  listing_link_selector?: string;
+  next_page_selector?: string;
+  title_selector?: string;
+  price_selector?: string;
+  description_selector?: string;
+  year_selector?: string;
+  make_selector?: string;
+  model_selector?: string;
+  length_selector?: string;
+  location_selector?: string;
+  images_selector?: string;
+  agent_name_selector?: string;
+  agent_photo_selector?: string;
+}
+
 // ─── Log panel ────────────────────────────────────────────────────────────────
 
 function LogPanel({ logs, loading }: { logs: LogLine[]; loading: boolean }) {
@@ -143,6 +159,41 @@ export default function AdminScraperTab() {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [formTeamMembers, setFormTeamMembers] = useState<TeamMember[]>([]);
+
+  // Field selector template state (edit mode only)
+  const EMPTY_TMPL: SiteTemplate = {
+    listing_link_selector: '', next_page_selector: '',
+    title_selector: '', price_selector: '', description_selector: '',
+    year_selector: '', make_selector: '', model_selector: '',
+    length_selector: '', location_selector: '', images_selector: '',
+    agent_name_selector: '', agent_photo_selector: '',
+  };
+  const [tmpl, setTmpl] = useState<SiteTemplate>(EMPTY_TMPL);
+  const [tmplExpanded, setTmplExpanded] = useState(false);
+  const [tmplSaving, setTmplSaving] = useState(false);
+  const [tmplMsg, setTmplMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function loadTemplate(jobId: number) {
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${jobId}/template`), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) setTmpl({ ...EMPTY_TMPL, ...(data.template || {}) });
+    } catch { /* non-critical */ }
+  }
+
+  async function saveTemplate(jobId: number) {
+    setTmplSaving(true); setTmplMsg(null);
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${jobId}/template`), {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(tmpl),
+      });
+      const data = await res.json();
+      setTmplMsg(data.success
+        ? { ok: true, text: 'Selectors saved — will take effect on next sync.' }
+        : { ok: false, text: data.detail || 'Save failed' });
+    } catch { setTmplMsg({ ok: false, text: 'Network error' }); }
+    finally { setTmplSaving(false); }
+  }
 
   // ── Test tools state ──
   const [testTab, setTestTab] = useState<'single' | 'broker'>('single');
@@ -254,6 +305,8 @@ export default function AdminScraperTab() {
     });
     loadTeamMembers(String(job.dealer_id), setFormTeamMembers);
     setFormError('');
+    setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
+    loadTemplate(job.id);
     setShowAddForm(true);
   }
 
@@ -263,6 +316,7 @@ export default function AdminScraperTab() {
     setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true });
     setFormTeamMembers([]);
     setFormError('');
+    setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
   }
 
   async function handleSaveJob(e: React.FormEvent) {
@@ -481,6 +535,88 @@ export default function AdminScraperTab() {
                   Cancel
                 </button>
               </div>
+
+              {/* Field Selectors — edit mode only */}
+              {editingJob && (
+                <div className="mt-5 border-t border-gray-200 pt-4">
+                  <button type="button" onClick={() => setTmplExpanded(v => !v)}
+                    className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-primary w-full text-left">
+                    <span className="text-base leading-none">{tmplExpanded ? '\u25be' : '\u25b8'}</span>
+                    \ud83c\udfaf Field Selectors
+                    <span className="ml-1 text-xs font-normal text-gray-400">(configure once for precision scraping)</span>
+                    {Object.values(tmpl).some(v => v && (v as string).trim()) && (
+                      <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">configured</span>
+                    )}
+                  </button>
+
+                  {tmplExpanded && (
+                    <div className="mt-4 space-y-5">
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900">
+                        Enter a CSS selector for each field. Leave blank to use auto-detection.
+                        Open the broker site in Chrome DevTools, right-click an element, and copy its selector.
+                        <span className="block opacity-70 mt-1">Examples: <code>h1.listing-title</code> &middot; <code>.price span</code> &middot; <code>.gallery img</code></span>
+                      </div>
+
+                      {([
+                        { group: 'Discovery', fields: [
+                          { key: 'listing_link_selector', label: 'Listing Links',  hint: '<a> tags to individual listings on the inventory page' },
+                          { key: 'next_page_selector',    label: 'Next Page',      hint: 'Pagination next link (e.g. a.next-page)' },
+                        ]},
+                        { group: 'Listing Fields', fields: [
+                          { key: 'title_selector',       label: 'Title',          hint: 'Boat name / headline' },
+                          { key: 'price_selector',       label: 'Price',          hint: 'Asking price element' },
+                          { key: 'description_selector', label: 'Description',    hint: 'Main description text' },
+                          { key: 'year_selector',        label: 'Year',           hint: 'Model year' },
+                          { key: 'make_selector',        label: 'Make',           hint: 'Manufacturer / brand' },
+                          { key: 'model_selector',       label: 'Model',          hint: 'Model name' },
+                          { key: 'length_selector',      label: 'Length',         hint: 'LOA / length' },
+                          { key: 'location_selector',    label: 'Location',       hint: 'Marina / city / port' },
+                          { key: 'images_selector',      label: 'Gallery Images', hint: '<img> tags in photo gallery (e.g. .gallery img)' },
+                        ]},
+                        { group: 'Agent', fields: [
+                          { key: 'agent_name_selector',  label: 'Agent Name',  hint: 'Agent name text element' },
+                          { key: 'agent_photo_selector', label: 'Agent Photo', hint: 'Agent headshot <img> tag' },
+                        ]},
+                      ] as { group: string; fields: { key: string; label: string; hint: string }[] }[]).map(({ group, fields }) => (
+                        <div key={group}>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{group}</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {fields.map(({ key, label, hint }) => (
+                              <div key={key}>
+                                <label className="block text-xs font-medium text-gray-700 mb-0.5">{label}</label>
+                                <input
+                                  type="text"
+                                  value={(tmpl as any)[key] || ''}
+                                  onChange={e => setTmpl(prev => ({ ...prev, [key]: e.target.value }))}
+                                  placeholder="CSS selector\u2026"
+                                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary"
+                                />
+                                <p className="text-xs text-gray-400 mt-0.5 leading-tight">{hint}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {tmplMsg && (
+                        <div className={`p-3 rounded-lg flex items-start gap-2 text-sm ${
+                          tmplMsg.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'
+                        }`}>
+                          {tmplMsg.ok
+                            ? <CheckCircle size={15} className="shrink-0 mt-0.5" />
+                            : <AlertCircle size={15} className="shrink-0 mt-0.5" />}
+                          {tmplMsg.text}
+                        </div>
+                      )}
+
+                      <button type="button" onClick={() => saveTemplate(editingJob.id)} disabled={tmplSaving}
+                        className="px-5 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50">
+                        {tmplSaving ? 'Saving\u2026' : '\ud83d\udcbe Save Field Selectors'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </form>
           )}
 
