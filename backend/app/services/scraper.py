@@ -53,6 +53,10 @@ from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
 
+# Maximum number of images/videos stored per listing.
+# Some charter/superyacht listings legitimately include 100+ media items.
+_MAX_IMAGES_PER_LISTING = 300
+
 
 class OptimizedYachtScraper:
 
@@ -1600,7 +1604,7 @@ Content: {content[:12000]}"""
             for m in _js_img_re.finditer(blob):
                 _add(m.group(1))
 
-        return images[:20]
+        return images[:_MAX_IMAGES_PER_LISTING]
 
     # ---------------------------------------------------------
     # SCRAPE A SINGLE LISTING URL â†’ raw data dict
@@ -1775,7 +1779,7 @@ Content: {content[:12000]}"""
                 if _wu.split('?')[0] not in _seen_norms:
                     images.insert(0, _wu)
                     _seen_norms.add(_wu.split('?')[0])
-        images = images[:20]
+        images = images[:_MAX_IMAGES_PER_LISTING]
         yacht_data.update({
             "source_url": url,
             "source": "scraped",
@@ -1957,7 +1961,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         r'placeholder|no.image|no_image|spinner|pixel|tracking',
                         re.IGNORECASE,
                     )
-                    for img_url in raw.get("images", [])[:15]:
+                    for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
                         if not _SKIP_IMAGE_RE.search(img_url):
                             db.add(ListingImage(listing_id=listing.id, url=img_url))
 
