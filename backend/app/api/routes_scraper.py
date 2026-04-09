@@ -712,6 +712,7 @@ def _job_to_dict(job: ScraperJob) -> dict:
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "created_at": job.created_at.isoformat() if job.created_at else None,
+        "site_template": job.site_template or {},
     }
 
 
@@ -851,6 +852,9 @@ class SiteTemplateRequest(BaseModel):
     images_selector: Optional[str] = None          # CSS: selects <img> tags in gallery
     agent_name_selector: Optional[str] = None
     agent_photo_selector: Optional[str] = None
+    # Section-level selectors — auto-parse all fields within a container
+    specs_section_selector: Optional[str] = None   # CSS: container holding spec key/value pairs
+    features_section_selector: Optional[str] = None  # CSS: container holding feature list items
 
 
 @router.get("/scraper/jobs/{job_id}/template")
@@ -904,6 +908,38 @@ def clear_job_template(
     job.site_template = None
     db.commit()
     return {"success": True, "message": "Template cleared"}
+
+
+# TEMPLATE LIVE TEST — scrape a single listing URL with a given template
+# -----------------------------------------------------------------------
+
+class TemplateTestRequest(BaseModel):
+    url: str
+    template: dict = {}
+
+
+@router.post("/scraper/test-with-template")
+def test_scrape_with_template(
+    data: TemplateTestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Scrape a single listing URL using the provided template selectors and return
+    the raw extracted fields. Used by the "Test Current Selectors" UI widget.
+    """
+    _require_admin(current_user)
+    if not data.url or not data.url.startswith('http'):
+        raise HTTPException(status_code=400, detail="A valid listing URL is required")
+    import os
+    from app.services.scraper import OptimizedYachtScraper
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+    scraper = OptimizedYachtScraper(api_key=api_key)
+    tmpl = data.template if data.template else None
+    result = scraper.scrape_single_listing(data.url, template=tmpl)
+    if "error" in result:
+        return {"success": False, "error": result["error"]}
+    return {"success": True, "data": result}
 
 
 @router.get("/scraper/jobs/{job_id}/listings")

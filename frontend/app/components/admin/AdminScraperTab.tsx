@@ -63,6 +63,8 @@ interface SiteTemplate {
   images_selector?: string;
   agent_name_selector?: string;
   agent_photo_selector?: string;
+  specs_section_selector?: string;
+  features_section_selector?: string;
 }
 
 // ─── Log panel ────────────────────────────────────────────────────────────────
@@ -167,11 +169,16 @@ export default function AdminScraperTab() {
     year_selector: '', make_selector: '', model_selector: '',
     length_selector: '', location_selector: '', images_selector: '',
     agent_name_selector: '', agent_photo_selector: '',
+    specs_section_selector: '', features_section_selector: '',
   };
   const [tmpl, setTmpl] = useState<SiteTemplate>(EMPTY_TMPL);
   const [tmplExpanded, setTmplExpanded] = useState(false);
   const [tmplSaving, setTmplSaving] = useState(false);
   const [tmplMsg, setTmplMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [tmplTestUrl, setTmplTestUrl] = useState('');
+  const [tmplTesting, setTmplTesting] = useState(false);
+  const [tmplTestResult, setTmplTestResult] = useState<any>(null);
+  const [tmplTestError, setTmplTestError] = useState('');
 
   async function loadTemplate(jobId: number) {
     try {
@@ -193,6 +200,21 @@ export default function AdminScraperTab() {
         : { ok: false, text: data.detail || 'Save failed' });
     } catch { setTmplMsg({ ok: false, text: 'Network error' }); }
     finally { setTmplSaving(false); }
+  }
+
+  async function runTemplateTest() {
+    if (!tmplTestUrl) return;
+    setTmplTesting(true); setTmplTestResult(null); setTmplTestError('');
+    try {
+      const res = await fetch(apiUrl('/scraper/test-with-template'), {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ url: tmplTestUrl, template: tmpl }),
+      });
+      const data = await res.json();
+      if (data.success) setTmplTestResult(data.data);
+      else setTmplTestError(data.error || data.detail || 'Test failed');
+    } catch (e: any) { setTmplTestError(e.message || 'Network error'); }
+    finally { setTmplTesting(false); }
   }
 
   // ── Test tools state ──
@@ -306,6 +328,7 @@ export default function AdminScraperTab() {
     loadTeamMembers(String(job.dealer_id), setFormTeamMembers);
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
+    setTmplTestUrl(''); setTmplTestResult(null); setTmplTestError('');
     loadTemplate(job.id);
     setShowAddForm(true);
   }
@@ -317,6 +340,7 @@ export default function AdminScraperTab() {
     setFormTeamMembers([]);
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
+    setTmplTestUrl(''); setTmplTestResult(null); setTmplTestError('');
   }
 
   async function handleSaveJob(e: React.FormEvent) {
@@ -573,6 +597,10 @@ export default function AdminScraperTab() {
                           { key: 'location_selector',    label: 'Location',       hint: 'Marina / city / port' },
                           { key: 'images_selector',      label: 'Gallery Images', hint: '<img> tags in photo gallery (e.g. .gallery img)' },
                         ]},
+                        { group: 'Section Auto-Parse', fields: [
+                          { key: 'specs_section_selector',    label: 'Specs Section',    hint: 'Container holding all spec rows — engines, beam, draft, tanks, etc. are auto-extracted.' },
+                          { key: 'features_section_selector', label: 'Features Section', hint: 'Container with feature bullets — all list items are imported.' },
+                        ]},
                         { group: 'Agent', fields: [
                           { key: 'agent_name_selector',  label: 'Agent Name',  hint: 'Agent name text element' },
                           { key: 'agent_photo_selector', label: 'Agent Photo', hint: 'Agent headshot <img> tag' },
@@ -613,7 +641,64 @@ export default function AdminScraperTab() {
                         className="px-5 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50">
                         {tmplSaving ? 'Saving\u2026' : '\ud83d\udcbe Save Field Selectors'}
                       </button>
-                    </div>
+                      {/* ── Live test widget ── */}
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Test Current Selectors</p>
+                        <p className="text-xs text-gray-400 mb-2">Enter a single <em>listing</em> URL to preview what these selectors would extract (uses the unsaved values above).</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={tmplTestUrl}
+                            onChange={e => setTmplTestUrl(e.target.value)}
+                            placeholder="https://broker.com/listing/yacht-name-123"
+                            className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary"
+                          />
+                          <button type="button" onClick={runTemplateTest} disabled={tmplTesting || !tmplTestUrl}
+                            className="px-4 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-medium hover:bg-gray-900 disabled:opacity-50 whitespace-nowrap">
+                            {tmplTesting ? 'Testing…' : '▶ Run Test'}
+                          </button>
+                        </div>
+                        {tmplTestError && (
+                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">{tmplTestError}</div>
+                        )}
+                        {tmplTestResult && (
+                          <div className="mt-3 space-y-3">
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs">
+                              <p className="font-semibold text-green-800 mb-2">✓ Extraction result</p>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-green-900">
+                                {(['title', 'make', 'model', 'year', 'price', 'length_feet', 'location', 'detected_agent_name'] as const).map(f =>
+                                  tmplTestResult[f] ? (
+                                    <p key={f}><strong className="capitalize">{f.replace('_', ' ')}:</strong> {String(tmplTestResult[f])}</p>
+                                  ) : null
+                                )}
+                                {tmplTestResult.images?.length > 0 && (
+                                  <p><strong>Images:</strong> {tmplTestResult.images.length} found</p>
+                                )}
+                              </div>
+                            </div>
+                            {tmplTestResult._tmpl_specs && Object.keys(tmplTestResult._tmpl_specs).length > 0 && (
+                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                                <p className="font-semibold text-blue-800 mb-2">📋 Specs extracted ({Object.keys(tmplTestResult._tmpl_specs).length} fields)</p>
+                                <div className="space-y-0.5 max-h-48 overflow-y-auto text-blue-900">
+                                  {Object.entries(tmplTestResult._tmpl_specs).map(([k, v]) => (
+                                    <p key={k}><strong>{k}:</strong> {String(v)}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {tmplTestResult._tmpl_features && tmplTestResult._tmpl_features.length > 0 && (
+                              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs">
+                                <p className="font-semibold text-purple-800 mb-2">✅ Features extracted ({tmplTestResult._tmpl_features.length} items)</p>
+                                <ul className="list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto text-purple-900">
+                                  {(tmplTestResult._tmpl_features as string[]).slice(0, 30).map((f, i) => (
+                                    <li key={i}>{f}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>                    </div>
                   )}
                 </div>
               )}

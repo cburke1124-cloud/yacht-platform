@@ -647,6 +647,67 @@ except Exception as e:
                 if src:
                     data['detected_agent_photo'] = src
 
+        # ── Specs section — auto-parse ALL label/value pairs in this container ──
+        # Supports: dt/dd definition lists, table rows (th+td), and sibling div pairs.
+        # Results are merged into additional_specs AND exposed as _tmpl_specs for testing.
+        specs_sel = template.get('specs_section_selector', '').strip()
+        if specs_sel:
+            section = soup.select_one(specs_sel)
+            if section:
+                parsed: Dict[str, str] = {}
+                # Strategy 1: definition list (dt/dd)
+                for dt in section.find_all('dt'):
+                    dd = dt.find_next_sibling('dd')
+                    if dd:
+                        k = dt.get_text(' ', strip=True)
+                        v = dd.get_text(' ', strip=True)
+                        if k and v:
+                            parsed[k] = v
+                # Strategy 2: table rows (th/td or td/td)
+                if not parsed:
+                    for tr in section.find_all('tr'):
+                        cells = tr.find_all(['th', 'td'])
+                        if len(cells) >= 2:
+                            k = cells[0].get_text(' ', strip=True)
+                            v = cells[1].get_text(' ', strip=True)
+                            if k and v:
+                                parsed[k] = v
+                # Strategy 3: sibling child pairs (first child = label, second = value)
+                if not parsed:
+                    for row in section.find_all(True, recursive=False):
+                        children = [c for c in row.find_all(True, recursive=False)]
+                        if len(children) >= 2:
+                            k = children[0].get_text(' ', strip=True)
+                            v = children[1].get_text(' ', strip=True)
+                            if k and v and len(k) < 80 and k != v:
+                                parsed[k] = v
+                if parsed:
+                    existing = data.get('additional_specs') or {}
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    existing.update(parsed)
+                    data['additional_specs'] = existing
+                    data['_tmpl_specs'] = parsed  # exposed for test endpoint
+
+        # ── Features section — extract list items as a features array ──────────
+        features_sel = template.get('features_section_selector', '').strip()
+        if features_sel:
+            section = soup.select_one(features_sel)
+            if section:
+                seen_f: set = set()
+                items: List[str] = []
+                for child in section.find_all(['li', 'p', 'span']):
+                    text = child.get_text(' ', strip=True)
+                    if text and 2 < len(text) < 250 and text not in seen_f:
+                        seen_f.add(text)
+                        items.append(text)
+                if items:
+                    existing = data.get('additional_specs') or {}
+                    if isinstance(existing, dict):
+                        existing['_features'] = items
+                        data['additional_specs'] = existing
+                    data['_tmpl_features'] = items  # exposed for test endpoint
+
     def find_listing_urls(self, site_url: str, max_pages: int = 100, template: Optional[Dict] = None) -> List[str]:
         """
         Crawl a broker site and return a de-duped list of individual listing URLs.
@@ -654,18 +715,6 @@ except Exception as e:
         listings directly on the homepage or use non-standard URL structures.
         If `template` contains a `listing_link_selector`, that is tried first.
         """
-        # ── TEMPLATE-GUIDED DISCOVERY (highest priority) ─────────────────────
-        # When an admin has explicitly configured CSS selectors for this broker,
-        # use them as the primary discovery method — far more reliable and precise
-        # than any heuristic.  Falls back to auto-detection if selectors find nothing.
-        if template and template.get('listing_link_selector'):
-            logger.info(f"[Template] Trying listing_link_selector: {template['listing_link_selector']}")
-            tmpl_urls = self._discover_with_template(site_url, template)
-            if tmpl_urls:
-                logger.info(f"[Template] Found {len(tmpl_urls)} listing URLs; skipping heuristic discovery")
-                return tmpl_urls
-            logger.warning("[Template] listing_link_selector matched no links; falling back to auto-detection")
-
         parsed_base = urlparse(site_url)
         base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
         # start_path is the URL path of the seed URL (e.g. "/yacht-condition/used").
@@ -676,12 +725,26 @@ except Exception as e:
 
         # ══ FAST PROBES — run BEFORE crawling to avoid false-positive contamination ══
         # Method 1: Custom JSON proxy API (Squarespace + CF Worker, e.g. yachtzero.com)
-        # Fetches the start URL, looks for `var PROXY = "..."`.  If found, all listing
-        # data comes straight from the API — no crawling, no WP REST, no sitemap needed.
+        # Always runs even when a template is set — this populates _json_api_cache so that
+        # scrape_single_listing() can use pre-built data regardless of how URLs were found.
         _json_proxy_urls = self._discover_from_json_proxy(base_domain, site_url)
         if _json_proxy_urls:
-            logger.info(f"JSON proxy found {len(_json_proxy_urls)} listings; skipping crawl")
-            return list(_json_proxy_urls)
+            if not (template and template.get('listing_link_selector')):
+                logger.info(f"JSON proxy found {len(_json_proxy_urls)} listings; skipping crawl")
+                return list(_json_proxy_urls)
+            logger.info(f"JSON proxy cache populated ({len(_json_proxy_urls)} entries); template controls URL discovery")
+
+        # ── TEMPLATE-GUIDED DISCOVERY (if configured) ─────────────────────────
+        # When an admin has explicitly configured CSS selectors for this broker,
+        # use them as the primary discovery method — far more reliable and precise
+        # than any heuristic.  Falls back to auto-detection if selectors find nothing.
+        if template and template.get('listing_link_selector'):
+            logger.info(f"[Template] Trying listing_link_selector: {template['listing_link_selector']}")
+            tmpl_urls = self._discover_with_template(site_url, template)
+            if tmpl_urls:
+                logger.info(f"[Template] Found {len(tmpl_urls)} listing URLs; skipping heuristic discovery")
+                return tmpl_urls
+            logger.warning("[Template] listing_link_selector matched no links; falling back to auto-detection")
 
         # Method 2: WordPress REST API early probe
         # A lightweight pre-check (`/wp-json/`) tells us instantly if this is a WP site.
