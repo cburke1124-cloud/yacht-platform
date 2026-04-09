@@ -28,8 +28,8 @@ export default function AdminListingsTab() {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      const statuses = filter === 'all' 
-        ? ['active', 'draft', 'archived'] 
+      const statuses = filter === 'all'
+        ? ['active', 'draft', 'archived', 'pending', 'awaiting_review', 'sold']
         : [filter];
       
       const allListings: any[] = [];
@@ -210,7 +210,7 @@ export default function AdminListingsTab() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6">
-        {['all', 'active', 'draft', 'archived'].map((status) => (
+        {['all', 'active', 'draft', 'pending', 'awaiting_review', 'archived', 'sold'].map((status) => (
           <button
             key={status}
             onClick={() => setFilter(status)}

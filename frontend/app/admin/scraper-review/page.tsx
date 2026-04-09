@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle, XCircle, Clock, User, ExternalLink, RefreshCw,
   AlertTriangle, Pencil, Save, X, Building2, ChevronDown, ChevronUp,
+  Trash2, Eye,
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -53,6 +55,7 @@ function fmt(val: number | null) {
 }
 
 export default function ScraperReviewPage() {
+  const router = useRouter();
   const [listings, setListings] = useState<ScrapedListing[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('awaiting_review');
@@ -64,6 +67,8 @@ export default function ScraperReviewPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editSalesmanId, setEditSalesmanId] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,6 +152,22 @@ export default function ScraperReviewPage() {
       await patch(l.id, updates);
     } else {
       setEditingId(null);
+    }
+  }
+
+  async function bulkDelete() {
+    if (!selectedIds.size || !confirm(`Permanently delete ${selectedIds.size} listing(s)? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        [...selectedIds].map(id =>
+          fetch(apiUrl(`/listings/${id}`), { method: 'DELETE', headers: authHeaders() })
+        )
+      );
+      setSelectedIds(new Set());
+      await load();
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
@@ -235,6 +256,31 @@ export default function ScraperReviewPage() {
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Bulk action bar */}
+            <div className="flex items-center justify-between px-1 py-1">
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === listings.length && listings.length > 0}
+                  onChange={e =>
+                    setSelectedIds(e.target.checked ? new Set(listings.map(l => l.id)) : new Set())
+                  }
+                />
+                Select all ({listings.length})
+              </label>
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600">{selectedIds.size} selected</span>
+                  <button
+                    onClick={bulkDelete}
+                    disabled={bulkDeleting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60"
+                  >
+                    <Trash2 size={13} /> {bulkDeleting ? 'Deleting…' : 'Delete Selected'}
+                  </button>
+                </div>
+              )}
+            </div>
             {listings.map(l => {
               const isEditing = editingId === l.id;
               const isSaving = saving[l.id];
@@ -246,6 +292,19 @@ export default function ScraperReviewPage() {
                 >
                   {/* Top row: thumbnail + info + actions */}
                   <div className="flex gap-4 items-start">
+                    {/* Row checkbox */}
+                    <input
+                      type="checkbox"
+                      className="mt-1 flex-shrink-0 cursor-pointer"
+                      checked={selectedIds.has(l.id)}
+                      onChange={e => {
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          e.target.checked ? next.add(l.id) : next.delete(l.id);
+                          return next;
+                        });
+                      }}
+                    />
                     {/* Thumbnail */}
                     <div className="flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden bg-gray-100">
                       {l.images[0] ? (
@@ -390,7 +449,21 @@ export default function ScraperReviewPage() {
                             onClick={() => startEdit(l)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#01BBDC]/10 text-[#10214F] rounded-lg text-xs font-medium hover:bg-[#01BBDC]/20"
                           >
-                            <Pencil size={13} /> Edit
+                            <Pencil size={13} /> Quick Edit
+                          </button>
+                          <a
+                            href={`/listings/${l.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium hover:bg-indigo-100 border border-indigo-200"
+                          >
+                            <Eye size={13} /> Preview
+                          </a>
+                          <button
+                            onClick={() => router.push(`/admin/listings/${l.id}/edit`)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 text-white rounded-lg text-xs font-medium hover:bg-gray-900"
+                          >
+                            <Pencil size={13} /> Full Edit
                           </button>
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : l.id)}
