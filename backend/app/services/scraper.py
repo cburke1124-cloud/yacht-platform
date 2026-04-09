@@ -550,6 +550,30 @@ except Exception as e:
     # CSS class (full or partial) that marks a listing card as sold/unavailable
     _SOLD_CARD_CLASSES = {"sold", "off-market", "under-contract", "pending", "unavailable"}
 
+    # Extended set used when walking up from an <a> tag during URL discovery
+    _SOLD_ANCESTOR_TOKENS = frozenset({
+        "sold", "is-sold", "off-market", "under-contract", "pending", "unavailable",
+        "sold-overlay", "sold-ribbon", "sold-badge", "listing-sold", "vessel-sold",
+    })
+
+    @staticmethod
+    def _anchor_in_sold_card(anchor) -> bool:
+        """Return True if any ancestor element (up to 5 levels) carries a sold/unavailable
+        CSS class token or a data-status='sold' attribute — indicating the listing card this
+        link belongs to is marked as sold and should be excluded from discovery."""
+        _tokens = OptimizedYachtScraper._SOLD_ANCESTOR_TOKENS
+        el = anchor.parent
+        for _ in range(5):
+            if el is None or getattr(el, 'name', '') in ('', '[document]', 'body', 'html'):
+                break
+            cls_tokens = set(' '.join(el.get('class') or []).lower().split())
+            if cls_tokens & _tokens:
+                return True
+            if el.get('data-status', '').lower() in ('sold', 'off-market', 'under-contract'):
+                return True
+            el = el.parent
+        return False
+
     # ---------------------------------------------------------
     # ---------------------------------------------------------
     # INVENTORY DISCOVERY - find all listing URLs on a broker site
@@ -946,8 +970,9 @@ except Exception as e:
                 path = urlparse(abs_no_query).path
 
                 if has_id_param or looks_like_listing(abs_no_query):
-                    listing_urls.add(abs_clean)
-                    found_listing_link = True
+                    if not self._anchor_in_sold_card(a):
+                        listing_urls.add(abs_clean)
+                        found_listing_link = True
                 elif abs_clean not in ever_queued:
                     if is_inventory_page(path.lower()):
                         queue.append((abs_clean, False))
@@ -2109,6 +2134,34 @@ Content: {content[:12000]}"""
             _tmpl_soup = BeautifulSoup(html, 'html.parser')
             self._apply_template_selectors(yacht_data, _tmpl_soup, template)
 
+        # ── Sold / unavailable detection ──────────────────────────────────────
+        # Flag listings whose page indicates they are sold so run_scraper_job can skip them.
+        if html and not yacht_data.get("is_sold"):
+            _check_soup = BeautifulSoup(html, "html.parser")
+            # 1. Any element whose class list contains a sold-status token
+            _sold_class_re = re.compile(
+                r'^(?:sold|is-sold|sold-badge|sold-overlay|sold-ribbon|listing-sold|'
+                r'badge-sold|status-sold|vessel-sold|yacht-sold)$',
+                re.IGNORECASE,
+            )
+            if _check_soup.find(class_=_sold_class_re):
+                yacht_data["is_sold"] = True
+                logger.info(f"scrape_single_listing: sold class detected at {url}")
+            # 2. Specific sold phrases in the first 2 000 chars of visible text
+            if not yacht_data.get("is_sold"):
+                _vis = _check_soup.get_text(" ", strip=True)[:2000].lower()
+                _sold_phrases = (
+                    "this vessel has been sold",
+                    "this boat has been sold",
+                    "this yacht has been sold",
+                    "no longer for sale",
+                    "listing is no longer available",
+                    "this listing has been sold",
+                )
+                if any(_ph in _vis for _ph in _sold_phrases):
+                    yacht_data["is_sold"] = True
+                    logger.info(f"scrape_single_listing: sold phrase detected at {url}")
+
         return yacht_data
 
 
@@ -2178,6 +2231,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                 raw = scraper.scrape_single_listing(url, template=_template)
                 if "error" in raw:
                     stats["errors"] += 1
+                    continue
+
+                # Skip sold / no-longer-available listings — never import them
+                if raw.get("is_sold"):
+                    logger.info(f"[Job {job_id}] Skipping sold listing: {url}")
                     continue
 
                 # Try to match the detected agent name against the dealer's salespeople

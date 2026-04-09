@@ -329,7 +329,22 @@ export default function AdminScraperTab() {
       const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/run`), { method: 'POST', headers: authHeaders() });
       const data = await res.json();
       flash(data.message || `Job "${job.site_name}" started`);
-      setTimeout(loadJobs, 2000);
+      // Poll every 5 seconds until the job is no longer running, then refresh the full list
+      const pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch(apiUrl(`/scraper/jobs/${job.id}`), { headers: authHeaders() });
+          const d = await r.json();
+          if (d.success && d.job) {
+            setJobs(prev => prev.map(j => j.id === job.id ? { ...j, ...d.job } : j));
+            if (d.job.status !== 'running') {
+              clearInterval(pollTimer);
+              loadJobs();
+            }
+          }
+        } catch { clearInterval(pollTimer); }
+      }, 5000);
+      // Safety valve: stop polling after 60 minutes
+      setTimeout(() => clearInterval(pollTimer), 60 * 60 * 1000);
     } catch { flash('Failed to start job'); }
     finally { setRunningJob(null); }
   }
