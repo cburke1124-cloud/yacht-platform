@@ -8,6 +8,8 @@ Optimized Yacht Scraper - Hybrid AI + Traditional Extraction
 
 import anthropic
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import os as _os
 from bs4 import BeautifulSoup
 import json
@@ -278,6 +280,10 @@ class OptimizedYachtScraper:
         'ERR_CONNECTION_RESET',
         'Connection refused',
         '104',  # ECONNRESET errno on Linux
+        'curl: (16)',   # HTTP/2 framing error — site doesn't support HTTP/2
+        'CURLE_HTTP2', # same, alternate representation
+        'curl: (35)',   # SSL connect error (IP-level block)
+        'curl: (56)',   # Recv failure — connection reset during transfer
     )
 
     def _is_blocked_error(self, exc: Exception) -> bool:
@@ -287,11 +293,23 @@ class OptimizedYachtScraper:
     def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
         """Fetch a page. Uses curl-cffi Chrome TLS impersonation when installed,
         so Cloudflare's JA3 fingerprint check passes. Falls back to plain requests.
-        If the direct connection is IP-blocked (TCP RST), retries via SCRAPER_PROXY_URL
-        when configured."""
+        If the direct connection is IP-blocked (TCP RST or HTTP/2 error), retries
+        via SCRAPER_PROXY_URL when configured."""
         try:
             if self._curl_session is not None:
-                resp = self._curl_session.get(url, timeout=timeout, allow_redirects=True)
+                try:
+                    resp = self._curl_session.get(url, timeout=timeout, allow_redirects=True)
+                except Exception as curl_exc:
+                    # curl: (16) = HTTP/2 framing error — site only supports HTTP/1.1.
+                    # Retry the same URL with HTTP/1.1 forced before giving up.
+                    if 'curl: (16)' in str(curl_exc) or 'CURLE_HTTP2' in str(curl_exc):
+                        logger.info(f"fetch_page: HTTP/2 error for {url}, retrying with HTTP/1.1")
+                        resp = self._curl_session.get(
+                            url, timeout=timeout, allow_redirects=True,
+                            http_version=1,  # force HTTP/1.1
+                        )
+                    else:
+                        raise
             else:
                 resp = self._session.get(url, timeout=timeout, allow_redirects=True)
             resp.raise_for_status()
@@ -305,6 +323,9 @@ class OptimizedYachtScraper:
                     resp = requests.get(
                         url, headers=self.headers, proxies=proxies,
                         timeout=timeout, allow_redirects=True,
+                        # ScraperAPI terminates SSL on their end and re-encrypts;
+                        # the origin cert chain is not visible from our side.
+                        verify=False,
                     )
                     resp.raise_for_status()
                     return resp.text
