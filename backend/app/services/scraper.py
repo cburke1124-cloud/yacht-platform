@@ -282,12 +282,21 @@ class OptimizedYachtScraper:
         '104',  # ECONNRESET errno on Linux
         'curl: (16)',   # HTTP/2 framing error — site doesn't support HTTP/2
         'CURLE_HTTP2', # same, alternate representation
+        'curl: (28)',   # Connection timed out — Render IP may be blocked/rate-limited
+        'CURLE_OPERATION_TIMEDOUT',  # same, alternate representation
         'curl: (35)',   # SSL connect error (IP-level block)
         'curl: (56)',   # Recv failure — connection reset during transfer
     )
 
     def _is_blocked_error(self, exc: Exception) -> bool:
         s = str(exc)
+        # Also catch requests.exceptions.Timeout directly (plain requests library)
+        try:
+            import requests as _req
+            if isinstance(exc, _req.exceptions.Timeout):
+                return True
+        except Exception:
+            pass
         return any(sig in s for sig in self._BLOCKED_ERRORS)
 
     def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
