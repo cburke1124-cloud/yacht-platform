@@ -887,7 +887,11 @@ def save_job_template(
         raise HTTPException(status_code=404, detail="Job not found")
 
     # Strip empty strings so heuristics still kick in for unset fields
-    template = {k: v for k, v in data.model_dump().items() if v and v.strip()}
+    # sections is a list — handle it separately from string fields
+    template = {
+        k: v for k, v in data.model_dump().items()
+        if v and (isinstance(v, list) or (isinstance(v, str) and v.strip()))
+    }
     job.site_template = template if template else None
     db.commit()
     db.refresh(job)

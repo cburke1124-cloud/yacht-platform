@@ -601,18 +601,36 @@ export default function AdminScraperTab() {
                     <div className="mt-4 space-y-5">
                       {/* Bookmarklet helper */}
                       <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-900">
-                        <p className="font-semibold mb-1">🔖 Visual Picker (recommended)</p>
-                        <p className="mb-2">Drag the link below to your browser&apos;s bookmarks bar. Then open any page on the broker site, click the bookmark, and click elements to tag them. When done, click <strong>Copy JSON</strong> in the panel and paste it below.</p>
+                        <p className="font-semibold mb-2">🔖 Visual Picker (recommended)</p>
+                        <p className="mb-1"><strong>Step 1:</strong> Drag the <em>⚓ YP Selector Picker</em> link below to your browser&apos;s bookmarks bar — OR click <strong>📋 Copy Link</strong>, then manually create a bookmark and paste as the URL.</p>
+                        <p className="mb-2"><strong>Step 2:</strong> Navigate to the broker&apos;s listing page, click the bookmark, then click elements to tag them. When done click <strong>Copy JSON</strong> in the panel and paste it below.</p>
                         {editingJob && (
-                          <a
-                            href={getBookmarkletHref(editingJob)}
-                            className="inline-block px-3 py-1.5 bg-indigo-700 text-white rounded font-medium hover:bg-indigo-800 cursor-grab select-none"
-                            onClick={e => e.preventDefault()}
-                            title="Drag this to your bookmarks bar">
-                            ⚓ YP Selector Picker
-                          </a>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <a
+                              href={getBookmarkletHref(editingJob)}
+                              className="inline-block px-3 py-1.5 bg-indigo-700 text-white rounded font-medium hover:bg-indigo-800 cursor-grab select-none"
+                              title="Drag this to your bookmarks bar — do NOT click it here">
+                              ⚓ YP Selector Picker
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = getBookmarkletHref(editingJob);
+                                navigator.clipboard?.writeText(url).catch(() => {
+                                  const el = document.createElement('textarea');
+                                  el.value = url;
+                                  document.body.appendChild(el);
+                                  el.select();
+                                  document.execCommand('copy');
+                                  document.body.removeChild(el);
+                                });
+                              }}
+                              className="px-3 py-1.5 bg-white border border-indigo-300 text-indigo-700 rounded font-medium hover:bg-indigo-50">
+                              📋 Copy Link
+                            </button>
+                          </div>
                         )}
-                        <p className="mt-1.5 text-indigo-700">⚠ Right-click won&apos;t work — you must drag it to the bookmarks bar.</p>
+                        <p className="mt-1.5 text-indigo-600">💡 To manually add: right-click bookmarks bar → Add bookmark → paste the copied URL as the bookmark&apos;s address.</p>
                       </div>
 
                       {/* Import JSON from bookmarklet */}
