@@ -522,7 +522,7 @@ except Exception as e:
         ]
         return sum(1 for s in signals if s in lower) >= 2
 
-    def find_listing_urls(self, site_url: str, max_pages: int = 30) -> List[str]:
+    def find_listing_urls(self, site_url: str, max_pages: int = 100) -> List[str]:
         """
         Crawl a broker site and return a de-duped list of individual listing URLs.
         Handles both conventional /listings/ sub-directories AND sites that put
@@ -535,6 +535,34 @@ except Exception as e:
         # starting from /used doesn't accidentally crawl /new, /charter, or the full site.
         start_path = parsed_base.path.rstrip('/')
         is_root_start = start_path in ('', '/')
+
+        # ══ FAST PROBES — run BEFORE crawling to avoid false-positive contamination ══
+        # Method 1: Custom JSON proxy API (Squarespace + CF Worker, e.g. yachtzero.com)
+        # Fetches the start URL, looks for `var PROXY = "..."`.  If found, all listing
+        # data comes straight from the API — no crawling, no WP REST, no sitemap needed.
+        _json_proxy_urls = self._discover_from_json_proxy(base_domain, site_url)
+        if _json_proxy_urls:
+            logger.info(f"JSON proxy found {len(_json_proxy_urls)} listings; skipping crawl")
+            return list(_json_proxy_urls)
+
+        # Method 2: WordPress REST API early probe
+        # A lightweight pre-check (`/wp-json/`) tells us instantly if this is a WP site.
+        # If yes, run _discover_from_wp_rest NOW so BFS false-positives can't block it.
+        _wp_rest_tried = False
+        try:
+            _wpc = requests.get(
+                f"{base_domain}/wp-json/",
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+                timeout=4,
+            )
+            if _wpc.status_code == 200 and "json" in _wpc.headers.get("content-type", ""):
+                _wp_rest_tried = True
+                _wp_early_urls = self._discover_from_wp_rest(base_domain)
+                if _wp_early_urls:
+                    logger.info(f"WP REST early probe found {len(_wp_early_urls)} listings; skipping crawl")
+                    return list(_wp_early_urls)
+        except Exception:
+            pass
 
         visited_pages: set = set()
         listing_urls: set = set()
@@ -743,22 +771,15 @@ except Exception as e:
                 listing_urls.update(headless_urls)
                 logger.info(f"Headless browser added {len(headless_urls)} listings, total now: {len(listing_urls)}")
 
-        # ── WP REST API discovery — works even on Cloudflare-protected WP sites ──────
+        # ── WP REST API discovery — skip if already tried in the fast probe above ────
         # JSON endpoints are typically NOT behind CF HTML challenges, making this
         # the most reliable discovery method for WP-based broker sites.
-        if not listing_urls:
+        if not listing_urls and not _wp_rest_tried:
             listing_urls = self._discover_from_wp_rest(base_domain)
 
         # ── Sitemap fallback ──────────────────────────────────────────────────
         if not listing_urls:
             listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
-
-        # ── Custom JSON proxy API (e.g. Squarespace + Cloudflare Worker) ──────
-        # Some sites (e.g. yachtzero.com) don't have individual listing pages at
-        # all — the entire inventory is served by a custom JSON API referenced in
-        # a JS variable on the page.  Detect it and pre-build all listing dicts.
-        if not listing_urls:
-            listing_urls = self._discover_from_json_proxy(base_domain, site_url)
 
         return list(listing_urls)
 
@@ -1280,10 +1301,27 @@ except Exception as e:
                     if val_part and lbl_part:
                         _set(lbl_part, val_part)
 
-        # 5. Title from <h1>
-        h1 = soup.find("h1")
-        if h1:
-            raw["_h1_title"] = h1.get_text(strip=True)
+        # 5. Title from headings — prefer a heading whose text looks like a boat listing
+        #    title (contains a year or feet/metres measurement) over generic site names
+        #    (e.g. "Rick Obey Yacht Sales").  Checks h1 first; if h1 doesn't match the
+        #    boat-title heuristic, falls through to h2 as a fallback.
+        _BOAT_TITLE_RE = re.compile(
+            r"(\d{1,4}['\"]?\s*(19|20)\d{2}|(19|20)\d{2}\s*[-\u2013]?\s*\w|\b\d{2,3}\s*ft\b)",
+            re.IGNORECASE,
+        )
+        _best_heading: str | None = None
+        for _htag in ("h1", "h2"):
+            _h = soup.find(_htag)
+            if _h:
+                _ht = _h.get_text(strip=True)
+                if _ht:
+                    if _best_heading is None:
+                        _best_heading = _ht  # h1 is always the default
+                    if _BOAT_TITLE_RE.search(_ht):
+                        _best_heading = _ht  # switch to whichever heading looks like a boat
+                        break
+        if _best_heading:
+            raw["_h1_title"] = _best_heading
 
         # 6. Location from Google Maps iframe q= parameter
         from urllib.parse import unquote, urlparse, parse_qs
