@@ -85,6 +85,113 @@ function scheduleLabel(hours: number) {
   return `Every ${hours}h`;
 }
 
+// ── Parsed data card — shown in test results ──────────────────────────────────
+const FIELD_GROUPS = [
+  { label: 'Basic Info', fields: [
+    { key: 'title',         label: 'Title' },
+    { key: 'year',          label: 'Year' },
+    { key: 'make',          label: 'Make' },
+    { key: 'model',         label: 'Model' },
+    { key: 'length_feet',   label: 'Length (ft)' },
+    { key: 'condition',     label: 'Condition' },
+  ]},
+  { label: 'Price & Location', fields: [
+    { key: 'price',    label: 'Price' },
+    { key: 'currency', label: 'Currency' },
+    { key: 'city',     label: 'City' },
+    { key: 'state',    label: 'State / Province' },
+    { key: 'country',  label: 'Country' },
+    { key: 'location', label: 'Location (raw)' },
+  ]},
+  { label: 'Vessel Details', fields: [
+    { key: 'hull_material', label: 'Hull Material' },
+    { key: 'fuel_type',     label: 'Fuel Type' },
+    { key: 'hours',         label: 'Engine Hours' },
+    { key: 'engine_count',  label: 'Engine Count' },
+  ]},
+  { label: 'Agent / Broker', fields: [
+    { key: 'detected_agent_name', label: 'Agent Name' },
+    { key: 'broker_email',        label: 'Broker Email' },
+    { key: 'broker_phone',        label: 'Broker Phone' },
+  ]},
+];
+
+function ScrapedDataCard({ data }: { data: any }) {
+  const [showRaw, setShowRaw] = useState(false);
+  const imageCount = (data.images || []).length;
+  const firstImage = data.images?.[0];
+  const sections = Array.isArray(data.sections) ? data.sections : [];
+
+  return (
+    <div className="text-xs text-gray-700 space-y-3">
+      {/* Image preview */}
+      {firstImage && (
+        <div className="flex gap-2 items-start">
+          <img src={firstImage} alt="" className="w-20 h-14 object-cover rounded border flex-shrink-0" />
+          <p className="text-gray-500 mt-1">{imageCount} image{imageCount !== 1 ? 's' : ''} found</p>
+        </div>
+      )}
+      {!firstImage && imageCount > 0 && (
+        <p className="text-gray-500">{imageCount} image{imageCount !== 1 ? 's' : ''} found</p>
+      )}
+
+      {/* Grouped fields */}
+      {FIELD_GROUPS.map(group => {
+        const present = group.fields.filter(f => data[f.key] != null && data[f.key] !== '');
+        if (present.length === 0) return null;
+        return (
+          <div key={group.label}>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{group.label}</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+              {present.map(f => (
+                <div key={f.key} className="flex gap-1 min-w-0">
+                  <span className="text-gray-400 shrink-0">{f.label}:</span>
+                  <span className="font-medium text-gray-800 truncate">{String(data[f.key])}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Description */}
+      {data.description && (
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Description</p>
+          <p className="text-gray-700 leading-relaxed line-clamp-4">{data.description}</p>
+        </div>
+      )}
+
+      {/* Named sections */}
+      {sections.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Named Sections ({sections.length})</p>
+          {sections.map((s: any, i: number) => (
+            <div key={i} className="mb-1 p-2 bg-purple-50 border border-purple-100 rounded">
+              <span className="font-semibold text-purple-800">{s.name}: </span>
+              {typeof s.data === 'object' && s.data != null
+                ? Object.entries(s.data).slice(0, 6).map(([k, v]) => (
+                    <span key={k} className="mr-2 text-purple-700"><span className="text-gray-500">{k}:</span> {String(v)}</span>
+                  ))
+                : <span className="text-purple-700">{String(s.data ?? '—')}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Raw JSON toggle */}
+      <div>
+        <button onClick={() => setShowRaw(r => !r)} className="text-[11px] text-gray-400 hover:text-gray-600 underline">
+          {showRaw ? 'Hide' : 'View'} raw JSON
+        </button>
+        {showRaw && (
+          <pre className="mt-1 text-[10px] bg-white p-2 rounded border overflow-auto max-h-56">{JSON.stringify(data, null, 2)}</pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminScraperPage() {
   const [tab, setTab] = useState<'jobs' | 'new' | 'test'>('jobs');
 
@@ -153,6 +260,7 @@ export default function AdminScraperPage() {
   const [brokerError, setBrokerError] = useState('');
 
   const [expandedJobs, setExpandedJobs] = useState<Set<number>>(new Set());
+  const [brokerExpandedPreviews, setBrokerExpandedPreviews] = useState<Set<number>>(new Set());
   const [actionMsg, setActionMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
 
   const loadJobs = useCallback(async () => {
@@ -567,14 +675,8 @@ export default function AdminScraperPage() {
                 {singleError && <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-800"><AlertCircle size={16} className="shrink-0 mt-0.5" /> {singleError}</div>}
                 {singleResult && (
                   <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
-                    <div className="flex items-center gap-2 mb-2 text-green-800 font-medium"><CheckCircle size={16} /> Scraped successfully</div>
-                    <div className="text-gray-700 space-y-1">
-                      {(['title', 'make', 'model', 'year', 'price', 'city', 'state', 'length_feet'] as const).map(f => singleResult[f] ? <p key={f}><span className="font-medium capitalize">{String(f).replace('_', ' ')}:</span> {String(singleResult[f])}</p> : null)}
-                      {singleResult.images?.length > 0 && <p><span className="font-medium">Images:</span> {singleResult.images.length} found</p>}
-                    </div>
-                    <details className="mt-3"><summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">View raw JSON</summary>
-                      <pre className="mt-2 text-xs bg-white p-2 rounded border overflow-auto max-h-64">{JSON.stringify(singleResult, null, 2)}</pre>
-                    </details>
+                    <div className="flex items-center gap-2 mb-3 text-green-800 font-medium"><CheckCircle size={16} /> Scraped successfully</div>
+                    <ScrapedDataCard data={singleResult} />
                   </div>
                 )}
                 <button onClick={handleScrapeSingle} disabled={singleLoading || !singleUrl} className="mt-4 w-full px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 font-medium">
@@ -592,16 +694,44 @@ export default function AdminScraperPage() {
                 {brokerResult && (
                   <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg text-sm space-y-3">
                     <div className="flex items-center gap-2 text-green-800 font-medium"><CheckCircle size={16} /> Found {brokerResult.total_found} listing URLs</div>
-                    {brokerResult.previews?.map((p: any, i: number) => (
-                      <div key={i} className="bg-white p-3 rounded border text-gray-700">
-                        <p className="text-xs font-medium text-blue-600 truncate mb-1">{p.url}</p>
-                        {p.data ? (
-                          <div className="space-y-0.5 text-xs">
-                            {(['title', 'make', 'model', 'price'] as const).map(f => p.data[f] ? <p key={f}><span className="font-medium">{f}:</span> {String(p.data[f])}</p> : null)}
-                          </div>
-                        ) : <p className="text-xs text-red-500">{p.error || 'Could not scrape'}</p>}
-                      </div>
-                    ))}
+                    {brokerResult.previews?.map((p: any, i: number) => {
+                      const expanded = brokerExpandedPreviews.has(i);
+                      return (
+                        <div key={i} className="bg-white p-3 rounded border text-gray-700">
+                          <a href={p.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-600 hover:underline truncate block mb-2">{p.url}</a>
+                          {p.data ? (
+                            <>
+                              {/* Summary row always visible */}
+                              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs mb-2">
+                                {(['title', 'make', 'model', 'year', 'price'] as const).map(f => p.data[f] ? (
+                                  <span key={f}><span className="text-gray-400">{f}:</span> <span className="font-medium">{String(p.data[f])}</span></span>
+                                ) : null)}
+                                {p.data.images?.length > 0 && (
+                                  <span><span className="text-gray-400">images:</span> <span className="font-medium">{p.data.images.length}</span></span>
+                                )}
+                              </div>
+                              {/* Expand toggle */}
+                              <button
+                                onClick={() => setBrokerExpandedPreviews(prev => {
+                                  const next = new Set(prev);
+                                  next.has(i) ? next.delete(i) : next.add(i);
+                                  return next;
+                                })}
+                                className="flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-medium"
+                              >
+                                {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                {expanded ? 'Hide' : 'Show all'} parsed fields
+                              </button>
+                              {expanded && (
+                                <div className="mt-2 pt-2 border-t">
+                                  <ScrapedDataCard data={p.data} />
+                                </div>
+                              )}
+                            </>
+                          ) : <p className="text-xs text-red-500">{p.error || 'Could not scrape'}</p>}
+                        </div>
+                      );
+                    })}
                     <details>
                       <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">All {brokerResult.all_urls?.length} URLs</summary>
                       <ul className="mt-2 text-xs space-y-1 max-h-48 overflow-auto">

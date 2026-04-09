@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   CheckCircle, XCircle, Clock, User, ExternalLink, RefreshCw,
-  AlertTriangle, Pencil, Save, X,
+  AlertTriangle, Pencil, Save, X, Building2,
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -56,6 +56,8 @@ export default function ScraperReviewPage() {
   const [listings, setListings] = useState<ScrapedListing[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('awaiting_review');
+  const [dealerFilter, setDealerFilter] = useState('');
+  const [dealers, setDealers] = useState<{ id: number; name: string }[]>([]);
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -65,10 +67,9 @@ export default function ScraperReviewPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        apiUrl(`/admin/scraper/listings?status=${statusFilter}`),
-        { headers: authHeaders() },
-      );
+      let url = `/admin/scraper/listings?status=${statusFilter}`;
+      if (dealerFilter) url += `&dealer_id=${dealerFilter}`;
+      const res = await fetch(apiUrl(url), { headers: authHeaders() });
       const data = await res.json();
       setListings(data.listings || []);
     } catch {
@@ -76,9 +77,23 @@ export default function ScraperReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, dealerFilter]);
+
+  const loadDealers = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/users?user_type=dealer&limit=200'), { headers: authHeaders() });
+      const data = await res.json();
+      const list = (data.users || data || []) as any[];
+      setDealers(list.map((d: any) => ({
+        id: d.id,
+        name: d.dealer_profile?.company_name || d.company_name ||
+          `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.email,
+      })));
+    } catch { /* silent */ }
+  }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadDealers(); }, [loadDealers]);
 
   async function patch(id: number, updates: Record<string, any>) {
     setSaving(s => ({ ...s, [id]: true }));
@@ -148,22 +163,53 @@ export default function ScraperReviewPage() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 px-6 pt-4 pb-3 border-b">
-        {(['awaiting_review', 'active', 'draft'] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              statusFilter === s
-                ? 'bg-[#10214F] text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+      {/* Account filter + status tabs */}
+      <div className="px-6 pt-4 pb-3 border-b space-y-3">
+        {/* Dealer / account filter */}
+        <div className="flex items-center gap-3">
+          <Building2 size={15} className="text-gray-400 shrink-0" />
+          <select
+            value={dealerFilter}
+            onChange={e => setDealerFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:ring-2 focus:ring-[#01BBDC] focus:border-[#01BBDC]"
           >
-            {s === 'awaiting_review' ? 'Awaiting Review' : s.charAt(0).toUpperCase() + s.slice(1)}
-            {statusCounts[s] != null && <span className="ml-1.5 opacity-80">({statusCounts[s]})</span>}
-          </button>
-        ))}
+            <option value="">All Accounts ({listings.length})</option>
+            {dealers.map(d => {
+              const count = listings.filter(l => l.dealer.id === d.id).length;
+              return (
+                <option key={d.id} value={d.id}>
+                  {d.name}{dealerFilter === String(d.id) ? '' : count ? ` (${count})` : ''}
+                </option>
+              );
+            })}
+          </select>
+          {dealerFilter && (
+            <button
+              onClick={() => setDealerFilter('')}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+            >
+              <X size={12} /> Clear
+            </button>
+          )}
+        </div>
+
+        {/* Status tabs */}
+        <div className="flex gap-2">
+          {(['awaiting_review', 'active', 'draft'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                statusFilter === s
+                  ? 'bg-[#10214F] text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {s === 'awaiting_review' ? 'Awaiting Review' : s.charAt(0).toUpperCase() + s.slice(1)}
+              {statusCounts[s] != null && <span className="ml-1.5 opacity-80">({statusCounts[s]})</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Listing table */}

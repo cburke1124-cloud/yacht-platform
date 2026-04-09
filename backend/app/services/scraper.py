@@ -642,14 +642,20 @@ except Exception as e:
         Called after standard extraction — template values WIN over heuristics.
         """
         _field_map = [
-            ('title',       'title_selector'),
-            ('price',       'price_selector'),
-            ('description', 'description_selector'),
-            ('year',        'year_selector'),
-            ('make',        'make_selector'),
-            ('model',       'model_selector'),
-            ('length_feet', 'length_selector'),
-            ('location',    'location_selector'),
+            ('title',         'title_selector'),
+            ('price',         'price_selector'),
+            ('description',   'description_selector'),
+            ('year',          'year_selector'),
+            ('make',          'make_selector'),
+            ('model',         'model_selector'),
+            ('length_feet',   'length_selector'),
+            ('location',      'location_selector'),
+            ('broker_email',  'broker_email_selector'),
+            ('broker_phone',  'broker_phone_selector'),
+            ('hull_material', 'hull_material_selector'),
+            ('fuel_type',     'fuel_type_selector'),
+            ('hours',         'hours_selector'),
+            ('condition',     'condition_selector'),
         ]
         for field, key in _field_map:
             sel = template.get(key, '').strip()
