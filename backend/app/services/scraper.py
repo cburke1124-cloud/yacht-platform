@@ -372,7 +372,13 @@ try:
             except Exception:
                 pass
         try:
-            page.wait_for_load_state("networkidle", timeout=5000)
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
+        # Scroll to bottom to trigger lazy-loaded listing cards, then wait for them
+        try:
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(2000)
         except Exception:
             pass
         html = page.content()
@@ -595,6 +601,7 @@ except Exception as e:
             r"-boat$",
             r"-sales/",          # e.g. /yacht-sales/year-make-model
             r"-prk/",            # yacht broker CMS individual listing pages (e.g. rickobeyyachtsales.com)
+            r"second-hand",      # e.g. /en/second-hand-boats-offers/boat-slug/ (totnautic.com)
         ]
 
         # Keywords in a path that suggest an inventory index page worth crawling deeper
@@ -994,14 +1001,10 @@ except Exception as e:
                 return
             visited_sitemaps.add(sm_url)
             try:
-                r = requests.get(
-                    sm_url,
-                    headers={"User-Agent": "Mozilla/5.0", "Accept": "application/xml,text/xml,*/*"},
-                    timeout=10, allow_redirects=True,
-                )
-                if not r.ok:
+                xml_text = self.fetch_page(sm_url, timeout=15)
+                if not xml_text:
                     return
-                for loc_m in re.finditer(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', r.text):
+                for loc_m in re.finditer(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', xml_text):
                     loc = loc_m.group(1).strip()
                     if loc.lower().endswith('.xml'):
                         _parse(loc)  # recurse into sub-sitemaps / sitemap-index entries
