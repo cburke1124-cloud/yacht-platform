@@ -798,6 +798,25 @@ except Exception as e:
         base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
         # start_path is the URL path of the seed URL (e.g. "/yacht-condition/used").
         # When it's non-root we restrict the broad "follow everything" expansion so that
+
+        # Detect whether the seed URL contains non-pagination filter params (e.g. agent=, category=).
+        # When true, WP REST fallback is skipped because it can't honour per-agent/category filters
+        # and would return listings from ALL brokers on a multi-broker platform.
+        _seed_qs = parsed_base.query  # raw query string from the seed URL
+        _PAGINATION_PARAMS = re.compile(
+            r'^(?:page|paged|offset|start|skip|sort|ordr|order|per_page|limit)$',
+            re.IGNORECASE,
+        )
+        _has_filter_params = False
+        if _seed_qs:
+            for _qp in _seed_qs.split('&'):
+                _key = _qp.split('=')[0]
+                if _key and not _PAGINATION_PARAMS.match(_key):
+                    _has_filter_params = True
+                    break
+        # Filter params from the seed URL that must be appended to pagination links
+        # so they don't lose the agent/category filter when following page 2, 3 etc.
+        _seed_filter_params = _seed_qs if _has_filter_params else ''
         # starting from /used doesn't accidentally crawl /new, /charter, or the full site.
         start_path = parsed_base.path.rstrip('/')
         is_root_start = start_path in ('', '/')
@@ -1003,8 +1022,20 @@ except Exception as e:
                         continue
                     
                     if is_pagination_link(href, base_domain):
-                        queue.append((abs_clean, False))
-                        ever_queued.add(abs_clean)
+                        # Preserve seed filter params (e.g. ?agent=X) on pagination links
+                        # so page 2, 3 etc. still return the same filtered results.
+                        if _seed_filter_params and '?' not in abs_clean:
+                            abs_clean = f"{abs_clean}?{_seed_filter_params}"
+                        elif _seed_filter_params and '?' in abs_clean:
+                            # Merge: add filter params that aren't already present
+                            existing_keys = {p.split('=')[0] for p in abs_clean.split('?', 1)[1].split('&')}
+                            for _fp in _seed_filter_params.split('&'):
+                                _fk = _fp.split('=')[0]
+                                if _fk and _fk not in existing_keys:
+                                    abs_clean += f'&{_fp}'
+                        if abs_clean not in ever_queued:
+                            queue.append((abs_clean, False))
+                            ever_queued.add(abs_clean)
 
             # Vessel-card direct extraction: for CMSes that render all listings as
             # card elements on one page using ?id=N hrefs. Skips sold/unavailable cards.
@@ -1055,7 +1086,10 @@ except Exception as e:
         # ── WP REST API discovery — skip if already tried in the fast probe above ────
         # JSON endpoints are typically NOT behind CF HTML challenges, making this
         # the most reliable discovery method for WP-based broker sites.
-        if not listing_urls and not _wp_rest_tried:
+        # EXCEPTION: skip when the seed URL has filter params (e.g. ?agent=X) because
+        # WP REST has no concept of per-agent filtering and would return ALL listings
+        # from multi-broker platforms, ignoring the intended filter.
+        if not listing_urls and not _wp_rest_tried and not _has_filter_params:
             listing_urls = self._discover_from_wp_rest(base_domain)
 
         # ── Sitemap fallback ──────────────────────────────────────────────────
@@ -1436,10 +1470,12 @@ except Exception as e:
             (r"(?:A\$|AUD)\s*(\d[\d,.\s]*)", "AUD"),
             # NZD explicit labels
             (r"(?:NZ\$|NZD)\s*(\d[\d,.\s]*)", "NZD"),
-            # EUR
+            # EUR — also handle trailing symbol (e.g. "33.000€", "45.000 €")
             (r"(?:€|EUR)\s*(\d[\d,.\s]*)", "EUR"),
-            # GBP
+            (r"(\d[\d,.\s]*)\s*(?:€|EUR)\b", "EUR"),
+            # GBP — also handle trailing symbol
             (r"(?:£|GBP)\s*(\d[\d,.\s]*)", "GBP"),
+            (r"(\d[\d,.\s]*)\s*(?:£|GBP)\b", "GBP"),
             # Trailing currency label: "150,000 CAD", "150,000 USD", "150,000 EUR"
             (r"(\d[\d,.\s]+)\s*\b(CAD|USD|EUR|GBP|AUD|NZD)\b", None),
             # Bare $ — ambiguous; treat as CAD if page has CAD context, else USD
@@ -2449,7 +2485,12 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     for f in float_fields:
         if raw.get(f) is not None:
             try:
-                setattr(listing, f, float(raw[f]))
+                v = float(raw[f])
+                # Price of exactly 0 means unknown — store as None
+                if f == 'price' and v == 0:
+                    listing.price = None
+                else:
+                    setattr(listing, f, v)
             except (ValueError, TypeError):
                 pass
     for f in int_fields:
