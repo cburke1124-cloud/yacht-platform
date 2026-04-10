@@ -2319,6 +2319,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     .scalar()
                 )
 
+                # Commit any pending writes from the previous iteration BEFORE closing.
+                # db.close() rolls back uncommitted changes, so we must flush them first.
+                db.commit()
                 # Release the DB connection for the duration of the actual web scrape.
                 # Each listing can take 30-120 s via headless browser + Claude extraction.
                 # Holding the connection that long starves the pool for normal API requests.
