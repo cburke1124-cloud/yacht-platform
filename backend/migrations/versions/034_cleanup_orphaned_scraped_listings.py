@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from datetime import datetime
 
 revision = '034'
-down_revision = '033'
+down_revision = '033_scraper_job_last_run_log'
 branch_labels = None
 depends_on = None
 
