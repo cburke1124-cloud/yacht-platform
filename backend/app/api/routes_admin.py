@@ -760,7 +760,7 @@ def create_dealer(
             Set Up My Password
           </a>
         </div>
-        <p style="color:#6b7280;font-size:13px">This link expires in 72&nbsp;hours. If you did not expect this email, you can ignore it.</p>
+        <p style="color:#6b7280;font-size:13px">This link is valid for 1&nbsp;week. If you did not expect this email, you can ignore it.</p>
       </div>
     </body></html>
     """
