@@ -3343,7 +3343,11 @@ def list_scraped_listings_for_review(
     filter_status = status or "awaiting_review"
     q = (
         db.query(Listing)
-        .filter(Listing.source == "scraped", Listing.status == filter_status, Listing.deleted_at == None)
+        .filter(
+            Listing.source_url != None,  # all scraper-imported listings have source_url set
+            Listing.status == filter_status,
+            Listing.deleted_at == None,
+        )
         .order_by(Listing.created_at.desc())
     )
     if dealer_id:

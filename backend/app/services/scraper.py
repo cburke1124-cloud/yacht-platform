@@ -2634,6 +2634,7 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
 
     # Always keep dealer / salesman linkage
     listing.user_id = job.dealer_id
+    listing.source = "scraped"  # ensure legacy listings created before source field are corrected
     if job.salesman_id:
         listing.assigned_salesman_id = job.salesman_id
 
