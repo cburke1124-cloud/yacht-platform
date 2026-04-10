@@ -162,6 +162,10 @@ class ScraperJob(Base):
     #       agent_name_selector, agent_photo_selector
     site_template = Column(JSON, nullable=True)
 
+    # Per-URL outcomes from the most recent run — list of dicts:
+    # { url, outcome: "created"|"updated"|"sold"|"error"|"skipped", error?: str }
+    last_run_log = Column(JSON, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -713,6 +713,7 @@ def _job_to_dict(job: ScraperJob) -> dict:
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "site_template": job.site_template or {},
+        "last_run_log": job.last_run_log or [],
     }
 
 

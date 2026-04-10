@@ -33,6 +33,13 @@ interface ScraperJob {
   last_error?: string;
   notes?: string;
   created_at?: string;
+  last_run_log?: Array<{
+    url: string;
+    outcome: 'created' | 'updated' | 'sold' | 'archived' | 'error';
+    listing_id?: number;
+    title?: string;
+    error?: string;
+  }>;
 }
 
 interface Dealer {
@@ -156,6 +163,7 @@ export default function AdminScraperTab() {
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState('');
   const [expandedJob, setExpandedJob] = useState<number | null>(null);
+  const [logOpenJob, setLogOpenJob] = useState<number | null>(null);
   const [runningJob, setRunningJob] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState('');
 
@@ -909,7 +917,58 @@ export default function AdminScraperTab() {
                             <p className="text-gray-800">{fmtDate(job.created_at)}</p>
                           </div>
                         </div>
-                        {job.notes && <p className="text-xs text-gray-600 italic">Notes: {job.notes}</p>}
+                        {job.notes && <p className="text-xs text-gray-600 italic mb-2">Notes: {job.notes}</p>}
+
+                        {/* Last run log */}
+                        {(job.last_run_log && job.last_run_log.length > 0) && (() => {
+                          const isLogOpen = logOpenJob === job.id;
+                          const outcomeColor = (o: string) => {
+                            if (o === 'created') return 'text-green-700 bg-green-50 border-green-200';
+                            if (o === 'updated') return 'text-blue-700 bg-blue-50 border-blue-200';
+                            if (o === 'sold')    return 'text-amber-700 bg-amber-50 border-amber-200';
+                            if (o === 'archived') return 'text-gray-600 bg-gray-100 border-gray-200';
+                            if (o === 'error')   return 'text-red-700 bg-red-50 border-red-200';
+                            return 'text-gray-600 bg-gray-50 border-gray-200';
+                          };
+                          return (
+                            <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => setLogOpenJob(isLogOpen ? null : job.id)}
+                                className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
+                              >
+                                <Terminal size={12} />
+                                Last Run Log ({job.last_run_log.length} URLs)
+                                <span className="ml-auto">{isLogOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
+                              </button>
+                              {isLogOpen && (
+                                <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+                                  {job.last_run_log.map((entry, i) => (
+                                    <div key={i} className="px-3 py-1.5 text-xs flex items-start gap-3 hover:bg-gray-50">
+                                      <span className={`shrink-0 mt-0.5 px-1.5 py-0.5 rounded border text-[10px] font-semibold uppercase ${outcomeColor(entry.outcome)}`}>
+                                        {entry.outcome}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        {entry.title && <p className="font-medium text-gray-800 truncate">{entry.title}</p>}
+                                        <p className="text-gray-400 truncate">{entry.url}</p>
+                                        {entry.error && <p className="text-red-600 mt-0.5">{entry.error}</p>}
+                                      </div>
+                                      {entry.listing_id && (
+                                        <a
+                                          href={`/listings/${entry.listing_id}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="shrink-0 text-[#01BBDC] hover:underline text-[10px]"
+                                        >
+                                          #{entry.listing_id}
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

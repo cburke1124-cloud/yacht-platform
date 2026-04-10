@@ -2282,6 +2282,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
     scraper = OptimizedYachtScraper(api_key=api_key)
 
     stats = {"found": 0, "created": 0, "updated": 0, "archived": 0, "errors": 0}
+    run_log: list = []  # per-URL outcomes — stored in job.last_run_log at end of run
 
     try:
         # -- Step 1: discover listing URLs --
@@ -2326,6 +2327,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
 
                 if "error" in raw:
                     stats["errors"] += 1
+                    run_log.append({"url": url, "outcome": "error", "error": raw.get("error", "unknown error")})
                     continue
 
                 # Sold listings — import but flag with status="sold" so they
@@ -2408,6 +2410,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         existing_scraped.last_seen = datetime.utcnow()
                         existing_scraped.still_active = True
                         stats["updated"] += 1
+                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
                 else:
                     # Create new listing — placed in awaiting_review so admin can review before publishing
                     listing = Listing(
@@ -2446,6 +2449,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     )
                     db.add(scraped_record)
                     stats["created"] += 1
+                    run_log.append({"url": url, "outcome": "sold" if _is_sold else "created", "listing_id": listing.id, "title": listing.title})
 
                 # Flush live stats to DB every 5 listings so frontend polling sees progress
                 if (stats["created"] + stats["updated"] + stats["errors"]) % 5 == 0:
@@ -2457,6 +2461,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
             except Exception as e:
                 logger.error(f"[Job {job_id}] Error processing {url}: {e}")
                 stats["errors"] += 1
+                run_log.append({"url": url, "outcome": "error", "error": str(e)[:300]})
                 # Ensure the session is in a clean, usable state for the next iteration.
                 # (The connection is already closed if the error happened before re-acquire.)
                 try:
@@ -2484,6 +2489,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     if listing and listing.status == "active":
                         listing.status = "archived"
                         stats["archived"] += 1
+                        run_log.append({"url": scraped_record.source_url, "outcome": "archived", "listing_id": scraped_record.listing_id})
                         logger.info(f"[Job {job_id}] Archived listing #{listing.id} â€” no longer on broker site")
 
         # -- Step 4: update job record --
@@ -2496,6 +2502,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
         job.listings_removed = stats["archived"]
         job.total_runs = (job.total_runs or 0) + 1
         job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
+        job.last_run_log = run_log
         db.commit()
 
         logger.info(f"[Job {job_id}] Sync complete: {stats}")
