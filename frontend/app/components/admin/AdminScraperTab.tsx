@@ -954,7 +954,7 @@ export default function AdminScraperTab() {
                                       </div>
                                       {entry.listing_id && (
                                         <a
-                                          href={`/listings/${entry.listing_id}`}
+                                          href={`/admin/scraper-review`}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="shrink-0 text-[#01BBDC] hover:underline text-[10px]"

@@ -2433,7 +2433,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     #   B) A different job previously scraped the same site — cross-job re-link
                     _orphaned_listing = (
                         db.query(Listing)
-                        .filter(Listing.user_id == job.dealer_id, Listing.source_url == url)
+                        .filter(
+                            Listing.user_id == job.dealer_id,
+                            Listing.source_url == url,
+                            Listing.deleted_at == None,  # never re-link soft-deleted listings
+                        )
                         .first()
                     )
                     if _orphaned_listing:

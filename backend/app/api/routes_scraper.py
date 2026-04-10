@@ -795,11 +795,27 @@ def delete_scraper_job(
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    # Soft-delete all Listing records that were imported by this job.
+    # This prevents orphan recovery from re-linking them when a new job is created
+    # for the same site. We soft-delete (not hard-delete) to preserve any admin edits.
+    from app.models.listing import Listing, ListingImage
+    from datetime import datetime as _dt
+    scraped_ids = [
+        row[0] for row in
+        db.query(ScrapedListing.listing_id)
+        .filter(ScrapedListing.job_id == job_id, ScrapedListing.listing_id != None)
+        .all()
+    ]
+    if scraped_ids:
+        db.query(Listing).filter(
+            Listing.id.in_(scraped_ids),
+            Listing.deleted_at == None,
+        ).update({"deleted_at": _dt.utcnow()}, synchronize_session=False)
     # Remove associated ScrapedListing records first
     db.query(ScrapedListing).filter(ScrapedListing.job_id == job_id).delete()
     db.delete(job)
     db.commit()
-    return {"success": True, "message": f"Job {job_id} deleted"}
+    return {"success": True, "message": f"Job {job_id} deleted", "listings_removed": len(scraped_ids)}
 
 
 @router.post("/scraper/jobs/{job_id}/toggle")
