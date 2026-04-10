@@ -423,7 +423,11 @@ try:
             "Chrome/124.0.0.0 Safari/537.36"
         ))
         page = ctx.new_page()
-        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        # Catch goto timeout but still grab whatever the browser loaded
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        except Exception:
+            pass  # may have loaded partially — try to get content anyway
         if wait_sel:
             try:
                 page.wait_for_selector(wait_sel, timeout=5000)
@@ -439,9 +443,15 @@ try:
             page.wait_for_timeout(2000)
         except Exception:
             pass
-        html = page.content()
+        try:
+            html = page.content()
+        except Exception:
+            html = ""
         browser.close()
-    print(json.dumps({"ok": True, "html": html}))
+    if html:
+        print(json.dumps({"ok": True, "html": html}))
+    else:
+        print(json.dumps({"ok": False, "error": "empty page content after goto"}))
 except Exception as e:
     print(json.dumps({"ok": False, "error": str(e)}))
 """
@@ -1445,7 +1455,21 @@ except Exception as e:
                 currency = m.group(2).upper()
             else:
                 raw_num = m.group(1)
-            cleaned = re.sub(r"[,\s]", "", raw_num).rstrip(".")
+            # Normalise European number formatting where "." is the thousands separator
+            # and "," is the decimal separator (e.g. "45.000" = 45 000, "145.000,50" = 145 000.50).
+            # Rule: if the string contains "," after a ".", it's European (comma = decimal).
+            # Also: if the number ends with exactly ".XXX" (3 digits) and has no comma at all,
+            # assume the dot is a thousands separator (covers "45.000€" → 45000).
+            cleaned = raw_num.strip()
+            if re.search(r'\.[0-9]{3}', cleaned) and ',' not in cleaned:
+                # European thousands-dot(s): remove all dots → integer
+                cleaned = cleaned.replace('.', '').replace(' ', '')
+            elif ',' in cleaned and '.' in cleaned and cleaned.index('.') < cleaned.index(','):
+                # European: "145.000,50" → "145000.50"
+                cleaned = cleaned.replace('.', '').replace(',', '.').replace(' ', '')
+            else:
+                cleaned = re.sub(r'[,\s]', '', cleaned)
+            cleaned = cleaned.rstrip('.')
             try:
                 val = float(cleaned)
                 if val < 1000:  # sanity — no yacht for under $1000
@@ -2120,21 +2144,30 @@ Content: {content[:12000]}"""
             self._apply_template_selectors(yacht_data, _tmpl_soup, template)
 
         # ── Sold / unavailable detection ──────────────────────────────────────
-        # Flag listings whose page indicates they are sold so run_scraper_job can skip them.
+        # Flag listings whose page indicates they are sold so run_scraper_job can
+        # store them with status="sold" rather than status="awaiting_review".
         if html and not yacht_data.get("is_sold"):
             _check_soup = BeautifulSoup(html, "html.parser")
             # 1. Any element whose class list contains a sold-status token
             _sold_class_re = re.compile(
                 r'^(?:sold|is-sold|sold-badge|sold-overlay|sold-ribbon|listing-sold|'
-                r'badge-sold|status-sold|vessel-sold|yacht-sold)$',
+                r'badge-sold|status-sold|vessel-sold|yacht-sold|label-sold|tag-sold)$',
                 re.IGNORECASE,
             )
             if _check_soup.find(class_=_sold_class_re):
                 yacht_data["is_sold"] = True
                 logger.info(f"scrape_single_listing: sold class detected at {url}")
-            # 2. Specific sold phrases in the first 2 000 chars of visible text
+            # 2. A standalone prominent element that reads exactly "SOLD" or "SOLD!"
             if not yacht_data.get("is_sold"):
-                _vis = _check_soup.get_text(" ", strip=True)[:2000].lower()
+                for _el in _check_soup.find_all(['span', 'div', 'p', 'strong', 'h1', 'h2', 'h3', 'li']):
+                    _t = _el.get_text(strip=True).upper()
+                    if _t in ('SOLD', 'SOLD!', 'VENDU', 'VENDIDO', 'SOLD OUT'):
+                        yacht_data["is_sold"] = True
+                        logger.info(f"scrape_single_listing: sold element text '{_t}' at {url}")
+                        break
+            # 3. Specific sold phrases anywhere in the first 3 000 chars of visible text
+            if not yacht_data.get("is_sold"):
+                _vis = _check_soup.get_text(" ", strip=True)[:3000].lower()
                 _sold_phrases = (
                     "this vessel has been sold",
                     "this boat has been sold",
@@ -2142,6 +2175,10 @@ Content: {content[:12000]}"""
                     "no longer for sale",
                     "listing is no longer available",
                     "this listing has been sold",
+                    "has been sold",
+                    "vessel is sold",
+                    "yacht is sold",
+                    "boat is sold",
                 )
                 if any(_ph in _vis for _ph in _sold_phrases):
                     yacht_data["is_sold"] = True
@@ -2218,10 +2255,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     stats["errors"] += 1
                     continue
 
-                # Skip sold / no-longer-available listings — never import them
-                if raw.get("is_sold"):
-                    logger.info(f"[Job {job_id}] Skipping sold listing: {url}")
-                    continue
+                # Sold listings — import but flag with status="sold" so they
+                # appear in the admin review queue under the Sold tab, not in awaiting_review.
+                _is_sold = raw.get("is_sold", False)
+                if _is_sold:
+                    logger.info(f"[Job {job_id}] Sold listing detected, importing as sold: {url}")
 
                 # Try to match the detected agent name against the dealer's salespeople
                 detected_name = raw.get("detected_agent_name")
@@ -2290,7 +2328,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         # Respect manual broker changes: only restore to active if the scraper
                         # previously auto-archived it (disappeared from site), not if the broker
                         # intentionally set it to "draft" to hide it.
-                        if listing.status not in ("draft", "awaiting_review"):
+                        if _is_sold:
+                            listing.status = "sold"
+                        elif listing.status not in ("draft", "awaiting_review"):
                             listing.status = "active"
                         existing_scraped.last_seen = datetime.utcnow()
                         existing_scraped.still_active = True
@@ -2304,7 +2344,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         guest_salesman_id=matched_guest_id,
                         source="scraped",
                         source_url=url,
-                        status="awaiting_review",
+                        status="sold" if _is_sold else "awaiting_review",
                         bin=_generate_bin(db),
                         condition="used",
                     )
