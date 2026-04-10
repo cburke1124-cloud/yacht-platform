@@ -227,18 +227,22 @@ export default function ScraperReviewPage() {
         </div>
 
         {/* Status tabs */}
-        <div className="flex gap-2">
-          {(['awaiting_review', 'active', 'draft'] as const).map(s => (
+        <div className="flex flex-wrap gap-2">
+          {([
+            { key: 'awaiting_review', label: 'Awaiting Review', activeClass: 'bg-[#10214F] text-white' },
+            { key: 'active',          label: 'Active',           activeClass: 'bg-green-600 text-white' },
+            { key: 'draft',           label: 'Draft',            activeClass: 'bg-gray-600 text-white' },
+            { key: 'sold',            label: 'Sold',             activeClass: 'bg-amber-600 text-white' },
+            { key: 'archived',        label: 'Archived',         activeClass: 'bg-rose-700 text-white' },
+          ] as const).map(({ key: s, label, activeClass }) => (
             <button
               key={s}
-              onClick={() => setStatusFilter(s)}
+              onClick={() => { setStatusFilter(s); setSelectedIds(new Set()); }}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                statusFilter === s
-                  ? 'bg-[#10214F] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                statusFilter === s ? activeClass : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {s === 'awaiting_review' ? 'Awaiting Review' : s.charAt(0).toUpperCase() + s.slice(1)}
+              {label}
               {statusCounts[s] != null && <span className="ml-1.5 opacity-80">({statusCounts[s]})</span>}
             </button>
           ))}
@@ -427,24 +431,22 @@ export default function ScraperReviewPage() {
                         </>
                       ) : (
                         <>
-                          {l.status !== 'active' && (
-                            <button
-                              onClick={() => patch(l.id, { status: 'active' })}
+                          {/* Status change — works for all statuses incl. sold & archived */}
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-0.5 ml-0.5">Change Status</label>
+                            <select
+                              value={l.status}
+                              onChange={e => patch(l.id, { status: e.target.value })}
                               disabled={isSaving}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-60"
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:ring-1 focus:ring-[#01BBDC] disabled:opacity-60 w-full cursor-pointer"
                             >
-                              <CheckCircle size={13} /> Approve
-                            </button>
-                          )}
-                          {l.status !== 'draft' && (
-                            <button
-                              onClick={() => patch(l.id, { status: 'draft' })}
-                              disabled={isSaving}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 disabled:opacity-60"
-                            >
-                              <XCircle size={13} /> Draft
-                            </button>
-                          )}
+                              <option value="awaiting_review">Awaiting Review</option>
+                              <option value="active">Active</option>
+                              <option value="draft">Draft</option>
+                              <option value="sold">Sold</option>
+                              <option value="archived">Archived</option>
+                            </select>
+                          </div>
                           <button
                             onClick={() => startEdit(l)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#01BBDC]/10 text-[#10214F] rounded-lg text-xs font-medium hover:bg-[#01BBDC]/20"
