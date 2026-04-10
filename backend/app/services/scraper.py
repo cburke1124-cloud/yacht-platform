@@ -51,7 +51,7 @@ from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing
 from app.models.user import User
 from app.models.guest_broker import GuestBroker
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -2280,13 +2280,29 @@ def run_scraper_job(job_id: int, db) -> Dict:
         # -- Step 2: scrape each URL and upsert --
         for url in discovered_urls:
             try:
-                existing_scraped = (
-                    db.query(ScrapedListing)
+                # Look up any existing ScrapedListing row BEFORE releasing the connection.
+                _existing_scraped_id = (
+                    db.query(ScrapedListing.id)
                     .filter(ScrapedListing.job_id == job_id, ScrapedListing.source_url == url)
-                    .first()
+                    .scalar()
                 )
 
+                # Release the DB connection for the duration of the actual web scrape.
+                # Each listing can take 30-120 s via headless browser + Claude extraction.
+                # Holding the connection that long starves the pool for normal API requests.
+                db.close()
+
                 raw = scraper.scrape_single_listing(url, template=_template)
+
+                # Re-acquire a fresh connection for all write operations.
+                db = SessionLocal()
+                job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+                existing_scraped = (
+                    db.query(ScrapedListing)
+                    .filter(ScrapedListing.id == _existing_scraped_id)
+                    .first()
+                ) if _existing_scraped_id else None
+
                 if "error" in raw:
                     stats["errors"] += 1
                     continue
@@ -2420,6 +2436,18 @@ def run_scraper_job(job_id: int, db) -> Dict:
             except Exception as e:
                 logger.error(f"[Job {job_id}] Error processing {url}: {e}")
                 stats["errors"] += 1
+                # Ensure the session is in a clean, usable state for the next iteration.
+                # (The connection is already closed if the error happened before re-acquire.)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    db.close()
+                except Exception:
+                    pass
+                db = SessionLocal()
+                job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
 
         # -- Step 3: archive listings that disappeared --
         previously_active = (
