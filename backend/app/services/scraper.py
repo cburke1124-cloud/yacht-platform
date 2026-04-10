@@ -52,6 +52,7 @@ from app.models.misc import ScraperJob, ScrapedListing
 from app.models.user import User
 from app.models.guest_broker import GuestBroker
 from app.db.session import get_db, SessionLocal
+from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
 
@@ -2557,7 +2558,17 @@ def run_scraper_job(job_id: int, db) -> Dict:
         job.last_run_log = run_log
         db.commit()
 
-        logger.info(f"[Job {job_id}] Sync complete: {stats}")
+        # Diagnostic: verify what actually landed in the DB for this dealer
+        _status_counts = {}
+        for row in (
+            db.query(Listing.status, func.count(Listing.id))
+            .filter(Listing.user_id == job.dealer_id, Listing.source == "scraped", Listing.deleted_at == None)
+            .group_by(Listing.status)
+            .all()
+        ):
+            _status_counts[row[0]] = row[1]
+        logger.info(f"[Job {job_id}] Sync complete: {stats} | DB scraped listings by status: {_status_counts}")
+        return {"success": True, "job_id": job_id, **stats}
         return {"success": True, "job_id": job_id, **stats}
 
     except Exception as e:
