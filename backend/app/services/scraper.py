@@ -2184,18 +2184,39 @@ Content: {content[:12000]}"""
         # store them with status="sold" rather than status="awaiting_review".
         if html and not yacht_data.get("is_sold"):
             _check_soup = BeautifulSoup(html, "html.parser")
-            # 1. Any element whose class list contains a sold-status token
+
+            # 0. Template-configured sold banner selector (highest priority, site-specific)
+            if template and template.get("sold_banner_selector"):
+                _sold_banner_sel = template["sold_banner_selector"].strip()
+                try:
+                    if _check_soup.select_one(_sold_banner_sel):
+                        yacht_data["is_sold"] = True
+                        logger.info(f"scrape_single_listing: sold_banner_selector '{_sold_banner_sel}' matched at {url}")
+                except Exception:
+                    pass
+
+            # 1. Any element whose class list contains a sold-status token.
+            # Guard: skip elements inside <a> tags — those are sold overlays on listing
+            # thumbnails in related/similar sections, NOT the primary status indicator.
             _sold_class_re = re.compile(
                 r'^(?:sold|is-sold|sold-badge|sold-overlay|sold-ribbon|listing-sold|'
-                r'badge-sold|status-sold|vessel-sold|yacht-sold|label-sold|tag-sold)$',
+                r'badge-sold|status-sold|vessel-sold|yacht-sold|label-sold|tag-sold|'
+                r'unavailable-banner)$',
                 re.IGNORECASE,
             )
-            if _check_soup.find(class_=_sold_class_re):
-                yacht_data["is_sold"] = True
-                logger.info(f"scrape_single_listing: sold class detected at {url}")
-            # 2. A standalone prominent element that reads exactly "SOLD" or "SOLD!"
+            if not yacht_data.get("is_sold"):
+                for _el in _check_soup.find_all(class_=_sold_class_re):
+                    if not _el.find_parent('a'):
+                        yacht_data["is_sold"] = True
+                        logger.info(f"scrape_single_listing: sold class '{_el.get('class')}' detected at {url}")
+                        break
+
+            # 2. A standalone element that reads exactly "SOLD" (or equivalent).
+            # Guard: skip elements inside <a> tags (thumbnail sold overlays in sidebars).
             if not yacht_data.get("is_sold"):
                 for _el in _check_soup.find_all(['span', 'div', 'p', 'strong', 'h1', 'h2', 'h3', 'li']):
+                    if _el.find_parent('a'):
+                        continue  # sold overlay on a clickable listing thumbnail — ignore
                     _t = _el.get_text(strip=True).upper()
                     if _t in ('SOLD', 'SOLD!', 'VENDU', 'VENDIDO', 'SOLD OUT'):
                         yacht_data["is_sold"] = True

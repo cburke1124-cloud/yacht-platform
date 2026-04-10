@@ -1025,6 +1025,7 @@ def get_bookmarklet_script(job: int = 0, name: str = "Broker"):
         "{key:'fuel_type_selector',label:'Fuel Type',hint:'Fuel type (diesel / petrol / electric\u2026)'},\n"
         "{key:'hours_selector',label:'Engine Hours',hint:'Engine hours meter reading'},\n"
         "{key:'condition_selector',label:'Condition',hint:'New or Used designation'},\n"
+        "{key:'sold_banner_selector',label:'Sold Banner',hint:'Element shown on a SOLD/unavailable listing page (e.g. div.unavailable-banner). Picks the banner on the listing page itself, not list-view thumbnails.'},\n"
         "{key:'__section',label:'+ Named Section (specs / features / propulsion\u2026)',hint:'Auto-extracts ALL fields from this container. Give it a name.',section:true},\n"
         "];\n"
         # --- Modal ---
