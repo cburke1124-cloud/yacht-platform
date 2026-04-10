@@ -634,6 +634,10 @@ except Exception as e:
                 elif not href.startswith('http'):
                     href = site_url.rstrip('/') + '/' + href.lstrip('/')
                 if href and href not in seen_urls:
+                    # Skip self-referential links back to the inventory page being crawled
+                    _href_path = href.split('?')[0].rstrip('/')
+                    if _href_path == site_url.rstrip('/'):
+                        continue
                     seen_urls.add(href)
                     found.append(href)
                     page_had_links = True
@@ -1095,6 +1099,12 @@ except Exception as e:
         # ── Sitemap fallback ──────────────────────────────────────────────────
         if not listing_urls:
             listing_urls = self._discover_from_sitemap(base_domain, listing_path_patterns)
+
+        # Strip the inventory seed URL itself from the discovered set.
+        # The seed URL's path often matches listing path patterns (e.g. /listings/)
+        # causing it to be added spuriously during BFS or content-sniff passes.
+        _site_stripped = site_url.rstrip('/')
+        listing_urls -= {site_url, _site_stripped, _site_stripped + '/'}
 
         return list(listing_urls)
 
@@ -2412,44 +2422,73 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         stats["updated"] += 1
                         run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
                 else:
-                    # Create new listing — placed in awaiting_review so admin can review before publishing
-                    listing = Listing(
-                        user_id=job.dealer_id,
-                        created_by_user_id=job.created_by_id or job.dealer_id,
-                        assigned_salesman_id=matched_salesman_id,
-                        guest_salesman_id=matched_guest_id,
-                        source="scraped",
-                        source_url=url,
-                        status="sold" if _is_sold else "awaiting_review",
-                        bin=_generate_bin(db),
-                        condition="used",
+                    # Guard against duplicate listings: if a Listing with this source_url
+                    # already exists for this dealer (ScrapedListing record was lost e.g. due
+                    # to a prior interrupted/rolled-back run), recover it instead of creating
+                    # a duplicate. Re-link the ScrapedListing so future runs find it.
+                    _orphaned_listing = (
+                        db.query(Listing)
+                        .filter(Listing.user_id == job.dealer_id, Listing.source_url == url)
+                        .first()
                     )
-                    _apply_scraped_data(listing, raw, job)
-                    db.add(listing)
-                    db.flush()  # get listing.id
+                    if _orphaned_listing:
+                        # Recover: treat as an update, create the missing ScrapedListing row
+                        listing = _orphaned_listing
+                        _apply_scraped_data(listing, raw, job)
+                        if _is_sold:
+                            listing.status = "sold"
+                        elif listing.status not in ("draft", "awaiting_review"):
+                            listing.status = "active"
+                        scraped_record = ScrapedListing(
+                            job_id=job_id,
+                            listing_id=listing.id,
+                            source_url=url,
+                            last_seen=datetime.utcnow(),
+                            still_active=True,
+                        )
+                        db.add(scraped_record)
+                        stats["updated"] += 1
+                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
+                        logger.info(f"[Job {job_id}] Recovered orphaned listing #{listing.id} for {url}")
+                    else:
+                        # Create new listing — placed in awaiting_review so admin can review before publishing
+                        listing = Listing(
+                            user_id=job.dealer_id,
+                            created_by_user_id=job.created_by_id or job.dealer_id,
+                            assigned_salesman_id=matched_salesman_id,
+                            guest_salesman_id=matched_guest_id,
+                            source="scraped",
+                            source_url=url,
+                            status="sold" if _is_sold else "awaiting_review",
+                            bin=_generate_bin(db),
+                            condition="used",
+                        )
+                        _apply_scraped_data(listing, raw, job)
+                        db.add(listing)
+                        db.flush()  # get listing.id
 
-                    # Create images — filter out social media assets and tiny non-boat images
-                    _SKIP_IMAGE_RE = re.compile(
-                        r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
-                        r'logo|icon|favicon|avatar|banner|social|share|'
-                        r'placeholder|no.image|no_image|spinner|pixel|tracking',
-                        re.IGNORECASE,
-                    )
-                    for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
-                        if not _SKIP_IMAGE_RE.search(img_url):
-                            db.add(ListingImage(listing_id=listing.id, url=img_url))
+                        # Create images — filter out social media assets and tiny non-boat images
+                        _SKIP_IMAGE_RE = re.compile(
+                            r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
+                            r'logo|icon|favicon|avatar|banner|social|share|'
+                            r'placeholder|no.image|no_image|spinner|pixel|tracking',
+                            re.IGNORECASE,
+                        )
+                        for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
+                            if not _SKIP_IMAGE_RE.search(img_url):
+                                db.add(ListingImage(listing_id=listing.id, url=img_url))
 
-                    # Track in ScrapedListing
-                    scraped_record = ScrapedListing(
-                        job_id=job_id,
-                        listing_id=listing.id,
-                        source_url=url,
-                        last_seen=datetime.utcnow(),
-                        still_active=True,
-                    )
-                    db.add(scraped_record)
-                    stats["created"] += 1
-                    run_log.append({"url": url, "outcome": "sold" if _is_sold else "created", "listing_id": listing.id, "title": listing.title})
+                        # Track in ScrapedListing
+                        scraped_record = ScrapedListing(
+                            job_id=job_id,
+                            listing_id=listing.id,
+                            source_url=url,
+                            last_seen=datetime.utcnow(),
+                            still_active=True,
+                        )
+                        db.add(scraped_record)
+                        stats["created"] += 1
+                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "created", "listing_id": listing.id, "title": listing.title})
 
                 # Flush live stats to DB every 5 listings so frontend polling sees progress
                 if (stats["created"] + stats["updated"] + stats["errors"]) % 5 == 0:
