@@ -2423,16 +2423,23 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
                 else:
                     # Guard against duplicate listings: if a Listing with this source_url
-                    # already exists for this dealer (ScrapedListing record was lost e.g. due
-                    # to a prior interrupted/rolled-back run), recover it instead of creating
-                    # a duplicate. Re-link the ScrapedListing so future runs find it.
+                    # already exists for this dealer, re-link it instead of creating a duplicate.
+                    # This covers two scenarios:
+                    #   A) ScrapedListing record was lost (e.g. prior rolled-back run) — true orphan
+                    #   B) A different job previously scraped the same site — cross-job re-link
                     _orphaned_listing = (
                         db.query(Listing)
                         .filter(Listing.user_id == job.dealer_id, Listing.source_url == url)
                         .first()
                     )
                     if _orphaned_listing:
-                        # Recover: treat as an update, create the missing ScrapedListing row
+                        # Determine if this is a cross-job re-link (other job already has
+                        # a ScrapedListing for this URL) vs a true orphan (no record at all).
+                        _prior_scraped = (
+                            db.query(ScrapedListing.id)
+                            .filter(ScrapedListing.source_url == url, ScrapedListing.listing_id == _orphaned_listing.id)
+                            .scalar()
+                        )
                         listing = _orphaned_listing
                         _apply_scraped_data(listing, raw, job)
                         if _is_sold:
@@ -2449,7 +2456,10 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         db.add(scraped_record)
                         stats["updated"] += 1
                         run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
-                        logger.info(f"[Job {job_id}] Recovered orphaned listing #{listing.id} for {url}")
+                        if _prior_scraped:
+                            logger.info(f"[Job {job_id}] Linked listing #{listing.id} from prior job for {url}")
+                        else:
+                            logger.info(f"[Job {job_id}] Recovered orphaned listing #{listing.id} for {url}")
                     else:
                         # Create new listing — placed in awaiting_review so admin can review before publishing
                         listing = Listing(
