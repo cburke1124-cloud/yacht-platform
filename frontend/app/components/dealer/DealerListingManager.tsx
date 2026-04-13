@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl } from '@/app/lib/apiRoot';
 
@@ -12,7 +12,7 @@ interface Listing {
   year?: number;
   make?: string;
   model?: string;
-  status: 'draft' | 'active' | 'archived' | 'sold';
+  status: 'draft' | 'active' | 'archived' | 'sold' | 'awaiting_review';
   views: number;
   inquiries: number;
   featured: boolean;
@@ -43,6 +43,8 @@ export default function DealerListingsManager() {
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
+  const [sortField, setSortField] = useState<'title'|'price'|'status'|'views'|'created_at'>('created_at');
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
 
   useEffect(() => {
     fetchListings();
@@ -244,9 +246,54 @@ export default function DealerListingsManager() {
       case 'draft': return 'bg-gray-100 text-gray-800';
       case 'sold': return 'bg-blue-100 text-blue-800';
       case 'archived': return 'bg-red-100 text-red-800';
+      case 'awaiting_review': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'draft': return 'Draft';
+      case 'sold': return 'Sold';
+      case 'archived': return 'Archived';
+      case 'awaiting_review': return 'Awaiting Approval';
+      default: return status;
+    }
+  };
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={12} className="inline ml-1 opacity-40" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={12} className="inline ml-1" />
+      : <ChevronDown size={12} className="inline ml-1" />;
+  };
+
+  const sortedListings = useMemo(() => {
+    return [...listings].sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+      switch (sortField) {
+        case 'title': aVal = a.title?.toLowerCase() || ''; bVal = b.title?.toLowerCase() || ''; break;
+        case 'price': aVal = a.price ?? 0; bVal = b.price ?? 0; break;
+        case 'status': aVal = a.status; bVal = b.status; break;
+        case 'views': aVal = a.views ?? 0; bVal = b.views ?? 0; break;
+        case 'created_at': aVal = a.created_at || ''; bVal = b.created_at || ''; break;
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [listings, sortField, sortDir]);
 
   const getAssignedSalesman = (listing: Listing) => {
     if (!listing.assigned_salesman_id) return null;
@@ -319,19 +366,32 @@ export default function DealerListingsManager() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Listing
+                  <button onClick={() => handleSort('title')} className="flex items-center gap-1 hover:text-gray-700">
+                    Listing <SortIcon field="title" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  <button onClick={() => handleSort('status')} className="flex items-center gap-1 hover:text-gray-700">
+                    Status <SortIcon field="status" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Price
+                  <button onClick={() => handleSort('price')} className="flex items-center gap-1 hover:text-gray-700">
+                    Price <SortIcon field="price" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Assigned To
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stats
+                  <button onClick={() => handleSort('views')} className="flex items-center gap-1 hover:text-gray-700">
+                    Stats <SortIcon field="views" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button onClick={() => handleSort('created_at')} className="flex items-center gap-1 hover:text-gray-700">
+                    Date <SortIcon field="created_at" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -339,7 +399,7 @@ export default function DealerListingsManager() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {listings.map((listing) => {
+              {sortedListings.map((listing) => {
                 const assignedSalesman = getAssignedSalesman(listing);
                 
                 return (
@@ -371,8 +431,8 @@ export default function DealerListingsManager() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-2">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
-                          {quickEdits[listing.id]?.status || listing.status}
+                        <span className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
+                          {getStatusLabel(quickEdits[listing.id]?.status || listing.status)}
                         </span>
                         <select
                           value={quickEdits[listing.id]?.status ?? listing.status}
@@ -473,6 +533,9 @@ export default function DealerListingsManager() {
                         <span>{listing.inquiries || 0} inquiries</span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {listing.created_at ? new Date(listing.created_at).toLocaleDateString() : '—'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         <Link
@@ -485,10 +548,10 @@ export default function DealerListingsManager() {
                         </Link>
                         <Link
                           href={`/dealer/listings/${listing.id}/edit`}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 font-medium text-xs whitespace-nowrap"
                           title="Edit listing"
                         >
-                          <Edit size={18} />
+                          <Edit size={15} /><span>Edit</span>
                         </Link>
                         <button
                           onClick={() => saveQuickEdit(listing.id)}
