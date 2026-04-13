@@ -402,7 +402,16 @@ def _launch(p):
     proxy_settings = {"server": proxy_url} if proxy_url else None
     for attempt in range(2):
         try:
-            return p.chromium.launch(headless=True, proxy=proxy_settings)
+            return p.chromium.launch(
+                headless=True,
+                proxy=proxy_settings,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-dev-shm-usage",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                ],
+            )
         except Exception as e:
             if attempt == 0 and ("Executable doesn't exist" in str(e) or "executable" in str(e).lower()):
                 # Binary not present — install without --with-deps (no sudo needed)
@@ -418,12 +427,25 @@ def _launch(p):
 try:
     with sync_playwright() as p:
         browser = _launch(p)
-        ctx = browser.new_context(user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ))
+        ctx = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+            },
+        )
         page = ctx.new_page()
+        # Remove navigator.webdriver flag to avoid bot detection
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         # Catch goto timeout but still grab whatever the browser loaded
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -435,7 +457,7 @@ try:
             except Exception:
                 pass
         try:
-            page.wait_for_load_state("networkidle", timeout=15000)
+            page.wait_for_load_state("networkidle", timeout=25000)
         except Exception:
             pass
         # Scroll to bottom to trigger lazy-loaded listing cards, then wait for them
@@ -2531,6 +2553,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     pass
                 db = SessionLocal()
                 job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+                if not job:
+                    logger.error(f"[Job {job_id}] Job disappeared from DB after error recovery; aborting")
+                    break
 
         # -- Step 3: archive listings that disappeared --
         previously_active = (
