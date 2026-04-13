@@ -1967,6 +1967,8 @@ Content: {content[:12000]}"""
             r'/ui/|/icons?/|/buttons?/|'
             # People / agent / headshot patterns
             r'headshot|portrait|/agents?/|/brokers?/|/staff/|/team-member|/salesperson|'
+            # Logo color-variant files (e.g. Company-Name-White.png, Brand-Dark.svg)
+            r'(?:White|Dark|Black|Light|Color|Grey|Gray)\.(?:png|svg)|'
             # Social media brand assets
             r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|snapchat\.|'
             r'pinterest\.|whatsapp\.|social|share-btn|share_btn',
@@ -2016,7 +2018,16 @@ Content: {content[:12000]}"""
                 candidates = [s.strip().split()[0] for s in img['srcset'].split(',') if s.strip()]
                 src = candidates[-1] if candidates else None
             alt_text = (img.get('alt') or '').lower()
-            if src and 'logo' not in alt_text and 'icon' not in alt_text and not src.startswith('data:'):
+            # Skip small square-cropped images — these are profile/headshot photos,
+            # not boat gallery images (e.g. width="240" height="240")
+            _w_attr, _h_attr = img.get('width', ''), img.get('height', '')
+            try:
+                _is_small_square = (_w_attr and _h_attr
+                                    and int(float(_w_attr)) == int(float(_h_attr))
+                                    and int(float(_w_attr)) <= 600)
+            except (ValueError, TypeError):
+                _is_small_square = False
+            if src and not _is_small_square and 'logo' not in alt_text and 'icon' not in alt_text and not src.startswith('data:'):
                 _add(src.strip())
 
         # Priority 4: embedded JS blobs — scan script tags for image URL arrays
