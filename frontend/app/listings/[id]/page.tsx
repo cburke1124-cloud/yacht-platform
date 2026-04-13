@@ -10,7 +10,7 @@ import {
   X, ChevronLeft, ChevronRight, Building2, User,
   ExternalLink, Globe, Users, Wrench,
   Bed, Gauge, Fuel, Waves, Ruler,
-  Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle
+  Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle, Edit
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
@@ -162,6 +162,11 @@ export default function ListingDetailPage() {
   const [msgBusy, setMsgBusy] = useState(false);
   const [msgDone, setMsgDone] = useState(false);
 
+  // editor bar state
+  const [me, setMe] = useState<{ id: number; user_type: string } | null>(null);
+  const [approvingStatus, setApprovingStatus] = useState(false);
+  const [navContext, setNavContext] = useState<{ ids: number[]; filter: string } | null>(null);
+
   // ── fetch ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -291,6 +296,22 @@ export default function ListingDetailPage() {
     setMsgBusy(false);
   }
 
+  async function approveListing() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setApprovingStatus(true);
+    try {
+      const r = await fetch(`${API_ROOT}/listings/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'active' }),
+      });
+      if (r.ok) setListing(prev => prev ? { ...prev, status: 'active' } : prev);
+    } finally {
+      setApprovingStatus(false);
+    }
+  }
+
   // ── assemble media ─────────────────────────────────────────────────────────
 
   const visualItems: MediaItem[] = media.length > 0
@@ -348,6 +369,19 @@ export default function ListingDetailPage() {
     if (lightbox !== null) setLightboxZoom(1);
   }, [lightbox]);
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    try {
+      const stored = localStorage.getItem('dashboardListingNav');
+      if (stored) setNavContext(JSON.parse(stored));
+    } catch {}
+    if (!token) return;
+    fetch(`${API_ROOT}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setMe(data))
+      .catch(() => {});
+  }, []);
+
   // ── loading / not found ────────────────────────────────────────────────────
 
   if (loading) return (
@@ -365,6 +399,27 @@ export default function ListingDetailPage() {
       </div>
     </div>
   );
+
+  // ── editor bar computed values ──────────────────────────────────────────────
+
+  const canEdit = !!(me && listing && (
+    ['admin', 'dealer', 'salesman'].includes(me.user_type) ||
+    me.id === listing.user_id ||
+    me.id === listing.created_by_user_id
+  ));
+
+  const listingStatusConfig: Record<string, { label: string; colorClass: string }> = {
+    active:          { label: 'Active',            colorClass: 'bg-green-100 text-green-800' },
+    draft:           { label: 'Draft',             colorClass: 'bg-gray-200 text-gray-700' },
+    awaiting_review: { label: 'Awaiting Approval', colorClass: 'bg-orange-100 text-orange-800' },
+    sold:            { label: 'Sold',              colorClass: 'bg-blue-100 text-blue-800' },
+    archived:        { label: 'Archived',          colorClass: 'bg-red-100 text-red-700' },
+  };
+
+  const currentNavIndex = navContext ? navContext.ids.indexOf(Number(id)) : -1;
+  const prevListingId   = currentNavIndex > 0 ? navContext!.ids[currentNavIndex - 1] : null;
+  const nextListingId   = currentNavIndex >= 0 && currentNavIndex < navContext!.ids.length - 1
+    ? navContext!.ids[currentNavIndex + 1] : null;
 
   // ── render ─────────────────────────────────────────────────────────────────
 
@@ -503,6 +558,62 @@ export default function ListingDetailPage() {
           </div>
         </div>
       )}
+
+      {/* ══ EDITOR STATUS BAR ══════════════════════════════════════════════ */}
+      {canEdit && listing && (() => {
+        const info = listingStatusConfig[listing.status || ''] ?? { label: listing.status || '', colorClass: 'bg-gray-200 text-gray-700' };
+        return (
+          <div className="bg-[#10214F] text-white border-b border-white/10">
+            <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-white/60 uppercase tracking-wider font-medium">Status</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${info.colorClass}`}>
+                  {info.label}
+                </span>
+                {listing.status === 'awaiting_review' && (
+                  <button
+                    onClick={approveListing}
+                    disabled={approvingStatus}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white text-xs font-semibold rounded-full transition-colors"
+                  >
+                    <Check size={12} />
+                    {approvingStatus ? 'Approving…' : 'Approve'}
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {navContext && currentNavIndex >= 0 && (
+                  <span className="text-xs text-white/50">
+                    {currentNavIndex + 1} of {navContext.ids.length}
+                  </span>
+                )}
+                {prevListingId !== null && (
+                  <Link
+                    href={`/listings/${prevListingId}`}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </Link>
+                )}
+                {nextListingId !== null && (
+                  <Link
+                    href={`/listings/${nextListingId}`}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    Next <ChevronRight size={14} />
+                  </Link>
+                )}
+                <Link
+                  href={`/dealer/listings/${id}/edit`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#01BBDC] hover:bg-[#01BBDC]/80 text-white text-xs font-semibold rounded-full transition-colors"
+                >
+                  <Edit size={13} /> Edit Listing
+                </Link>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ PAGE ════════════════════════════════════════════════════════════ */}
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">

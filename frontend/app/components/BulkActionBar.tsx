@@ -33,8 +33,8 @@ export function BulkActionsBar({
         setShowStatusMenu(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
   }, [showStatusMenu]);
 
   if (selectedIds.length === 0) return null;
@@ -70,7 +70,7 @@ export function BulkActionsBar({
               {/* Change Status */}
               <div className="relative" ref={statusMenuRef}>
                 <button
-                  onClick={() => setShowStatusMenu(!showStatusMenu)}
+                  onClick={(e) => { e.stopPropagation(); setShowStatusMenu(!showStatusMenu); }}
                   className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
                 >
                   <Eye size={18} />
@@ -80,7 +80,7 @@ export function BulkActionsBar({
                 {showStatusMenu && (
                   <div
                     className="absolute top-full right-0 mt-0 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50"
-                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => e.stopPropagation()}
                   >
                     <button
                       onClick={() => { onBulkStatusChange('active'); setShowStatusMenu(false); }}

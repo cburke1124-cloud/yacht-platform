@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye, User, Upload, RotateCcw, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Edit, Eye, Trash2, ToggleLeft, ToggleRight, UserPlus, Check, X, MapPin, ScanEye, User, Upload, RotateCcw, AlertTriangle, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ListingPreviewModal from '@/app/components/ListingPreviewModal';
@@ -71,6 +71,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [previewListing, setPreviewListing] = useState<Listing | null>(null);
   const [deleteToast, setDeleteToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [sortField, setSortField] = useState<'title' | 'price' | 'status' | 'views' | 'created_at'>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(listings.length);
 
@@ -474,6 +476,17 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'draft': return 'Draft';
+      case 'sold': return 'Sold';
+      case 'archived': return 'Archived';
+      case 'awaiting_review': return 'Awaiting Approval';
+      default: return status;
+    }
+  };
+
   const getAssignedSalesman = (listing: Listing) => {
     if (listing.guest_salesman_id) {
       const g = guestBrokers.find(b => b.id === listing.guest_salesman_id);
@@ -484,6 +497,44 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       if (m) return { name: `${m.first_name} ${m.last_name}`, isGuest: false };
     }
     return null;
+  };
+
+  const sortedListings = useMemo(() => {
+    const arr = [...listings];
+    arr.sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+      switch (sortField) {
+        case 'title':      aVal = (a.title || '').toLowerCase(); bVal = (b.title || '').toLowerCase(); break;
+        case 'price':      aVal = a.price ?? 0;                  bVal = b.price ?? 0;                  break;
+        case 'status':     aVal = a.status;                      bVal = b.status;                      break;
+        case 'views':      aVal = a.views;                       bVal = b.views;                       break;
+        case 'created_at': aVal = a.created_at || '';             bVal = b.created_at || '';             break;
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [listings, sortField, sortDir]);
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('desc'); }
+  };
+
+  const SortIcon = ({ field }: { field: typeof sortField }) =>
+    sortField === field
+      ? (sortDir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
+      : <ArrowUpDown size={13} className="opacity-40" />;
+
+  const saveNavContext = () => {
+    try {
+      localStorage.setItem('dashboardListingNav', JSON.stringify({
+        ids: sortedListings.map(l => l.id),
+        filter: statusFilter,
+      }));
+    } catch {}
   };
 
   if (loading) {
@@ -659,34 +710,47 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-x-auto">
-          <table className="min-w-[800px] w-full divide-y divide-gray-200">
+          <table className="min-w-[1000px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    checked={listings.length > 0 && selectedIds.length === listings.length}
-                    onChange={() => selectedIds.length === listings.length ? clearSelection() : selectAll(listings.map(l => l.id))}
+                    checked={sortedListings.length > 0 && selectedIds.length === sortedListings.length}
+                    onChange={() => selectedIds.length === sortedListings.length ? clearSelection() : selectAll(sortedListings.map(l => l.id))}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded cursor-pointer"
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Listing
+                  <button onClick={() => handleSort('title')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                    Listing <SortIcon field="title" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Location
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  <button onClick={() => handleSort('status')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                    Status <SortIcon field="status" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Price
+                  <button onClick={() => handleSort('price')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                    Price <SortIcon field="price" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Assigned To
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Stats
+                  <button onClick={() => handleSort('created_at')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                    Date <SortIcon field="created_at" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <button onClick={() => handleSort('views')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                    Stats <SortIcon field="views" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -694,7 +758,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {listings.map((listing) => {
+              {sortedListings.map((listing) => {
                 const assignedSalesman = getAssignedSalesman(listing);
                 
                 return (
@@ -740,8 +804,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-2">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
-                          {quickEdits[listing.id]?.status || listing.status}
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full whitespace-nowrap ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
+                          {getStatusLabel(quickEdits[listing.id]?.status || listing.status)}
                         </span>
                         {quickEditMode && (
                           <select
@@ -901,6 +965,9 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {listing.created_at ? new Date(listing.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex flex-col gap-1">
                         <span>{listing.views || 0} views</span>
                         <span>{listing.inquiries || 0} inquiries</span>
@@ -932,6 +999,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                         <Link
                           href={`/listings/${listing.id}`}
                           target="_blank"
+                          onClick={saveNavContext}
                           className="text-gray-600 hover:text-gray-900"
                           title="View live listing"
                         >
@@ -939,10 +1007,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                         </Link>
                         <Link
                           href={`/dealer/listings/${listing.id}/edit`}
-                          className="text-blue-600 hover:text-blue-900"
+                          onClick={saveNavContext}
+                          className="flex items-center gap-1 text-blue-600 hover:text-blue-900 font-medium text-xs"
                           title="Edit listing"
                         >
-                          <Edit size={18} />
+                          <Edit size={16} /> Edit
                         </Link>
                         <button
                           onClick={() => saveQuickEdit(listing.id)}
