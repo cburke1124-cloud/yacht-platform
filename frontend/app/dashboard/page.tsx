@@ -65,7 +65,7 @@ interface Listing {
 interface DashboardStats {
   totalListings: number;
   activeListings: number;
-  needsApprovalListings: number;
+  awaitingReviewListings: number;
   totalViews: number;
   totalInquiries: number;
   featuredListings: number;
@@ -308,7 +308,7 @@ function EnhancedDealerDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
-    needsApprovalListings: 0,
+    awaitingReviewListings: 0,
     totalViews: 0,
     totalInquiries: 0,
     featuredListings: 0
@@ -780,7 +780,7 @@ function EnhancedDealerDashboard() {
       setStats({
         totalListings: listings.length,
         activeListings: listings.filter((l: Listing) => l.status === 'active').length,
-        needsApprovalListings: listings.filter((l: Listing) => l.status === 'needs_approval').length,
+        awaitingReviewListings: listings.filter((l: Listing) => l.status === 'awaiting_review').length,
         totalViews,
         totalInquiries,
         featuredListings: featuredCount
@@ -1627,7 +1627,7 @@ function EnhancedDealerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           {[
             { label: 'Total Listings',   value: stats.totalListings,                    icon: BarChart3,      iconClass: 'text-gray-400',    bgClass: 'bg-gray-100',    valueClass: 'text-gray-500'    },
-            { label: 'Needs Approval',   value: stats.needsApprovalListings,            icon: ClipboardList,  iconClass: 'text-orange-500',  bgClass: 'bg-orange-50',   valueClass: 'text-orange-500'  },
+            { label: 'Awaiting Approval', value: stats.awaitingReviewListings,            icon: ClipboardList,  iconClass: 'text-orange-500',  bgClass: 'bg-orange-50',   valueClass: 'text-orange-500'  },
             { label: 'Active',           value: stats.activeListings,                   icon: Eye,            iconClass: 'text-green-500',   bgClass: 'bg-green-50',    valueClass: 'text-green-600'   },
             { label: 'Total Views',      value: stats.totalViews.toLocaleString(),      icon: Eye,            iconClass: 'text-primary',     bgClass: 'bg-cyan-50',     valueClass: 'text-primary'     },
             { label: 'Inquiries',        value: stats.totalInquiries,                   icon: MessageSquare,  iconClass: 'text-secondary',   bgClass: 'bg-indigo-50',   valueClass: 'text-secondary'   },
@@ -1833,7 +1833,7 @@ function EnhancedDealerDashboard() {
               {(() => {
                 const statusFilters = [
                   { id: 'all', label: 'All' },
-                  { id: 'needs_approval', label: 'Needs Approval' },
+                  { id: 'awaiting_review', label: 'Awaiting Approval' },
                   { id: 'active', label: 'Active' },
                   { id: 'draft', label: 'Draft' },
                   { id: 'sold', label: 'Sold' },
@@ -2048,12 +2048,12 @@ function EnhancedDealerDashboard() {
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                   (quickEdits[listing.id]?.status || listing.status) === 'active'
                                     ? 'bg-emerald-100 text-emerald-800'
-                                    : (quickEdits[listing.id]?.status || listing.status) === 'needs_approval'
+                                    : (quickEdits[listing.id]?.status || listing.status) === 'awaiting_review'
                                     ? 'bg-orange-100 text-orange-700'
                                     : 'bg-soft text-dark'
                                 }`}>
-                                  {(quickEdits[listing.id]?.status || listing.status) === 'needs_approval'
-                                    ? 'Needs Approval'
+                                  {(quickEdits[listing.id]?.status || listing.status) === 'awaiting_review'
+                                    ? 'Awaiting Approval'
                                     : (quickEdits[listing.id]?.status || listing.status)}
                                 </span>
                                 {quickEditMode && (
@@ -2062,7 +2062,7 @@ function EnhancedDealerDashboard() {
                                     onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
                                     className="mt-2 block text-sm border border-gray-200 rounded px-2 py-1"
                                   >
-                                    <option value="needs_approval">Needs Approval</option>
+                                    <option value="awaiting_review">Awaiting Approval</option>
                                     <option value="draft">Draft</option>
                                     <option value="active">Active</option>
                                     <option value="sold">Sold</option>
@@ -2075,7 +2075,7 @@ function EnhancedDealerDashboard() {
                               </td>
                               <td className="px-3 py-3 align-top">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  {listing.status === 'needs_approval' && (
+                                  {listing.status === 'awaiting_review' && (
                                     <button
                                       onClick={() => approveListing(listing.id)}
                                       disabled={approvingId === listing.id}

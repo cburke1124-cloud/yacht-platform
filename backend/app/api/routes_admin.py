@@ -597,21 +597,131 @@ def delete_user(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Delete or deactivate a user."""
+    """Delete or deactivate a user. Pass ?permanent=true to hard-delete all data."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise ResourceNotFoundException("User", user_id)
-    
+
     if permanent:
-        # Delete user and all their listings
-        db.query(Listing).filter(Listing.user_id == user_id).delete()
+        uid = user_id
+
+        # --- auth / session records ---
+        db.execute(text("DELETE FROM password_resets WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM email_verifications WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM two_factor_auth WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM two_factor_codes WHERE user_id = :uid"), {"uid": uid})
+
+        # --- notifications / activity ---
+        db.execute(text("DELETE FROM notifications WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM activity_logs WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM account_deletion_requests WHERE user_id = :uid"), {"uid": uid})
+
+        # --- comparisons ---
+        db.execute(text(
+            "DELETE FROM comparison_items WHERE comparison_id IN "
+            "(SELECT id FROM comparisons WHERE user_id = :uid)"
+        ), {"uid": uid})
+        db.execute(text("DELETE FROM comparisons WHERE user_id = :uid"), {"uid": uid})
+
+        # --- CRM / webhooks ---
+        db.execute(text("DELETE FROM crm_integrations WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM webhook_configs WHERE user_id = :uid"), {"uid": uid})
+
+        # --- messages & SMS threads ---
+        db.execute(text("DELETE FROM sms_conversations WHERE dealer_user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM messages WHERE sender_id = :uid OR recipient_id = :uid"), {"uid": uid})
+
+        # --- payments / invoices ---
+        db.execute(text("DELETE FROM invoices WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM payments WHERE user_id = :uid"), {"uid": uid})
+
+        # --- commission history ---
+        db.execute(text(
+            "UPDATE commission_rate_history SET changed_by_user_id = NULL "
+            "WHERE changed_by_user_id = :uid"
+        ), {"uid": uid})
+        db.execute(text("DELETE FROM commission_rate_history WHERE sales_rep_id = :uid"), {"uid": uid})
+
+        # --- team members linked to this user account ---
+        db.execute(text("UPDATE team_members SET user_id = NULL WHERE user_id = :uid"), {"uid": uid})
+
+        # --- lead notes authored by this user ---
+        db.execute(text("DELETE FROM lead_notes WHERE author_id = :uid"), {"uid": uid})
+
+        # --- inquiries assigned to this user ---
+        db.execute(text(
+            "UPDATE inquiries SET assigned_to_id = NULL WHERE assigned_to_id = :uid"
+        ), {"uid": uid})
+
+        # --- partner / affiliate records ---
+        db.execute(text("UPDATE affiliate_accounts SET user_id = NULL WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("UPDATE affiliate_accounts SET created_by = NULL WHERE created_by = :uid"), {"uid": uid})
+        db.execute(text("UPDATE partner_deals SET owner_sales_rep_id = NULL WHERE owner_sales_rep_id = :uid"), {"uid": uid})
+        db.execute(text("UPDATE partner_deals SET created_by = NULL WHERE created_by = :uid"), {"uid": uid})
+        db.execute(text("UPDATE partner_offers SET created_by = NULL WHERE created_by = :uid"), {"uid": uid})
+        db.execute(text(
+            "DELETE FROM referral_signups WHERE dealer_user_id = :uid OR sales_rep_id = :uid"
+        ), {"uid": uid})
+
+        # --- API keys / invitations ---
+        db.execute(text("DELETE FROM api_keys WHERE dealer_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM listing_api_blocks WHERE dealer_id = :uid"), {"uid": uid})
+        db.execute(text(
+            "UPDATE dealer_invitations SET created_by = NULL WHERE created_by = :uid"
+        ), {"uid": uid})
+        db.execute(text("DELETE FROM dealer_invitations WHERE dealer_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM promotional_offers WHERE dealer_id = :uid"), {"uid": uid})
+
+        # --- scraper jobs owned by this dealer ---
+        db.execute(text("UPDATE scraper_jobs SET salesman_id = NULL WHERE salesman_id = :uid"), {"uid": uid})
+        db.execute(text("UPDATE scraper_jobs SET created_by_id = NULL WHERE created_by_id = :uid"), {"uid": uid})
+        job_ids_rows = db.execute(
+            text("SELECT id FROM scraper_jobs WHERE dealer_id = :uid"), {"uid": uid}
+        ).fetchall()
+        for (jid,) in job_ids_rows:
+            db.execute(text("DELETE FROM scraped_listings WHERE job_id = :jid"), {"jid": jid})
+        db.execute(text("DELETE FROM scraper_jobs WHERE dealer_id = :uid"), {"uid": uid})
+
+        # --- media files & folders ---
+        db.execute(text(
+            "DELETE FROM listing_media_attachments WHERE media_id IN "
+            "(SELECT id FROM media_files WHERE user_id = :uid)"
+        ), {"uid": uid})
+        db.execute(text("DELETE FROM media_files WHERE user_id = :uid"), {"uid": uid})
+        db.execute(text("DELETE FROM media_folders WHERE user_id = :uid"), {"uid": uid})
+
+        # --- listings owned / created / assigned by this user ---
+        listing_ids_rows = db.execute(
+            text("SELECT id FROM listings WHERE user_id = :uid"), {"uid": uid}
+        ).fetchall()
+        for (lid,) in listing_ids_rows:
+            db.execute(text("DELETE FROM listing_media_attachments WHERE listing_id = :lid"), {"lid": lid})
+            db.execute(text("DELETE FROM scraped_listings WHERE listing_id = :lid"), {"lid": lid})
+        db.execute(text(
+            "UPDATE listings SET created_by_user_id = NULL WHERE created_by_user_id = :uid"
+        ), {"uid": uid})
+        db.execute(text(
+            "UPDATE listings SET assigned_salesman_id = NULL WHERE assigned_salesman_id = :uid"
+        ), {"uid": uid})
+        db.execute(text("DELETE FROM listings WHERE user_id = :uid"), {"uid": uid})
+
+        # --- child team-user accounts & sales rep assignments ---
+        db.execute(text(
+            "UPDATE users SET parent_dealer_id = NULL WHERE parent_dealer_id = :uid"
+        ), {"uid": uid})
+        db.execute(text(
+            "UPDATE users SET assigned_sales_rep_id = NULL WHERE assigned_sales_rep_id = :uid"
+        ), {"uid": uid})
+
+        # --- finally delete the user (ORM cascades blog_posts, dealer_profile,
+        #     preferences, saved_listings, price_alerts, search_alerts) ---
         db.delete(user)
         message = "User permanently deleted"
     else:
-        # Just deactivate
+        # Soft-deactivate only — data is preserved
         user.active = False
         message = "User deactivated"
-    
+
     db.commit()
     return {"success": True, "message": message}
 

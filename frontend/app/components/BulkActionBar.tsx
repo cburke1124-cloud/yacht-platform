@@ -94,11 +94,11 @@ export function BulkActionsBar({
                       Set to Draft
                     </button>
                     <button
-                      onClick={() => { onBulkStatusChange('pending'); setShowStatusMenu(false); }}
+                      onClick={() => { onBulkStatusChange('awaiting_review'); setShowStatusMenu(false); }}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"
                     >
                       <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                      Set to Pending
+                      Set to Awaiting Approval
                     </button>
                     <button
                       onClick={() => { onBulkStatusChange('sold'); setShowStatusMenu(false); }}

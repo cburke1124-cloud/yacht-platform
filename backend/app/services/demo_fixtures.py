@@ -7,7 +7,7 @@ Status distribution across the 9 fixtures:
   - featured (1): active + featured=True, showcases the Featured Listings tab
   - sold (1): showcases the Sold tab
   - draft (1): showcases the Draft tab
-  - needs_approval (1): showcases the Needs Approval tab
+  - needs_approval (1): showcases the Awaiting Approval tab
   - recently_deleted=True (1 of the actives): soft-deleted post-creation to
     showcase the Recently Deleted tab with the 30-day recovery countdown
 """
@@ -181,7 +181,7 @@ DEMO_SAMPLE_LISTINGS = [
         "water_capacity_gallons": 2000,
         "fuel_capacity_gallons": 4500,
         "features": ["Twin Rolls-Royce", "Dynamic Positioning", "Smart Glass", "Spa Pool", "Sauna", "Elevator", "Tender with Jet"],
-        "status": "needs_approval",  # showcases Needs Approval tab
+        "status": "awaiting_review",  # showcases Awaiting Approval tab
         "featured": False,
         "views": 67,
         "inquiries": 1,

@@ -229,7 +229,7 @@ export default function ScraperReviewPage() {
         {/* Status tabs */}
         <div className="flex flex-wrap gap-2">
           {([
-            { key: 'awaiting_review', label: 'Awaiting Review', activeClass: 'bg-[#10214F] text-white' },
+            { key: 'awaiting_review', label: 'Awaiting Approval', activeClass: 'bg-[#10214F] text-white' },
             { key: 'active',          label: 'Active',           activeClass: 'bg-green-600 text-white' },
             { key: 'draft',           label: 'Draft',            activeClass: 'bg-gray-600 text-white' },
             { key: 'sold',            label: 'Sold',             activeClass: 'bg-amber-600 text-white' },
@@ -440,7 +440,7 @@ export default function ScraperReviewPage() {
                               disabled={isSaving}
                               className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:ring-1 focus:ring-[#01BBDC] disabled:opacity-60 w-full cursor-pointer"
                             >
-                              <option value="awaiting_review">Awaiting Review</option>
+                              <option value="awaiting_review">Awaiting Approval</option>
                               <option value="active">Active</option>
                               <option value="draft">Draft</option>
                               <option value="sold">Sold</option>

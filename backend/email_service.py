@@ -278,7 +278,7 @@ class EmailService:
 
     def notify_admin_new_listing(self, listing_title: str, dealer_name: str, listing_id: int) -> bool:
         content = f"""
-            <h1>New Listing Pending Approval</h1>
+            <h1>New Listing Awaiting Approval</h1>
             <p><strong>Title:</strong> {listing_title}</p>
             <p><strong>Dealer:</strong> {dealer_name}</p>
             <p><strong>ID:</strong> {listing_id}</p>

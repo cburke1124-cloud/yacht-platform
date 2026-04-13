@@ -14,7 +14,7 @@ interface Listing {
   year?: number;
   make?: string;
   model?: string;
-  status: 'draft' | 'active' | 'archived' | 'sold' | 'needs_approval';
+  status: 'draft' | 'active' | 'archived' | 'sold' | 'awaiting_review';
   views: number;
   inquiries: number;
   featured: boolean;
@@ -469,6 +469,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       case 'draft': return 'bg-gray-100 text-gray-800';
       case 'sold': return 'bg-blue-100 text-blue-800';
       case 'archived': return 'bg-red-100 text-red-800';
+      case 'awaiting_review': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -534,7 +535,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         {[
           { id: 'all', label: 'All' },
-          { id: 'needs_approval', label: 'Needs Approval' },
+          { id: 'awaiting_review', label: 'Awaiting Approval' },
           { id: 'active', label: 'Active' },
           { id: 'draft', label: 'Draft' },
           { id: 'sold', label: 'Sold' },
@@ -748,7 +749,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                             onChange={(e) => updateQuickEditField(listing.id, 'status', e.target.value)}
                             className="text-xs border border-gray-300 rounded px-2 py-1"
                           >
-                            <option value="needs_approval">Needs Approval</option>
+                            <option value="awaiting_review">Awaiting Approval</option>
                             <option value="draft">Draft</option>
                             <option value="active">Active</option>
                             <option value="sold">Sold</option>
@@ -774,7 +775,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                             Unpublish
                           </button>
                         )}
-                        {listing.status === 'needs_approval' && (
+                        {listing.status === 'awaiting_review' && (
                           <button
                             onClick={() => updateListingStatus(listing.id, 'active')}
                             disabled={approvingId === listing.id}

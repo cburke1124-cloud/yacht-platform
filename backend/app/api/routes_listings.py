@@ -905,6 +905,10 @@ def update_listing(
         if field_name in update_payload and not _has_listing_column(field_name):
             update_payload.pop(field_name, None)
 
+    # Normalize legacy status values to awaiting_review
+    if update_payload.get("status") in ("needs_approval", "pending"):
+        update_payload["status"] = "awaiting_review"
+
     for field, value in update_payload.items():
         setattr(listing, field, value)
 
@@ -940,7 +944,10 @@ def quick_edit_listing(
         raise HTTPException(status_code=400, detail="No quick-edit fields were provided")
 
     if "status" in update_payload:
-        valid_statuses = {"active", "draft", "needs_approval", "sold", "archived"}
+        # Treat legacy "needs_approval" and "pending" as "awaiting_review"
+        if update_payload["status"] in ("needs_approval", "pending"):
+            update_payload["status"] = "awaiting_review"
+        valid_statuses = {"active", "draft", "awaiting_review", "sold", "archived"}
         if update_payload["status"] not in valid_statuses:
             raise HTTPException(status_code=400, detail="Invalid status value")
 

@@ -124,7 +124,7 @@ export default function AdminUsersTab() {
   };
 
   const handleDeleteUser = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!confirm('Deactivate this user? Their data will be preserved. Use "Force Delete" to permanently remove an account.')) return;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/admin/users/${id}`), {
@@ -135,7 +135,29 @@ export default function AdminUsersTab() {
         setUsers(users.filter(u => u.id !== id));
         setTotal(t => t - 1);
       } else {
-        alert('Failed to delete user');
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to deactivate user: ${err.detail || res.status}`);
+      }
+    } catch {
+      alert('Failed to deactivate user');
+    }
+  };
+
+  const handleForceDeleteUser = async (id: number, email: string) => {
+    if (!confirm(`PERMANENTLY DELETE ${email} and ALL their data? This cannot be undone.`)) return;
+    if (!confirm('Second confirmation: this will erase listings, media, messages, and all associated records. Continue?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${id}?permanent=true`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(users.filter(u => u.id !== id));
+        setTotal(t => t - 1);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to delete user: ${err.detail || res.status}`);
       }
     } catch {
       alert('Failed to delete user');
@@ -418,7 +440,14 @@ export default function AdminUsersTab() {
                             onClick={() => handleDeleteUser(user.id)}
                             className="px-2.5 py-1 text-xs bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition"
                           >
-                            Delete
+                            Deactivate
+                          </button>
+                          <button
+                            onClick={() => handleForceDeleteUser(user.id, user.email)}
+                            className="px-2.5 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition"
+                            title="Permanently delete this user and all associated data"
+                          >
+                            Force Delete
                           </button>
                         </div>
                       </td>
