@@ -1806,7 +1806,7 @@ except Exception as e:
     # ---------------------------------------------------------
     def clean_html(self, html: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header", "iframe"]):
+        for tag in soup(["script", "style", "nav", "footer", "header", "iframe", "head"]):
             tag.decompose()
         text = soup.get_text(separator="\n")
         lines = (line.strip() for line in text.splitlines())
@@ -2187,12 +2187,34 @@ Content: {content[:12000]}"""
             soup_title = BeautifulSoup(html, "html.parser").find("title")
             if soup_title:
                 raw_title = soup_title.get_text(strip=True)
+                _title_boat_re = re.compile(
+                    r"(\d{1,4}['’\"']?\s*(19|20)\d{2}|(19|20)\d{2}\s*[-\u2013]?\s*\w|\b\d{2,3}\s*ft\b)",
+                    re.IGNORECASE,
+                )
                 for sep in [" - ", " | ", " — ", " :: "]:
                     if sep in raw_title:
-                        raw_title = raw_title.split(sep)[0].strip()
+                        parts = [p.strip() for p in raw_title.split(sep)]
+                        boat_part = next((p for p in parts if _title_boat_re.search(p)), None)
+                        raw_title = boat_part if boat_part else parts[0]
                         break
                 if len(raw_title) > 3:
                     yacht_data["title"] = raw_title
+
+        # Sanitize final title — strip site-name prefixes (e.g. "Rick Obey Yacht Sales - 58' 2005 ...").
+        # If the title contains a separator and one segment looks like a boat listing, use that segment.
+        if yacht_data.get("title"):
+            _title_boat_re = re.compile(
+                r"(\d{1,4}['’\"']?\s*(19|20)\d{2}|(19|20)\d{2}\s*[-\u2013]?\s*\w|\b\d{2,3}\s*ft\b)",
+                re.IGNORECASE,
+            )
+            _t = yacht_data["title"]
+            for _sep in [" - ", " | ", " — ", " :: "]:
+                if _sep in _t:
+                    _parts = [p.strip() for p in _t.split(_sep)]
+                    _boat = next((p for p in _parts if _title_boat_re.search(p)), None)
+                    if _boat and _boat != _t:
+                        yacht_data["title"] = _boat
+                    break
 
         # Description fallback: if AI still didn't return one, use deterministic extract
         if not yacht_data.get("description") and partial.get("description"):
