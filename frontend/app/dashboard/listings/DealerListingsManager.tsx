@@ -802,9 +802,9 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-2">
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full inline-block whitespace-nowrap ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
+                    <td className="px-6 py-4">
+                      <div style={{display:'flex',flexDirection:'column',gap:'6px',alignItems:'flex-start'}}>
+                        <span style={{display:'table',whiteSpace:'nowrap'}} className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
                           {getStatusLabel(quickEdits[listing.id]?.status || listing.status)}
                         </span>
                         {quickEditMode && (
@@ -843,7 +843,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                           <button
                             onClick={() => updateListingStatus(listing.id, 'active')}
                             disabled={approvingId === listing.id}
-                            className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1 disabled:opacity-50"
+                            className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1 disabled:opacity-50 whitespace-nowrap"
                           >
                             <Check size={14} />
                             {approvingId === listing.id ? 'Approving…' : 'Approve'}
