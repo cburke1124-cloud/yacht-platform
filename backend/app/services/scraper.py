@@ -1965,6 +1965,8 @@ Content: {content[:12000]}"""
             r'logo|icon|avatar|banner|/ad|spacer|pixel|tracking|'
             r'x-out|xout|spinner|placeholder|no.image|no_image|'
             r'/ui/|/icons?/|/buttons?/|'
+            # People / agent / headshot patterns
+            r'headshot|portrait|/agents?/|/brokers?/|/staff/|/team-member|/salesperson|'
             # Social media brand assets
             r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|snapchat\.|'
             r'pinterest\.|whatsapp\.|social|share-btn|share_btn',
@@ -1978,10 +1980,13 @@ Content: {content[:12000]}"""
             absolute = urljoin(base_url, url_str) if not url_str.startswith('http') else url_str
             if not absolute.startswith('http'):
                 return
-            if not img_ext_re.search(absolute.split('?')[0]):
+            base_path = absolute.split('?')[0]
+            # Extension may be in the query string (e.g. /kpreview?FILE=gallery/boat.jpg)
+            if not img_ext_re.search(base_path) and not img_ext_re.search(absolute):
                 return
-            norm = absolute.split('?')[0]
-            if norm in seen or skip_re.search(norm):
+            # For normal URLs deduplicate on path; for query-string image URLs use full URL
+            norm = base_path if img_ext_re.search(base_path) else absolute
+            if norm in seen or skip_re.search(base_path):
                 return
             seen.add(norm)
             images.append(absolute)
@@ -2221,6 +2226,13 @@ Content: {content[:12000]}"""
             agent_photo = self.detect_agent_photo(html, detected_agent)
             if agent_photo:
                 yacht_data["detected_agent_photo"] = agent_photo
+                # Remove agent headshot from listing images — it was caught by extract_images
+                # as well and must not show as a boat photo.
+                _ap_norms = {agent_photo, agent_photo.split('?')[0]}
+                yacht_data["images"] = [
+                    i for i in yacht_data.get("images", [])
+                    if i not in _ap_norms and i.split('?')[0] not in _ap_norms
+                ]
 
         # ── TEMPLATE OVERRIDES (highest priority) ──────────────────────────
         # Apply any admin-configured CSS selectors — these win over all heuristics.
