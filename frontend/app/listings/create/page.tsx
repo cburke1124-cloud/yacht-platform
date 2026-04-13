@@ -212,10 +212,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         const isPaidDealer = userType === 'dealer' && paidDealerTiers.has(tier);
         const isPaidPrivate = userType === 'private' && paidPrivateTiers.has(tier);
         const hasPermission = me.permissions?.can_create_listings === true;
+        const isAlwaysFree = me.always_free === true;
 
         // In edit mode, any authenticated dealer/admin/private can edit their listings
         // regardless of subscription tier — ownership is verified when listing data loads
-        if (isEditMode && (isAdmin || userType === 'dealer' || userType === 'private' || hasPermission)) {
+        if (isEditMode && (isAdmin || userType === 'dealer' || userType === 'private' || hasPermission || isAlwaysFree)) {
           setHasListingAccess(true);
           setAccessChecking(false);
           return;
@@ -223,12 +224,12 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
         // If trial has expired (webhook may not have fired yet), send to billing
         const trialExpired = me.trial_active && me.trial_end_date && new Date(me.trial_end_date) < new Date();
-        if (trialExpired && !isAdmin) {
+        if (trialExpired && !isAdmin && !isAlwaysFree) {
           router.replace('/dashboard/billing?payment=required');
           return;
         }
 
-        if (isAdmin || isPaidDealer || isPaidPrivate || hasPermission) {
+        if (isAdmin || isPaidDealer || isPaidPrivate || hasPermission || isAlwaysFree) {
           setHasListingAccess(true);
           // Fetch dealer profile to check if account-level co-brokering is enabled
           if (userType === 'dealer' || isAdmin) {

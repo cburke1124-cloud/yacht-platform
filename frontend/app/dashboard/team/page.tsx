@@ -534,11 +534,9 @@ export default function TeamManagementPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-secondary">{broker.first_name} {broker.last_name}</p>
-                      {broker.source === 'scraper' && (
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
-                          Auto-imported
-                        </span>
-                      )}
+                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${broker.source === 'scraper' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {broker.source === 'scraper' ? 'Auto-imported' : 'Broker Profile'}
+                      </span>
                     </div>
                     <div className="text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
                       {broker.title && <span>{broker.title}</span>}
@@ -547,18 +545,15 @@ export default function TeamManagementPage() {
                     </div>
                     {broker.source === 'scraper' && (
                       <p className="text-xs text-gray-400 mt-1">Detected from broker website · messages route to company email until promoted</p>
-                    )}
-                  </div>
+                    )}                  </div>
                   <div className="flex items-center gap-2">
-                    {broker.source === 'scraper' && (
-                      <button
-                        onClick={() => handlePromoteGuest(broker)}
-                        title="Create a platform account for this person"
-                        className="px-3 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        Promote to Account
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handlePromoteGuest(broker)}
+                      title="Create a full platform account for this person"
+                      className="px-3 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      Promote to Account
+                    </button>
                     <button
                       onClick={() => {
                         setEditingGuest(broker);
