@@ -804,7 +804,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-2">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full whitespace-nowrap ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
+                        <span className={`px-3 py-1 text-xs font-semibold rounded-full inline-block whitespace-nowrap ${getStatusColor(quickEdits[listing.id]?.status || listing.status)}`}>
                           {getStatusLabel(quickEdits[listing.id]?.status || listing.status)}
                         </span>
                         {quickEditMode && (
@@ -1008,10 +1008,10 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                         <Link
                           href={`/dealer/listings/${listing.id}/edit`}
                           onClick={saveNavContext}
-                          className="flex items-center gap-1 text-blue-600 hover:text-blue-900 font-medium text-xs"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 font-medium text-xs whitespace-nowrap"
                           title="Edit listing"
                         >
-                          <Edit size={16} /> Edit
+                          <Edit size={15} /><span>Edit</span>
                         </Link>
                         <button
                           onClick={() => saveQuickEdit(listing.id)}
