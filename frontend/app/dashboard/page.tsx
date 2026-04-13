@@ -320,6 +320,8 @@ function EnhancedDealerDashboard() {
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [listingStatusFilter, setListingStatusFilter] = useState('all');
+  const [listingSortField, setListingSortField] = useState<'title'|'price'|'status'|'views'|'created_at'>('created_at');
+  const [listingSortDir, setListingSortDir] = useState<'asc'|'desc'>('desc');
   const [deletedListings, setDeletedListings] = useState<any[]>([]);
   const [deletedLoading, setDeletedLoading] = useState(false);
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('30d');
@@ -1840,9 +1842,37 @@ function EnhancedDealerDashboard() {
                   { id: 'archived', label: 'Archived' },
                   { id: 'recently_deleted', label: 'Recently Deleted' },
                 ];
-                const filteredListings = listingStatusFilter === 'all'
+                const filteredListings = (listingStatusFilter === 'all'
                   ? listings
-                  : listings.filter(l => l.status === listingStatusFilter);
+                  : listings.filter(l => l.status === listingStatusFilter)
+                ).slice().sort((a: Listing, b: Listing) => {
+                  let aVal: string | number = '';
+                  let bVal: string | number = '';
+                  switch (listingSortField) {
+                    case 'title': aVal = (a.title || '').toLowerCase(); bVal = (b.title || '').toLowerCase(); break;
+                    case 'price': aVal = a.price ?? 0; bVal = b.price ?? 0; break;
+                    case 'status': aVal = a.status || ''; bVal = b.status || ''; break;
+                    case 'views': aVal = a.views ?? 0; bVal = b.views ?? 0; break;
+                    case 'created_at': aVal = (a as any).created_at || ''; bVal = (b as any).created_at || ''; break;
+                  }
+                  if (aVal < bVal) return listingSortDir === 'asc' ? -1 : 1;
+                  if (aVal > bVal) return listingSortDir === 'asc' ? 1 : -1;
+                  return 0;
+                });
+                const handleListingSort = (field: typeof listingSortField) => {
+                  if (listingSortField === field) {
+                    setListingSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                  } else {
+                    setListingSortField(field);
+                    setListingSortDir('asc');
+                  }
+                };
+                const ListingSortIcon = ({ field }: { field: typeof listingSortField }) => {
+                  if (listingSortField !== field) return <ChevronDown size={11} className="inline ml-0.5 opacity-30" />;
+                  return listingSortDir === 'asc'
+                    ? <ChevronUp size={11} className="inline ml-0.5" />
+                    : <ChevronDown size={11} className="inline ml-0.5" />;
+                };
                 return (
                   <>
                     <div className="flex gap-1 overflow-x-auto px-4 pt-3 pb-0 border-b border-gray-100">
@@ -1958,16 +1988,24 @@ function EnhancedDealerDashboard() {
                               />
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[36%]">
-                              Yacht
+                              <button onClick={() => handleListingSort('title')} className="flex items-center gap-0.5 hover:text-gray-700">
+                                Yacht <ListingSortIcon field="title" />
+                              </button>
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[16%]">
-                              Price
+                              <button onClick={() => handleListingSort('price')} className="flex items-center gap-0.5 hover:text-gray-700">
+                                Price <ListingSortIcon field="price" />
+                              </button>
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[14%]">
-                              Status
+                              <button onClick={() => handleListingSort('status')} className="flex items-center gap-0.5 hover:text-gray-700">
+                                Status <ListingSortIcon field="status" />
+                              </button>
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[10%]">
-                              Views
+                              <button onClick={() => handleListingSort('views')} className="flex items-center gap-0.5 hover:text-gray-700">
+                                Views <ListingSortIcon field="views" />
+                              </button>
                             </th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-secondary uppercase w-[24%]">
                               Actions
@@ -2045,7 +2083,7 @@ function EnhancedDealerDashboard() {
                                 </div>
                               </td>
                               <td className="px-3 py-3 align-top">
-                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap inline-block ${
                                   (quickEdits[listing.id]?.status || listing.status) === 'active'
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : (quickEdits[listing.id]?.status || listing.status) === 'awaiting_review'
@@ -2087,9 +2125,9 @@ function EnhancedDealerDashboard() {
                                   )}
                                   <button
                                     onClick={() => window.location.href = `/listings/${listing.id}/edit`}
-                                    className="p-2 text-secondary hover:bg-soft rounded transition-colors"
+                                    className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-soft rounded transition-colors whitespace-nowrap"
                                   >
-                                    <Edit size={18} />
+                                    <Edit size={14} /> Edit
                                   </button>
                                   {quickEditMode && (
                                     <button
