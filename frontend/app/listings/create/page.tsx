@@ -213,6 +213,14 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         const isPaidPrivate = userType === 'private' && paidPrivateTiers.has(tier);
         const hasPermission = me.permissions?.can_create_listings === true;
 
+        // In edit mode, any authenticated dealer/admin/private can edit their listings
+        // regardless of subscription tier — ownership is verified when listing data loads
+        if (isEditMode && (isAdmin || userType === 'dealer' || userType === 'private' || hasPermission)) {
+          setHasListingAccess(true);
+          setAccessChecking(false);
+          return;
+        }
+
         // If trial has expired (webhook may not have fired yet), send to billing
         const trialExpired = me.trial_active && me.trial_end_date && new Date(me.trial_end_date) < new Date();
         if (trialExpired && !isAdmin) {

@@ -78,7 +78,10 @@ export function BulkActionsBar({
                 </button>
 
                 {showStatusMenu && (
-                  <div className="absolute top-full right-0 mt-0 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                  <div
+                    className="absolute top-full right-0 mt-0 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50"
+                    onMouseDown={e => e.stopPropagation()}
+                  >
                     <button
                       onClick={() => { onBulkStatusChange('active'); setShowStatusMenu(false); }}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-900 flex items-center gap-2"

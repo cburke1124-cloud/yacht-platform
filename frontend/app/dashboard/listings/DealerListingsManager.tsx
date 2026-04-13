@@ -908,6 +908,20 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
+                        {listing.status === 'awaiting_review' && (
+                          <button
+                            onClick={() => updateListingStatus(listing.id, 'active')}
+                            disabled={approvingId === listing.id}
+                            className="text-green-600 hover:text-green-900 disabled:opacity-50"
+                            title="Approve listing"
+                          >
+                            {approvingId === listing.id ? (
+                              <span className="inline-block w-[18px] h-[18px] border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Check size={18} />
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={() => setPreviewListing(listing)}
                           className="text-purple-600 hover:text-purple-900"
