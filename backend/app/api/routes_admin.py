@@ -917,6 +917,75 @@ def update_dealer(
     return {"success": True, "id": dealer.id, "verified": dealer.verified, "active": dealer.active}
 
 
+@router.get("/dealers/{dealer_id}/profile")
+def get_dealer_profile(
+    dealer_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return the DealerProfile row for a dealer."""
+    profile = db.query(DealerProfile).filter(DealerProfile.user_id == dealer_id).first()
+    if not profile:
+        return {}
+    return {
+        "id": profile.id,
+        "name": profile.name,
+        "company_name": profile.company_name,
+        "email": profile.email,
+        "phone": profile.phone,
+        "address": profile.address,
+        "city": profile.city,
+        "state": profile.state,
+        "country": profile.country,
+        "zip_code": profile.zip_code,
+        "website": profile.website,
+        "description": profile.description,
+        "logo_url": profile.logo_url,
+        "banner_url": profile.banner_url,
+        "facebook_url": profile.facebook_url,
+        "instagram_url": profile.instagram_url,
+        "twitter_url": profile.twitter_url,
+        "linkedin_url": profile.linkedin_url,
+        "primary_color": profile.primary_color,
+        "about_section": profile.about_section,
+        "meta_title": profile.meta_title,
+        "meta_description": profile.meta_description,
+        "cobrokering_enabled": profile.cobrokering_enabled,
+        "show_team_on_profile": profile.show_team_on_profile,
+        "verified": profile.verified,
+        "active": profile.active,
+    }
+
+
+@router.put("/dealers/{dealer_id}/profile")
+def update_dealer_profile(
+    dealer_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update the DealerProfile row for a dealer."""
+    profile = db.query(DealerProfile).filter(DealerProfile.user_id == dealer_id).first()
+    if not profile:
+        raise ResourceNotFoundException("DealerProfile", dealer_id)
+
+    updatable = [
+        "name", "company_name", "email", "phone",
+        "address", "city", "state", "country", "zip_code",
+        "website", "description", "logo_url", "banner_url",
+        "facebook_url", "instagram_url", "twitter_url", "linkedin_url",
+        "primary_color", "about_section", "meta_title", "meta_description",
+        "cobrokering_enabled", "show_team_on_profile", "verified", "active",
+    ]
+    for field in updatable:
+        if field in data:
+            setattr(profile, field, data[field])
+
+    db.commit()
+    db.refresh(profile)
+    return {"success": True}
+
+
 @router.delete("/dealers/{dealer_id}")
 def delete_dealer(
     dealer_id: int,

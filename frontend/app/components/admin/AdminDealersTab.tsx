@@ -39,6 +39,12 @@ export default function AdminDealersTab() {
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ id: number; type: 'success' | 'error'; text: string } | null>(null);
 
+  // Edit profile modal state
+  const [editingProfile, setEditingProfile] = useState<{ dealerId: number; dealerName: string } | null>(null);
+  const [profileForm, setProfileForm] = useState<Record<string, any>>({});
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
   // Team accordion state: dealerId → member list (null = not yet loaded)
   const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
   const [teamData, setTeamData] = useState<Record<number, any[]>>({});
@@ -176,8 +182,45 @@ export default function AdminDealersTab() {
     }
   };
 
-  const handleSyncStripe = async (dealer: any) => {
-    setActionLoading(dealer.id);
+  const openEditProfile = async (dealer: any) => {
+    setEditingProfile({ dealerId: dealer.id, dealerName: dealer.name || dealer.company_name || dealer.email });
+    setProfileLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/dealers/${dealer.id}/profile`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProfileForm(data);
+      }
+    } catch { /* swallow */ }
+    finally { setProfileLoading(false); }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editingProfile) return;
+    setProfileSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/dealers/${editingProfile.dealerId}/profile`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(profileForm),
+      });
+      if (res.ok) {
+        showMsg(editingProfile.dealerId, 'success', 'Profile updated');
+        setEditingProfile(null);
+      } else {
+        const err = await res.json();
+        showMsg(editingProfile.dealerId, 'error', err.detail || 'Save failed');
+      }
+    } catch {
+      if (editingProfile) showMsg(editingProfile.dealerId, 'error', 'Network error');
+    } finally { setProfileSaving(false); }
+  };
+
+  const handleSyncStripe = async (dealer: any) => {    setActionLoading(dealer.id);
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/admin/users/${dealer.id}/sync-stripe`), {
@@ -404,6 +447,12 @@ export default function AdminDealersTab() {
                       {/* Actions */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => openEditProfile(dealer)}
+                            className="px-2.5 py-1 text-xs bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition"
+                          >
+                            Edit Profile
+                          </button>
                           {(dealer.stripe_customer_id || dealer.stripe_subscription_id) && (
                             <button
                               onClick={() => handleSyncStripe(dealer)}
@@ -518,6 +567,156 @@ export default function AdminDealersTab() {
               disabled={page >= totalPages - 1}
               className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition"
             >Next →</button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Broker Profile Modal */}
+      {editingProfile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-secondary">Edit Broker Profile</h2>
+                <p className="text-xs text-dark/50 mt-0.5">{editingProfile.dealerName}</p>
+              </div>
+              <button onClick={() => setEditingProfile(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+
+            {profileLoading ? (
+              <div className="p-12 text-center text-sm text-dark/40">Loading profile...</div>
+            ) : Object.keys(profileForm).length === 0 ? (
+              <div className="p-12 text-center text-sm text-dark/40">No profile found for this dealer.</div>
+            ) : (
+              <div className="p-5 space-y-5">
+                {/* Basic info */}
+                <div>
+                  <h3 className="text-xs font-semibold text-dark/40 uppercase tracking-wider mb-3">Business Info</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Display Name', key: 'name' },
+                      { label: 'Company Name', key: 'company_name' },
+                      { label: 'Email', key: 'email' },
+                      { label: 'Phone', key: 'phone' },
+                      { label: 'Website', key: 'website' },
+                      { label: 'Primary Color', key: 'primary_color' },
+                    ].map(({ label, key }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark/60 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={profileForm[key] ?? ''}
+                          onChange={e => setProfileForm((f: Record<string, any>) => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Location */}
+                <div>
+                  <h3 className="text-xs font-semibold text-dark/40 uppercase tracking-wider mb-3">Location</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Address', key: 'address' },
+                      { label: 'City', key: 'city' },
+                      { label: 'State', key: 'state' },
+                      { label: 'Country', key: 'country' },
+                      { label: 'Zip Code', key: 'zip_code' },
+                    ].map(({ label, key }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark/60 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={profileForm[key] ?? ''}
+                          onChange={e => setProfileForm((f: Record<string, any>) => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Social */}
+                <div>
+                  <h3 className="text-xs font-semibold text-dark/40 uppercase tracking-wider mb-3">Social / Media</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Logo URL', key: 'logo_url' },
+                      { label: 'Banner URL', key: 'banner_url' },
+                      { label: 'Facebook URL', key: 'facebook_url' },
+                      { label: 'Instagram URL', key: 'instagram_url' },
+                      { label: 'Twitter URL', key: 'twitter_url' },
+                      { label: 'LinkedIn URL', key: 'linkedin_url' },
+                    ].map(({ label, key }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark/60 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={profileForm[key] ?? ''}
+                          onChange={e => setProfileForm((f: Record<string, any>) => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Text areas */}
+                <div>
+                  <h3 className="text-xs font-semibold text-dark/40 uppercase tracking-wider mb-3">Content</h3>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Description', key: 'description' },
+                      { label: 'About Section', key: 'about_section' },
+                      { label: 'Meta Title', key: 'meta_title' },
+                      { label: 'Meta Description', key: 'meta_description' },
+                    ].map(({ label, key }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark/60 mb-1">{label}</label>
+                        <textarea
+                          rows={key === 'description' || key === 'about_section' ? 3 : 2}
+                          value={profileForm[key] ?? ''}
+                          onChange={e => setProfileForm((f: Record<string, any>) => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Toggles */}
+                <div>
+                  <h3 className="text-xs font-semibold text-dark/40 uppercase tracking-wider mb-3">Settings</h3>
+                  <div className="flex flex-wrap gap-5">
+                    {[
+                      { label: 'Co-brokering enabled', key: 'cobrokering_enabled' },
+                      { label: 'Show team on profile', key: 'show_team_on_profile' },
+                      { label: 'Verified', key: 'verified' },
+                      { label: 'Active', key: 'active' },
+                    ].map(({ label, key }) => (
+                      <label key={key} className="flex items-center gap-2 text-sm text-dark/70 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!profileForm[key]}
+                          onChange={e => setProfileForm((f: Record<string, any>) => ({ ...f, [key]: e.target.checked }))}
+                          className="rounded border-gray-300"
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2 border-t border-gray-100">
+                  <button onClick={() => setEditingProfile(null)} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                  <button onClick={handleSaveProfile} disabled={profileSaving} className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-60">
+                    {profileSaving ? 'Saving...' : 'Save Profile'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

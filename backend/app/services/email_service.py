@@ -21,6 +21,7 @@ class EmailService:
 
         self.api_key = raw_api_key
         self.from_email = os.getenv("FROM_EMAIL", "noreply@yachtversal.com")
+        self.from_name = os.getenv("FROM_NAME", "YachtVersal")
         self.notifications_email = os.getenv("NOTIFICATIONS_EMAIL", "inquiries@yachtversal.com")
         self.base_url = os.getenv("BASE_URL", "https://yachtversal.com")
 
@@ -63,8 +64,9 @@ class EmailService:
         try:
             from sendgrid.helpers.mail import ReplyTo
 
+            from_addr = from_email or self.from_email
             message = Mail(
-                from_email=from_email or self.from_email,
+                from_email=(from_addr, self.from_name),
                 to_emails=to_email,
                 subject=subject,
                 html_content=html_content,
