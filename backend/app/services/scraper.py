@@ -332,11 +332,12 @@ class OptimizedYachtScraper:
             logger.warning(f"fetch_page failed for {url}: {exc}")
             return None
 
-    def _proxy_fetch(self, url: str, timeout: int = 15) -> Optional[str]:
+    def _proxy_fetch(self, url: str, timeout: int = 15, render: bool = False) -> Optional[str]:
         """Fetch via proxy.  For ScraperAPI we call their direct REST API
         (api.scraperapi.com?api_key=...&url=...) instead of routing through the
         CONNECT tunnel — this avoids SSL cert-chain verification failures on
-        sites that don't send their full intermediate-CA certificate chain."""
+        sites that don't send their full intermediate-CA certificate chain.
+        Pass render=True to enable ScraperAPI's JS-rendering (managed Chrome)."""
         if not _SCRAPER_PROXY_URL:
             return None
         try:
@@ -353,6 +354,8 @@ class OptimizedYachtScraper:
                     f"?api_key={api_key}"
                     f"&url={_q(url, safe='')}"
                 )
+                if render:
+                    api_endpoint += "&render=true"
                 resp = requests.get(api_endpoint, headers=self.headers, timeout=timeout + 20)
                 resp.raise_for_status()
                 return resp.text
@@ -533,21 +536,34 @@ except Exception as e:
             stdout = result.stdout.strip()
             if not stdout:
                 logger.warning(f"fetch_page_headless: empty output for {url}; stderr={result.stderr[-300:]}")
-                return self.fetch_page(url)
+                return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
 
             data = _json.loads(stdout)
             if data.get("ok"):
                 return data["html"]
             else:
                 logger.warning(f"fetch_page_headless subprocess error for {url}: {data.get('error')}")
-                return self.fetch_page(url)
+                return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
 
         except subprocess.TimeoutExpired:
             logger.warning(f"fetch_page_headless timed out for {url}")
-            return self.fetch_page(url)
+            return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
         except Exception as exc:
             logger.warning(f"fetch_page_headless failed for {url}: {exc}")
-            return self.fetch_page(url)
+            return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
+
+    def _scraperapi_render_fallback(self, url: str) -> Optional[str]:
+        """Use ScraperAPI's managed Chrome rendering as a fallback when the local
+        headless browser fails (empty content, timeout, or bot detection).
+        ScraperAPI render=true runs a real Chrome instance on their end, bypassing
+        bot detection that blocks our Playwright subprocess."""
+        logger.info(f"fetch_page_headless: falling back to ScraperAPI render=true for {url}")
+        result = self._proxy_fetch(url, timeout=60, render=True)
+        if result:
+            return result
+        # Last resort: static fetch
+        logger.warning(f"ScraperAPI render fallback also failed for {url}, trying static fetch")
+        return self.fetch_page(url)
 
     def check_listing_still_live(self, url: str) -> Tuple[bool, str]:
         """Fast, no-AI check to see if a listing is still active."""
