@@ -52,6 +52,7 @@ from app.models.misc import ScraperJob, ScrapedListing
 from app.models.user import User
 from app.models.guest_broker import GuestBroker
 from app.db.session import get_db, SessionLocal
+from app.services.media_storage import store_media_bytes
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -1962,10 +1963,14 @@ Content: {content[:12000]}"""
 
         # Remove sections that are structurally "related / featured" listings shown
         # below the main listing — they contain gallery images from OTHER boats.
-        # Match on common class/id keywords used by page builders and yacht CMSes.
+        # Use compound patterns to avoid nuking gallery containers that happen to
+        # have short words like "featured" in their own class (e.g. X-Theme page builders).
         _related_re = re.compile(
-            r'related|similar|featured|recommended|more.listing|other.listing|'
-            r'footer|sidebar|widget|newsletter|testimonial|review',
+            r'related[-_]listing|related[-_]yacht|related[-_]boat|similar[-_]listing|'
+            r'similar[-_]yacht|similar[-_]boat|'
+            r'featured[-_]listing|featured[-_]yacht|featured[-_]boat|'
+            r'more[-_]listing|other[-_]listing|recommended[-_]listing|'
+            r'footer|sidebar[-_]widget|newsletter|testimonial[-_]section',
             re.IGNORECASE,
         )
         for _tag in soup.find_all(True):
@@ -2384,6 +2389,42 @@ def _generate_bin(db) -> str:
             return bin_val
 
 
+# Domains that syndicate listing images from broker sites under license.
+# We download and re-host these images rather than linking to them externally,
+# since they may be pulled or change URL without notice.
+_EXTERNAL_CDN_DOMAINS = re.compile(
+    r'images\.boatsgroup\.com|'
+    r'cdn\.yachtworld\.com|'
+    r'photos\.yachtworld\.com|'
+    r'ybw\.com',
+    re.IGNORECASE,
+)
+
+def _rehost_image(img_url: str) -> str:
+    """Download an external CDN image and re-upload it to our own storage.
+
+    Returns the new hosted URL on success, or the original URL on any failure
+    so the listing always gets a valid image URL.
+    """
+    try:
+        resp = requests.get(img_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200 or not resp.content:
+            return img_url
+        content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
+        # Derive a safe filename from the URL
+        from uuid import uuid4
+        ext = img_url.rsplit(".", 1)[-1].split("?")[0].lower()[:5]
+        if ext not in ("jpg", "jpeg", "png", "webp"):
+            ext = "jpg"
+        filename = f"scraped/{uuid4().hex}.{ext}"
+        new_url = store_media_bytes(filename, resp.content, content_type)
+        logger.info(f"_rehost_image: re-hosted {img_url} → {new_url}")
+        return new_url
+    except Exception as exc:
+        logger.warning(f"_rehost_image: failed to re-host {img_url}: {exc}")
+        return img_url
+
+
 def run_scraper_job(job_id: int, db) -> Dict:
     """
     Full sync for a ScraperJob:
@@ -2600,7 +2641,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         db.add(listing)
                         db.flush()  # get listing.id
 
-                        # Create images — filter out social media assets and tiny non-boat images
+                        # Create images — filter out social media assets and tiny non-boat images.
+                        # Any image from an external syndicator CDN (YachtWorld / boatsgroup) is
+                        # downloaded and re-hosted on our own storage so we don't depend on their URLs.
                         _SKIP_IMAGE_RE = re.compile(
                             r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
                             r'logo|icon|favicon|avatar|banner|social|share|'
@@ -2608,8 +2651,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             re.IGNORECASE,
                         )
                         for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
-                            if not _SKIP_IMAGE_RE.search(img_url):
-                                db.add(ListingImage(listing_id=listing.id, url=img_url))
+                            if _SKIP_IMAGE_RE.search(img_url):
+                                continue
+                            if _EXTERNAL_CDN_DOMAINS.search(img_url):
+                                img_url = _rehost_image(img_url)
+                            db.add(ListingImage(listing_id=listing.id, url=img_url))
 
                         # Track in ScrapedListing
                         scraped_record = ScrapedListing(
