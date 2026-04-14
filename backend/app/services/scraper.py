@@ -1959,6 +1959,21 @@ Content: {content[:12000]}"""
     # ---------------------------------------------------------
     def extract_images(self, html: str, base_url: str) -> List[str]:
         soup = BeautifulSoup(html, "html.parser")
+
+        # Remove sections that are structurally "related / featured" listings shown
+        # below the main listing — they contain gallery images from OTHER boats.
+        # Match on common class/id keywords used by page builders and yacht CMSes.
+        _related_re = re.compile(
+            r'related|similar|featured|recommended|more.listing|other.listing|'
+            r'footer|sidebar|widget|newsletter|testimonial|review',
+            re.IGNORECASE,
+        )
+        for _tag in soup.find_all(True):
+            _cls = ' '.join(_tag.get('class', []))
+            _id  = _tag.get('id', '')
+            if _related_re.search(_cls) or _related_re.search(_id):
+                _tag.decompose()
+
         seen: set = set()
         images: List[str] = []
         skip_re = re.compile(
