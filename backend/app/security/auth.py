@@ -12,6 +12,7 @@ from app.exceptions import ValidationException
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 def truncate_password(password: str) -> str:

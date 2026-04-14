@@ -125,36 +125,54 @@ export default function AdminListingEditPage() {
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     setUploadingImages(true);
-    const urls: string[] = [];
+    const newMediaIds: number[] = [];
     try {
       for (const file of Array.from(e.target.files)) {
         const fd = new FormData();
         fd.append('file', file);
         const r = await fetch(apiUrl('/upload'), { method: 'POST', headers: authHeaders(), body: fd });
-        if (r.ok) { const d = await r.json(); urls.push(d.url); }
+        if (r.ok) { const d = await r.json(); if (d.media?.id) newMediaIds.push(d.media.id); }
       }
-      if (urls.length) {
-        await fetch(apiUrl(`/listings/${listingId}/images`), {
-          method: 'POST', headers: jsonHeaders(), body: JSON.stringify(urls),
+      if (newMediaIds.length) {
+        // Preserve existing new-system media IDs, then append new ones
+        const existingIds = (listing.images || []).map((img: any) => img.id).filter(Boolean);
+        await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+          method: 'POST', headers: jsonHeaders(),
+          body: JSON.stringify({ media_ids: [...existingIds, ...newMediaIds] }),
         });
         const fresh = await fetch(apiUrl(`/listings/${listingId}`), { headers: authHeaders() }).then(r => r.json());
         setListing(fresh);
-        showToast(true, `${urls.length} image(s) uploaded`);
+        showToast(true, `${newMediaIds.length} image(s) uploaded`);
       }
     } catch { showToast(false, 'Image upload failed'); }
     finally { setUploadingImages(false); }
   }
 
   async function deleteImage(imageId: number) {
-    if (!confirm('Delete this image?')) return;
-    const r = await fetch(apiUrl(`/listings/${listingId}/images/${imageId}`), { method: 'DELETE', headers: authHeaders() });
+    if (!confirm('Remove this image from the listing?')) return;
+    const remainingIds = (listing.images || [])
+      .filter((img: any) => img.id !== imageId)
+      .map((img: any) => img.id);
+    const r = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+      method: 'POST', headers: jsonHeaders(),
+      body: JSON.stringify({ media_ids: remainingIds }),
+    });
     if (r.ok) {
       setListing((prev: any) => ({ ...prev, images: prev.images?.filter((i: any) => i.id !== imageId) }));
+    } else {
+      showToast(false, 'Failed to remove image');
     }
   }
 
   async function setPrimary(imageId: number) {
-    await fetch(apiUrl(`/listings/${listingId}/images/${imageId}/set-primary`), { method: 'POST', headers: authHeaders() });
+    const reordered = [
+      ...(listing.images || []).filter((img: any) => img.id === imageId),
+      ...(listing.images || []).filter((img: any) => img.id !== imageId),
+    ].map((img: any) => img.id);
+    await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+      method: 'POST', headers: jsonHeaders(),
+      body: JSON.stringify({ media_ids: reordered }),
+    });
     setListing((prev: any) => ({
       ...prev,
       images: prev.images?.map((i: any) => ({ ...i, is_primary: i.id === imageId })),

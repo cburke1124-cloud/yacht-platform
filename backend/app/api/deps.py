@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
-from app.security.auth import security
+from app.security.auth import security, optional_security
 
 def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     if not credentials:
