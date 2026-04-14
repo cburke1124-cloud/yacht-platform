@@ -9,7 +9,7 @@ import logging
 
 from app.db.session import get_db
 from app.db.session import engine
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_optional_user
 from app.models.listing import Listing, ListingImage
 from app.models.media import MediaFile, ListingMediaAttachment
 from app.models.misc import Inquiry, Notification, Message
@@ -1248,7 +1248,7 @@ def get_recently_deleted(
 # ─── GET single listing (FULL detail) ─────────────────────────────────────────
 
 @router.get("/{listing_id}")
-def get_listing(listing_id: int, db: Session = Depends(get_db)):
+def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_optional_user), db: Session = Depends(get_db)):
     _PAID_TIERS = [
         "basic", "plus", "pro", "premium",
         "private_basic", "private_plus", "private_pro",
@@ -1259,11 +1259,14 @@ def get_listing(listing_id: int, db: Session = Depends(get_db)):
     # Treat soft-deleted listings as not found for public access
     if listing.deleted_at is not None:
         raise ResourceNotFoundException("Listing", listing_id)
-    # Hide listing if the owner's subscription has lapsed
-    owner = listing.owner
-    if owner and not getattr(owner, "always_free", False):
-        if (owner.subscription_tier or "") not in _PAID_TIERS:
-            raise ResourceNotFoundException("Listing", listing_id)
+    # Admins can always access any listing regardless of subscription
+    is_admin = current_user and current_user.user_type == "admin"
+    if not is_admin:
+        # Hide listing if the owner's subscription has lapsed
+        owner = listing.owner
+        if owner and not getattr(owner, "always_free", False):
+            if (owner.subscription_tier or "") not in _PAID_TIERS:
+                raise ResourceNotFoundException("Listing", listing_id)
     # Increment view counter
     listing.views = (listing.views or 0) + 1
     db.commit()

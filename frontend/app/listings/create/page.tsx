@@ -882,7 +882,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         model: form.model || null,
         bin: form.bin || '',
         condition: form.condition,
-        status: 'draft',
+        status: isEditMode ? form.status : 'draft',
         allow_cobrokering: form.allow_cobrokering,
         city: form.city || null,
         state: form.state || null,
