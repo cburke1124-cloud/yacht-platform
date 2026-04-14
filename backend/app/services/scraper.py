@@ -738,10 +738,23 @@ except Exception as e:
         img_sel = template.get('images_selector', '').strip()
         if img_sel:
             tmpl_imgs = []
-            for img in soup.select(img_sel):
-                src = (img.get('src') or img.get('data-src') or
-                       img.get('data-lazy-src') or img.get('data-original') or '')
-                if src.startswith('http'):
+            _css_url_re_t = re.compile(
+                r'url\(["\']?(https?://[^"\')\s]+\.(?:jpg|jpeg|png|webp))["\']?\)',
+                re.IGNORECASE,
+            )
+            for el in soup.select(img_sel):
+                src = (el.get('src') or el.get('data-src') or
+                       el.get('data-lazy-src') or el.get('data-original') or '')
+                if not src:
+                    # Fall back to CSS background-image in inline style attribute
+                    # (used by Terraglio-style page builders that set gallery images
+                    # via JS-applied style="" rather than <img src="">).
+                    style = el.get('style', '')
+                    if style:
+                        m = _css_url_re_t.search(style)
+                        if m:
+                            src = m.group(1)
+                if src and src.startswith('http'):
                     tmpl_imgs.append(src)
             if tmpl_imgs:
                 data['images'] = tmpl_imgs[:_MAX_IMAGES_PER_LISTING]
@@ -1983,6 +1996,39 @@ Content: {content[:12000]}"""
             if _related_re.search(_cls) or _related_re.search(_id):
                 _tag.decompose()
 
+        # Also strip sections that are introduced by a heading whose *text* labels
+        # them as a "similar / featured / you may also like" boat list.
+        # This catches sites whose CSS class names don't match the patterns above
+        # (e.g. a plain class="featured" section on Terraglio-style sites).
+        _hdg_text_re = re.compile(
+            r'featured\s+(?:vessel|yacht|boat|listing|unit)|'
+            r'similar\s+(?:vessel|yacht|boat|listing)|'
+            r'you\s+may\s+(?:also\s+)?like|'
+            r'other\s+(?:available|listing|yacht|boat)|'
+            r'more\s+(?:listing|yacht|boat|vessel)|'
+            r'explore\s+more|also\s+available',
+            re.IGNORECASE,
+        )
+        for _hdg in soup.find_all(['h2', 'h3', 'h4', 'h5']):
+            if _hdg_text_re.search(_hdg.get_text(strip=True)):
+                # Ascend to the nearest block ancestor then remove it and all
+                # sibling blocks that follow it (handles column-layout pages).
+                _ancestor = (
+                    _hdg.find_parent(['section', 'div', 'article', 'aside'])
+                    or _hdg.parent
+                )
+                if _ancestor:
+                    for _sib in list(_ancestor.find_all_next_siblings()):
+                        try:
+                            _sib.decompose()
+                        except Exception:
+                            pass
+                    try:
+                        _ancestor.decompose()
+                    except Exception:
+                        pass
+                break  # only strip the first match — avoid over-stripping
+
         seen: set = set()
         images: List[str] = []
         skip_re = re.compile(
@@ -2069,6 +2115,13 @@ Content: {content[:12000]}"""
         _css_url_re = re.compile(r'url\(["\']?(https?://[^"\')\s]+\.(?:jpg|jpeg|png|webp))["\']?\)', re.IGNORECASE)
         for tag in soup.find_all(style=True):
             for m in _css_url_re.finditer(tag['style']):
+                _add(m.group(1))
+
+        # Priority 4b: embedded <style> blocks — catches page builders that emit
+        # background-image rules in a <style> tag instead of inline style attrs.
+        for _style_tag in soup.find_all('style'):
+            _style_text = _style_tag.get_text() or ''
+            for m in _css_url_re.finditer(_style_text):
                 _add(m.group(1))
 
         # Priority 5: embedded JS blobs — scan script tags for image URL arrays
@@ -2283,6 +2336,30 @@ Content: {content[:12000]}"""
             yacht_data["description"] = partial["description"]
 
         images = self.extract_images(html, url)
+
+        # ── Headless image rescue ─────────────────────────────────────────────
+        # If static fetch produced no images but the page has real content, the
+        # gallery is almost certainly JS-rendered (e.g. CSS background-images set
+        # by a slider script).  Re-fetch with a headless browser so those
+        # style attributes are populated, then re-extract.  Also updates `html`
+        # for downstream agent / sold detection which benefits from the richer DOM.
+        if not images and html and len(html) > 3000 and _PLAYWRIGHT_AVAILABLE:
+            logger.info(
+                f"scrape_single_listing: no images in static HTML for {url} "
+                f"({len(html):,} chars) — retrying with headless browser"
+            )
+            _hl_html = self.fetch_page_headless(url)
+            if _hl_html and len(_hl_html) > len(html):
+                logger.info(
+                    f"scrape_single_listing: headless returned {len(_hl_html):,} chars "
+                    f"(static was {len(html):,}), re-extracting images"
+                )
+                html = _hl_html  # update for downstream agent / sold detection
+                images = self.extract_images(_hl_html, url)
+                logger.info(
+                    f"scrape_single_listing: headless rescued {len(images)} images for {url}"
+                )
+
         # Prepend WP REST images — more reliable on JS-rendered / CF-blocked pages
         if _wp_images:
             _seen_norms = {u.split('?')[0] for u in images}
