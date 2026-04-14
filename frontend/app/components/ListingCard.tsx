@@ -21,6 +21,8 @@ type ListingCardProps = {
   images?: string[];
   condition?: string;
   featured?: boolean;
+  currencyCode?: string;    // e.g. 'EUR', 'GBP' — defaults to 'USD'
+  exchangeRate?: number;   // rate from USD to currencyCode
   dealerInfo?: {
     name: string;
     company: string;
@@ -45,6 +47,8 @@ export default function ListingCard({
   images = [],
   condition,
   featured,
+  currencyCode = 'USD',
+  exchangeRate = 1,
   dealerInfo
 }: ListingCardProps) {
   const router = useRouter();
@@ -52,6 +56,11 @@ export default function ListingCard({
   const [showShare, setShowShare] = useState(false);
   const [loading, setLoading] = useState(false);
   const normalizedCondition = condition ? condition.charAt(0).toUpperCase() + condition.slice(1).toLowerCase() : '';
+
+  const displayPrice = price != null ? Math.round(price * exchangeRate) : undefined;
+  const priceFormatted = displayPrice != null
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(displayPrice)
+    : null;
 
   // Updated to use the new fallback image
   const imageUrl = images && images.length > 0 
@@ -140,7 +149,7 @@ export default function ListingCard({
 
     const encodedUrl = encodeURIComponent(listingUrl);
     const encodedTitle = encodeURIComponent(title);
-    const encodedPrice = price ? encodeURIComponent(`$${price.toLocaleString()}`) : encodeURIComponent('Contact for Pricing');
+    const encodedPrice = priceFormatted ? encodeURIComponent(priceFormatted) : encodeURIComponent('Contact for Pricing');
 
     let shareUrl = '';
 
@@ -278,18 +287,18 @@ export default function ListingCard({
         {/* Content */}
         <div className="p-5">
           <div className="flex justify-between items-start gap-3 mb-0.5">
-            <h3 className="text-xl font-bold text-gray-900 line-clamp-2 flex-1">
+            <h3 className="text-xl text-gray-900 line-clamp-2 flex-1">
               {title}
             </h3>
           </div>
 
           <div className="mb-2">
-            {price ? (
-              <p className="text-2xl font-bold text-[#01BBDC]">
-                ${price.toLocaleString()}
+            {priceFormatted ? (
+              <p className="text-2xl text-[#01BBDC]">
+                {priceFormatted}
               </p>
             ) : (
-              <p className="text-2xl font-bold text-gray-700">
+              <p className="text-2xl text-gray-700">
                 Contact for Pricing
               </p>
             )}

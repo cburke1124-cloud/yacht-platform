@@ -536,18 +536,18 @@ export default function Navbar() {
             {isDashboard ? (
               // Broker portal mobile nav — keep public links plus portal shortcuts
               <>
-                <Link href="/listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
-                <Link href="/dashboard?tab=listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>My Dashboard</Link>
+                <Link href="/listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
+                <Link href="/dashboard?tab=listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>My Dashboard</Link>
               </>
             ) : (
               // Public mobile nav
               <>
                 {/* Search Listings */}
-                <Link href="/listings" className="block text-dark/80 hover:text-primary font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
+                <Link href="/listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
 
                 {/* Sell / List accordion */}
                 <div>
-                  <button onClick={() => setMobileSellOpen((v) => !v)} className="w-full flex items-center justify-between text-dark/80 font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+                  <button onClick={() => setMobileSellOpen((v) => !v)} className="w-full flex items-center justify-between text-dark/80 py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                     Sell / List
                     <ChevronDown size={16} className={`transition-transform ${mobileSellOpen ? 'rotate-180' : ''}`} />
                   </button>
@@ -562,7 +562,7 @@ export default function Navbar() {
 
                 {/* Resources accordion */}
                 <div>
-                  <button onClick={() => setMobileResourcesOpen((v) => !v)} className="w-full flex items-center justify-between text-dark/80 font-medium py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+                  <button onClick={() => setMobileResourcesOpen((v) => !v)} className="w-full flex items-center justify-between text-dark/80 py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                     Resources
                     <ChevronDown size={16} className={`transition-transform ${mobileResourcesOpen ? 'rotate-180' : ''}`} />
                   </button>

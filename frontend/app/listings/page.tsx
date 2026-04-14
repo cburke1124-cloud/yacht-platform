@@ -226,6 +226,23 @@ function UnifiedListingsContent() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
 
+  const [currency, setCurrency] = useState('USD');
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch(apiUrl('/currencies/rates'))
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.rates) setExchangeRates(data.rates); })
+      .catch(() => {});
+    const saved = localStorage.getItem('preferredCurrency');
+    if (saved) setCurrency(saved);
+  }, []);
+
+  const handleCurrencyChange = (code: string) => {
+    setCurrency(code);
+    localStorage.setItem('preferredCurrency', code);
+  };
+
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -442,6 +459,18 @@ function UnifiedListingsContent() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Currency selector */}
+            <select
+              value={currency}
+              onChange={(e) => handleCurrencyChange(e.target.value)}
+              className="text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white text-[#10214F] cursor-pointer"
+              style={{ fontFamily: 'Poppins, sans-serif', outline: 'none' }}
+              title="Display prices in selected currency"
+            >
+              {['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CHF', 'JPY', 'NZD', 'HKD', 'SGD', 'NOK', 'SEK', 'DKK', 'AED', 'BRL', 'MXN'].map((code) => (
+                <option key={code} value={code}>{code}</option>
+              ))}
+            </select>
             {searchType === 'ai' && (
               <button
                 onClick={switchToBasicSearch}
@@ -771,6 +800,8 @@ function UnifiedListingsContent() {
                             images={listing.images.map((img) => (typeof img === 'string' ? img : img.url))}
                             condition={listing.condition}
                             featured={listing.featured}
+                            currencyCode={currency}
+                            exchangeRate={currency !== 'USD' ? (exchangeRates[currency] ?? 1) : 1}
                             dealerInfo={listing.dealer ? {
                               name: listing.dealer.name || '',
                               company: listing.dealer.company_name || '',
@@ -829,6 +860,8 @@ function UnifiedListingsContent() {
                         images={listing.images.map((img) => (typeof img === 'string' ? img : img.url))}
                         condition={listing.condition}
                         featured={listing.featured}
+                        currencyCode={currency}
+                        exchangeRate={currency !== 'USD' ? (exchangeRates[currency] ?? 1) : 1}
                         dealerInfo={listing.dealer ? {
                           name: listing.dealer.name || '',
                           company: listing.dealer.company_name || '',
