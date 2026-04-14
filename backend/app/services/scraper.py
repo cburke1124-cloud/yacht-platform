@@ -1984,9 +1984,10 @@ Content: {content[:12000]}"""
             r'headshot|portrait|/agents?/|/brokers?/|/staff/|/team-member|/salesperson|'
             # Logo color-variant files (e.g. Company-Name-White.png, Brand-Dark.svg)
             r'(?:White|Dark|Black|Light|Color|Grey|Gray)\.(?:png|svg)|'
-            # Social media brand assets
-            r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|snapchat\.|'
-            r'pinterest\.|whatsapp\.|social|share-btn|share_btn|'
+            # Social media & review/social-proof platform names in URL path or filename
+            r'facebook|instagram|twitter|linkedin|youtube|tiktok|snapchat|'
+            r'pinterest|whatsapp|reddit|vimeo|tumblr|signal|telegram|'
+            r'social|share-btn|share_btn|'
             # Review / social-proof platform icons (e.g. /feedbacks/yelp.png)
             r'yelp|tripadvisor|trustpilot|google.review|/feedbacks/',
             re.IGNORECASE,
@@ -2024,6 +2025,13 @@ Content: {content[:12000]}"""
                             _add(val.strip())
                             break
 
+        # Compile once outside the loop
+        _social_alt_re = re.compile(
+            r'facebook|instagram|twitter|linkedin|youtube|tiktok|snapchat|'
+            r'pinterest|whatsapp|reddit|vimeo|tumblr|yelp|tripadvisor|trustpilot',
+            re.IGNORECASE,
+        )
+
         # Priority 3: <img> tags (with lazy-load data attrs)
         for img in soup.find_all('img'):
             src = (
@@ -2044,11 +2052,6 @@ Content: {content[:12000]}"""
                                     and int(float(_w_attr)) <= 600)
             except (ValueError, TypeError):
                 _is_small_square = False
-            _social_alt_re = re.compile(
-                r'facebook|instagram|twitter|linkedin|youtube|tiktok|snapchat|'
-                r'pinterest|whatsapp|yelp|tripadvisor|trustpilot',
-                re.IGNORECASE,
-            )
             if src and not _is_small_square and 'logo' not in alt_text and 'icon' not in alt_text and not _social_alt_re.search(alt_text) and not src.startswith('data:'):
                 _add(src.strip())
 
