@@ -18,6 +18,7 @@ export default function AdminListingsTab() {
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
 
@@ -41,6 +42,7 @@ export default function AdminListingsTab() {
       );
 
       if (response.ok) {
+        setFetchError(null);
         const allListings = await response.json();
         setListings(allListings);
         setQuickEdits(
@@ -53,8 +55,13 @@ export default function AdminListingsTab() {
             return acc;
           }, {})
         );
+      } else {
+        const text = await response.text().catch(() => '');
+        setFetchError(`Error ${response.status}: ${text.slice(0, 200)}`);
+        console.error('admin-list failed:', response.status, text);
       }
     } catch (error) {
+      setFetchError(String(error));
       console.error('Failed to fetch listings:', error);
     } finally {
       setLoading(false);
@@ -179,6 +186,18 @@ export default function AdminListingsTab() {
 
   if (loading) {
     return <div className="text-center py-8">Loading listings...</div>;
+  }
+
+  if (fetchError) {
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-6">
+        <p className="font-semibold mb-1">Failed to load listings</p>
+        <p className="text-sm font-mono">{fetchError}</p>
+        <button onClick={fetchListings} className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (

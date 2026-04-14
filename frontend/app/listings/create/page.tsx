@@ -79,6 +79,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const isEditMode = mode === 'edit' && !!listingId;
   const [accessChecking, setAccessChecking] = useState(true);
   const [hasListingAccess, setHasListingAccess] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [initializing, setInitializing] = useState(isEditMode);
   const [uploadedMedia, setUploadedMedia] = useState<any[]>([]);
@@ -209,6 +210,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         const paidPrivateTiers = new Set(['private_basic', 'private_plus', 'private_pro']);
 
         const isAdmin = userType === 'admin';
+        if (isAdmin) setIsAdminUser(true);
         const isPaidDealer = userType === 'dealer' && paidDealerTiers.has(tier);
         const isPaidPrivate = userType === 'private' && paidPrivateTiers.has(tier);
         const hasPermission = me.permissions?.can_create_listings === true;
@@ -1079,7 +1081,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     const submitStatus = statusOverride ?? (form.status as 'draft' | 'active') ?? 'active';
     const isDraft = submitStatus === 'draft';
 
-    if (!isDraft) {
+    if (!isDraft && !isAdminUser) {
       if (!isEditMode && uploadedMedia.length === 0) {
         alert('Please upload at least one image');
         setActiveTab('media');

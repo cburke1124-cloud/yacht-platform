@@ -313,10 +313,10 @@ export default function AdminListingEditPage() {
                   <label className={labelCls}>Status</label>
                   <select className={inputCls} value={listing.status || 'draft'} onChange={e => set('status', e.target.value)}>
                     <option value="draft">Draft</option>
+                    <option value="awaiting_review">Awaiting Review</option>
                     <option value="active">Active</option>
                     <option value="archived">Archived</option>
                     <option value="sold">Sold</option>
-                    <option value="pending">Pending</option>
                   </select>
                 </div>
                 <div className="flex items-end pb-1">
