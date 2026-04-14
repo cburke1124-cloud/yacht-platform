@@ -2030,7 +2030,14 @@ Content: {content[:12000]}"""
             if src and not _is_small_square and 'logo' not in alt_text and 'icon' not in alt_text and not src.startswith('data:'):
                 _add(src.strip())
 
-        # Priority 4: embedded JS blobs — scan script tags for image URL arrays
+        # Priority 4: inline style attributes — CSS url() values, e.g. background-image
+        # and CSS custom properties like --tco-dcab-0: url(...) used by page builders.
+        _css_url_re = re.compile(r'url\(["\']?(https?://[^"\')\s]+\.(?:jpg|jpeg|png|webp))["\']?\)', re.IGNORECASE)
+        for tag in soup.find_all(style=True):
+            for m in _css_url_re.finditer(tag['style']):
+                _add(m.group(1))
+
+        # Priority 5: embedded JS blobs — scan script tags for image URL arrays
         _js_img_re = re.compile(r'["\']((https?://[^"\'\s]+\.(?:jpg|jpeg|png|webp))["\'])', re.IGNORECASE)
         for script in soup.find_all('script'):
             if script.get('type', '').lower() == 'application/ld+json':
