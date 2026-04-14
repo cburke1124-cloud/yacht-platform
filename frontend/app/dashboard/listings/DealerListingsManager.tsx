@@ -1077,7 +1077,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           </div>
         )}
       </>
-      )
+      )}
 
       <ListingPreviewModal
         listing={previewListing}
