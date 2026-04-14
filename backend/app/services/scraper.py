@@ -289,6 +289,8 @@ class OptimizedYachtScraper:
         'CURLE_OPERATION_TIMEDOUT',  # same, alternate representation
         'curl: (35)',   # SSL connect error (IP-level block)
         'curl: (56)',   # Recv failure — connection reset during transfer
+        '403',          # HTTP 403 Forbidden — IP/bot block (e.g. myyachtsforsale.com)
+        '429',          # HTTP 429 Too Many Requests — rate-limited, retry via proxy
     )
 
     def _is_blocked_error(self, exc: Exception) -> bool:
