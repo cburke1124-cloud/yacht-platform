@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Save, Trash2, Star, Upload, X, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 const authHeaders = () => ({
@@ -29,19 +29,48 @@ export default function AdminListingEditPage() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  // Separate media state — tracks the canonical list of MediaFile records attached to this listing.
+  // MediaFile.id values are what media/attach expects.
+  // For scraped listings the initial load uses legacy ListingImage rows (id = ListingImage.id, NOT MediaFile.id).
+  // We track whether the listing has already been migrated to the new media system.
+  const [mediaItems, setMediaItems] = useState<any[]>([]);
+  const [usingNewMediaSystem, setUsingNewMediaSystem] = useState(false);
+
   useEffect(() => {
     if (!listingId) return;
     Promise.all([
       fetch(apiUrl(`/listings/${listingId}`), { headers: authHeaders() }).then(r => r.json()),
       fetch(apiUrl('/admin/users?user_type=dealer&limit=500'), { headers: authHeaders() }).then(r => r.json()),
-    ]).then(([lData, uData]) => {
+      fetch(apiUrl(`/listings/${listingId}/media`), { headers: authHeaders() }).then(r => r.json()),
+    ]).then(([lData, uData, mData]) => {
       setListing(lData);
-      const dealerList = uData.users || [];
-      setDealers(dealerList);
-      // Load salespeople for the listing's dealer
+      setDealers(uData.users || []);
       if (lData?.user_id) loadSalespeople(lData.user_id);
+
+      const items: any[] = mData.media || [];
+      setMediaItems(items);
+      // The /media endpoint returns MediaFile.id values when ListingMediaAttachment records exist.
+      // It falls back to ListingImage.id values for scraped listings.
+      // We detect the new system by checking if any item came from an attachment (has width/height fields
+      // which only MediaFile has, or simply if the backend has attachments).
+      // Simplest heuristic: if items have non-null width/height fields, they're from MediaFile.
+      // Actually the endpoint itself knows — we'll track by trying attach only when we're sure.
+      // We'll set usingNewMediaSystem=true after the first successful upload.
+      setUsingNewMediaSystem(items.length > 0 && items.some((i: any) => i.width !== undefined && i.width !== null));
     });
   }, [listingId]);
+
+  async function refreshMedia() {
+    try {
+      const res = await fetch(apiUrl(`/listings/${listingId}/media`), { headers: authHeaders() });
+      if (res.ok) {
+        const mData = await res.json();
+        const items = mData.media || [];
+        setMediaItems(items);
+        setUsingNewMediaSystem(true); // after any upload, we're definitely in new system
+      }
+    } catch { /* silent */ }
+  }
 
   async function loadSalespeople(dealerId: number) {
     try {
@@ -59,7 +88,7 @@ export default function AdminListingEditPage() {
 
   function showToast(ok: boolean, msg: string) {
     setToast({ ok, msg });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 5000);
   }
 
   async function save() {
@@ -122,61 +151,112 @@ export default function AdminListingEditPage() {
     }
   }
 
+  // Returns the current set of MediaFile.id values for the new media system.
+  // Returns null if we don't have new-system IDs yet (still on legacy scraped images).
+  function currentMediaFileIds(): number[] | null {
+    if (!usingNewMediaSystem) return null;
+    return mediaItems.map((m: any) => m.id);
+  }
+
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     setUploadingImages(true);
     const newMediaIds: number[] = [];
+    let uploadErrors = 0;
     try {
       for (const file of Array.from(e.target.files)) {
         const fd = new FormData();
         fd.append('file', file);
         const r = await fetch(apiUrl('/upload'), { method: 'POST', headers: authHeaders(), body: fd });
-        if (r.ok) { const d = await r.json(); if (d.media?.id) newMediaIds.push(d.media.id); }
+        if (r.ok) {
+          const d = await r.json();
+          if (d.media?.id) {
+            newMediaIds.push(d.media.id);
+          } else {
+            uploadErrors++;
+          }
+        } else {
+          uploadErrors++;
+          const errData = await r.json().catch(() => ({}));
+          console.error('Upload failed:', errData);
+        }
       }
-      if (newMediaIds.length) {
-        // Preserve existing new-system media IDs, then append new ones
-        const existingIds = (listing.images || []).map((img: any) => img.id).filter(Boolean);
-        await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
-          method: 'POST', headers: jsonHeaders(),
-          body: JSON.stringify({ media_ids: [...existingIds, ...newMediaIds] }),
-        });
-        const fresh = await fetch(apiUrl(`/listings/${listingId}`), { headers: authHeaders() }).then(r => r.json());
-        setListing(fresh);
-        showToast(true, `${newMediaIds.length} image(s) uploaded`);
+
+      if (newMediaIds.length === 0) {
+        showToast(false, uploadErrors > 0 ? 'Upload failed — check file type and size' : 'No images were uploaded');
+        return;
       }
-    } catch { showToast(false, 'Image upload failed'); }
-    finally { setUploadingImages(false); }
+
+      // Build the full list of MediaFile IDs to attach.
+      // If we already have new-system media, preserve those IDs and add new ones.
+      // If we're still on legacy images, just attach the new ones (legacy scraped images
+      // are external URLs and will be superseded by the new uploads).
+      const existingNewSystemIds = currentMediaFileIds() ?? [];
+      const allIds = [...existingNewSystemIds, ...newMediaIds];
+
+      const attachRes = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({ media_ids: allIds }),
+      });
+
+      if (!attachRes.ok) {
+        const err = await attachRes.json().catch(() => ({}));
+        showToast(false, `Upload succeeded but attach failed: ${err.detail || attachRes.status}`);
+        return;
+      }
+
+      await refreshMedia();
+      const msg = uploadErrors > 0
+        ? `${newMediaIds.length} uploaded, ${uploadErrors} failed`
+        : `${newMediaIds.length} image${newMediaIds.length !== 1 ? 's' : ''} added`;
+      showToast(true, msg);
+    } catch (err: any) {
+      showToast(false, err.message || 'Image upload failed');
+    } finally {
+      setUploadingImages(false);
+    }
   }
 
-  async function deleteImage(imageId: number) {
+  async function deleteImage(mediaId: number) {
     if (!confirm('Remove this image from the listing?')) return;
-    const remainingIds = (listing.images || [])
-      .filter((img: any) => img.id !== imageId)
-      .map((img: any) => img.id);
+    if (!usingNewMediaSystem) {
+      showToast(false, 'Cannot remove legacy scraped images directly. Upload new images first, then remove.');
+      return;
+    }
+    const remainingIds = mediaItems.filter((m: any) => m.id !== mediaId).map((m: any) => m.id);
     const r = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
-      method: 'POST', headers: jsonHeaders(),
+      method: 'POST',
+      headers: jsonHeaders(),
       body: JSON.stringify({ media_ids: remainingIds }),
     });
     if (r.ok) {
-      setListing((prev: any) => ({ ...prev, images: prev.images?.filter((i: any) => i.id !== imageId) }));
+      await refreshMedia();
+      showToast(true, 'Image removed');
     } else {
       showToast(false, 'Failed to remove image');
     }
   }
 
-  async function setPrimary(imageId: number) {
+  async function setPrimary(mediaId: number) {
+    if (!usingNewMediaSystem) {
+      showToast(false, 'Cannot reorder legacy scraped images. Upload new images first.');
+      return;
+    }
     const reordered = [
-      ...(listing.images || []).filter((img: any) => img.id === imageId),
-      ...(listing.images || []).filter((img: any) => img.id !== imageId),
-    ].map((img: any) => img.id);
-    await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
-      method: 'POST', headers: jsonHeaders(),
+      ...mediaItems.filter((m: any) => m.id === mediaId),
+      ...mediaItems.filter((m: any) => m.id !== mediaId),
+    ].map((m: any) => m.id);
+    const r = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+      method: 'POST',
+      headers: jsonHeaders(),
       body: JSON.stringify({ media_ids: reordered }),
     });
-    setListing((prev: any) => ({
-      ...prev,
-      images: prev.images?.map((i: any) => ({ ...i, is_primary: i.id === imageId })),
-    }));
+    if (r.ok) {
+      await refreshMedia();
+    } else {
+      showToast(false, 'Failed to set primary');
+    }
   }
 
   if (!listing) {
@@ -431,30 +511,40 @@ export default function AdminListingEditPage() {
                     {uploadingImages ? 'Uploading…' : 'Click to upload images'}
                   </label>
                 </div>
+                {!usingNewMediaSystem && mediaItems.length > 0 && (
+                  <p className="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    These are scraped external images. Upload new images above to replace them with hosted copies.
+                  </p>
+                )}
               </div>
 
               <div>
-                <p className={labelCls}>Current Photos ({listing.images?.length || 0})</p>
-                {(!listing.images || listing.images.length === 0) ? (
+                <p className={labelCls}>
+                  Current Photos ({mediaItems.length})
+                  {usingNewMediaSystem && <span className="ml-2 text-xs font-normal text-green-600">✓ Hosted</span>}
+                </p>
+                {mediaItems.length === 0 ? (
                   <p className="text-sm text-gray-400 italic">No photos yet.</p>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-                    {listing.images.map((img: any) => (
+                    {mediaItems.map((img: any) => (
                       <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
-                        <img src={img.url || img.thumbnail_url} alt="" className="w-full h-28 object-cover" />
+                        <img src={img.thumbnail_url || img.url} alt="" className="w-full h-28 object-cover" />
                         {img.is_primary && (
                           <span className="absolute top-1 left-1 bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">Primary</span>
                         )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          {!img.is_primary && (
-                            <button onClick={() => setPrimary(img.id)} title="Set as primary" className="p-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
-                              <Star size={13} />
+                        {usingNewMediaSystem && (
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            {!img.is_primary && (
+                              <button onClick={() => setPrimary(img.id)} title="Set as primary" className="p-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+                                <Star size={13} />
+                              </button>
+                            )}
+                            <button onClick={() => deleteImage(img.id)} title="Remove" className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                              <Trash2 size={13} />
                             </button>
-                          )}
-                          <button onClick={() => deleteImage(img.id)} title="Delete" className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
