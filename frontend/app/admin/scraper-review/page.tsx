@@ -69,6 +69,8 @@ export default function ScraperReviewPage() {
   const [editSalesmanId, setEditSalesmanId] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +80,7 @@ export default function ScraperReviewPage() {
       const res = await fetch(apiUrl(url), { headers: authHeaders() });
       const data = await res.json();
       setListings(data.listings || []);
+      setPage(0); // reset to first page on new data
     } catch {
       setListings([]);
     } finally {
@@ -175,6 +178,9 @@ export default function ScraperReviewPage() {
     acc[l.status] = (acc[l.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  const pagedListings = listings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(listings.length / PAGE_SIZE);
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -285,7 +291,7 @@ export default function ScraperReviewPage() {
                 </div>
               )}
             </div>
-            {listings.map(l => {
+            {pagedListings.map(l => {
               const isEditing = editingId === l.id;
               const isSaving = saving[l.id];
               const isExpanded = expandedId === l.id;
@@ -527,6 +533,34 @@ export default function ScraperReviewPage() {
               );
             })}
           </div>
+
+          {/* Pagination bar */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100 mt-2">
+              <span className="text-sm text-gray-500">
+                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, listings.length)} of {listings.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Previous
+                </button>
+                <span className="text-sm text-gray-700 font-medium px-2">
+                  Page {page + 1} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
         )}
       </div>
     </div>

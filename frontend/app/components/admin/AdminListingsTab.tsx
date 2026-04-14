@@ -18,49 +18,42 @@ export default function AdminListingsTab() {
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
   const [savingQuickEditId, setSavingQuickEditId] = useState<number | null>(null);
   const [quickEditMode, setQuickEditMode] = useState(false);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
 
   useEffect(() => {
     fetchListings();
+    setPage(0); // reset page when filter changes
   }, [filter]);
 
   const fetchListings = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
-      const statuses = filter === 'all'
-        ? ['active', 'draft', 'archived', 'awaiting_review', 'sold']
-        : [filter];
-      
-      const allListings: any[] = [];
-      
-      for (const status of statuses) {
-        const response = await fetch(
-          apiUrl(`/listings?status=${status}&limit=1000`),
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          }
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          allListings.push(...data);
-        }
-      }
-      
-      setListings(allListings);
-      setQuickEdits(
-        allListings.reduce((acc: Record<number, QuickEditDraft>, listing: any) => {
-          acc[listing.id] = {
-            title: listing.title || '',
-            price: listing.price != null ? String(listing.price) : '',
-            status: listing.status || 'draft'
-          };
-          return acc;
-        }, {})
+
+      // Single fast raw-SQL admin endpoint — returns all statuses in one query,
+      // no ORM joins, no N+1 image loads. Orders newest first.
+      const params = new URLSearchParams();
+      if (filter !== 'all') params.set('status', filter);
+      const response = await fetch(
+        apiUrl(`/listings/admin-list${params.size ? '?' + params.toString() : ''}`),
+        { headers: { 'Authorization': `Bearer ${token}` } }
       );
+
+      if (response.ok) {
+        const allListings = await response.json();
+        setListings(allListings);
+        setQuickEdits(
+          allListings.reduce((acc: Record<number, QuickEditDraft>, listing: any) => {
+            acc[listing.id] = {
+              title: listing.title || '',
+              price: listing.price != null ? String(listing.price) : '',
+              status: listing.status || 'draft'
+            };
+            return acc;
+          }, {})
+        );
+      }
     } catch (error) {
       console.error('Failed to fetch listings:', error);
     } finally {
@@ -209,7 +202,7 @@ export default function AdminListingsTab() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 flex-wrap">
         {['all', 'active', 'draft', 'awaiting_review', 'archived', 'sold'].map((status) => (
           <button
             key={status}
@@ -258,7 +251,7 @@ export default function AdminListingsTab() {
                 </td>
               </tr>
             ) : (
-              listings.map((listing) => (
+              listings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((listing) => (
                 <tr key={listing.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -384,6 +377,34 @@ export default function AdminListingsTab() {
             )}
           </tbody>
         </table>
+
+        {/* Pagination bar */}
+        {Math.ceil(listings.length / PAGE_SIZE) > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+            <span className="text-sm text-gray-500">
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, listings.length)} of {listings.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                ← Previous
+              </button>
+              <span className="text-sm text-gray-700 font-medium px-2">
+                Page {page + 1} of {Math.ceil(listings.length / PAGE_SIZE)}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(listings.length / PAGE_SIZE) - 1, p + 1))}
+                disabled={page >= Math.ceil(listings.length / PAGE_SIZE) - 1}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

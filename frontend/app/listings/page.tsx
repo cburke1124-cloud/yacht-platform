@@ -223,6 +223,9 @@ function UnifiedListingsContent() {
     filters.propulsion === 'sail'  ? SAIL_TYPES  :
     [...POWER_TYPES, ...SAIL_TYPES];
 
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
+
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -292,6 +295,7 @@ function UnifiedListingsContent() {
       } else {
         setListings(Array.isArray(data) ? data : []);
       }
+      setPage(0); // reset to first page on new results
     } catch (error) {
       console.error('Error fetching listings:', error);
       setListings([]);
@@ -311,6 +315,7 @@ function UnifiedListingsContent() {
     setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '', country: '' });
     setAiQuery('');
     setSearchType('basic');
+    setPage(0);
     fetchListings(false);
   };
 
@@ -372,6 +377,8 @@ function UnifiedListingsContent() {
   const pinnedFeatured = processedListings.filter((l) => l.featured).slice(0, 4);
   const pinnedIds = new Set(pinnedFeatured.map((l) => l.id));
   const regularListings = processedListings.filter((l) => !pinnedIds.has(l.id));
+  const totalPages = Math.ceil(regularListings.length / PAGE_SIZE);
+  const pagedListings = regularListings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
@@ -416,6 +423,7 @@ function UnifiedListingsContent() {
               }}
             >
               {processedListings.length.toLocaleString()} yacht{processedListings.length !== 1 ? 's' : ''} found
+              {totalPages > 1 && ` · Page ${page + 1} of ${totalPages}`}
             </span>
             {searchType === 'ai' && (
               <span
@@ -727,8 +735,8 @@ function UnifiedListingsContent() {
                   </div>
                 )}
 
-                {/* ── Featured strip ── */}
-                {pinnedFeatured.length > 0 && (
+                {/* ── Featured strip (first page only) ── */}
+                {pinnedFeatured.length > 0 && page === 0 && (
                   <div className="mb-6">
                     <p
                       className="mb-3 text-xs font-semibold uppercase tracking-wider"
@@ -782,7 +790,7 @@ function UnifiedListingsContent() {
                   className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
                   style={{ gap: 24 }}
                 >
-                  {regularListings.map((listing) => (
+                  {pagedListings.map((listing) => (
                     <div key={listing.id} className="relative">
                       {/* AI Match Score Badge */}
                       {listing.match_score !== undefined && (
@@ -864,6 +872,47 @@ function UnifiedListingsContent() {
                     </div>
                   ))}
                 </div>
+
+                {/* Pagination bar */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-3 mt-8 pb-2">
+                    <button
+                      onClick={() => { setPage(p => Math.max(0, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={page === 0}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: page === 0 ? '#f3f4f6' : '#10214F', color: page === 0 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      ← Previous
+                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {Array.from({ length: totalPages }, (_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="w-8 h-8 rounded-full text-sm font-medium transition-colors"
+                          style={{
+                            backgroundColor: i === page ? '#01BBDC' : '#f3f4f6',
+                            color: i === page ? '#FFFFFF' : '#6b7280',
+                            fontFamily: 'Poppins, sans-serif',
+                            display: Math.abs(i - page) <= 2 ? 'flex' : 'none',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => { setPage(p => Math.min(totalPages - 1, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={page >= totalPages - 1}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: page >= totalPages - 1 ? '#f3f4f6' : '#10214F', color: page >= totalPages - 1 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -73,6 +73,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [sortField, setSortField] = useState<'title' | 'price' | 'status' | 'views' | 'created_at'>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 25;
 
   const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(listings.length);
 
@@ -94,6 +96,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     }
     fetchTeamMembers();
     fetchGuestBrokers();
+    setPage(0); // reset to first page when tab changes
   }, [statusFilter]);
 
   const fetchListings = async () => {
@@ -537,6 +540,9 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     } catch {}
   };
 
+  const pagedListings = sortedListings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(sortedListings.length / PAGE_SIZE);
+
   if (loading) {
     return <div className="text-center py-12">Loading listings...</div>;
   }
@@ -709,7 +715,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           <p className="text-gray-600 text-lg">No listings found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
           <table className="min-w-[1000px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -758,7 +764,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sortedListings.map((listing) => {
+              {pagedListings.map((listing) => {
                 const assignedSalesman = getAssignedSalesman(listing);
                 
                 return (
@@ -1041,6 +1047,34 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
             </tbody>
           </table>
         </div>
+
+        {/* Pagination bar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
+            <span className="text-sm text-gray-500">
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sortedListings.length)} of {sortedListings.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setPage(p => Math.max(0, p - 1)); }}
+                disabled={page === 0}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                ← Previous
+              </button>
+              <span className="text-sm text-gray-700 font-medium px-2">
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => { setPage(p => Math.min(totalPages - 1, p + 1)); }}
+                disabled={page >= totalPages - 1}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       )}
 
       <ListingPreviewModal
