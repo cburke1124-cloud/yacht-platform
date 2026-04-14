@@ -210,6 +210,29 @@ export default function AdminUsersTab() {
     }
   };
 
+  const handleConfirmEmail = async (user: any) => {
+    if (!confirm(`Manually confirm email for ${user.email}? This will allow them to log in without clicking the verification link.`)) return;
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/confirm-email`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(users.map(u => u.id === user.id ? { ...u, email_verified: true } : u));
+        showMsg(user.id, 'success', data.already_verified ? 'Email was already verified' : 'Email confirmed — user can now log in');
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to confirm email');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSyncStripe = async (user: any) => {
     setActionLoading(user.id);
     try {
@@ -412,6 +435,16 @@ export default function AdminUsersTab() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {!user.email_verified && (
+                            <button
+                              onClick={() => handleConfirmEmail(user)}
+                              disabled={actionLoading === user.id}
+                              title="Manually confirm this user's email address"
+                              className="px-2.5 py-1 text-xs bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 transition disabled:opacity-50"
+                            >
+                              {actionLoading === user.id ? '...' : 'Confirm Email'}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleSendReset(user)}
                             disabled={actionLoading === user.id}

@@ -19,7 +19,7 @@ from app.core.logging import memory_log_handler
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.dealer import DealerProfile
+from app.models.dealer import DealerProfile, EmailVerification
 from app.models.listing import Listing
 from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
@@ -391,6 +391,7 @@ def get_all_users(
                 "stripe_subscription_id": u.stripe_subscription_id,
                 "always_free": u.always_free,
                 "active": u.active,
+                "email_verified": bool(u.email_verified),
                 "trial_active": u.trial_active,
                 "trial_end_date": u.trial_end_date.isoformat() if u.trial_end_date else None,
                 "created_at": u.created_at.isoformat() if u.created_at else None,
@@ -483,6 +484,26 @@ def update_user(
         "user_type": user.user_type,
         "subscription_tier": user.subscription_tier
     }}
+
+
+@router.post("/users/{user_id}/confirm-email")
+def admin_confirm_email(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Manually mark a user's email as verified, bypassing the confirmation link."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ResourceNotFoundException("User", user_id)
+    if user.email_verified:
+        return {"success": True, "already_verified": True}
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    # Clean up any pending verification tokens
+    db.query(EmailVerification).filter(EmailVerification.user_id == user_id).delete()
+    db.commit()
+    return {"success": True, "already_verified": False}
 
 
 @router.post("/users/{user_id}/sync-stripe")
