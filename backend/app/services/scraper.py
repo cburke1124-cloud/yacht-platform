@@ -1885,7 +1885,7 @@ except Exception as e:
             r"\b(agent|broker|salesperson|contact.name|agent.name|listing.agent|sales.agent|staff|team.member)\b",
             re.I,
         )
-        img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp)(\?.*)?$', re.IGNORECASE)
+        img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp|avif)(\?.*)?$', re.IGNORECASE)
 
         def _valid_img(src: str) -> Optional[str]:
             if not src or src.startswith('data:'):
@@ -2068,7 +2068,7 @@ Content: {content[:12000]}"""
             r'yelp|tripadvisor|trustpilot|google.review|/feedbacks/',
             re.IGNORECASE,
         )
-        img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp)(\?.*)?$', re.IGNORECASE)
+        img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp|avif)(\?.*)?$', re.IGNORECASE)
 
         def _add(url_str: str):
             if not url_str or url_str.startswith('data:'):

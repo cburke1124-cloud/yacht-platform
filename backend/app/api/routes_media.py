@@ -23,7 +23,7 @@ router = APIRouter()
 
 # Configuration
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]
+ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"]
 ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"]
 ALLOWED_PDF_TYPES = ["application/pdf"]
 
