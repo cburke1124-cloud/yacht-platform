@@ -11,6 +11,7 @@ import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import os as _os
+import traceback
 from bs4 import BeautifulSoup
 import json
 import re
@@ -2084,6 +2085,16 @@ Content: {content[:12000]}"""
     # SCRAPE A SINGLE LISTING URL â†’ raw data dict
     # ---------------------------------------------------------
     def scrape_single_listing(self, url: str, template: Optional[Dict] = None) -> Dict:
+        try:
+            return self._scrape_single_listing_inner(url, template=template)
+        except Exception as _outer_exc:
+            logger.error(
+                f"scrape_single_listing: unhandled exception for {url}: {_outer_exc}\n"
+                + traceback.format_exc()
+            )
+            return {"error": str(_outer_exc)}
+
+    def _scrape_single_listing_inner(self, url: str, template: Optional[Dict] = None) -> Dict:
         # ── JSON proxy API cache — pre-built data, no fetch needed ──────────────
         # Populated by _discover_from_json_proxy() for sites whose entire inventory
         # is served by a custom JSON API (e.g. yachtzero.com / Squarespace + CF Worker).
@@ -2494,6 +2505,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     .filter(ScrapedListing.id == _existing_scraped_id)
                     .first()
                 ) if _existing_scraped_id else None
+
+                # Safety guard — scrape_single_listing should always return a dict
+                if not isinstance(raw, dict):
+                    logger.error(f"[Job {job_id}] scrape_single_listing returned non-dict ({type(raw)}) for {url}")
+                    raw = {"error": "scraper returned unexpected type"}
 
                 if "error" in raw:
                     stats["errors"] += 1
