@@ -1975,8 +1975,9 @@ Content: {content[:12000]}"""
             re.IGNORECASE,
         )
         for _tag in soup.find_all(True):
-            _cls = ' '.join(_tag.get('class', []))
-            _id  = _tag.get('id', '')
+            _attrs = _tag.attrs or {}
+            _cls = ' '.join(_attrs.get('class', []))
+            _id  = _attrs.get('id', '')
             if _related_re.search(_cls) or _related_re.search(_id):
                 _tag.decompose()
 
