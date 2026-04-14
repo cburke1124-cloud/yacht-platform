@@ -1986,7 +1986,9 @@ Content: {content[:12000]}"""
             r'(?:White|Dark|Black|Light|Color|Grey|Gray)\.(?:png|svg)|'
             # Social media brand assets
             r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|snapchat\.|'
-            r'pinterest\.|whatsapp\.|social|share-btn|share_btn',
+            r'pinterest\.|whatsapp\.|social|share-btn|share_btn|'
+            # Review / social-proof platform icons (e.g. /feedbacks/yelp.png)
+            r'yelp|tripadvisor|trustpilot|google.review|/feedbacks/',
             re.IGNORECASE,
         )
         img_ext_re = re.compile(r'\.(jpg|jpeg|png|webp)(\?.*)?$', re.IGNORECASE)
@@ -2042,7 +2044,12 @@ Content: {content[:12000]}"""
                                     and int(float(_w_attr)) <= 600)
             except (ValueError, TypeError):
                 _is_small_square = False
-            if src and not _is_small_square and 'logo' not in alt_text and 'icon' not in alt_text and not src.startswith('data:'):
+            _social_alt_re = re.compile(
+                r'facebook|instagram|twitter|linkedin|youtube|tiktok|snapchat|'
+                r'pinterest|whatsapp|yelp|tripadvisor|trustpilot',
+                re.IGNORECASE,
+            )
+            if src and not _is_small_square and 'logo' not in alt_text and 'icon' not in alt_text and not _social_alt_re.search(alt_text) and not src.startswith('data:'):
                 _add(src.strip())
 
         # Priority 4: inline style attributes — CSS url() values, e.g. background-image
