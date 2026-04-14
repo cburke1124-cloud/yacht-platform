@@ -265,6 +265,7 @@ export default function ScraperReviewPage() {
             No listings in this queue.
           </div>
         ) : (
+          <>
           <div className="space-y-3">
             {/* Bulk action bar */}
             <div className="flex items-center justify-between px-1 py-1">
@@ -561,6 +562,7 @@ export default function ScraperReviewPage() {
               </div>
             </div>
           )}
+          </>
         )}
       </div>
     </div>
