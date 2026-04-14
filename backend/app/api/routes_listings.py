@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from datetime import datetime
 from typing import Optional, Any
 from functools import lru_cache
@@ -503,8 +503,14 @@ def get_listings(
             db.query(Listing)
             .join(User, Listing.user_id == User.id)
             .options(
-                joinedload(Listing.owner).joinedload(User.dealer_profile),
-                joinedload(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
+                # selectinload issues a single IN-query per relationship level rather
+                # than a cartesian-product LEFT JOIN, which is far faster when fetching
+                # 100 listings with nested owner → dealer → profile chains.
+                selectinload(Listing.owner).selectinload(User.dealer_profile),
+                selectinload(Listing.owner).selectinload(User.parent_dealer).selectinload(User.dealer_profile),
+                # Eagerly load legacy images so the fallback `l.images[:1]` below
+                # never triggers N+1 lazy loads when the new media_map is empty.
+                selectinload(Listing.images),
             )
             .filter(
                 Listing.status == status,

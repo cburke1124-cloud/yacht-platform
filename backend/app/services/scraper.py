@@ -21,6 +21,12 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 
+
+class _AnthropicCreditsExhausted(Exception):
+    """Raised when the Anthropic API rejects a request due to billing/credit exhaustion.
+    Caught by run_scraper_job to immediately pause the job rather than wasting further
+    API calls that will all fail for the same reason."""
+
 # Optional proxy for sites that IP-block cloud provider ranges (e.g. Render/AWS).
 # Set SCRAPER_PROXY_URL to route fetch_page and headless requests through a
 # residential/rotating proxy — e.g. an HTTP proxy from ScraperAPI, BrightData, etc.
@@ -1968,6 +1974,21 @@ Content: {content[:12000]}"""
             if nco is not None: yacht_data["country"] = nco
             return yacht_data
         except Exception as e:
+            # ── Anthropic billing / credit exhaustion ─────────────────────────
+            # The SDK raises APIStatusError (HTTP 402/529) when credits run out or
+            # the account is suspended.  Re-raise as our sentinel so run_scraper_job
+            # can pause the job immediately instead of looping through 50 more URLs.
+            _es = str(e).lower()
+            if isinstance(e, anthropic.APIStatusError) and (
+                e.status_code in (402, 529)
+                or "credit" in _es
+                or "billing" in _es
+                or "payment" in _es
+                or "insufficient" in _es
+            ):
+                raise _AnthropicCreditsExhausted(
+                    f"Anthropic API credits exhausted (HTTP {getattr(e, 'status_code', '?')}): {e}"
+                ) from e
             logger.warning(f"AI extraction failed for {url}: {e}")
             return partial_data or {}
 
@@ -2776,6 +2797,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                 logger.error(f"[Job {job_id}] Error processing {url}: {e}")
                 stats["errors"] += 1
                 run_log.append({"url": url, "outcome": "error", "error": str(e)[:300]})
+                # ── Anthropic credit exhaustion — pause job immediately ────────
+                # Re-raise so the outer try/except can disable the job and stop
+                # iterating (every subsequent URL would fail for the same reason).
+                if isinstance(e, _AnthropicCreditsExhausted):
+                    raise
                 # Ensure the session is in a clean, usable state for the next iteration.
                 # (The connection is already closed if the error happened before re-acquire.)
                 try:
@@ -2834,6 +2860,22 @@ def run_scraper_job(job_id: int, db) -> Dict:
         logger.info(f"[Job {job_id}] Sync complete: {stats} | DB scraped listings by status: {_status_counts}")
         return {"success": True, "job_id": job_id, **stats}
         return {"success": True, "job_id": job_id, **stats}
+
+    except _AnthropicCreditsExhausted as e:
+        # Disable the job so the scheduler doesn't retry it every hour and
+        # keep burning time until the billing issue is resolved manually.
+        job.status = "paused"
+        job.enabled = False
+        job.last_error = (
+            "Anthropic API credits exhausted — job paused. "
+            "Top up your Anthropic balance and re-enable this job to resume. "
+            f"Detail: {e}"
+        )
+        job.completed_at = datetime.utcnow()
+        job.last_run_log = run_log
+        db.commit()
+        logger.error(f"[Job {job_id}] Paused: Anthropic credits exhausted. Job disabled until re-enabled.")
+        return {"success": False, "error": "Anthropic credits exhausted — job paused"}
 
     except Exception as e:
         job.status = "failed"
