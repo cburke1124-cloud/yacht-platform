@@ -715,6 +715,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           <p className="text-gray-600 text-lg">No listings found</p>
         </div>
       ) : (
+      <>
       <div className="bg-white rounded-lg shadow overflow-x-auto">
           <table className="min-w-[1000px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -1075,7 +1076,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
             </div>
           </div>
         )}
-      )}
+      </>
+      )
 
       <ListingPreviewModal
         listing={previewListing}
