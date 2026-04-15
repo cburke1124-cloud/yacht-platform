@@ -178,24 +178,23 @@ export default function ListingCard({
   };
 
   return (
-    <Link href={`/listings/${id}`} className="block group">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+    <Link href={`/listings/${id}`} className="block group h-full">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col h-full">
         {/* Image with Featured Badge and Action Buttons */}
-        <div className="relative aspect-[4/3] bg-gray-200 overflow-hidden">
+        <div className="relative aspect-[4/3] bg-gray-200 overflow-hidden flex-shrink-0">
           <img
             src={imageUrl}
             alt={title}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={(e) => {
-              // Fallback if image fails to load
               e.currentTarget.src = '/images/listing-fallback.png';
             }}
           />
           
           {featured && (
             <div className="absolute top-3 left-3 z-10">
-              <span className="px-3 py-1 bg-yellow-500 text-white text-xs font-semibold rounded-full">
-                ⭐ FEATURED
+              <span className="px-2.5 py-0.5 bg-[#01BBDC] text-white text-xs font-medium rounded-full">
+                Featured
               </span>
             </div>
           )}
@@ -285,106 +284,102 @@ export default function ListingCard({
         </div>
 
         {/* Content */}
-        <div className="p-5">
-          <div className="flex justify-between items-start gap-3 mb-0.5">
-            <h3 className="text-xl text-gray-900 line-clamp-2 flex-1">
-              {title}
-            </h3>
-          </div>
+        <div className="p-4 flex flex-col flex-1">
+          <h3 className="text-lg font-semibold text-[#10214F] line-clamp-2 mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+            {title}
+          </h3>
 
           <div className="mb-2">
             {priceFormatted ? (
-              <p className="text-2xl text-[#01BBDC]">
+              <p className="text-xl font-bold text-[#01BBDC]">
                 {priceFormatted}
               </p>
             ) : (
-              <p className="text-2xl text-gray-700">
+              <p className="text-xl font-bold text-gray-500">
                 Contact for Pricing
               </p>
             )}
             {(city || state) && (
               <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
-                <MapPin size={14} className="text-[#01BBDC]" />
+                <MapPin size={13} className="text-[#01BBDC]" />
                 {[city, state].filter(Boolean).join(', ')}
               </p>
             )}
           </div>
 
-          <div className="flex items-center flex-wrap gap-3 text-sm text-[#10214F]/80 mb-3">
+          <div className="flex items-center flex-wrap gap-2 text-sm text-[#10214F]/70 mb-2">
             {boatType && (
               <span>{boatType}</span>
             )}
             {normalizedCondition && (
               <>
-                {boatType && <span className="text-[#10214F]/40">•</span>}
+                {boatType && <span className="text-[#10214F]/30">•</span>}
                 <span>{normalizedCondition}</span>
               </>
             )}
             {cabins && (
               <>
-                {(boatType || normalizedCondition) && <span className="text-[#10214F]/40">•</span>}
+                {(boatType || normalizedCondition) && <span className="text-[#10214F]/30">•</span>}
                 <span>{cabins} cabins</span>
               </>
             )}
           </div>
 
           {/* Dealer Info */}
-          {dealerInfo && (
-            <div className="pt-4 border-t border-gray-200">
+          <div className="mt-auto pt-3 border-t border-gray-100">
+            {dealerInfo ? (
               <div
                 role="button"
                 tabIndex={0}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (dealerInfo.slug) {
-                    router.push(`/dealers/${dealerInfo.slug}`);
-                  }
+                  if (dealerInfo.slug) router.push(`/dealers/${dealerInfo.slug}`);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     e.stopPropagation();
-                    if (dealerInfo.slug) {
-                      router.push(`/dealers/${dealerInfo.slug}`);
-                    }
+                    if (dealerInfo.slug) router.push(`/dealers/${dealerInfo.slug}`);
                   }
                 }}
-                className={`flex items-center gap-3 hover:bg-gray-50 p-2 -mx-2 rounded transition-colors ${dealerInfo.slug ? 'cursor-pointer' : ''}`}
+                className={`flex items-center gap-2.5 ${dealerInfo.slug ? 'cursor-pointer' : ''}`}
                 aria-label={`View dealer profile for ${dealerInfo.company}`}
               >
                 {dealerInfo.logoUrl ? (
                   <img
                     src={mediaUrl(dealerInfo.logoUrl)}
                     alt={`${dealerInfo.company} logo`}
-                    className="w-10 h-10 rounded-md object-contain bg-white border border-gray-200 p-1"
+                    className="w-9 h-9 rounded-lg object-contain bg-white border border-gray-200 p-1 flex-shrink-0"
                     onError={onImgError}
                   />
                 ) : dealerInfo.photo ? (
                   <img
                     src={mediaUrl(dealerInfo.photo)}
                     alt={`${dealerInfo.name} profile photo`}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
                     onError={onImgError}
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center" aria-hidden="true">
-                    <span className="text-blue-600 font-semibold text-sm">
+                  <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                    <span className="text-gray-500 font-semibold text-sm">
                       {dealerInfo.name.charAt(0)}
                     </span>
                   </div>
                 )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">
-                    {dealerInfo.name}
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[#10214F] truncate hover:text-[#01BBDC] transition-colors">
+                    {dealerInfo.company || dealerInfo.name}
                   </p>
-                  <p className="text-xs text-gray-600 truncate">
-                    {dealerInfo.company}
-                  </p>
+                  {dealerInfo.company && dealerInfo.name && (
+                    <p className="text-xs text-gray-400 truncate">{dealerInfo.name}</p>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-xs text-gray-400">Contact for details</p>
+            )}
+          </div>
         </div>
       </div>
     </Link>
