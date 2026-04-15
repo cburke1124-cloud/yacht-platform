@@ -1932,24 +1932,54 @@ except Exception as e:
             return partial_data or {}
         try:
             if partial_data and len(partial_data) > 5:
-                prompt = f"""Fill missing yacht data. Existing: {json.dumps(partial_data)}
+                prompt = f"""Fill in as many missing fields as possible for this yacht listing.
+Existing data: {json.dumps(partial_data)}
 
 URL: {url}
 Content: {content[:8000]}
 
-Return ONLY JSON with yacht listing fields. Also include "agent_name" if a listing agent/salesman name is clearly present.
-Also extract: features (all notable features/equipment as a multi-line text block, one per line prefixed with "- "), feature_bullets (array of up to 12 short bullet-point strings).
-For country: use the ACTUAL country where the vessel is located — only use "USA" if the vessel is in the United States."""
+CRITICAL: Many yacht broker sites do NOT put location in a dedicated field — it appears only
+in the description or body text. Read the FULL content carefully and look for:
+- Explicit location mentions: "located in X", "currently in X", "presently at X marina",
+  "homeported in X", "available in X", "moored at X", "on the coast of X"
+- Named marinas or ports that imply a city/country (e.g. "Coal Harbour" → Vancouver, BC, Canada;
+  "Antibes" → France; "Palma" → Mallorca, Spain; "Newport" → check context for RI vs. CA)
+- Country context clues: phone number format, currency, broker address, marina/port names
+
+Also extract from prose if not in structured fields: length ("X feet", "X'", "Xm"),
+engine horsepower/power, beam, draft, and any other specs mentioned in sentences.
+
+Return ONLY a JSON object with all yacht listing fields you can determine.
+Include "agent_name" if a listing agent/salesman name is clearly present.
+Include: features (multi-line text, one per line prefixed with "- "), feature_bullets (array ≤12 short bullets).
+For country: use the actual country where the VESSEL is located, not the broker. Be specific."""
             else:
-                prompt = f"""Extract yacht listing data from the text below. Return ONLY a JSON object.
-Include: title, make, model, year, price, currency, length_feet, beam_feet, draft_feet,
-cabins, berths, heads, engine_count, engine_hours,
-fuel_type, max_speed_knots, cruising_speed_knots, hull_material, hull_type,
-city, state, country, description, boat_type, agent_name (the listing agent/salesman name if present),
+                prompt = f"""Extract all yacht listing data from the text below. Return ONLY a JSON object.
+
+Fields to extract: title, make, model, year, price, currency, length_feet, beam_feet, draft_feet,
+cabins, berths, heads, engine_count, engine_hours, fuel_type, max_speed_knots, cruising_speed_knots,
+hull_material, hull_type, city, state, country, description, boat_type,
+agent_name (listing agent/salesman name if clearly present),
 features (all notable features and equipment as a single multi-line text block, one feature per line prefixed with "- "),
 feature_bullets (array of up to 12 short bullet-point strings highlighting the best features).
 
-For country: use the ACTUAL country where the vessel is located. Be specific (e.g. "Bermuda", "France", "Bahamas", "Australia"). Only use "USA" if the vessel is genuinely located in the United States.
+CRITICAL INSTRUCTIONS:
+1. Location (city/state/country) is often NOT in a dedicated field. Read the FULL text carefully:
+   - Look for: "located in X", "currently in X", "presently at X marina", "homeported in X",
+     "available in X", "moored at X", "berthed at X", "on the [coast/waterway] of X"
+   - Recognize marina and port names that imply a location:
+     e.g. "Coal Harbour" or "False Creek" → Vancouver, BC, Canada
+          "Shilshole Bay" → Seattle, WA, USA
+          "Antibes" or "Port Vauban" → France
+          "Palma" or "Puerto Portals" → Mallorca, Spain
+          "Ft. Lauderdale" / "Fort Lauderdale" → Florida, USA
+          "Annapolis" → Maryland, USA
+   - Use context clues: phone number country code, currency, broker's own city, marina names
+2. Length, engine horsepower/power, beam, draft, and other specs may appear ONLY in description
+   prose — extract them even if they are not in a labeled spec field.
+3. For country: use the actual country where the vessel IS LOCATED (not the broker's country).
+   Be specific — never default to USA unless the text clearly places the vessel there.
+4. If a field is genuinely not mentioned anywhere in the text, omit it rather than guessing.
 
 URL: {url}
 Content: {content[:12000]}"""
@@ -2310,9 +2340,21 @@ Content: {content[:12000]}"""
         elif "state"   in partial:  partial.pop("state", None)
         if norm_country is not None: partial["country"] = norm_country
 
-        # Call AI whenever title, make/model, OR description are missing
-        needs_ai = (not partial.get("title") or not partial.get("make")
-                    or not partial.get("model") or not partial.get("description"))
+        # Call AI when any critical field is missing — including location, length, and year,
+        # which are commonly embedded in prose descriptions rather than structured fields.
+        _missing_structured = (
+            not partial.get("city")
+            or not partial.get("country")
+            or not partial.get("length_feet")
+            or not partial.get("year")
+        )
+        needs_ai = (
+            not partial.get("title")
+            or not partial.get("make")
+            or not partial.get("model")
+            or not partial.get("description")
+            or _missing_structured
+        )
         if needs_ai:
             yacht_data = self.scrape_with_ai(text, url, partial)
         else:
