@@ -64,9 +64,9 @@ function FeaturedCard({ listing }: { listing: Listing }) {
   const [imgSrc, setImgSrc] = useState(mediaUrl(getPrimaryImage(listing)));
 
   return (
-    <Link href={`/listings/${listing.id}`} className="block group">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden">
-        <div className="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden">
+    <Link href={`/listings/${listing.id}`} className="block group h-full">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col h-full">
+        <div className="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden flex-shrink-0">
           <img
             src={imgSrc}
             alt={
@@ -85,7 +85,7 @@ function FeaturedCard({ listing }: { listing: Listing }) {
           />
           {listing.featured && (
             <div
-              className="absolute top-3 left-3 px-3 py-1 text-xs font-medium text-white rounded-full"
+              className="absolute top-3 left-3 px-2.5 py-0.5 text-xs font-medium text-white rounded-full"
               style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
             >
               Featured
@@ -93,27 +93,27 @@ function FeaturedCard({ listing }: { listing: Listing }) {
           )}
         </div>
 
-        <div className="p-5 flex flex-col" style={{ minHeight: 180 }}>
+        <div className="p-4 flex flex-col flex-1">
           <h3
-            className="font-bold text-xl leading-tight line-clamp-2 mb-2"
+            className="font-semibold text-lg leading-snug line-clamp-2 mb-1"
             style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
           >
             {listing.title}
           </h3>
 
-          <p className="text-2xl font-bold mb-2" style={{ color: '#01BBDC' }}>
+          <p className="text-xl font-bold mb-2" style={{ color: '#01BBDC' }}>
             {formatPrice(listing.price, listing.currency)}
           </p>
 
-          <div className="flex items-center gap-3 text-sm mb-4" style={{ color: '#10214F', minHeight: 24 }}>
+          <div className="flex items-center gap-3 text-sm mb-3" style={{ color: '#10214F', minHeight: 20 }}>
             {listing.length_feet && (
               <span className="flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                <Ruler className="w-4 h-4 flex-shrink-0" style={{ color: '#01BBDC' }} />
+                <Ruler className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#01BBDC' }} />
                 {Math.round(listing.length_feet)} ft
               </span>
             )}
             <span className="flex items-center gap-1 min-w-0">
-              <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#01BBDC' }} />
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#01BBDC' }} />
               <span className="truncate">{getLocation(listing)}</span>
             </span>
           </div>
@@ -124,10 +124,10 @@ function FeaturedCard({ listing }: { listing: Listing }) {
               style={{
                 backgroundColor: '#01BBDC',
                 fontFamily: 'Poppins, sans-serif',
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: 500,
                 borderRadius: 8,
-                padding: '10px 0',
+                padding: '9px 0',
               }}
             >
               View Details
@@ -577,7 +577,7 @@ export default function HomePage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4" style={{ gap: 24 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-stretch" style={{ gap: 24 }}>
               {listings.slice(0, 8).map((listing) => (
                 <FeaturedCard key={listing.id} listing={listing} />
               ))}
