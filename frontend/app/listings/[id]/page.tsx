@@ -733,11 +733,11 @@ export default function ListingDetailPage() {
                       <div className="min-w-0 pt-1">
                         {sc.id ? (
                           <Link href={`/salesmen/${sc.id}`}
-                            className="font-bold text-lg text-[#01BBDC] mb-0.5 hover:underline block">
+                            className="font-bold text-lg text-[#10214F] mb-0.5 hover:underline block">
                             {sc.name}
                           </Link>
                         ) : (
-                          <p className="font-bold text-lg text-[#01BBDC] mb-0.5">{sc.name}</p>
+                          <p className="font-bold text-lg text-[#10214F] mb-0.5">{sc.name}</p>
                         )}
                         {sc.title && (
                           <p className="text-sm text-gray-600 mb-1">{sc.title}</p>
@@ -771,11 +771,11 @@ export default function ListingDetailPage() {
                         <div className="min-w-0 pt-1">
                           {dealer.slug ? (
                             <Link href={`/dealers/${dealer.slug}`}
-                              className="font-bold text-lg text-[#01BBDC] mb-1 hover:underline block">
+                              className="font-bold text-lg text-[#10214F] mb-1 hover:underline block">
                               {dealer.company_name || dealer.name}
                             </Link>
                           ) : (
-                            <p className="font-bold text-lg text-[#01BBDC] mb-1">{dealer.company_name || dealer.name}</p>
+                            <p className="font-bold text-lg text-[#10214F] mb-1">{dealer.company_name || dealer.name}</p>
                           )}
                           {(dealer.city || dealer.state) && (
                             <p className="text-sm text-gray-600 flex items-center gap-1">
@@ -797,18 +797,12 @@ export default function ListingDetailPage() {
                   {/* Divider */}
                   <div className="h-px bg-gray-200 mb-5" />
 
-                  {/* CTA buttons - NO GRADIENTS */}
+                  {/* CTA buttons */}
                   <div className="flex flex-col gap-3">
                     <button onClick={() => setShowMsg(true)}
-                      className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#01BBDC] hover:opacity-90">
-                      <Mail size={18} /> Contact Broker
+                      className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#10214F] hover:opacity-90">
+                      <Mail size={18} /> Message Broker
                     </button>
-                    {primaryPhone && (
-                      <a href={`tel:${primaryPhone}`}
-                        className="w-full py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all border-2 border-[#01BBDC] text-[#01BBDC] hover:bg-[#01BBDC] hover:text-white">
-                        <Phone size={18} /> Call Broker
-                      </a>
-                    )}
                   </div>
 
                 </div>
@@ -874,15 +868,13 @@ export default function ListingDetailPage() {
               <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
                 <button onClick={toggleSave}
                   className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
-                  style={{ color: saved ? '#01BBDC' : '#10214F' }}>
-                  <Heart size={18} fill={saved ? 'currentColor' : 'none'} strokeWidth={2} />
+                  style={{ color: saved ? '#10214F' : '#10214F' }}>
                   {saved ? 'Saved' : 'Save'}
                 </button>
                 <div className="relative">
                   <button onClick={() => setShowComp(!showComp)}
                     className="w-full flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
-                    style={{ color: inComp ? '#01BBDC' : '#10214F' }}>
-                    {inComp ? <Check size={18} strokeWidth={2} /> : <Plus size={18} strokeWidth={2} />}
+                    style={{ color: '#10214F' }}>
                     Compare
                   </button>
                   {showComp && (
@@ -901,7 +893,7 @@ export default function ListingDetailPage() {
                 <div className="relative">
                   <button onClick={() => setShowShare(!showShare)}
                     className="w-full flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors text-[#10214F]">
-                    <Share2 size={18} strokeWidth={2} /> Share
+                    Share
                   </button>
                   {showShare && (
                     <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50">
