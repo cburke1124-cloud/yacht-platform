@@ -167,7 +167,7 @@ export default function AdminListingEditPage() {
       for (const file of Array.from(e.target.files)) {
         const fd = new FormData();
         fd.append('file', file);
-        const r = await fetch(apiUrl('/upload'), { method: 'POST', headers: authHeaders(), body: fd });
+        const r = await fetch(apiUrl('/media/upload'), { method: 'POST', headers: authHeaders(), body: fd });
         if (r.ok) {
           const d = await r.json();
           if (d.media?.id) {
