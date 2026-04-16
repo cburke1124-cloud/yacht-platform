@@ -187,6 +187,11 @@ export default function AdminScraperTab() {
   const [rawPagesData, setRawPagesData] = useState<Record<number, RawPage[]>>({});
   const [rawPagesLoading, setRawPagesLoading] = useState<number | null>(null);
   const [reparsing, setReparsing] = useState<number | null>(null);
+  const [dataOpenPage, setDataOpenPage] = useState<number | null>(null);
+  const [pageEdits, setPageEdits] = useState<Record<number, Record<string, unknown>>>({});
+  const [dataSaving, setDataSaving] = useState<number | null>(null);
+  const [applying, setApplying] = useState<number | null>(null);
+  const [applyResults, setApplyResults] = useState<Record<number, { listing_id: number; action: string }>>({});
   const [runningJob, setRunningJob] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState('');
 
@@ -244,9 +249,52 @@ export default function AdminScraperTab() {
           ...prev,
           [jobId]: (prev[jobId] || []).map(p => p.id === rawPageId ? data.page : p),
         }));
+        // Reset edits to fresh reparsed data
+        setPageEdits(prev => ({ ...prev, [rawPageId]: data.page.merged_data || {} }));
       }
     } catch { /* non-critical */ } finally {
       setReparsing(null);
+    }
+  }
+
+  async function handleSavePageData(pageId: number, jobId: number) {
+    const edits = pageEdits[pageId];
+    if (!edits) return;
+    setDataSaving(pageId);
+    try {
+      const res = await fetch(apiUrl(`/scraper/raw-pages/${pageId}`), {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ merged_data: edits }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRawPagesData(prev => ({
+          ...prev,
+          [jobId]: (prev[jobId] || []).map(p => p.id === pageId ? data.page : p),
+        }));
+      }
+    } catch { /* non-critical */ } finally {
+      setDataSaving(null);
+    }
+  }
+
+  async function handleApply(pageId: number, jobId: number, dealerId: number) {
+    setApplying(pageId);
+    // Save any pending edits first
+    if (pageEdits[pageId]) await handleSavePageData(pageId, jobId);
+    try {
+      const res = await fetch(apiUrl(`/scraper/raw-pages/${pageId}/apply`), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ dealer_id: dealerId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setApplyResults(prev => ({ ...prev, [pageId]: { listing_id: data.listing_id, action: data.action } }));
+      }
+    } catch { /* non-critical */ } finally {
+      setApplying(null);
     }
   }
 
@@ -1067,9 +1115,16 @@ export default function AdminScraperTab() {
                                   {pages.length === 0 && rawPagesLoading !== job.id && (
                                     <p className="px-3 py-3 text-xs text-gray-400 text-center">No pipeline data for this job yet.</p>
                                   )}
-                                  {pages.map(page => (
-                                    <div key={page.id} className="px-3 py-2 text-xs hover:bg-gray-50">
-                                      <div className="flex items-center gap-2 mb-0.5">
+                                  {pages.map(page => {
+                                    const isDataOpen = dataOpenPage === page.id;
+                                    const edits = pageEdits[page.id] ?? (page.merged_data as Record<string, unknown> ?? {});
+                                    const setField = (k: string, v: unknown) =>
+                                      setPageEdits(prev => ({ ...prev, [page.id]: { ...edits, [k]: v } }));
+                                    const applyDone = applyResults[page.id];
+                                    return (
+                                    <div key={page.id} className="text-xs">
+                                      {/* Summary row */}
+                                      <div className="px-3 py-2 flex items-center gap-2 hover:bg-gray-50">
                                         <span className={`shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-semibold uppercase ${stageColor(page.stage)}`}>
                                           {page.stage}
                                         </span>
@@ -1084,17 +1139,122 @@ export default function AdminScraperTab() {
                                         {page.skip_reason && (
                                           <span className="text-[9px] text-gray-400 italic">{page.skip_reason}</span>
                                         )}
-                                        <button
-                                          onClick={() => handleReparse(page.id, job.id)}
-                                          disabled={reparsing === page.id}
-                                          className="ml-auto text-[10px] px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors"
-                                        >
-                                          {reparsing === page.id ? 'Reparsing…' : 'Reparse'}
-                                        </button>
+                                        <div className="ml-auto flex items-center gap-1">
+                                          <button
+                                            onClick={() => {
+                                              if (!isDataOpen) setPageEdits(prev => ({ ...prev, [page.id]: page.merged_data as Record<string, unknown> ?? {} }));
+                                              setDataOpenPage(isDataOpen ? null : page.id);
+                                            }}
+                                            className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${isDataOpen ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'}`}
+                                          >
+                                            {isDataOpen ? '▲ Data' : '▼ Data'}
+                                          </button>
+                                          <button
+                                            onClick={() => handleReparse(page.id, job.id)}
+                                            disabled={reparsing === page.id}
+                                            className="text-[10px] px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors"
+                                          >
+                                            {reparsing === page.id ? 'Reparsing…' : 'Reparse'}
+                                          </button>
+                                        </div>
                                       </div>
-                                      <p className="text-gray-400 truncate">{page.source_url}</p>
+                                      <p className="px-3 pb-1.5 text-gray-400 truncate">{page.source_url}</p>
+
+                                      {/* ── Data editor ── */}
+                                      {isDataOpen && (
+                                        <div className="mx-3 mb-3 border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30">
+                                          <div className="px-3 py-2 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
+                                            <span className="text-[11px] font-semibold text-blue-800">Extracted Data — edit & correct any wrong fields</span>
+                                            {applyDone && (
+                                              <span className="text-[10px] text-green-700 font-semibold">
+                                                ✓ {applyDone.action === 'created' ? 'Created' : 'Updated'} listing #{applyDone.listing_id}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {/* Field grid */}
+                                          <div className="p-3 grid grid-cols-2 gap-x-3 gap-y-2">
+                                            {([
+                                              ['title',        'Title',          'text'],
+                                              ['make',         'Make',           'text'],
+                                              ['model',        'Model',          'text'],
+                                              ['year',         'Year',           'number'],
+                                              ['price',        'Price',          'number'],
+                                              ['boat_type',    'Boat Type',      'text'],
+                                              ['length_feet',  'Length (ft)',     'number'],
+                                              ['beam_feet',    'Beam (ft)',       'number'],
+                                              ['draft_feet',   'Draft (ft)',      'number'],
+                                              ['hull_material','Hull Material',   'text'],
+                                              ['hull_type',    'Hull Type',       'text'],
+                                              ['fuel_type',    'Fuel Type',       'text'],
+                                              ['engine_count', 'Engine Count',    'number'],
+                                              ['engine_hours', 'Engine Hours',    'number'],
+                                              ['cabins',       'Cabins',          'number'],
+                                              ['heads',        'Heads',           'number'],
+                                              ['city',         'City',            'text'],
+                                              ['state',        'State / Region',  'text'],
+                                              ['country',      'Country',         'text'],
+                                            ] as [string, string, string][]).map(([key, label, type]) => (
+                                              <div key={key}>
+                                                <label className="block text-[10px] text-gray-500 mb-0.5">{label}</label>
+                                                <input
+                                                  type={type}
+                                                  value={String(edits[key] ?? '')}
+                                                  onChange={e => setField(key, type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value)}
+                                                  className="w-full px-2 py-1 text-[11px] border border-gray-300 rounded bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                                                  placeholder="—"
+                                                />
+                                              </div>
+                                            ))}
+                                          </div>
+
+                                          {/* Description */}
+                                          <div className="px-3 pb-2">
+                                            <label className="block text-[10px] text-gray-500 mb-0.5">Description</label>
+                                            <textarea
+                                              rows={3}
+                                              value={String(edits['description'] ?? '')}
+                                              onChange={e => setField('description', e.target.value)}
+                                              className="w-full px-2 py-1 text-[11px] border border-gray-300 rounded bg-white focus:ring-1 focus:ring-blue-400 focus:outline-none resize-none"
+                                              placeholder="—"
+                                            />
+                                          </div>
+
+                                          {/* Images list */}
+                                          {Array.isArray(edits['images']) && (edits['images'] as string[]).length > 0 && (
+                                            <div className="px-3 pb-2">
+                                              <p className="text-[10px] text-gray-500 mb-1">Images ({(edits['images'] as string[]).length})</p>
+                                              <div className="flex gap-1 flex-wrap max-h-20 overflow-y-auto">
+                                                {(edits['images'] as string[]).slice(0, 8).map((url, i) => (
+                                                  <img key={i} src={url} alt="" className="h-12 w-16 object-cover rounded border border-gray-200" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+
+                                          {/* Action buttons */}
+                                          <div className="px-3 pb-3 flex items-center gap-2">
+                                            <button
+                                              onClick={() => handleSavePageData(page.id, job.id)}
+                                              disabled={dataSaving === page.id}
+                                              className="text-[11px] px-3 py-1.5 rounded bg-gray-700 text-white hover:bg-gray-800 disabled:opacity-50 font-medium transition-colors"
+                                            >
+                                              {dataSaving === page.id ? 'Saving…' : '💾 Save Corrections'}
+                                            </button>
+                                            <button
+                                              onClick={() => handleApply(page.id, job.id, job.dealer_id)}
+                                              disabled={applying === page.id || dataSaving === page.id}
+                                              className="text-[11px] px-3 py-1.5 rounded bg-primary text-white hover:bg-primary/90 disabled:opacity-50 font-medium transition-colors"
+                                            >
+                                              {applying === page.id ? 'Applying…' : '→ Apply to Listing'}
+                                            </button>
+                                            <span className="ml-auto text-[10px] text-gray-400">{Object.keys(edits).filter(k => edits[k] != null && edits[k] !== '').length} fields</span>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>

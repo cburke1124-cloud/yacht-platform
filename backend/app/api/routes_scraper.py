@@ -1464,3 +1464,116 @@ def delete_synonym(
     db.delete(synonym)
     db.commit()
     return {"success": True, "message": f"Synonym '{synonym.raw_term}' deleted"}
+
+
+# -----------------------------------------------------------------------
+# RAW PAGE DATA — manual corrections and listing apply
+# -----------------------------------------------------------------------
+
+class RawPagePatchRequest(BaseModel):
+    merged_data: dict
+
+
+class ApplyRawPageRequest(BaseModel):
+    dealer_id: int
+    salesman_id: Optional[int] = None
+
+
+@router.patch("/scraper/raw-pages/{raw_page_id}")
+def patch_raw_page_data(
+    raw_page_id: int,
+    data: RawPagePatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Overwrite a raw page's merged_data with manually corrected field values.
+    Recomputes confidence score and updates the stage accordingly.
+    """
+    _require_admin(current_user)
+    page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page_id).first()
+    if not page:
+        raise HTTPException(status_code=404, detail="Raw page not found")
+
+    from app.services.scraper import _compute_confidence
+    from datetime import datetime as _dt
+
+    page.merged_data = data.merged_data
+    confidence = _compute_confidence(data.merged_data)
+    page.confidence_score = confidence
+    page.stage = "validated" if confidence >= 0.2 else "failed"
+    page.validated_at = _dt.utcnow()
+    db.commit()
+    db.refresh(page)
+    return {"success": True, "page": _raw_page_to_dict(page), "confidence": confidence}
+
+
+@router.post("/scraper/raw-pages/{raw_page_id}/apply")
+def apply_raw_page(
+    raw_page_id: int,
+    data: ApplyRawPageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create or update a Listing from a raw page's merged_data.
+    If a ScrapedListing already exists for this URL+job, updates the Listing.
+    Otherwise creates a new Listing with status 'awaiting_review'.
+    """
+    _require_admin(current_user)
+    page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page_id).first()
+    if not page:
+        raise HTTPException(status_code=404, detail="Raw page not found")
+    if not page.merged_data:
+        raise HTTPException(status_code=422, detail="No merged data — run Reparse first")
+
+    from app.services.scraper import _generate_bin, _apply_scraped_data
+    from types import SimpleNamespace
+
+    raw = page.merged_data
+    job_like = SimpleNamespace(dealer_id=data.dealer_id, salesman_id=data.salesman_id)
+
+    # Check if a listing already exists via ScrapedListing
+    existing_sl = (
+        db.query(ScrapedListing)
+        .filter(
+            ScrapedListing.source_url == page.source_url,
+            ScrapedListing.job_id == page.job_id,
+            ScrapedListing.listing_id != None,
+        )
+        .first()
+    )
+    if existing_sl and existing_sl.listing_id:
+        listing = (
+            db.query(Listing)
+            .filter(Listing.id == existing_sl.listing_id, Listing.deleted_at == None)
+            .first()
+        )
+        if listing:
+            _apply_scraped_data(listing, raw, job_like)
+            db.commit()
+            db.refresh(listing)
+            return {"success": True, "listing_id": listing.id, "title": listing.title, "action": "updated"}
+
+    # Create new listing
+    listing = Listing(
+        user_id=data.dealer_id,
+        created_by_user_id=current_user.id,
+        assigned_salesman_id=data.salesman_id,
+        source="scraped",
+        source_url=page.source_url,
+        status="awaiting_review",
+        bin=_generate_bin(db),
+        condition="used",
+    )
+    _apply_scraped_data(listing, raw, job_like)
+    db.add(listing)
+    db.flush()
+
+    for img_url in (raw.get("images") or [])[:10]:
+        db.add(ListingImage(listing_id=listing.id, url=img_url))
+
+    db.add(ScrapedListing(job_id=page.job_id, listing_id=listing.id, source_url=page.source_url))
+    db.commit()
+    db.refresh(listing)
+    return {"success": True, "listing_id": listing.id, "title": listing.title, "action": "created"}
