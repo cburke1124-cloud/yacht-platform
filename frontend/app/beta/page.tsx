@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Check, MapPin, Ruler, Building2 } from 'lucide-react';
+import { Check } from 'lucide-react';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import SearchBar from '@/app/components/SearchBar';
-import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
+import ListingCard from '@/app/components/ListingCard';
+import { API_ROOT } from '@/app/lib/apiRoot';
 
 // --- Types ---
 
@@ -41,155 +42,6 @@ type Listing = {
     logo_url?: string;
   };
 };
-
-// --- Helpers ---
-
-function formatPrice(price?: number, currency = 'USD'): string {
-  if (!price) return 'Price on Request';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price);
-}
-
-function getPrimaryImage(listing: Listing): string {
-  if (!listing.images?.length) return '/images/listing-fallback.png';
-  const primary = listing.images.find((img) => img.is_primary);
-  return (primary ?? listing.images[0]).url;
-}
-
-function getLocation(listing: Listing): string {
-  const parts = [listing.city, listing.state || listing.country].filter(Boolean);
-  return parts.join(', ') || 'Location TBD';
-}
-
-// --- Featured Listing Card ---
-
-function FeaturedCard({
-  listing,
-  currencyCode,
-  exchangeRate,
-}: {
-  listing: Listing;
-  currencyCode: string;
-  exchangeRate: number;
-}) {
-  const [imgSrc, setImgSrc] = useState(mediaUrl(getPrimaryImage(listing)));
-
-  const displayPrice =
-    listing.price != null
-      ? Math.round(listing.price * exchangeRate)
-      : null;
-  const priceFormatted =
-    displayPrice != null
-      ? new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: currencyCode,
-          maximumFractionDigits: 0,
-        }).format(displayPrice)
-      : 'Price on Request';
-
-  const dealer = listing.dealer;
-
-  return (
-    <Link href={`/listings/${listing.id}`} className="block group h-full">
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col h-full">
-        <div className="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden flex-shrink-0">
-          <img
-            src={imgSrc}
-            alt={
-              [
-                listing.year,
-                listing.make,
-                listing.model,
-                listing.length_feet ? `${Math.round(listing.length_feet)}ft` : null,
-                getLocation(listing) !== 'Location TBD' ? `in ${getLocation(listing)}` : null,
-              ]
-                .filter(Boolean)
-                .join(' ') || listing.title
-            }
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onError={() => setImgSrc('/images/listing-fallback.png')}
-          />
-          {listing.featured && (
-            <div
-              className="absolute top-3 left-3 px-2.5 py-0.5 text-xs font-medium text-white rounded-full"
-              style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-            >
-              Featured
-            </div>
-          )}
-        </div>
-
-        <div className="p-4 flex flex-col flex-1">
-          <h3
-            className="font-semibold text-lg leading-snug line-clamp-2 mb-1"
-            style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
-          >
-            {listing.title}
-          </h3>
-
-          <p className="text-xl font-bold mb-2" style={{ color: '#01BBDC' }}>
-            {priceFormatted}
-          </p>
-
-          <div className="flex items-center gap-3 text-sm mb-3" style={{ color: '#10214F', minHeight: 20 }}>
-            {listing.length_feet && (
-              <span className="flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                <Ruler className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#01BBDC' }} />
-                {Math.round(listing.length_feet)} ft
-              </span>
-            )}
-            <span className="flex items-center gap-1 min-w-0">
-              <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#01BBDC' }} />
-              <span className="truncate">{getLocation(listing)}</span>
-            </span>
-          </div>
-
-          {/* Broker info */}
-          <div className="mt-auto pt-3 border-t border-gray-100">
-            {dealer ? (
-              <div className="flex items-center gap-2.5">
-                {dealer.logo_url ? (
-                  <img
-                    src={mediaUrl(dealer.logo_url)}
-                    alt={dealer.company_name || dealer.name || 'Broker logo'}
-                    className="w-9 h-9 rounded-lg object-contain bg-white border border-gray-200 p-1 flex-shrink-0"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/images/company-placeholder.png'; }}
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                    <Building2 size={16} className="text-gray-400" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  {dealer.slug ? (
-                    <p
-                      className="text-xs font-semibold text-[#10214F] truncate hover:text-[#01BBDC] transition-colors"
-                      onClick={(e) => { e.preventDefault(); window.location.href = `/dealers/${dealer.slug}`; }}
-                    >
-                      {dealer.company_name || dealer.name}
-                    </p>
-                  ) : (
-                    <p className="text-xs font-semibold text-[#10214F] truncate">
-                      {dealer.company_name || dealer.name}
-                    </p>
-                  )}
-                  {dealer.company_name && dealer.name && (
-                    <p className="text-xs text-gray-400 truncate">{dealer.name}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400">Contact for details</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
 
 // --- Step Card ---
 
@@ -651,11 +503,29 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-stretch" style={{ gap: 24 }}>
               {listings.slice(0, 8).map((listing) => (
-                <FeaturedCard
+                <ListingCard
                   key={listing.id}
-                  listing={listing}
+                  id={Number(listing.id)}
+                  title={listing.title}
+                  price={listing.price}
+                  year={listing.year}
+                  make={listing.make}
+                  model={listing.model}
+                  boatType={listing.boat_type}
+                  length={listing.length_feet}
+                  city={listing.city}
+                  state={listing.state}
+                  images={listing.images?.map((img) => img.url) || []}
+                  condition={listing.condition}
+                  featured={listing.featured}
                   currencyCode={visitorCurrency}
                   exchangeRate={visitorExchangeRate}
+                  dealerInfo={listing.dealer ? {
+                    name: listing.dealer.name || '',
+                    company: listing.dealer.company_name || '',
+                    slug: listing.dealer.slug,
+                    logoUrl: listing.dealer.logo_url,
+                  } : undefined}
                 />
               ))}
             </div>

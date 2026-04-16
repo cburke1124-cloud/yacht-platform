@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Heart, Share2, Mail, Printer, Facebook, Twitter, Linkedin, MapPin } from 'lucide-react';
+import { Heart, Share2, Mail, Printer, Facebook, Twitter, Linkedin, MapPin, Ruler } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
@@ -303,10 +303,19 @@ export default function ListingCard({
               const isKnown = (v?: string) => !!v && v.trim().toLowerCase() !== 'unknown';
               const parts = [city, state].filter(isKnown);
               return (parts.length > 0 || length) ? (
-                <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
-                  {parts.length > 0 && <><MapPin size={13} className="text-[#01BBDC]" />{parts.join(', ')}</>}
-                  {parts.length > 0 && length ? <span className="text-[#10214F]/30">•</span> : null}
-                  {length ? <span>{length}ft</span> : null}
+                <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-3">
+                  {length ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                      <Ruler size={13} className="text-[#01BBDC] flex-shrink-0" />
+                      {Math.round(length)}ft
+                    </span>
+                  ) : null}
+                  {parts.length > 0 && (
+                    <span className="inline-flex items-center gap-1 min-w-0">
+                      <MapPin size={13} className="text-[#01BBDC] flex-shrink-0" />
+                      <span className="truncate">{parts.join(', ')}</span>
+                    </span>
+                  )}
                 </p>
               ) : null;
             })()}

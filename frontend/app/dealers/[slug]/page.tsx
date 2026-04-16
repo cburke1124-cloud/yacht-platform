@@ -307,10 +307,20 @@ export default function DealerProfilePage() {
                   year={listing.year}
                   make={listing.make}
                   model={listing.model}
+                  boatType={listing.boat_type}
+                  cabins={listing.cabins}
                   length={listing.length_feet}
                   city={listing.city}
                   state={listing.state}
                   images={listing.images?.map((img: any) => img.url) || []}
+                  condition={listing.condition}
+                  featured={listing.featured}
+                  dealerInfo={dealer ? {
+                    name: dealer.name || '',
+                    company: dealer.company_name || '',
+                    slug: dealer.slug,
+                    logoUrl: dealer.logo_url,
+                  } : undefined}
                 />
               ))}
             </div>
