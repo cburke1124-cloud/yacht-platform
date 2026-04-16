@@ -456,7 +456,7 @@ def dealer_import_listing(
     db.add(listing)
     db.flush()
 
-    for img_url in raw.get("images", [])[:10]:
+    for img_url in raw.get("images", []):
         db.add(ListingImage(listing_id=listing.id, url=img_url))
 
     db.add(ScrapedListing(job_id=None, listing_id=listing.id, source_url=data.url.strip()))
@@ -636,7 +636,7 @@ def import_single_listing(
     db.add(listing)
     db.flush()
 
-    for img_url in raw.get("images", [])[:10]:
+    for img_url in raw.get("images", []):
         db.add(ListingImage(listing_id=listing.id, url=img_url))
 
     scraped_record = ScrapedListing(
@@ -1233,6 +1233,14 @@ def get_job_listings(
 # -----------------------------------------------------------------------
 
 def _raw_page_to_dict(r: RawScrapedPage) -> dict:
+    # all_images = the full pool extracted during normalization (before manual curation).
+    # We prefer normalized_data.images since that's the pre-merge full set; fall back to
+    # merged_data.images so the gallery is always populated.
+    _all_images = (
+        (r.normalized_data or {}).get("images")
+        or (r.merged_data or {}).get("images")
+        or []
+    )
     return {
         "id": r.id,
         "job_id": r.job_id,
@@ -1245,6 +1253,10 @@ def _raw_page_to_dict(r: RawScrapedPage) -> dict:
         "normalized_data": r.normalized_data,
         "ai_data": r.ai_data,
         "merged_data": r.merged_data,
+        # Full pool of extracted images (pre-curation) — used by the admin image picker.
+        # This is preserved from normalized_data so re-opening the gallery always shows
+        # all candidates even after the user has saved a curated subset.
+        "all_images": _all_images,
         "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None,
         "normalized_at": r.normalized_at.isoformat() if r.normalized_at else None,
         "ai_parsed_at": r.ai_parsed_at.isoformat() if r.ai_parsed_at else None,
@@ -1551,6 +1563,10 @@ def apply_raw_page(
         )
         if listing:
             _apply_scraped_data(listing, raw, job_like)
+            # Sync images: replace existing set with the curated list from merged_data
+            db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
+            for img_url in (raw.get("images") or []):
+                db.add(ListingImage(listing_id=listing.id, url=img_url))
             db.commit()
             db.refresh(listing)
             return {"success": True, "listing_id": listing.id, "title": listing.title, "action": "updated"}
@@ -1570,7 +1586,7 @@ def apply_raw_page(
     db.add(listing)
     db.flush()
 
-    for img_url in (raw.get("images") or [])[:10]:
+    for img_url in (raw.get("images") or []):
         db.add(ListingImage(listing_id=listing.id, url=img_url))
 
     db.add(ScrapedListing(job_id=page.job_id, listing_id=listing.id, source_url=page.source_url))

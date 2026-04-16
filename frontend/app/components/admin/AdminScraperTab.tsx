@@ -55,6 +55,8 @@ interface RawPage {
   normalized_data?: Record<string, unknown>;
   ai_data?: Record<string, unknown>;
   merged_data?: Record<string, unknown>;
+  /** Full pool of images extracted during normalization — always the complete set pre-curation. */
+  all_images?: string[];
   fetched_at?: string;
   validated_at?: string;
   has_raw_html: boolean;
@@ -265,11 +267,14 @@ export default function AdminScraperTab() {
     const edits = pageEdits[pageId];
     if (!edits) return;
     setDataSaving(pageId);
+    // Strip the internal _all_images working key before sending to the server
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _all_images, ...mergedToSave } = edits as Record<string, unknown> & { _all_images?: unknown };
     try {
       const res = await fetch(apiUrl(`/scraper/raw-pages/${pageId}`), {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({ merged_data: edits }),
+        body: JSON.stringify({ merged_data: mergedToSave }),
       });
       const data = await res.json();
       if (data.success) {
@@ -1201,7 +1206,25 @@ export default function AdminScraperTab() {
                                         <div className="ml-auto flex items-center gap-1">
                                           <button
                                             onClick={() => {
-                                              if (!isDataOpen) setPageEdits(prev => ({ ...prev, [page.id]: page.merged_data as Record<string, unknown> ?? {} }));
+                                              if (!isDataOpen) {
+                                                // Initialise edits from merged_data, but seed images
+                                                // from the full pool (all_images) so the user sees
+                                                // every candidate. If merged_data already has a curated
+                                                // subset, that subset stays pre-selected.
+                                                const base = (page.merged_data as Record<string, unknown>) ?? {};
+                                                const pool = page.all_images ?? (base['images'] as string[] ?? []);
+                                                const curated = base['images'] as string[] | undefined;
+                                                setPageEdits(prev => ({
+                                                  ...prev,
+                                                  [page.id]: {
+                                                    ...base,
+                                                    // _all_images is our working pool — stripped before save
+                                                    _all_images: pool,
+                                                    // images = selected subset (curated if exists, else all)
+                                                    images: curated && curated.length > 0 ? curated : pool,
+                                                  },
+                                                }));
+                                              }
                                               setDataOpenPage(isDataOpen ? null : page.id);
                                             }}
                                             className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${isDataOpen ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'}`}
@@ -1279,17 +1302,83 @@ export default function AdminScraperTab() {
                                             />
                                           </div>
 
-                                          {/* Images list */}
-                                          {Array.isArray(edits['images']) && (edits['images'] as string[]).length > 0 && (
-                                            <div className="px-3 pb-2">
-                                              <p className="text-[10px] text-gray-500 mb-1">Images ({(edits['images'] as string[]).length})</p>
-                                              <div className="flex gap-1 flex-wrap max-h-20 overflow-y-auto">
-                                                {(edits['images'] as string[]).slice(0, 8).map((url, i) => (
-                                                  <img key={i} src={url} alt="" className="h-12 w-16 object-cover rounded border border-gray-200" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                                ))}
+                                          {/* ── Image selection gallery ── */}
+                                          {(() => {
+                                            const allImgs = (edits['_all_images'] as string[]) ?? (edits['images'] as string[] ?? []);
+                                            const selectedSet = new Set<string>((edits['images'] as string[]) ?? []);
+                                            const total = allImgs.length;
+                                            const selectedCount = selectedSet.size;
+                                            if (total === 0) return null;
+                                            return (
+                                              <div className="px-3 pb-3">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                  <p className="text-[10px] font-semibold text-gray-600">
+                                                    Images{' '}
+                                                    <span className={`font-normal ${
+                                                      selectedCount === 0 ? 'text-red-500' :
+                                                      selectedCount < total ? 'text-yellow-600' : 'text-green-600'
+                                                    }`}>
+                                                      {selectedCount} of {total} selected
+                                                    </span>
+                                                  </p>
+                                                  <button type="button"
+                                                    onClick={() => setField('images', allImgs)}
+                                                    className="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600">
+                                                    All
+                                                  </button>
+                                                  <button type="button"
+                                                    onClick={() => setField('images', [])}
+                                                    className="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600">
+                                                    None
+                                                  </button>
+                                                  <a href={page.source_url} target="_blank" rel="noopener noreferrer"
+                                                    className="ml-auto text-[9px] text-blue-500 hover:underline">
+                                                    Open page ↗
+                                                  </a>
+                                                </div>
+                                                <div className="grid grid-cols-4 gap-1.5 max-h-72 overflow-y-auto">
+                                                  {allImgs.map((url, i) => {
+                                                    const isChecked = selectedSet.has(url);
+                                                    return (
+                                                      <button
+                                                        key={i}
+                                                        type="button"
+                                                        title={url}
+                                                        onClick={() => {
+                                                          const next = isChecked
+                                                            ? ((edits['images'] as string[]) ?? []).filter(u => u !== url)
+                                                            : [...((edits['images'] as string[]) ?? []), url];
+                                                          setField('images', next);
+                                                        }}
+                                                        className={`relative rounded overflow-hidden border-2 transition-all ${
+                                                          isChecked
+                                                            ? 'border-blue-500 opacity-100'
+                                                            : 'border-transparent opacity-40 hover:opacity-70'
+                                                        }`}
+                                                      >
+                                                        <img
+                                                          src={url}
+                                                          alt=""
+                                                          className="w-full h-16 object-cover block"
+                                                          onError={e => {
+                                                            const wrapper = (e.target as HTMLImageElement).parentElement;
+                                                            if (wrapper) wrapper.style.display = 'none';
+                                                          }}
+                                                        />
+                                                        {isChecked && (
+                                                          <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
+                                                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                                              <path d="M1.5 4L3 5.5L6.5 2.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                                            </svg>
+                                                          </span>
+                                                        )}
+                                                      </button>
+                                                    );
+                                                  })}
+                                                </div>
                                               </div>
-                                            </div>
-                                          )}
+                                            );
+                                          })()}
 
                                           {/* Action buttons */}
                                           <div className="px-3 pb-3 flex items-center gap-2">
