@@ -200,11 +200,11 @@ export default function ListingCard({
           )}
 
           {/* Action Buttons */}
-          <div className="absolute top-3 right-3 z-10 flex gap-2">
+          <div className="absolute top-3 right-3 z-10 flex gap-1.5">
             <button
               onClick={handleToggleSave}
               disabled={loading}
-              className={`p-2 rounded-full transition-all ${
+              className={`p-1.5 rounded-full transition-all ${
                 saved
                   ? 'bg-red-100 text-red-600 hover:bg-red-200'
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
@@ -212,7 +212,7 @@ export default function ListingCard({
               title={saved ? 'Remove from saved' : 'Save this yacht'}
             >
               <Heart 
-                size={20} 
+                size={14} 
                 fill={saved ? 'currentColor' : 'none'}
                 className={loading ? 'animate-pulse' : ''}
               />
@@ -225,10 +225,10 @@ export default function ListingCard({
                   e.stopPropagation();
                   setShowShare(!showShare);
                 }}
-                className="p-2 bg-white text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-full transition-all"
+                className="p-1.5 bg-white text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-full transition-all"
                 title="Share this yacht"
               >
-                <Share2 size={20} />
+                <Share2 size={14} />
               </button>
 
               {/* Share Dropdown */}
@@ -321,9 +321,15 @@ export default function ListingCard({
                 <span>{normalizedCondition}</span>
               </>
             )}
-            {cabins && (
+            {length && (
               <>
                 {(boatType || normalizedCondition) && <span className="text-[#10214F]/30">•</span>}
+                <span>{length}ft</span>
+              </>
+            )}
+            {cabins && (
+              <>
+                {(boatType || normalizedCondition || length) && <span className="text-[#10214F]/30">•</span>}
                 <span>{cabins} cabins</span>
               </>
             )}
