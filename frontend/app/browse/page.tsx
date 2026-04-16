@@ -356,6 +356,7 @@ function BrowseContent() {
   const [aiQuery, setAiQuery] = useState('');
   const [sort, setSort] = useState<string>('nearest');
   const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number>(0);
   const [currency, setCurrency] = useState('USD');
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [userLat, setUserLat] = useState<number | null>(null);
@@ -449,13 +450,18 @@ function BrowseContent() {
   }, []);
 
   // Fetch
-  const fetchListings = useCallback(async (isAI = false) => {
+  const fetchListings = useCallback(async (isAI = false, pg = page, sr = sort) => {
     setLoading(true);
     try {
-      let url = apiUrl('/listings?status=active');
+      let url: string;
       if (isAI && aiQuery) {
         url = apiUrl(`/ai/search?query=${encodeURIComponent(aiQuery)}`);
       } else {
+        const isNearest = sr === 'nearest';
+        const fetchLimit = isNearest ? 2000 : PAGE_SIZE;
+        const fetchSkip  = isNearest ? 0    : pg * PAGE_SIZE;
+        url = apiUrl(`/listings?status=active&limit=${fetchLimit}&skip=${fetchSkip}`);
+        if (!isNearest) url += `&sort=${sr}`;
         Object.entries(filters).forEach(([k, v]) => {
           if (v) url += `&${k}=${encodeURIComponent(v)}`;
         });
@@ -463,31 +469,33 @@ function BrowseContent() {
       const res = await fetch(url);
       const data = await res.json();
       if (isAI) {
-        setListings(
-          (data.results || []).map((r: any) => ({
-            ...(r.listing || {}),
-            match_score: r.match_score,
-            match_reasons: r.match_reasons,
-            warnings: r.warnings,
-          }))
-        );
+        const results = (data.results || []).map((r: any) => ({
+          ...(r.listing || {}),
+          match_score: r.match_score,
+          match_reasons: r.match_reasons,
+          warnings: r.warnings,
+        }));
+        setListings(results);
+        setTotal(results.length);
       } else {
-        setListings(Array.isArray(data) ? data : []);
+        const items: Listing[] = data.listings ?? (Array.isArray(data) ? data : []);
+        setListings(items);
+        setTotal(data.total ?? items.length);
       }
-      setPage(0);
     } catch {
       setListings([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [filters, aiQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters, aiQuery, page, sort]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchListings(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced auto-apply
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
-    const t = setTimeout(() => fetchListings(searchType === 'ai'), 400);
+    const t = setTimeout(() => fetchListings(searchType === 'ai', 0, sort), 400);
     return () => clearTimeout(t);
   }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -498,24 +506,24 @@ function BrowseContent() {
     [...POWER_TYPES, ...SAIL_TYPES];
 
   let sorted = [...listings];
-  sorted.sort((a, b) => {
-    if (sort === 'nearest' && userLat !== null && userLng !== null) {
+  if (sort === 'nearest' && userLat !== null && userLng !== null) {
+    sorted.sort((a, b) => {
       const da = (a.latitude && a.longitude) ? haversineMiles(userLat, userLng, a.latitude, a.longitude) : Infinity;
       const db = (b.latitude && b.longitude) ? haversineMiles(userLat, userLng, b.latitude, b.longitude) : Infinity;
       return da - db;
-    }
-    if (sort === 'price_asc')  return (a.price || 0) - (b.price || 0);
-    if (sort === 'price_desc') return (b.price || 0) - (a.price || 0);
-    if (sort === 'year_desc')  return (b.year  || 0) - (a.year  || 0);
-    if (sort === 'year_asc')   return (a.year  || 0) - (b.year  || 0);
-    return 0;
-  });
+    });
+  }
 
   const featured = sorted.filter((l) => l.featured).slice(0, 4);
   const featuredIds = new Set(featured.map((l) => l.id));
   const regular = sorted.filter((l) => !featuredIds.has(l.id));
-  const totalPages = Math.ceil(regular.length / PAGE_SIZE);
-  const paged = regular.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = sort === 'nearest'
+    ? Math.ceil(regular.length / PAGE_SIZE)
+    : Math.ceil(total / PAGE_SIZE);
+  const paged = sort === 'nearest'
+    ? regular.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+    : regular;
+  const displayTotal = sort === 'nearest' ? listings.length : total;
 
   const xr = currency !== 'USD' ? (exchangeRates[currency] ?? 1) : 1;
 
@@ -692,7 +700,12 @@ function BrowseContent() {
               {/* Sort */}
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value)}
+                onChange={(e) => {
+                  const newSort = e.target.value;
+                  setSort(newSort);
+                  setPage(0);
+                  fetchListings(false, 0, newSort);
+                }}
                 className="focus:outline-none"
                 style={{
                   fontFamily: 'Poppins, sans-serif',
@@ -706,7 +719,6 @@ function BrowseContent() {
               >
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-
               {/* Save search */}
               <button
                 onClick={handleSaveSearch}
@@ -1012,7 +1024,7 @@ function BrowseContent() {
                 color: 'rgba(16,33,79,0.6)',
               }}
             >
-              <strong style={{ color: '#10214F' }}>{sorted.length.toLocaleString()}</strong> yacht{sorted.length !== 1 ? 's' : ''}
+              <strong style={{ color: '#10214F' }}>{displayTotal.toLocaleString()}</strong> yacht{displayTotal !== 1 ? 's' : ''}
               {totalPages > 1 && ` · page ${page + 1} of ${totalPages}`}
             </span>
             {searchType === 'ai' && (
@@ -1210,7 +1222,7 @@ function BrowseContent() {
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-10">
                 <button
-                  onClick={() => { setPage((p) => Math.max(0, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  onClick={() => { const np = Math.max(0, page - 1); setPage(np); fetchListings(false, np, sort); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   disabled={page === 0}
                   className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
                   style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
@@ -1224,7 +1236,7 @@ function BrowseContent() {
                     return (
                       <button
                         key={i}
-                        onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        onClick={() => { setPage(i); fetchListings(false, i, sort); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                         className="w-8 h-8 rounded-lg text-sm font-medium transition-all"
                         style={{
                           fontFamily: 'Poppins, sans-serif',
@@ -1240,7 +1252,7 @@ function BrowseContent() {
                 </div>
 
                 <button
-                  onClick={() => { setPage((p) => Math.min(totalPages - 1, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  onClick={() => { const np = Math.min(totalPages - 1, page + 1); setPage(np); fetchListings(false, np, sort); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   disabled={page >= totalPages - 1}
                   className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
                   style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}

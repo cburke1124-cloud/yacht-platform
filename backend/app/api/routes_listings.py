@@ -586,8 +586,9 @@ def get_admin_listing_list(
 def get_listings(
     db: Session = Depends(get_db),
     skip: int = 0,
-    limit: int = 2000,
+    limit: int = 32,
     status: str = "active",
+    sort: Optional[str] = None,
     make: Optional[str] = None,
     model: Optional[str] = None,
     boat_type: Optional[str] = None,
@@ -723,7 +724,17 @@ def get_listings(
             order_cols.append(Listing.featured_priority.desc())
         if _has_listing_column("featured_until"):
             order_cols.append(Listing.featured_until.desc())
-        order_cols.append(Listing.created_at.desc())
+        if sort == "price_asc":
+            order_cols.append(Listing.price.asc().nullslast())
+        elif sort == "price_desc":
+            order_cols.append(Listing.price.desc().nullslast())
+        elif sort == "year_desc":
+            order_cols.append(Listing.year.desc().nullslast())
+        elif sort == "year_asc":
+            order_cols.append(Listing.year.asc().nullslast())
+        else:
+            order_cols.append(Listing.created_at.desc())
+        total = q.count()
         listings = (
             q.order_by(*order_cols)
             .offset(skip)
@@ -753,26 +764,29 @@ def get_listings(
                 params,
             ).mappings().all()
 
-            return [
-                {
-                    "id": row.get("id"),
-                    "title": row.get("title"),
-                    "price": row.get("price"),
-                    "currency": row.get("currency") or "USD",
-                    "year": row.get("year"),
-                    "make": row.get("make"),
-                    "model": row.get("model"),
-                    "length_feet": row.get("length_feet"),
-                    "city": row.get("city"),
-                    "state": row.get("state"),
-                    "status": row.get("status") or status,
-                    "views": row.get("views") or 0,
-                    "featured": bool(row.get("featured")),
-                    "images": [],
-                    "dealer": None,
-                }
-                for row in rows
-            ]
+            return {
+                "listings": [
+                    {
+                        "id": row.get("id"),
+                        "title": row.get("title"),
+                        "price": row.get("price"),
+                        "currency": row.get("currency") or "USD",
+                        "year": row.get("year"),
+                        "make": row.get("make"),
+                        "model": row.get("model"),
+                        "length_feet": row.get("length_feet"),
+                        "city": row.get("city"),
+                        "state": row.get("state"),
+                        "status": row.get("status") or status,
+                        "views": row.get("views") or 0,
+                        "featured": bool(row.get("featured")),
+                        "images": [],
+                        "dealer": None,
+                    }
+                    for row in rows
+                ],
+                "total": len(rows),
+            }
         except Exception:
             logger.exception("Fallback A failed; trying minimal listings query")
             db.rollback()
@@ -791,29 +805,32 @@ def get_listings(
                 {"limit": limit, "skip": skip},
             ).mappings().all()
 
-            return [
-                {
-                    "id": row.get("id"),
-                    "title": row.get("title"),
-                    "price": row.get("price"),
-                    "currency": row.get("currency") or "USD",
-                    "year": row.get("year"),
-                    "make": row.get("make"),
-                    "model": row.get("model"),
-                    "length_feet": row.get("length_feet"),
-                    "city": row.get("city"),
-                    "state": row.get("state"),
-                    "status": status,
-                    "views": 0,
-                    "featured": False,
-                    "images": [],
-                    "dealer": None,
-                }
-                for row in rows
-            ]
+            return {
+                "listings": [
+                    {
+                        "id": row.get("id"),
+                        "title": row.get("title"),
+                        "price": row.get("price"),
+                        "currency": row.get("currency") or "USD",
+                        "year": row.get("year"),
+                        "make": row.get("make"),
+                        "model": row.get("model"),
+                        "length_feet": row.get("length_feet"),
+                        "city": row.get("city"),
+                        "state": row.get("state"),
+                        "status": status,
+                        "views": 0,
+                        "featured": False,
+                        "images": [],
+                        "dealer": None,
+                    }
+                    for row in rows
+                ],
+                "total": len(rows),
+            }
         except Exception:
             logger.exception("Fallback B failed; returning empty listings array")
-            return []
+            return {"listings": [], "total": 0}
 
     def dealer_payload(listing: Listing) -> dict[str, Any] | None:
         try:
@@ -843,32 +860,35 @@ def get_listings(
     listing_ids = [l.id for l in listings]
     media_map = _get_primary_images_for_listings(db, listing_ids)
 
-    return [
-        {
-            "id": l.id,
-            "title": l.title,
-            "price": l.price,
-            "currency": l.currency or "USD",
-            "year": l.year,
-            "make": l.make,
-            "model": l.model,
-            "length_feet": l.length_feet,
-            "city": l.city,
-            "state": l.state,
-            "country": l.country,
-            "latitude": l.latitude,
-            "longitude": l.longitude,
-            "status": l.status,
-            "views": l.views or 0,
-            "featured": l.featured or False,
-            "images": (
-                media_map.get(l.id, [])
-                or [{"url": img.url} for img in l.images[:1]]
-            ),
-            "dealer": dealer_payload(l),
-        }
-        for l in listings
-    ]
+    return {
+        "listings": [
+            {
+                "id": l.id,
+                "title": l.title,
+                "price": l.price,
+                "currency": l.currency or "USD",
+                "year": l.year,
+                "make": l.make,
+                "model": l.model,
+                "length_feet": l.length_feet,
+                "city": l.city,
+                "state": l.state,
+                "country": l.country,
+                "latitude": l.latitude,
+                "longitude": l.longitude,
+                "status": l.status,
+                "views": l.views or 0,
+                "featured": l.featured or False,
+                "images": (
+                    media_map.get(l.id, [])
+                    or [{"url": img.url} for img in l.images[:1]]
+                ),
+                "dealer": dealer_payload(l),
+            }
+            for l in listings
+        ],
+        "total": total,
+    }
 
 
 @router.get("/my-listings")
