@@ -310,7 +310,7 @@ function UnifiedListingsContent() {
         }));
         setListings(flat);
       } else {
-        setListings(Array.isArray(data) ? data : []);
+        setListings(data.listings ?? (Array.isArray(data) ? data : []));
       }
       setPage(0); // reset to first page on new results
     } catch (error) {
