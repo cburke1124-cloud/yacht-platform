@@ -35,11 +35,30 @@ interface ScraperJob {
   created_at?: string;
   last_run_log?: Array<{
     url: string;
-    outcome: 'created' | 'updated' | 'sold' | 'archived' | 'error';
+    outcome: 'created' | 'updated' | 'sold' | 'archived' | 'error' | 'skipped' | 'failed';
     listing_id?: number;
     title?: string;
     error?: string;
+    confidence?: number;
+    ai_used?: boolean;
   }>;
+}
+
+interface RawPage {
+  id: number;
+  job_id: number;
+  source_url: string;
+  stage: 'intake' | 'normalized' | 'ai_parsed' | 'validated' | 'failed';
+  skip_reason?: string;
+  confidence_score?: number;
+  ai_used?: boolean;
+  normalized_data?: Record<string, unknown>;
+  ai_data?: Record<string, unknown>;
+  merged_data?: Record<string, unknown>;
+  fetched_at?: string;
+  validated_at?: string;
+  has_raw_html: boolean;
+  has_raw_text: boolean;
 }
 
 interface Dealer {
@@ -164,6 +183,10 @@ export default function AdminScraperTab() {
   const [jobsError, setJobsError] = useState('');
   const [expandedJob, setExpandedJob] = useState<number | null>(null);
   const [logOpenJob, setLogOpenJob] = useState<number | null>(null);
+  const [rawPagesOpenJob, setRawPagesOpenJob] = useState<number | null>(null);
+  const [rawPagesData, setRawPagesData] = useState<Record<number, RawPage[]>>({});
+  const [rawPagesLoading, setRawPagesLoading] = useState<number | null>(null);
+  const [reparsing, setReparsing] = useState<number | null>(null);
   const [runningJob, setRunningJob] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState('');
 
@@ -196,6 +219,36 @@ export default function AdminScraperTab() {
   const [tmplTestError, setTmplTestError] = useState('');
   const [tmplImportJson, setTmplImportJson] = useState('');
   const [tmplImportError, setTmplImportError] = useState('');
+
+  async function loadRawPages(jobId: number) {
+    setRawPagesLoading(jobId);
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${jobId}/raw-pages`), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) setRawPagesData(prev => ({ ...prev, [jobId]: data.pages }));
+    } catch { /* non-critical */ } finally {
+      setRawPagesLoading(null);
+    }
+  }
+
+  async function handleReparse(rawPageId: number, jobId: number) {
+    setReparsing(rawPageId);
+    try {
+      const res = await fetch(apiUrl(`/scraper/raw-pages/${rawPageId}/reparse`), {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRawPagesData(prev => ({
+          ...prev,
+          [jobId]: (prev[jobId] || []).map(p => p.id === rawPageId ? data.page : p),
+        }));
+      }
+    } catch { /* non-critical */ } finally {
+      setReparsing(null);
+    }
+  }
 
   async function loadTemplate(jobId: number) {
     try {
@@ -928,6 +981,8 @@ export default function AdminScraperTab() {
                             if (o === 'sold')    return 'text-amber-700 bg-amber-50 border-amber-200';
                             if (o === 'archived') return 'text-gray-600 bg-gray-100 border-gray-200';
                             if (o === 'error')   return 'text-red-700 bg-red-50 border-red-200';
+                            if (o === 'skipped') return 'text-gray-500 bg-gray-50 border-gray-200';
+                            if (o === 'failed')  return 'text-orange-700 bg-orange-50 border-orange-200';
                             return 'text-gray-600 bg-gray-50 border-gray-200';
                           };
                           return (
@@ -952,16 +1007,92 @@ export default function AdminScraperTab() {
                                         <p className="text-gray-400 truncate">{entry.url}</p>
                                         {entry.error && <p className="text-red-600 mt-0.5">{entry.error}</p>}
                                       </div>
-                                      {entry.listing_id && (
-                                        <a
-                                          href={`/admin/scraper-review`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="shrink-0 text-[#01BBDC] hover:underline text-[10px]"
+                                      <div className="shrink-0 flex flex-col items-end gap-1">
+                                        {entry.confidence != null && (
+                                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${entry.confidence >= 0.6 ? 'bg-green-100 text-green-700' : entry.confidence >= 0.3 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                            {Math.round(entry.confidence * 100)}%
+                                          </span>
+                                        )}
+                                        {entry.ai_used && (
+                                          <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">AI</span>
+                                        )}
+                                        {entry.listing_id && (
+                                          <a
+                                            href={`/admin/scraper-review`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[#01BBDC] hover:underline text-[10px]"
+                                          >
+                                            #{entry.listing_id}
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Pipeline Details (RawScrapedPage records) */}
+                        {(() => {
+                          const isOpen = rawPagesOpenJob === job.id;
+                          const pages = rawPagesData[job.id] || [];
+                          const stageColor = (s: string) => {
+                            if (s === 'validated') return 'text-green-700 bg-green-50 border-green-200';
+                            if (s === 'ai_parsed') return 'text-purple-700 bg-purple-50 border-purple-200';
+                            if (s === 'normalized') return 'text-blue-700 bg-blue-50 border-blue-200';
+                            if (s === 'failed') return 'text-orange-700 bg-orange-50 border-orange-200';
+                            return 'text-gray-600 bg-gray-50 border-gray-200';
+                          };
+                          return (
+                            <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden">
+                              <button
+                                onClick={async () => {
+                                  if (isOpen) { setRawPagesOpenJob(null); return; }
+                                  setRawPagesOpenJob(job.id);
+                                  if (!rawPagesData[job.id]) await loadRawPages(job.id);
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-xs font-medium text-gray-600 transition-colors"
+                              >
+                                <RefreshCw size={12} />
+                                Pipeline Details
+                                {pages.length > 0 && <span className="text-gray-400">({pages.length} URLs)</span>}
+                                {rawPagesLoading === job.id && <span className="text-gray-400 ml-1">Loading…</span>}
+                                <span className="ml-auto">{isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
+                              </button>
+                              {isOpen && (
+                                <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                                  {pages.length === 0 && rawPagesLoading !== job.id && (
+                                    <p className="px-3 py-3 text-xs text-gray-400 text-center">No pipeline data for this job yet.</p>
+                                  )}
+                                  {pages.map(page => (
+                                    <div key={page.id} className="px-3 py-2 text-xs hover:bg-gray-50">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <span className={`shrink-0 px-1.5 py-0.5 rounded border text-[10px] font-semibold uppercase ${stageColor(page.stage)}`}>
+                                          {page.stage}
+                                        </span>
+                                        {page.confidence_score != null && (
+                                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${page.confidence_score >= 0.6 ? 'bg-green-100 text-green-700' : page.confidence_score >= 0.3 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                            {Math.round(page.confidence_score * 100)}%
+                                          </span>
+                                        )}
+                                        {page.ai_used && (
+                                          <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">AI</span>
+                                        )}
+                                        {page.skip_reason && (
+                                          <span className="text-[9px] text-gray-400 italic">{page.skip_reason}</span>
+                                        )}
+                                        <button
+                                          onClick={() => handleReparse(page.id, job.id)}
+                                          disabled={reparsing === page.id}
+                                          className="ml-auto text-[10px] px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 disabled:opacity-50 transition-colors"
                                         >
-                                          #{entry.listing_id}
-                                        </a>
-                                      )}
+                                          {reparsing === page.id ? 'Reparsing…' : 'Reparse'}
+                                        </button>
+                                      </div>
+                                      <p className="text-gray-400 truncate">{page.source_url}</p>
                                     </div>
                                   ))}
                                 </div>

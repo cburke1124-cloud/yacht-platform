@@ -15,7 +15,7 @@ import traceback
 from bs4 import BeautifulSoup
 import json
 import re
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 from urllib.parse import urljoin, urlparse
 import asyncio
 from datetime import datetime, timedelta
@@ -54,8 +54,10 @@ try:
 except Exception:
     _PLAYWRIGHT_AVAILABLE = False
 
+import hashlib
+
 from app.models.listing import Listing, ListingImage
-from app.models.misc import ScraperJob, ScrapedListing
+from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym
 from app.models.user import User
 from app.models.guest_broker import GuestBroker
 from app.db.session import get_db, SessionLocal
@@ -67,6 +69,42 @@ logger = logging.getLogger(__name__)
 # Maximum number of images/videos stored per listing.
 # Some charter/superyacht listings legitimately include 100+ media items.
 _MAX_IMAGES_PER_LISTING = 300
+
+
+# ── Field synonym cache ────────────────────────────────────────────────────────
+# Loaded once per scraper job from the field_synonyms DB table.
+# Maps lowercase-stripped raw label text → canonical DB field name.
+# If the DB is empty or unavailable, falls back to the hardcoded LABEL_MAP
+# inside parse_spec_tables (existing behaviour is fully preserved).
+def _load_synonym_cache(db) -> Dict[str, str]:
+    """Load all FieldSynonym rows into a plain dict for O(1) lookups."""
+    try:
+        rows = db.query(FieldSynonym.raw_term, FieldSynonym.canonical_field).all()
+        return {row.raw_term: row.canonical_field for row in rows}
+    except Exception as exc:
+        logger.warning(f"_load_synonym_cache: could not load field synonyms: {exc}")
+        return {}
+
+
+def _compute_confidence(data: Dict) -> float:
+    """
+    Score how complete a merged extraction result is.
+    Returns 0.0–1.0.  Listings scoring < 0.4 are flagged 'failed' and do not
+    automatically create a Listing record (they land in raw_scraped_pages only).
+    """
+    score = 0.0
+    if data.get("title"):        score += 0.15
+    if data.get("price"):        score += 0.15
+    if data.get("make"):         score += 0.10
+    if data.get("model"):        score += 0.05
+    if data.get("year"):         score += 0.10
+    if data.get("length_feet"):  score += 0.10
+    if data.get("country"):      score += 0.10
+    if data.get("city"):         score += 0.05
+    desc = data.get("description") or ""
+    if len(str(desc)) > 50:      score += 0.10
+    if data.get("images"):       score += 0.10
+    return round(min(score, 1.0), 3)
 
 
 class OptimizedYachtScraper:
@@ -2189,7 +2227,146 @@ Content: {content[:12000]}"""
         return images[:_MAX_IMAGES_PER_LISTING]
 
     # ---------------------------------------------------------
-    # SCRAPE A SINGLE LISTING URL â†’ raw data dict
+    # STAGED PIPELINE HELPERS (used by run_scraper_job)
+    # ---------------------------------------------------------
+
+    def _fetch_listing_html(self, url: str, template=None):
+        """
+        Stage 1 (Intake): fetch raw HTML for a listing URL.
+        Returns (html, wp_extra_text, wp_images) -- all pure network I/O, no DB.
+        Duplicates the fetch logic from _scrape_single_listing_inner so the staged
+        pipeline and single-test path stay in sync.
+        """
+        if url in self._json_api_cache:
+            cached = self._json_api_cache[url]
+            pseudo_html = "<html><body>" + json.dumps(cached) + "</body></html>"
+            return pseudo_html, "", []
+
+        _wp_extra_text = ""
+        _wp_images = []
+        _parsed_url = urlparse(url)
+        _base = f"{_parsed_url.scheme}://{_parsed_url.netloc}"
+        _api_hdrs = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+
+        _wp_cached = self._wp_rest_id_map.get(url.rstrip("/"))
+        if not _wp_cached and _parsed_url.query:
+            _qs = dict(pair.split("=", 1) for pair in _parsed_url.query.split("&") if "=" in pair)
+            if any(k in _qs for k in ("id", "boat_id", "listing_id", "yacht_id", "vessel_id")):
+                for _pt in ("listings", "boats", "yachts", "vessels", "motorboats", "sailboats"):
+                    try:
+                        _sr = requests.get(
+                            f"{_base}/wp-json/wp/v2/{_pt}",
+                            params={"per_page": 100, "page": 1, "_fields": "id,link"},
+                            headers=_api_hdrs, timeout=10,
+                        )
+                        if not _sr.ok:
+                            continue
+                        _items = _sr.json()
+                        if not isinstance(_items, list):
+                            continue
+                        for _item in _items:
+                            if isinstance(_item, dict) and _item.get("id") and _item.get("link"):
+                                _norm = _item["link"].rstrip("/")
+                                self._wp_rest_id_map[_norm] = (_pt, str(_item["id"]))
+                        _wp_cached = self._wp_rest_id_map.get(url.rstrip("/"))
+                        if _wp_cached:
+                            break
+                    except Exception:
+                        continue
+
+        if _wp_cached:
+            _pt, _wp_id = _wp_cached
+            try:
+                _r = requests.get(
+                    f"{_base}/wp-json/wp/v2/{_pt}/{_wp_id}",
+                    params={"_embed": "1"},
+                    headers=_api_hdrs, timeout=10,
+                )
+                if _r.ok and "json" in _r.headers.get("content-type", ""):
+                    _wp = _r.json()
+                    _rendered = (_wp.get("content") or {}).get("rendered") or ""
+                    if _rendered:
+                        _wp_extra_text = BeautifulSoup(_rendered, "html.parser").get_text(" ", strip=True)[:4000]
+                    for _k in ("title", "acf", "meta", "custom_fields"):
+                        _v = _wp.get(_k)
+                        if isinstance(_v, dict):
+                            _wp_extra_text += " " + json.dumps(_v)[:2000]
+                        elif isinstance(_v, str):
+                            _wp_extra_text += " " + _v[:500]
+                    _embedded = _wp.get("_embedded") or {}
+                    for _ml in (_embedded.get("wp:featuredmedia") or [], _embedded.get("wp:attachment") or []):
+                        for _media in (_ml if isinstance(_ml, list) else [_ml]):
+                            for _sk in ("full", "large", "medium_large", "source_url"):
+                                _sz = (_media.get("media_details") or {}).get("sizes") or {}
+                                _iu = (_sz.get(_sk) or {}).get("source_url") or _media.get("source_url")
+                                if _iu:
+                                    _wp_images.append(_iu)
+                                    break
+            except Exception:
+                pass
+
+        html = self.fetch_page(url)
+        if _PLAYWRIGHT_AVAILABLE and (not html or len(html) < 5000):
+            headless_html = self.fetch_page_headless(url)
+            if headless_html and len(headless_html) > len(html or ""):
+                html = headless_html
+
+        return (html or ""), _wp_extra_text, _wp_images
+
+    def _needs_ai_check(self, partial: dict) -> bool:
+        """Return True if structured extraction left critical fields incomplete."""
+        return (
+            not partial.get("title")
+            or not partial.get("make")
+            or not partial.get("model")
+            or not partial.get("description")
+            or not partial.get("city")
+            or not partial.get("country")
+            or not partial.get("length_feet")
+            or not partial.get("year")
+        )
+
+    def _parse_spec_tables_with_synonyms(self, html: str, synonym_cache: dict) -> dict:
+        """
+        Like parse_spec_tables() but overlays the DB synonym cache so admin-added
+        term aliases are picked up without a code deploy.
+        Synonym cache keys are lowercase-stripped label text; values are canonical
+        field names (e.g. "loa" -> "length_feet").
+        """
+        base = self.parse_spec_tables(html)
+        if not synonym_cache:
+            return base
+
+        soup = BeautifulSoup(html, "html.parser")
+        extra = {}
+
+        def _try(label, value):
+            key = synonym_cache.get(label.strip().lower())
+            if key and value.strip():
+                extra[key] = value.strip()
+
+        for table in soup.find_all("table"):
+            for row in table.find_all("tr"):
+                cells = row.find_all(["th", "td"])
+                if len(cells) == 2:
+                    _try(cells[0].get_text(strip=True), cells[1].get_text(strip=True))
+
+        for dl in soup.find_all("dl"):
+            for dt, dd in zip(dl.find_all("dt"), dl.find_all("dd")):
+                _try(dt.get_text(strip=True), dd.get_text(strip=True))
+
+        for li in soup.find_all("li"):
+            li_text = li.get_text(strip=True)
+            if ":" in li_text:
+                parts = li_text.split(":", 1)
+                if len(parts[0]) < 40:
+                    _try(parts[0], parts[1])
+
+        # synonym overlay wins over base hardcoded map for any shared key
+        return {**base, **extra}
+
+    # ---------------------------------------------------------
+    # SCRAPE A SINGLE LISTING URL - raw data dict
     # ---------------------------------------------------------
     def scrape_single_listing(self, url: str, template: Optional[Dict] = None) -> Dict:
         try:
@@ -2620,39 +2797,261 @@ def run_scraper_job(job_id: int, db) -> Dict:
 
         discovered_url_set = set(discovered_urls)
 
-        # -- Step 2: scrape each URL and upsert --
+                # Load the field synonym cache once so all URLs use the same lookup table.
+        synonym_cache = _load_synonym_cache(db)
+
+        # -- Step 2: staged pipeline -- fetch > normalize > AI > validate > upsert --
         for url in discovered_urls:
             try:
-                # Look up any existing ScrapedListing row BEFORE releasing the connection.
+                # Look up any existing rows BEFORE releasing the DB connection.
                 _existing_scraped_id = (
                     db.query(ScrapedListing.id)
                     .filter(ScrapedListing.job_id == job_id, ScrapedListing.source_url == url)
                     .scalar()
                 )
+                _existing_raw_id = (
+                    db.query(RawScrapedPage.id)
+                    .filter(RawScrapedPage.job_id == job_id, RawScrapedPage.source_url == url)
+                    .scalar()
+                )
 
-                # Commit any pending writes from the previous iteration BEFORE closing.
-                # db.close() rolls back uncommitted changes, so we must flush them first.
+                # Stage 1: Intake -- fetch HTML (release DB during slow network call)
                 db.commit()
-                # Release the DB connection for the duration of the actual web scrape.
-                # Each listing can take 30-120 s via headless browser + Claude extraction.
-                # Holding the connection that long starves the pool for normal API requests.
                 db.close()
 
-                raw = scraper.scrape_single_listing(url, template=_template)
+                try:
+                    html, wp_extra_text, wp_images = scraper._fetch_listing_html(url, template=_template)
+                except Exception as _fetch_exc:
+                    db = SessionLocal()
+                    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+                    stats["errors"] += 1
+                    run_log.append({"url": url, "outcome": "error", "error": f"fetch failed: {_fetch_exc}"})
+                    logger.error(f"[Job {job_id}] Fetch failed for {url}: {_fetch_exc}")
+                    continue
 
-                # Re-acquire a fresh connection for all write operations.
                 db = SessionLocal()
                 job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+
+                content_hash = hashlib.sha256((html or "").encode("utf-8", errors="replace")).hexdigest()[:32]
+
+                existing_raw = (
+                    db.query(RawScrapedPage).filter(RawScrapedPage.id == _existing_raw_id).first()
+                ) if _existing_raw_id else None
+
+                # Skip re-processing unchanged listings (saves AI credits on re-runs)
+                if (
+                    existing_raw
+                    and existing_raw.content_hash == content_hash
+                    and existing_raw.stage == "validated"
+                    and existing_raw.merged_data
+                ):
+                    raw = existing_raw.merged_data
+                    logger.info(f"[Job {job_id}] Skipping unchanged page (hash match): {url}")
+                else:
+                    if existing_raw:
+                        raw_page = existing_raw
+                    else:
+                        raw_page = RawScrapedPage(job_id=job_id, source_url=url)
+                        db.add(raw_page)
+
+                    raw_page.raw_html = html
+                    raw_page.raw_text = scraper.clean_html(html) if html else ""
+                    raw_page.wp_extra_text = wp_extra_text or None
+                    raw_page.content_hash = content_hash
+                    raw_page.stage = "intake"
+                    raw_page.fetched_at = datetime.utcnow()
+                    raw_page.updated_at = datetime.utcnow()
+                    db.commit()
+
+                    # Stage 2: Normalize (structured extraction, no network)
+                    raw_text = raw_page.raw_text or ""
+                    if wp_extra_text:
+                        raw_text = wp_extra_text + "\n\n" + raw_text
+
+                    structured = scraper.try_structured_extraction(html, url)
+                    html_specs = scraper._parse_spec_tables_with_synonyms(html, synonym_cache)
+                    regex_specs = scraper.extract_specs_from_text(raw_text)
+                    price_result = scraper.extract_price_with_currency(raw_text)
+                    if price_result:
+                        regex_specs["price"] = price_result[0]
+                        regex_specs["currency"] = price_result[1]
+
+                    partial = {**regex_specs, **html_specs, **(structured or {})}
+
+                    if not partial.get("title") and partial.get("_h1_title"):
+                        partial["title"] = partial.pop("_h1_title")
+                    else:
+                        partial.pop("_h1_title", None)
+
+                    if not partial.get("description"):
+                        det_desc = scraper.extract_description_from_text(raw_text)
+                        if det_desc:
+                            partial["description"] = det_desc
+
+                    if partial.get("title") and not partial.get("make"):
+                        title_parts = partial["title"].split()
+                        if len(title_parts) >= 3 and re.match(r"(19|20)\d{2}", title_parts[0]):
+                            partial["make"] = title_parts[1]
+                            partial["model"] = " ".join(title_parts[2:])
+                        elif len(title_parts) >= 2 and re.match(r"(19|20)\d{2}", title_parts[0]):
+                            partial["make"] = title_parts[1]
+
+                    norm_city, norm_state, norm_country = OptimizedYachtScraper.normalize_location(
+                        partial.get("city"), partial.get("state"), partial.get("country")
+                    )
+                    if norm_city is not None:
+                        partial["city"] = norm_city
+                    if norm_state is not None:
+                        partial["state"] = norm_state
+                    elif "state" in partial:
+                        partial.pop("state", None)
+                    if norm_country is not None:
+                        partial["country"] = norm_country
+
+                    images = scraper.extract_images(html, url)
+                    if not images and html and len(html) > 3000 and _PLAYWRIGHT_AVAILABLE:
+                        _hl_html = scraper.fetch_page_headless(url)
+                        if _hl_html and len(_hl_html) > len(html):
+                            html = _hl_html
+                            images = scraper.extract_images(_hl_html, url)
+                    if wp_images:
+                        _seen_norms = {u.split("?")[0] for u in images}
+                        for _wu in wp_images:
+                            if _wu.split("?")[0] not in _seen_norms:
+                                images.insert(0, _wu)
+                                _seen_norms.add(_wu.split("?")[0])
+                    partial["images"] = images[:_MAX_IMAGES_PER_LISTING]
+
+                    detected_agent = scraper.detect_agent_name(html, raw_text)
+                    if not detected_agent and partial.get("agent_name"):
+                        detected_agent = partial.pop("agent_name")
+                    else:
+                        partial.pop("agent_name", None)
+                    if detected_agent:
+                        partial["detected_agent_name"] = detected_agent
+                        agent_photo = scraper.detect_agent_photo(html, detected_agent)
+                        if agent_photo:
+                            partial["detected_agent_photo"] = agent_photo
+                            _ap_norms = {agent_photo, agent_photo.split("?")[0]}
+                            partial["images"] = [
+                                i for i in partial.get("images", [])
+                                if i not in _ap_norms and i.split("?")[0] not in _ap_norms
+                            ]
+
+                    partial.update({"source_url": url, "source": "scraped",
+                                    "scraped_at": datetime.utcnow().isoformat()})
+                    raw_page.normalized_data = partial
+                    raw_page.stage = "normalized"
+                    raw_page.normalized_at = datetime.utcnow()
+                    db.commit()
+
+                    # Stage 3: AI Parse (only when critical fields are still missing)
+                    ai_used = False
+                    if scraper._needs_ai_check(partial):
+                        db.close()
+                        try:
+                            yacht_data = scraper.scrape_with_ai(raw_text, url, partial)
+                        except _AnthropicCreditsExhausted:
+                            raise
+                        except Exception as _ai_exc:
+                            logger.warning(f"[Job {job_id}] AI parse failed for {url}: {_ai_exc}")
+                            yacht_data = partial
+                        db = SessionLocal()
+                        job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+                        raw_page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page.id).first()
+                        ai_used = True
+                        raw_page.ai_data = yacht_data
+                        raw_page.ai_used = True
+                        raw_page.stage = "ai_parsed"
+                        raw_page.ai_parsed_at = datetime.utcnow()
+                        db.commit()
+                    else:
+                        yacht_data = partial
+
+                    # Apply template selector overrides (highest priority)
+                    if _template:
+                        _tmpl_soup = BeautifulSoup(html or "", "html.parser")
+                        scraper._apply_template_selectors(yacht_data, _tmpl_soup, _template)
+
+                    # Title cleanup
+                    _title_boat_re = re.compile(
+                        r"(\d{1,4}\s*(19|20)\d{2}|(19|20)\d{2}\s*[-\u2013]?\s*\w|\b\d{2,3}\s*ft\b)",
+                        re.IGNORECASE,
+                    )
+                    if not yacht_data.get("title"):
+                        soup_title = BeautifulSoup(html or "", "html.parser").find("title")
+                        if soup_title:
+                            raw_title = soup_title.get_text(strip=True)
+                            for sep in [" - ", " | ", " \u2014 ", " :: "]:
+                                if sep in raw_title:
+                                    parts = [p.strip() for p in raw_title.split(sep)]
+                                    boat_part = next((p for p in parts if _title_boat_re.search(p)), None)
+                                    raw_title = boat_part if boat_part else parts[0]
+                                    break
+                            if len(raw_title) > 3:
+                                yacht_data["title"] = raw_title
+                    if yacht_data.get("title"):
+                        _t = yacht_data["title"]
+                        for _sep in [" - ", " | ", " \u2014 ", " :: "]:
+                            if _sep in _t:
+                                _parts = [p.strip() for p in _t.split(_sep)]
+                                _boat = next((p for p in _parts if _title_boat_re.search(p)), None)
+                                if _boat and _boat != _t:
+                                    yacht_data["title"] = _boat
+                                break
+                    if not yacht_data.get("description") and partial.get("description"):
+                        yacht_data["description"] = partial["description"]
+
+                    # Sold detection
+                    if html and not yacht_data.get("is_sold"):
+                        _check_soup = BeautifulSoup(html, "html.parser")
+                        if _template and _template.get("sold_banner_selector"):
+                            try:
+                                if _check_soup.select_one(_template["sold_banner_selector"].strip()):
+                                    yacht_data["is_sold"] = True
+                            except Exception:
+                                pass
+                        if not yacht_data.get("is_sold"):
+                            _sold_cls = re.compile(
+                                r"^(?:sold|is-sold|sold-badge|sold-overlay|sold-ribbon"
+                                r"|listing-sold|badge-sold|status-sold|vessel-sold"
+                                r"|yacht-sold|label-sold|tag-sold|unavailable-banner)$",
+                                re.IGNORECASE,
+                            )
+                            for _el in _check_soup.find_all(class_=_sold_cls):
+                                if not _el.find_parent("a"):
+                                    yacht_data["is_sold"] = True
+                                    break
+
+                    # Stage 4: Validate
+                    confidence = _compute_confidence(yacht_data)
+                    skip_reason = None
+                    if not yacht_data.get("title") and confidence < 0.2:
+                        skip_reason = "low_confidence"
+                    elif not html or len(html) < 500:
+                        skip_reason = "too_small"
+
+                    raw_page.merged_data = yacht_data
+                    raw_page.confidence_score = confidence
+                    raw_page.skip_reason = skip_reason
+                    raw_page.stage = "failed" if skip_reason else "validated"
+                    raw_page.validated_at = datetime.utcnow()
+                    db.commit()
+
+                    if skip_reason:
+                        stats["errors"] += 1
+                        run_log.append({"url": url, "outcome": "error", "error": skip_reason,
+                                        "confidence": confidence, "ai_used": ai_used})
+                        logger.info(f"[Job {job_id}] Skipping {url}: {skip_reason} (confidence={confidence})")
+                        continue
+
+                    raw = yacht_data
+
                 existing_scraped = (
                     db.query(ScrapedListing)
                     .filter(ScrapedListing.id == _existing_scraped_id)
                     .first()
                 ) if _existing_scraped_id else None
-
-                # Safety guard — scrape_single_listing should always return a dict
-                if not isinstance(raw, dict):
-                    logger.error(f"[Job {job_id}] scrape_single_listing returned non-dict ({type(raw)}) for {url}")
-                    raw = {"error": "scraper returned unexpected type"}
 
                 if "error" in raw:
                     stats["errors"] += 1

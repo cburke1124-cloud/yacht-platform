@@ -183,6 +183,78 @@ class ScrapedListing(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class RawScrapedPage(Base):
+    """
+    Stores the raw fetched HTML and intermediate extraction results for a single
+    listing URL.  The staged pipeline writes here so that:
+      - Re-parsing never requires a new network request.
+      - Each stage (intake → normalized → ai_parsed → validated) can be replayed independently.
+      - AI credits are only spent when content_hash changes or the stage is below 'ai_parsed'.
+    """
+    __tablename__ = "raw_scraped_pages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("scraper_jobs.id"), nullable=False, index=True)
+    source_url = Column(String, nullable=False, index=True)
+
+    # SHA-256 (first 16 hex chars) of raw_html — used to detect page changes
+    content_hash = Column(String(64), nullable=True)
+
+    # Raw content from the network fetch
+    raw_html = Column(Text, nullable=True)        # full HTML of the listing page
+    raw_text = Column(Text, nullable=True)        # clean_html() output (re-parseable quickly)
+    wp_extra_text = Column(Text, nullable=True)   # WP REST API rendered content / ACF fields
+
+    # Pipeline stage:
+    # intake → normalized → ai_parsed → validated
+    # "failed" means validated but confidence too low to create a listing
+    stage = Column(String, default="intake", nullable=False)
+    skip_reason = Column(String, nullable=True)   # why it stalled (e.g. "too_small", "blocked")
+
+    # Extraction results at each stage
+    normalized_data = Column(JSON, nullable=True)   # structured extraction output
+    ai_data = Column(JSON, nullable=True)           # Claude output (if AI was used)
+    merged_data = Column(JSON, nullable=True)       # final merged + validated result
+
+    confidence_score = Column(Float, nullable=True)  # 0.0–1.0 field-coverage score
+    ai_used = Column(Boolean, default=False)
+
+    # Per-stage timestamps
+    fetched_at = Column(DateTime, nullable=True)
+    normalized_at = Column(DateTime, nullable=True)
+    ai_parsed_at = Column(DateTime, nullable=True)
+    validated_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FieldSynonym(Base):
+    """
+    Normalisation dictionary: maps raw label variants scraped from boat listing
+    spec tables into canonical database field names.
+
+    Examples:
+      "loa"              → "length_feet"
+      "length overall"   → "length_feet"
+      "overall length"   → "length_feet"
+      "running hours"    → "engine_hours"
+      "staterooms"       → "cabins"
+      "bathrooms"        → "heads"
+
+    Stored as lowercase, stripped strings so look-ups are O(1).
+    Loaded once per scraper job into an in-memory dict via _load_synonym_cache().
+    Admin-editable so new term aliases can be added without a code deploy.
+    """
+    __tablename__ = "field_synonyms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    raw_term = Column(String, nullable=False, unique=True, index=True)  # lowercase, stripped
+    canonical_field = Column(String, nullable=False)  # e.g. "length_feet"
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CurrencyRate(Base):
     __tablename__ = "currency_rates"
 

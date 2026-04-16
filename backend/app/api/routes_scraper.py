@@ -28,6 +28,8 @@ import re
 import json
 import logging
 import threading
+
+logger = logging.getLogger(__name__)
 from datetime import datetime as _dt
 
 import requests
@@ -69,7 +71,7 @@ class _LogCapture(logging.Handler):
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing, ListingImage
-from app.models.misc import ScraperJob, ScrapedListing
+from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym
 from app.exceptions import AuthorizationException, ValidationException
 
 router = APIRouter()
@@ -1226,4 +1228,239 @@ def get_job_listings(
     }
 
 
+# -----------------------------------------------------------------------
+# RAW SCRAPED PAGES — inspect + replay individual pipeline stages
+# -----------------------------------------------------------------------
 
+def _raw_page_to_dict(r: RawScrapedPage) -> dict:
+    return {
+        "id": r.id,
+        "job_id": r.job_id,
+        "source_url": r.source_url,
+        "content_hash": r.content_hash,
+        "stage": r.stage,
+        "skip_reason": r.skip_reason,
+        "confidence_score": r.confidence_score,
+        "ai_used": r.ai_used,
+        "normalized_data": r.normalized_data,
+        "ai_data": r.ai_data,
+        "merged_data": r.merged_data,
+        "fetched_at": r.fetched_at.isoformat() if r.fetched_at else None,
+        "normalized_at": r.normalized_at.isoformat() if r.normalized_at else None,
+        "ai_parsed_at": r.ai_parsed_at.isoformat() if r.ai_parsed_at else None,
+        "validated_at": r.validated_at.isoformat() if r.validated_at else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        # Raw HTML is large — omit by default; include if caller requests it
+        "has_raw_html": bool(r.raw_html),
+        "has_raw_text": bool(r.raw_text),
+    }
+
+
+@router.get("/scraper/jobs/{job_id}/raw-pages")
+def get_job_raw_pages(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all RawScrapedPage records for a job (without raw HTML blobs)."""
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    pages = (
+        db.query(RawScrapedPage)
+        .filter(RawScrapedPage.job_id == job_id)
+        .order_by(RawScrapedPage.created_at.desc())
+        .all()
+    )
+    return {
+        "success": True,
+        "job_id": job_id,
+        "total": len(pages),
+        "pages": [_raw_page_to_dict(p) for p in pages],
+    }
+
+
+@router.get("/scraper/raw-pages/{raw_page_id}")
+def get_raw_page(
+    raw_page_id: int,
+    include_html: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return a single RawScrapedPage record. Pass ?include_html=true to get the raw HTML."""
+    _require_admin(current_user)
+    page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page_id).first()
+    if not page:
+        raise HTTPException(status_code=404, detail="Raw page not found")
+    data = _raw_page_to_dict(page)
+    if include_html:
+        data["raw_html"] = page.raw_html
+        data["raw_text"] = page.raw_text
+        data["wp_extra_text"] = page.wp_extra_text
+    return {"success": True, "page": data}
+
+
+@router.post("/scraper/raw-pages/{raw_page_id}/reparse")
+def reparse_raw_page(
+    raw_page_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Re-run the normalize → AI parse → validate stages on a stored raw page
+    without re-fetching from the network.  Useful for diagnosing and fixing
+    low-confidence or failed extractions after improving selectors or synonyms.
+    """
+    _require_admin(current_user)
+    page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page_id).first()
+    if not page:
+        raise HTTPException(status_code=404, detail="Raw page not found")
+    if not page.raw_html and not page.raw_text:
+        raise HTTPException(status_code=422, detail="No stored HTML to reparse")
+
+    from app.services.scraper import (
+        OptimizedYachtScraper,
+        _load_synonym_cache,
+        _compute_confidence,
+    )
+    from datetime import datetime as _dt
+
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+    scraper = OptimizedYachtScraper(api_key=api_key)
+
+    # Stage 2: Normalize
+    synonym_cache = _load_synonym_cache(db)
+    html = page.raw_html or ""
+    normalized = scraper._parse_spec_tables_with_synonyms(html, synonym_cache)
+    additional = scraper.extract_specs_from_text(page.raw_text or page.raw_html or "")
+    for k, v in additional.items():
+        if v and not normalized.get(k):
+            normalized[k] = v
+
+    page.normalized_data = normalized
+    page.normalized_at = _dt.utcnow()
+    page.stage = "normalized"
+
+    # Stage 3: AI parse if needed
+    ai_data = {}
+    ai_used = False
+    if scraper._needs_ai_check(normalized):
+        text_for_ai = page.raw_text or page.raw_html or ""
+        try:
+            ai_result = scraper.scrape_with_ai(text_for_ai[:20000], page.source_url, normalized)
+            if isinstance(ai_result, dict) and "error" not in ai_result:
+                ai_data = ai_result
+                ai_used = True
+        except Exception as exc:
+            logger.warning("reparse AI stage failed for raw_page %s: %s", raw_page_id, exc)
+        page.ai_data = ai_data
+        page.ai_parsed_at = _dt.utcnow()
+        page.stage = "ai_parsed"
+
+    # Stage 4: Validate
+    merged = {**normalized, **ai_data}
+    confidence = _compute_confidence(merged)
+    page.merged_data = merged
+    page.confidence_score = confidence
+    page.ai_used = ai_used
+    page.validated_at = _dt.utcnow()
+    page.stage = "validated" if confidence >= 0.2 else "failed"
+
+    db.commit()
+    db.refresh(page)
+
+    return {
+        "success": True,
+        "page": _raw_page_to_dict(page),
+        "confidence": confidence,
+        "ai_used": ai_used,
+        "stage": page.stage,
+    }
+
+
+# -----------------------------------------------------------------------
+# FIELD SYNONYMS — admin CRUD for the normalization dictionary
+# -----------------------------------------------------------------------
+
+class SynonymCreateRequest(BaseModel):
+    raw_term: str
+    canonical_field: str
+
+
+class SynonymUpdateRequest(BaseModel):
+    canonical_field: str
+
+
+@router.get("/scraper/synonyms")
+def list_synonyms(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all field synonyms ordered by canonical field, then raw term."""
+    _require_admin(current_user)
+    synonyms = (
+        db.query(FieldSynonym)
+        .order_by(FieldSynonym.canonical_field, FieldSynonym.raw_term)
+        .all()
+    )
+    return {
+        "success": True,
+        "synonyms": [
+            {"id": s.id, "raw_term": s.raw_term, "canonical_field": s.canonical_field}
+            for s in synonyms
+        ],
+    }
+
+
+@router.post("/scraper/synonyms")
+def create_synonym(
+    data: SynonymCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    raw_term = data.raw_term.strip().lower()
+    if not raw_term or not data.canonical_field.strip():
+        raise HTTPException(status_code=400, detail="raw_term and canonical_field are required")
+    existing = db.query(FieldSynonym).filter(FieldSynonym.raw_term == raw_term).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Synonym '{raw_term}' already exists")
+    synonym = FieldSynonym(raw_term=raw_term, canonical_field=data.canonical_field.strip())
+    db.add(synonym)
+    db.commit()
+    db.refresh(synonym)
+    return {"success": True, "synonym": {"id": synonym.id, "raw_term": synonym.raw_term, "canonical_field": synonym.canonical_field}}
+
+
+@router.put("/scraper/synonyms/{synonym_id}")
+def update_synonym(
+    synonym_id: int,
+    data: SynonymUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    synonym = db.query(FieldSynonym).filter(FieldSynonym.id == synonym_id).first()
+    if not synonym:
+        raise HTTPException(status_code=404, detail="Synonym not found")
+    synonym.canonical_field = data.canonical_field.strip()
+    db.commit()
+    db.refresh(synonym)
+    return {"success": True, "synonym": {"id": synonym.id, "raw_term": synonym.raw_term, "canonical_field": synonym.canonical_field}}
+
+
+@router.delete("/scraper/synonyms/{synonym_id}")
+def delete_synonym(
+    synonym_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    synonym = db.query(FieldSynonym).filter(FieldSynonym.id == synonym_id).first()
+    if not synonym:
+        raise HTTPException(status_code=404, detail="Synonym not found")
+    db.delete(synonym)
+    db.commit()
+    return {"success": True, "message": f"Synonym '{synonym.raw_term}' deleted"}
