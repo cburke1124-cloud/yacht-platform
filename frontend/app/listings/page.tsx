@@ -289,7 +289,7 @@ function UnifiedListingsContent() {
   const fetchListings = async (isAISearch = false) => {
     setLoading(true);
     try {
-      let url = apiUrl('/listings?status=active');
+      let url = apiUrl('/listings?status=active&limit=2000');
       if (isAISearch && aiQuery) {
         url = apiUrl(`/ai/search?query=${encodeURIComponent(aiQuery)}`);
       } else {
