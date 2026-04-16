@@ -3097,6 +3097,24 @@ def run_scraper_job(job_id: int, db) -> Dict:
                                     break
 
                     # Stage 4: Validate
+                    # Synthesize title if still missing but we have make/model
+                    if not yacht_data.get("title") and (yacht_data.get("make") or yacht_data.get("model")):
+                        _t_parts: list = []
+                        if yacht_data.get("year"):
+                            _t_parts.append(str(int(yacht_data["year"])))
+                        if yacht_data.get("make"):
+                            _t_parts.append(str(yacht_data["make"]).strip())
+                        _t_model = str(yacht_data.get("model", "")).strip()
+                        if _t_model:
+                            _t_parts.append(_t_model)
+                        _t_length = yacht_data.get("length_feet")
+                        if _t_length:
+                            _t_len_int = str(int(float(_t_length)))
+                            if _t_len_int not in _t_model:
+                                _t_parts.append(f"{_t_len_int}ft")
+                        if _t_parts:
+                            yacht_data["title"] = " ".join(_t_parts)
+
                     confidence = _compute_confidence(yacht_data)
                     skip_reason = None
                     if not yacht_data.get("title") and confidence < 0.2:

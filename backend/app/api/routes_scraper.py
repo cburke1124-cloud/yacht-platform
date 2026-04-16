@@ -813,8 +813,10 @@ def delete_scraper_job(
             Listing.id.in_(scraped_ids),
             Listing.deleted_at == None,
         ).update({"deleted_at": _dt.utcnow()}, synchronize_session=False)
-    # Remove associated ScrapedListing records first
+    # Remove associated ScrapedListing and RawScrapedPage records first
+    # (RawScrapedPage has a FK to scraper_jobs with no cascade — must delete before the job)
     db.query(ScrapedListing).filter(ScrapedListing.job_id == job_id).delete()
+    db.query(RawScrapedPage).filter(RawScrapedPage.job_id == job_id).delete()
     db.delete(job)
     db.commit()
     return {"success": True, "message": f"Job {job_id} deleted", "listings_removed": len(scraped_ids)}
@@ -1351,6 +1353,19 @@ def reparse_raw_page(
         if v and not normalized.get(k):
             normalized[k] = v
 
+    # Re-extract images from stored HTML so they are never lost across reparses.
+    # We preserve any previously curated list in merged_data and keep the full
+    # candidate pool in normalized_data so the image gallery always shows everything.
+    extracted_images = scraper.extract_images(html, page.source_url) if html else []
+    if extracted_images:
+        normalized["images"] = extracted_images
+
+    # Deterministic description fallback (no AI required)
+    if not normalized.get("description"):
+        det_desc = scraper.extract_description_from_text(page.raw_text or html)
+        if det_desc:
+            normalized["description"] = det_desc
+
     page.normalized_data = normalized
     page.normalized_at = _dt.utcnow()
     page.stage = "normalized"
@@ -1371,8 +1386,45 @@ def reparse_raw_page(
         page.ai_parsed_at = _dt.utcnow()
         page.stage = "ai_parsed"
 
-    # Stage 4: Validate
+    # Stage 4: Validate + post-merge enrichment
     merged = {**normalized, **ai_data}
+
+    # Preserve any previously curated image selection from merged_data.
+    # If the user had manually deselected images, keep their curated list;
+    # otherwise seed from the freshly extracted pool.
+    prior_curated = (page.merged_data or {}).get("images")
+    if prior_curated:
+        merged["images"] = prior_curated
+    elif extracted_images:
+        merged["images"] = extracted_images
+
+    # Synthesize title from year + make + model (+ length if not already in model)
+    # when the pipeline hasn't produced one.
+    if not merged.get("title") and (merged.get("make") or merged.get("model")):
+        _parts: list = []
+        if merged.get("year"):
+            _parts.append(str(int(merged["year"])))
+        if merged.get("make"):
+            _parts.append(str(merged["make"]).strip())
+        _model_str = str(merged.get("model", "")).strip()
+        if _model_str:
+            _parts.append(_model_str)
+        # Append length only when it isn't already embedded in the model string.
+        # Compare the integer portion to avoid "55ft" duplication in "55 Express GT".
+        _length = merged.get("length_feet")
+        if _length:
+            _len_int = str(int(float(_length)))
+            if _len_int not in _model_str:
+                _parts.append(f"{_len_int}ft")
+        if _parts:
+            merged["title"] = " ".join(_parts)
+
+    # Deterministic description fallback after merge (AI may still have left it blank)
+    if not merged.get("description"):
+        det_desc = scraper.extract_description_from_text(page.raw_text or html)
+        if det_desc:
+            merged["description"] = det_desc
+
     confidence = _compute_confidence(merged)
     page.merged_data = merged
     page.confidence_score = confidence
