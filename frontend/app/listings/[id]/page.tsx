@@ -982,8 +982,11 @@ export default function ListingDetailPage() {
 
         {/* PDF documents */}
         {pdfItems.length > 0 && (
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 mb-6">
-            <h4 className="text-sm font-bold text-[#10214F] mb-3 uppercase tracking-wide font-bahnschrift">Documents</h4>
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5 mb-6">
+            <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+              <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+              Documents
+            </h4>
             <div className="space-y-2">
               {pdfItems.map((doc, idx) => (
                 <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
@@ -1007,8 +1010,8 @@ export default function ListingDetailPage() {
 
             {/* KEY SPECIFICATIONS */}
             <div>
-              <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Specifications</h3>
-              <div className="h-[1px] bg-[#01BBDC] mb-5" />
+              <SectionHeading>Key Specifications</SectionHeading>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
                   { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
@@ -1035,21 +1038,23 @@ export default function ListingDetailPage() {
                   </div>
                 ))}
               </div>
+              </div>
             </div>
 
             {/* KEY FEATURES */}
             {keyFeatures.length > 0 && (
               <div>
-                <h3 className="text-xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">Key Features</h3>
-                <div className="h-[1px] bg-[#01BBDC] mb-2" />
-                <ul className="space-y-2">
-                  {keyFeatures.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3 text-[#10214F] font-poppins">
-                      <span className="text-[#01BBDC] mt-1 flex-shrink-0">✓</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
+                <SectionHeading>Key Features</SectionHeading>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                  <ul className="space-y-2.5">
+                    {keyFeatures.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-3 text-[15px] text-[#10214F] font-poppins leading-relaxed">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold text-white" style={{ backgroundColor: '#01BBDC' }}>✓</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
 
@@ -1268,8 +1273,11 @@ export default function ListingDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {additionalEngines.length > 0 ? (
                   additionalEngines.slice(0, 4).map((engine, idx) => (
-                    <div key={`engine-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                      <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">{additionalEngines.length > 1 ? `Engine ${idx + 1}` : 'Engine'}</h4>
+                    <div key={`engine-${idx}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                      <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                        <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                        {additionalEngines.length > 1 ? `Engine ${idx + 1}` : 'Engine'}
+                      </h4>
                       <div className="space-y-1">
                         <SpecRow label="Make" value={engine.make} />
                         <SpecRow label="Model" value={engine.model} />
@@ -1281,8 +1289,11 @@ export default function ListingDetailPage() {
                     </div>
                   ))
                 ) : hasLegacyHours ? (
-                  <div className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                    <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Engine</h4>
+                  <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                    <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                      <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                      Engine
+                    </h4>
                     <div className="space-y-1">
                       <SpecRow label="Fuel" value={listing.fuel_type} />
                       <SpecRow label="Hours" value={fmt(listing.engine_hours!)} />
@@ -1291,8 +1302,11 @@ export default function ListingDetailPage() {
                 ) : null}
 
                 {gens.map((generator, idx) => (
-                  <div key={`generator-${idx}`} className="bg-gradient-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
-                    <h4 className="text-xl font-bold text-[#10214F] mb-4 font-bahnschrift">Generator {idx + 1}</h4>
+                  <div key={`generator-${idx}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                    <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                      <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                      Generator {idx + 1}
+                    </h4>
                     <div className="space-y-1">
                       <SpecRow label="Brand" value={generator.brand} />
                       <SpecRow label="Model" value={generator.model} />
@@ -1316,11 +1330,12 @@ export default function ListingDetailPage() {
           return (
             <div className="mb-16">
               <SectionHeading>Equipment &amp; Features</SectionHeading>
-              <div className="text-base leading-relaxed text-[#10214F] font-poppins">
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5 text-[15px] leading-relaxed text-[#10214F] font-poppins">
                 {equipmentLines.map((line: string, i: number) => {
                   const isSectionHeader = line.trim().length > 0 && line.trim().length < 50 && line.trim() === line.trim().toUpperCase();
                   return isSectionHeader ? (
-                    <h4 key={i} className="text-xl font-bold text-[#10214F] mt-8 mb-3 first:mt-0 font-bahnschrift">
+                    <h4 key={i} className="font-bold text-[#10214F] mt-6 mb-3 first:mt-0 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                      <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
                       {line.trim()}
                     </h4>
                   ) : line.trim() ? (
