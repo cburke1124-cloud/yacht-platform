@@ -309,12 +309,16 @@ export default function ListingDetailPage() {
     if (!token) return;
     setApprovingStatus(true);
     try {
-      const r = await fetch(`${API_ROOT}/listings/${id}`, {
-        method: 'PUT',
+      const r = await fetch(`${API_ROOT}/listings/${id}/status`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: 'active' }),
       });
       if (r.ok) setListing(prev => prev ? { ...prev, status: 'active' } : prev);
+      else {
+        const err = await r.json().catch(() => ({}));
+        alert(err?.detail || 'Failed to approve listing');
+      }
     } finally {
       setApprovingStatus(false);
     }

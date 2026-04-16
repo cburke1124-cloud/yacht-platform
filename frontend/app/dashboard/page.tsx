@@ -986,8 +986,8 @@ function EnhancedDealerDashboard() {
     setApprovingId(listingId);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/listings/${listingId}`), {
-        method: 'PUT',
+      const response = await fetch(apiUrl(`/listings/${listingId}/status`), {
+        method: 'PATCH',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'active' })
       });
@@ -995,7 +995,8 @@ function EnhancedDealerDashboard() {
         setListings(prev => prev.map(l => l.id === listingId ? { ...l, status: 'active' } : l));
         setQuickEdits(prev => ({ ...prev, [listingId]: { ...prev[listingId], status: 'active' } }));
       } else {
-        alert('Failed to approve listing');
+        const err = await response.json().catch(() => ({}));
+        alert(err?.detail || 'Failed to approve listing');
       }
     } catch {
       alert('Failed to approve listing');

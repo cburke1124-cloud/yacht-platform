@@ -1093,16 +1093,15 @@ def quick_edit_listing(
 @router.patch("/{listing_id}/status")
 def patch_listing_status(
     listing_id: int,
-    data: dict,
+    listing_data: ListingQuickEdit,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    status = data.get("status")
-    if not status:
+    if not listing_data.status:
         raise HTTPException(status_code=400, detail="Status is required")
     return quick_edit_listing(
         listing_id=listing_id,
-        listing_data=ListingQuickEdit(status=status),
+        listing_data=listing_data,
         current_user=current_user,
         db=db,
     )

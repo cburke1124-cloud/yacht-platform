@@ -189,8 +189,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     if (newStatus === 'active') setApprovingId(listingId);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/listings/${listingId}`), {
-        method: 'PUT',
+      const response = await fetch(apiUrl(`/listings/${listingId}/status`), {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -199,11 +199,11 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       });
 
       if (response.ok) {
-        setListings(listings.map(l => 
-          l.id === listingId ? { ...l, status: newStatus as any } : l
-        ));
+        // Refetch so the UI is in sync with the database
+        await fetchListings();
       } else {
-        alert('Failed to update status');
+        const err = await response.json().catch(() => ({}));
+        alert(err?.detail || 'Failed to update status');
       }
     } catch (error) {
       console.error('Failed to update status:', error);
