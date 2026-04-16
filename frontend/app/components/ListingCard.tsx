@@ -299,12 +299,16 @@ export default function ListingCard({
                 Contact for Pricing
               </p>
             )}
-            {(city || state) && (
-              <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
-                <MapPin size={13} className="text-[#01BBDC]" />
-                {[city, state].filter(Boolean).join(', ')}
-              </p>
-            )}
+            {(() => {
+              const isKnown = (v?: string) => !!v && v.trim().toLowerCase() !== 'unknown';
+              const parts = [city, state].filter(isKnown);
+              return parts.length > 0 ? (
+                <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
+                  <MapPin size={13} className="text-[#01BBDC]" />
+                  {parts.join(', ')}
+                </p>
+              ) : null;
+            })()}
           </div>
 
           <div className="flex items-center flex-wrap gap-2 text-sm text-[#10214F]/70 mb-2">
