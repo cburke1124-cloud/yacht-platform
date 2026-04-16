@@ -306,6 +306,7 @@ class BoatModelSpecs(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CurrencyRate(Base):
     __tablename__ = "currency_rates"
 
     id = Column(Integer, primary_key=True, index=True)
