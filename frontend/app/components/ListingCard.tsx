@@ -385,9 +385,6 @@ export default function ListingCard({
                   <p className="text-xs font-semibold text-[#10214F] truncate hover:text-[#01BBDC] transition-colors">
                     {dealerInfo.company || dealerInfo.name}
                   </p>
-                  {dealerInfo.company && dealerInfo.name && (
-                    <p className="text-xs text-gray-400 truncate">{dealerInfo.name}</p>
-                  )}
                 </div>
               </div>
             ) : (
