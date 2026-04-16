@@ -100,6 +100,14 @@ interface CurrencyRates {
 
 const fmt    = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
+function formatPhone(raw?: string): string {
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits[0] === '1') return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  return raw;
+}
+
 const FALLBACK_LISTING_IMAGE = '/images/listing-fallback1.png';
 
 // ─── Components ───────────────────────────────────────────────────────────────
@@ -107,8 +115,8 @@ const FALLBACK_LISTING_IMAGE = '/images/listing-fallback1.png';
 function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
-    <div className="flex justify-between items-baseline py-2.5 border-b border-gray-100">
-      <span className="text-sm text-[#10214F] font-poppins">{label}</span>
+    <div className="flex justify-between items-baseline py-2 border-b border-gray-200/60 last:border-0">
+      <span className="text-sm text-[#10214F]/55 font-poppins">{label}</span>
       <span className="text-sm text-[#10214F] text-right font-semibold font-poppins">{value}</span>
     </div>
   );
@@ -116,11 +124,10 @@ function SpecRow({ label, value }: { label: string; value: string | null | undef
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-5">
-      <h3 className="text-2xl font-bold text-[#01BBDC] mb-2 font-bahnschrift">
+    <div className="mb-5 pl-4 border-l-4 border-[#01BBDC]">
+      <h3 className="text-xl font-bold text-[#10214F] font-bahnschrift">
         {children}
       </h3>
-      <div className="h-[1px] bg-[#01BBDC]" />
     </div>
   );
 }
@@ -166,6 +173,7 @@ export default function ListingDetailPage() {
   const [me, setMe] = useState<{ id: number; user_type: string } | null>(null);
   const [approvingStatus, setApprovingStatus] = useState(false);
   const [navContext, setNavContext] = useState<{ ids: number[]; filter: string } | null>(null);
+  const [showFullDesc, setShowFullDesc] = useState(false);
 
   // ── fetch ──────────────────────────────────────────────────────────────────
 
@@ -357,13 +365,13 @@ export default function ListingDetailPage() {
           .slice(0, 8)
       : []);
 
-  const descriptionHtml = listing?.description
-    ? DOMPurify.sanitize(
-        /<\/?[a-z][\s\S]*>/i.test(listing.description)
-          ? listing.description
-          : listing.description.replace(/\n/g, '<br />')
-      )
+  const isHtmlDesc      = /<\/?[a-z][\s\S]*>/i.test(listing?.description || '');
+  const descriptionHtml = listing?.description && isHtmlDesc
+    ? DOMPurify.sanitize(listing.description)
     : '';
+  const descParagraphs  = listing?.description && !isHtmlDesc
+    ? listing.description.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+    : [];
 
   useEffect(() => {
     if (lightbox !== null) setLightboxZoom(1);
@@ -744,8 +752,8 @@ export default function ListingDetailPage() {
                         )}
                         {sc.phone && (
                           <a href={`tel:${sc.phone}`}
-                            className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors flex items-center gap-1">
-                            <Phone size={12} /> {sc.phone}
+                            className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors flex items-center gap-1.5 mt-0.5">
+                            <Phone size={12} /> {formatPhone(sc.phone)}
                           </a>
                         )}
                         {sc.email && (
@@ -785,8 +793,8 @@ export default function ListingDetailPage() {
                           )}
                           {dealer.phone && (
                             <a href={`tel:${dealer.phone}`}
-                              className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors mt-1 block">
-                              {dealer.phone}
+                              className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors mt-1 flex items-center gap-1.5">
+                              <Phone size={12} /> {formatPhone(dealer.phone)}
                             </a>
                           )}
                         </div>
@@ -1003,25 +1011,25 @@ export default function ListingDetailPage() {
               <div className="h-[1px] bg-[#01BBDC] mb-5" />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
-                  { icon: <Ruler size={28} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
-                  { icon: <Users size={28} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
-                  { icon: <Bed size={28} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
-                  { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
-                  { icon: <Wrench size={28} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make },
-                  { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
-                  { icon: <Waves size={28} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
-                  { icon: <Gauge size={28} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
-                  { icon: <Fuel size={28} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
-                  { icon: <Ship size={28} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
-                  { icon: <MapPin size={28} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
-                  { icon: <Calendar size={28} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
+                  { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
+                  { icon: <Users size={20} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
+                  { icon: <Bed size={20} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
+                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
+                  { icon: <Wrench size={20} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make },
+                  { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
+                  { icon: <Waves size={20} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
+                  { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
+                  { icon: <Fuel size={20} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
+                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
+                  { icon: <MapPin size={20} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
+                  { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
                 ].filter(s => s.value).map(s => (
                   <div key={s.label} className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
                       {s.icon}
                     </div>
                     <div>
-                      <p className="text-xs text-[#10214F]/60 uppercase tracking-wide font-bahnschrift">{s.label}</p>
+                      <p className="text-xs text-[#10214F]/55 uppercase tracking-wide font-bahnschrift">{s.label}</p>
                       <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
                     </div>
                   </div>
@@ -1049,12 +1057,29 @@ export default function ListingDetailPage() {
             {listing.description && (
               <div>
                 <SectionHeading>Description</SectionHeading>
-                <div className="prose prose-lg max-w-none">
+                {isHtmlDesc ? (
                   <div
-                    className="text-base leading-relaxed text-[#10214F] font-poppins"
+                    className="text-[15px] leading-relaxed text-[#10214F] font-poppins space-y-4 prose prose-lg max-w-none"
                     dangerouslySetInnerHTML={{ __html: descriptionHtml }}
                   />
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    {(showFullDesc ? descParagraphs : descParagraphs.slice(0, 3)).map((para, i) => (
+                      <p key={i} className="text-[15px] leading-[1.8] text-[#10214F] font-poppins">
+                        {para}
+                      </p>
+                    ))}
+                    {descParagraphs.length > 3 && (
+                      <button
+                        onClick={() => setShowFullDesc((v) => !v)}
+                        className="text-sm font-semibold text-[#01BBDC] hover:opacity-75 transition-opacity mt-1"
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        {showFullDesc ? '↑ Show less' : 'Read full description →'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1146,53 +1171,78 @@ export default function ListingDetailPage() {
         {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
         <div className="mb-10">
           <SectionHeading>Full Specifications</SectionHeading>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-1">
-              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">General</h4>
-              <SpecRow label="Name"           value={listing.title} />
-              <SpecRow label="Stock #"        value={id} />
-              <SpecRow label="BIN"            value={listing.bin} />
-              <SpecRow label="Status"         value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
-              <SpecRow label="Make"           value={listing.make} />
-              <SpecRow label="Model"          value={listing.model} />
-              <SpecRow label="Year"           value={listing.year ? String(listing.year) : null} />
-              <SpecRow label="Type"           value={listing.boat_type} />
-              <SpecRow label="Condition"      value={listing.condition ? (listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)) : null} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* ── General ── */}
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+              <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                General
+              </h4>
+              <SpecRow label="Stock #"         value={id} />
+              <SpecRow label="BIN"             value={listing.bin} />
+              <SpecRow label="Status"          value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
+              <SpecRow label="Make"            value={listing.make} />
+              <SpecRow label="Model"           value={listing.model} />
+              <SpecRow label="Year"            value={listing.year ? String(listing.year) : null} />
+              <SpecRow label="Type"            value={listing.boat_type} />
+              <SpecRow label="Condition"       value={listing.condition ? (listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)) : null} />
               <SpecRow label="Previous Owners" value={listing.previous_owners != null ? String(listing.previous_owners) : null} />
             </div>
-            
-            <div className="space-y-1">
-              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">Dimensions</h4>
-              <SpecRow label="LOA"            value={listing.length_feet ? `${listing.length_feet} ft` : null} />
-              <SpecRow label="Beam"           value={listing.beam_feet ? `${listing.beam_feet} ft` : null} />
-              <SpecRow label="Draft"          value={listing.draft_feet ? `${listing.draft_feet} ft` : null} />
-              <SpecRow label="Hull Material"  value={listing.hull_material} />
-              <SpecRow label="Hull Type"      value={listing.hull_type} />
-              
-              <h4 className="font-bold text-[#10214F] mb-3 mt-5 text-sm uppercase tracking-wide font-bahnschrift">Accommodations</h4>
-              <SpecRow label="Cabins"         value={listing.cabins ? String(listing.cabins) : null} />
-              <SpecRow label="Berths"         value={listing.berths ? String(listing.berths) : null} />
-              <SpecRow label="Heads"          value={listing.heads  ? String(listing.heads)  : null} />
+
+            {/* ── Dimensions + Accommodations stacked ── */}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                  <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                  Dimensions
+                </h4>
+                <SpecRow label="LOA"           value={listing.length_feet ? `${listing.length_feet} ft` : null} />
+                <SpecRow label="Beam"          value={listing.beam_feet ? `${listing.beam_feet} ft` : null} />
+                <SpecRow label="Draft"         value={listing.draft_feet ? `${listing.draft_feet} ft` : null} />
+                <SpecRow label="Hull Material" value={listing.hull_material} />
+                <SpecRow label="Hull Type"     value={listing.hull_type} />
+              </div>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                  <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                  Accommodations
+                </h4>
+                <SpecRow label="Cabins" value={listing.cabins ? String(listing.cabins) : null} />
+                <SpecRow label="Berths" value={listing.berths ? String(listing.berths) : null} />
+                <SpecRow label="Heads"  value={listing.heads  ? String(listing.heads)  : null} />
+              </div>
             </div>
-            
-            <div className="space-y-1">
-              <h4 className="font-bold text-[#10214F] mb-3 text-sm uppercase tracking-wide font-bahnschrift">Performance</h4>
-              <SpecRow label="Max Speed"      value={listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null} />
-              <SpecRow label="Cruise Speed"   value={listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null} />
-              <SpecRow label="Fuel Type"      value={listing.fuel_type} />
-              <SpecRow label="Fuel Capacity"  value={listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null} />
-              <SpecRow label="Water Capacity" value={listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null} />
-              <SpecRow label="Displacement"   value={listing.additional_specs?.displacement_lbs ? `${fmt(listing.additional_specs.displacement_lbs)} lbs` : null} />
-              <SpecRow label="Dry Weight"     value={listing.additional_specs?.dry_weight_lbs ? `${fmt(listing.additional_specs.dry_weight_lbs)} lbs` : null} />
-              <SpecRow label="Bridge Clearance" value={listing.additional_specs?.bridge_clearance_feet ? `${listing.additional_specs.bridge_clearance_feet} ft` : null} />
-              <SpecRow label="Deadrise"       value={listing.additional_specs?.deadrise_degrees ? `${listing.additional_specs.deadrise_degrees}°` : null} />
-              <SpecRow label="Range"          value={listing.additional_specs?.cruising_range_nm ? `${fmt(listing.additional_specs.cruising_range_nm)} nm` : null} />
-              <SpecRow label="Fuel Burn"      value={listing.additional_specs?.fuel_burn_gph ? `${listing.additional_specs.fuel_burn_gph} gph` : null} />
-              <SpecRow label="Holding Tank"   value={listing.additional_specs?.holding_tank_gallons ? `${fmt(listing.additional_specs.holding_tank_gallons)} gal` : null} />
-              
-              <h4 className="font-bold text-[#10214F] mb-3 mt-5 text-sm uppercase tracking-wide font-bahnschrift">Listing Details</h4>
-              <SpecRow label="Listed"         value={listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null} />
+
+            {/* ── Performance + Listing Details stacked ── */}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                  <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                  Performance
+                </h4>
+                <SpecRow label="Max Speed"        value={listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null} />
+                <SpecRow label="Cruise Speed"      value={listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null} />
+                <SpecRow label="Fuel Type"         value={listing.fuel_type} />
+                <SpecRow label="Fuel Capacity"     value={listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null} />
+                <SpecRow label="Water Capacity"    value={listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null} />
+                <SpecRow label="Displacement"      value={listing.additional_specs?.displacement_lbs ? `${fmt(listing.additional_specs.displacement_lbs)} lbs` : null} />
+                <SpecRow label="Dry Weight"        value={listing.additional_specs?.dry_weight_lbs ? `${fmt(listing.additional_specs.dry_weight_lbs)} lbs` : null} />
+                <SpecRow label="Bridge Clearance"  value={listing.additional_specs?.bridge_clearance_feet ? `${listing.additional_specs.bridge_clearance_feet} ft` : null} />
+                <SpecRow label="Deadrise"          value={listing.additional_specs?.deadrise_degrees ? `${listing.additional_specs.deadrise_degrees}°` : null} />
+                <SpecRow label="Range"             value={listing.additional_specs?.cruising_range_nm ? `${fmt(listing.additional_specs.cruising_range_nm)} nm` : null} />
+                <SpecRow label="Fuel Burn"         value={listing.additional_specs?.fuel_burn_gph ? `${listing.additional_specs.fuel_burn_gph} gph` : null} />
+                <SpecRow label="Holding Tank"      value={listing.additional_specs?.holding_tank_gallons ? `${fmt(listing.additional_specs.holding_tank_gallons)} gal` : null} />
+              </div>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                  <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                  Listing Details
+                </h4>
+                <SpecRow label="Listed" value={listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null} />
+              </div>
             </div>
+
           </div>
         </div>
 
