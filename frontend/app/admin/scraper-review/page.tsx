@@ -69,6 +69,7 @@ export default function ScraperReviewPage() {
   const [editSalesmanId, setEditSalesmanId] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
 
@@ -171,6 +172,26 @@ export default function ScraperReviewPage() {
       await load();
     } finally {
       setBulkDeleting(false);
+    }
+  }
+
+  async function bulkApprove() {
+    if (!selectedIds.size) return;
+    setBulkApproving(true);
+    try {
+      await Promise.all(
+        [...selectedIds].map(id =>
+          fetch(apiUrl(`/admin/scraper/listings/${id}`), {
+            method: 'PATCH',
+            headers: authHeaders(),
+            body: JSON.stringify({ status: 'active' }),
+          })
+        )
+      );
+      setSelectedIds(new Set());
+      await load();
+    } finally {
+      setBulkApproving(false);
     }
   }
 
@@ -282,9 +303,18 @@ export default function ScraperReviewPage() {
               {selectedIds.size > 0 && (
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-600">{selectedIds.size} selected</span>
+                  {statusFilter === 'awaiting_review' && (
+                    <button
+                      onClick={bulkApprove}
+                      disabled={bulkApproving || bulkDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60"
+                    >
+                      <CheckCircle size={13} /> {bulkApproving ? 'Approving…' : 'Approve Selected'}
+                    </button>
+                  )}
                   <button
                     onClick={bulkDelete}
-                    disabled={bulkDeleting}
+                    disabled={bulkDeleting || bulkApproving}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60"
                   >
                     <Trash2 size={13} /> {bulkDeleting ? 'Deleting…' : 'Delete Selected'}
