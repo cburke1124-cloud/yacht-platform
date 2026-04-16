@@ -891,6 +891,76 @@ except Exception as e:
         if tmpl_sections_out:
             data['_tmpl_sections'] = tmpl_sections_out  # exposed for test endpoint
 
+    def _apply_template_field_rules(self, data: Dict, raw_text: str, template: Dict) -> None:
+        """
+        Apply per-broker field teaching rules stored in the site template:
+
+        label_map  — dict of {raw_label_text: canonical_field}
+                     Supplements the global FieldSynonym table for labels that
+                     are unique to this broker's spec tables.
+                     e.g. {"Asking Price (CAD)": "price", "LOA (Feet)": "length_feet"}
+
+        field_rules — list of extraction rules applied against the page's raw text.
+                     Each rule: {"field": str, "pattern": str, "type": "text"|"number"|"int"}
+                     e.g. {"field": "engine_hours", "pattern": "Engine Hours:\\s*([\\d,]+)", "type": "int"}
+
+        Rules only WIN if they produce a non-empty value AND the field is currently
+        empty — CSS selectors (in _apply_template_selectors) take highest priority,
+        so we only fill gaps here.
+        """
+        # ── label_map: normalize spec table labels scraped into additional_specs ──
+        label_map: Dict[str, str] = template.get("label_map") or {}
+        if label_map:
+            # Walk through additional_specs sections and re-map any matching labels
+            additional = data.get("additional_specs") or {}
+            for _sec_name, _sec_data in list((additional if isinstance(additional, dict) else {}).items()):
+                if not isinstance(_sec_data, dict):
+                    continue
+                for raw_label, raw_val in list(_sec_data.items()):
+                    canon = label_map.get(raw_label) or label_map.get(raw_label.lower())
+                    if canon and not data.get(canon):
+                        try:
+                            if canon in ("price", "length_feet", "beam_feet", "draft_feet",
+                                         "engine_hours", "fuel_capacity_gallons",
+                                         "water_capacity_gallons", "max_speed_knots",
+                                         "cruising_speed_knots"):
+                                cleaned = re.sub(r"[^\d.]", "", str(raw_val))
+                                data[canon] = float(cleaned) if cleaned else None
+                            elif canon in ("year", "cabins", "berths", "heads", "engine_count"):
+                                cleaned = re.sub(r"[^\d]", "", str(raw_val))
+                                data[canon] = int(cleaned) if cleaned else None
+                            else:
+                                data[canon] = str(raw_val).strip()
+                        except (ValueError, TypeError):
+                            data[canon] = str(raw_val).strip()
+
+        # ── field_rules: regex extraction from raw text ───────────────────────
+        field_rules: list = template.get("field_rules") or []
+        for rule in field_rules:
+            if not isinstance(rule, dict):
+                continue
+            field = rule.get("field", "").strip()
+            pattern = rule.get("pattern", "").strip()
+            _type = rule.get("type", "text")
+            if not field or not pattern:
+                continue
+            if data.get(field):          # already filled — don't overwrite
+                continue
+            try:
+                m = re.search(pattern, raw_text, re.IGNORECASE | re.DOTALL)
+                if m:
+                    raw_val = m.group(1).strip() if m.lastindex else m.group(0).strip()
+                    if _type in ("number", "float"):
+                        cleaned = re.sub(r"[^\d.]", "", raw_val)
+                        data[field] = float(cleaned) if cleaned else None
+                    elif _type in ("int", "integer"):
+                        cleaned = re.sub(r"[^\d]", "", raw_val)
+                        data[field] = int(cleaned) if cleaned else None
+                    else:
+                        data[field] = raw_val
+            except re.error:
+                pass  # bad pattern — skip silently
+
     def find_listing_urls(self, site_url: str, max_pages: int = 100, template: Optional[Dict] = None) -> List[str]:
         """
         Crawl a broker site and return a de-duped list of individual listing URLs.
@@ -2640,6 +2710,7 @@ Content: {content[:12000]}"""
         if template:
             _tmpl_soup = BeautifulSoup(html, 'html.parser')
             self._apply_template_selectors(yacht_data, _tmpl_soup, template)
+            self._apply_template_field_rules(yacht_data, text, template)
 
         # ── Sold / unavailable detection ──────────────────────────────────────
         # Flag listings whose page indicates they are sold so run_scraper_job can
@@ -2948,6 +3019,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     # Stage 3: AI Parse (only when critical fields are still missing)
                     ai_used = False
                     if scraper._needs_ai_check(partial):
+                        _raw_page_id = raw_page.id   # capture before closing session
                         db.close()
                         try:
                             yacht_data = scraper.scrape_with_ai(raw_text, url, partial)
@@ -2958,7 +3030,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             yacht_data = partial
                         db = SessionLocal()
                         job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
-                        raw_page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page.id).first()
+                        raw_page = db.query(RawScrapedPage).filter(RawScrapedPage.id == _raw_page_id).first()
                         ai_used = True
                         raw_page.ai_data = yacht_data
                         raw_page.ai_used = True
@@ -2972,6 +3044,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     if _template:
                         _tmpl_soup = BeautifulSoup(html or "", "html.parser")
                         scraper._apply_template_selectors(yacht_data, _tmpl_soup, _template)
+                        scraper._apply_template_field_rules(yacht_data, raw_text, _template)
 
                     # Title cleanup
                     _title_boat_re = re.compile(

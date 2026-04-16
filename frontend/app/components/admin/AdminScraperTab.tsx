@@ -96,6 +96,8 @@ interface SiteTemplate {
   hours_selector?: string;
   condition_selector?: string;
   sections?: { name: string; selector: string }[];
+  label_map?: Record<string, string>;
+  field_rules?: { field: string; pattern: string; type: string }[];
 }
 
 // ─── Log panel ────────────────────────────────────────────────────────────────
@@ -213,6 +215,8 @@ export default function AdminScraperTab() {
     broker_email_selector: '', broker_phone_selector: '',
     hull_material_selector: '', fuel_type_selector: '', hours_selector: '', condition_selector: '',
     sections: [],
+    label_map: {},
+    field_rules: [],
   };
   const [tmpl, setTmpl] = useState<SiteTemplate>(EMPTY_TMPL);
   const [tmplExpanded, setTmplExpanded] = useState(false);
@@ -848,6 +852,61 @@ export default function AdminScraperTab() {
                           <p className="text-xs text-gray-400 mt-1">All fields in each container are auto-extracted during scraping.</p>
                         </div>
                       )}
+
+                      {/* ── Label Map — broker-specific spec-label overrides ── */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🏷 Label Mapping</p>
+                        <p className="text-xs text-gray-400 mb-2">
+                          Teach the scraper how this broker's spec table labels map to fields.
+                          Format: <code className="bg-gray-100 px-1 rounded">Raw Label → field_name</code> (one per line, e.g. <code className="bg-gray-100 px-1 rounded">Asking Price (CAD) → price</code>)
+                        </p>
+                        <textarea
+                          rows={5}
+                          value={Object.entries(tmpl.label_map || {}).map(([k, v]) => `${k} → ${v}`).join('\n')}
+                          onChange={e => {
+                            const map: Record<string, string> = {};
+                            e.target.value.split('\n').forEach(line => {
+                              const sep = line.indexOf(' → ');
+                              if (sep > 0) {
+                                const k = line.slice(0, sep).trim();
+                                const v = line.slice(sep + 3).trim();
+                                if (k && v) map[k] = v;
+                              }
+                            });
+                            setTmpl(prev => ({ ...prev, label_map: map }));
+                          }}
+                          placeholder={`Asking Price (CAD) → price\nLOA (Feet) → length_feet\nEngine Hours → engine_hours\nYear Built → year`}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary resize-none"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Valid target fields: title, make, model, year, price, length_feet, beam_feet, draft_feet, engine_hours, engine_count, cabins, heads, fuel_type, hull_material, city, state, country
+                        </p>
+                      </div>
+
+                      {/* ── Field Rules — regex extraction rules ── */}
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">🔍 Extraction Rules</p>
+                        <p className="text-xs text-gray-400 mb-2">
+                          Regex patterns to extract specific fields from the page text when selectors aren't enough.
+                          Format: <code className="bg-gray-100 px-1 rounded">field_name | pattern | type</code> (type = text, number, int)
+                        </p>
+                        <textarea
+                          rows={4}
+                          value={(tmpl.field_rules || []).map(r => `${r.field} | ${r.pattern} | ${r.type}`).join('\n')}
+                          onChange={e => {
+                            const rules = e.target.value.split('\n').flatMap(line => {
+                              const parts = line.split(' | ');
+                              if (parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
+                                return [{ field: parts[0].trim(), pattern: parts[1].trim(), type: (parts[2] || 'text').trim() }];
+                              }
+                              return [];
+                            });
+                            setTmpl(prev => ({ ...prev, field_rules: rules }));
+                          }}
+                          placeholder={`engine_hours | Engine\\s*Hours[:\\s]+(\\d[\\d,]+) | int\nprice | Price[:\\s]+\\$?([\\d,]+) | number`}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-primary resize-none"
+                        />
+                      </div>
 
                       {tmplMsg && (
                         <div className={`p-3 rounded-lg flex items-start gap-2 text-sm ${
