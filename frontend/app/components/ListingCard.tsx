@@ -302,10 +302,11 @@ export default function ListingCard({
             {(() => {
               const isKnown = (v?: string) => !!v && v.trim().toLowerCase() !== 'unknown';
               const parts = [city, state].filter(isKnown);
-              return parts.length > 0 ? (
+              return (parts.length > 0 || length) ? (
                 <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-1.5">
-                  <MapPin size={13} className="text-[#01BBDC]" />
-                  {parts.join(', ')}
+                  {parts.length > 0 && <><MapPin size={13} className="text-[#01BBDC]" />{parts.join(', ')}</>}
+                  {parts.length > 0 && length ? <span className="text-[#10214F]/30">•</span> : null}
+                  {length ? <span>{length}ft</span> : null}
                 </p>
               ) : null;
             })()}
@@ -321,15 +322,9 @@ export default function ListingCard({
                 <span>{normalizedCondition}</span>
               </>
             )}
-            {length && (
-              <>
-                {(boatType || normalizedCondition) && <span className="text-[#10214F]/30">•</span>}
-                <span>{length}ft</span>
-              </>
-            )}
             {cabins && (
               <>
-                {(boatType || normalizedCondition || length) && <span className="text-[#10214F]/30">•</span>}
+                {(boatType || normalizedCondition) && <span className="text-[#10214F]/30">•</span>}
                 <span>{cabins} cabins</span>
               </>
             )}
