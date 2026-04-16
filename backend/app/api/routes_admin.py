@@ -3636,3 +3636,46 @@ def patch_scraped_listing(
     listing.updated_at = datetime.utcnow()
     db.commit()
     return {"success": True, "id": listing.id, "status": listing.status}
+
+
+class BulkStatusUpdate(BaseModel):
+    listing_ids: list[int]
+    status: str
+
+
+@router.post("/scraper/listings/bulk-status")
+def bulk_update_scraped_listing_status(
+    body: BulkStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Update the status of multiple scraped listings in a single DB transaction.
+    Avoids the connection-pool exhaustion caused by firing hundreds of
+    individual PATCH requests in parallel.
+    """
+    if body.status not in {"active", "draft", "awaiting_review", "sold", "archived"}:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    if not body.listing_ids:
+        return {"success": True, "updated": 0}
+    if len(body.listing_ids) > 2000:
+        raise HTTPException(status_code=400, detail="Too many listing IDs (max 2000 per request)")
+
+    now = datetime.utcnow()
+    updated = (
+        db.query(Listing)
+        .filter(Listing.id.in_(body.listing_ids))
+        .update(
+            {"status": body.status, "updated_at": now},
+            synchronize_session=False,
+        )
+    )
+    # Set published_at on listings going active for the first time
+    if body.status == "active":
+        db.query(Listing).filter(
+            Listing.id.in_(body.listing_ids),
+            Listing.published_at == None,  # noqa: E711
+        ).update({"published_at": now}, synchronize_session=False)
+
+    db.commit()
+    return {"success": True, "updated": updated}

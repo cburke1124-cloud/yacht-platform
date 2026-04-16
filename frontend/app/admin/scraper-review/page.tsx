@@ -179,15 +179,16 @@ export default function ScraperReviewPage() {
     if (!selectedIds.size) return;
     setBulkApproving(true);
     try {
-      await Promise.all(
-        [...selectedIds].map(id =>
-          fetch(apiUrl(`/admin/scraper/listings/${id}`), {
-            method: 'PATCH',
-            headers: authHeaders(),
-            body: JSON.stringify({ status: 'active' }),
-          })
-        )
-      );
+      const res = await fetch(apiUrl('/admin/scraper/listings/bulk-status'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ listing_ids: [...selectedIds], status: 'active' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.detail || 'Bulk approve failed');
+        return;
+      }
       setSelectedIds(new Set());
       await load();
     } finally {
