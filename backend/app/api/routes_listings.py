@@ -586,7 +586,7 @@ def get_admin_listing_list(
 def get_listings(
     db: Session = Depends(get_db),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 2000,
     status: str = "active",
     make: Optional[str] = None,
     model: Optional[str] = None,
