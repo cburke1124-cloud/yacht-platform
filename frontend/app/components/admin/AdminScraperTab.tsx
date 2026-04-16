@@ -178,7 +178,7 @@ function fmtDate(iso?: string) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test' | 'review'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -622,6 +622,9 @@ export default function AdminScraperTab() {
           </button>
           <button onClick={() => setSection('review')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'review' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             Review Queue
+          </button>
+          <button onClick={() => setSection('specs')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'specs' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Specs DB
           </button>
         </div>
       </div>
@@ -1425,6 +1428,9 @@ export default function AdminScraperTab() {
         </div>
       )}
 
+      {/* ══ SPECS DATABASE ═════════════════════════════════════════════════ */}
+      {section === 'specs' && <BoatSpecsSection apiUrl={apiUrl} authHeaders={authHeaders} />}
+
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (
         <div className="p-6">
@@ -1583,6 +1589,213 @@ export default function AdminScraperTab() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Boat Specs Database sub-component ───────────────────────────────────────
+
+interface BoatSpec {
+  id: number;
+  make: string;
+  model: string;
+  year_from?: number;
+  year_to?: number;
+  boat_type?: string;
+  length_feet?: number;
+  beam_feet?: number;
+  draft_feet?: number;
+  hull_material?: string;
+  hull_type?: string;
+  fuel_capacity_gallons?: number;
+  water_capacity_gallons?: number;
+  cabins?: number;
+  berths?: number;
+  heads?: number;
+  max_speed_knots?: number;
+  cruising_speed_knots?: number;
+  notes?: string;
+}
+
+const EMPTY_SPEC: Omit<BoatSpec, 'id'> = {
+  make: '', model: '', year_from: undefined, year_to: undefined,
+  boat_type: '', length_feet: undefined, beam_feet: undefined, draft_feet: undefined,
+  hull_material: '', hull_type: '', fuel_capacity_gallons: undefined,
+  water_capacity_gallons: undefined, cabins: undefined, berths: undefined,
+  heads: undefined, max_speed_knots: undefined, cruising_speed_knots: undefined,
+  notes: '',
+};
+
+function BoatSpecsSection({ apiUrl, authHeaders }: { apiUrl: (p: string) => string; authHeaders: () => Record<string, string> }) {
+  const [specs, setSpecs] = useState<BoatSpec[]>([]);
+  const [total, setTotal] = useState(0);
+  const [q, setQ] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<BoatSpec | null>(null);
+  const [form, setForm] = useState<Omit<BoatSpec, 'id'>>(EMPTY_SPEC);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  async function load(search = q) {
+    setLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/scraper/boat-specs?q=${encodeURIComponent(search)}&limit=100`), { headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) { setSpecs(data.specs); setTotal(data.total); }
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startNew() { setEditing(null); setForm(EMPTY_SPEC); setMsg(''); }
+  function startEdit(s: BoatSpec) { setEditing(s); setForm({ ...s }); setMsg(''); }
+
+  function setF(k: keyof typeof form, v: unknown) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  async function handleSave() {
+    if (!form.make.trim() || !form.model.trim()) { setMsg('Make and Model are required.'); return; }
+    setSaving(true); setMsg('');
+    try {
+      const url = editing ? apiUrl(`/scraper/boat-specs/${editing.id}`) : apiUrl('/scraper/boat-specs');
+      const res = await fetch(url, {
+        method: editing ? 'PUT' : 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMsg(editing ? 'Saved.' : 'Created.');
+        setEditing(data.spec);
+        load();
+      } else { setMsg('Error saving.'); }
+    } finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Delete this spec record?')) return;
+    await fetch(apiUrl(`/scraper/boat-specs/${id}`), { method: 'DELETE', headers: authHeaders() });
+    if (editing?.id === id) { setEditing(null); setForm(EMPTY_SPEC); }
+    load();
+  }
+
+  const numField = (label: string, k: keyof typeof form, step = '0.1') => (
+    <div>
+      <label className="block text-xs text-gray-500 mb-0.5">{label}</label>
+      <input type="number" step={step} value={form[k] !== undefined && form[k] !== null ? String(form[k]) : ''}
+        onChange={e => setF(k, e.target.value === '' ? undefined : Number(e.target.value))}
+        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-teal-400 focus:outline-none" placeholder="—" />
+    </div>
+  );
+  const txtField = (label: string, k: keyof typeof form) => (
+    <div>
+      <label className="block text-xs text-gray-500 mb-0.5">{label}</label>
+      <input type="text" value={String(form[k] ?? '')}
+        onChange={e => setF(k, e.target.value)}
+        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-teal-400 focus:outline-none" placeholder="—" />
+    </div>
+  );
+
+  return (
+    <div className="p-6 flex gap-6 h-full min-h-0">
+      {/* ── Left: list ── */}
+      <div className="w-80 flex-shrink-0 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-800">Boat Specs Database</h3>
+          <button onClick={startNew} className="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium">+ New</button>
+        </div>
+        <p className="text-xs text-gray-500">
+          Reference specs for production boats. The scraper fills in blank fields (length, beam, hull material, etc.) automatically when make + model are matched.
+          Engines are intentionally excluded.
+        </p>
+        <div className="flex gap-2">
+          <input type="text" value={q} onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && load(q)}
+            placeholder="Search make or model…"
+            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:outline-none" />
+          <button onClick={() => load(q)} className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg">Search</button>
+        </div>
+        <p className="text-xs text-gray-400">{total} record{total !== 1 ? 's' : ''}</p>
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
+          {loading && <p className="p-3 text-xs text-gray-400 text-center">Loading…</p>}
+          {!loading && specs.length === 0 && <p className="p-3 text-xs text-gray-400 text-center">No records yet.</p>}
+          {specs.map(s => (
+            <div key={s.id}
+              onClick={() => startEdit(s)}
+              className={`px-3 py-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between gap-2 ${editing?.id === s.id ? 'bg-teal-50' : ''}`}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{s.make} {s.model}</p>
+                <p className="text-xs text-gray-400">
+                  {s.year_from && s.year_to ? `${s.year_from}–${s.year_to}` : s.year_from ? `${s.year_from}+` : 'All years'}
+                  {s.length_feet ? ` · ${s.length_feet}ft` : ''}
+                </p>
+              </div>
+              <button onClick={e => { e.stopPropagation(); handleDelete(s.id); }}
+                className="text-gray-300 hover:text-red-500 flex-shrink-0 text-lg leading-none">&times;</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Right: form ── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h4 className="font-semibold text-gray-800 mb-4">{editing ? `Edit: ${editing.make} ${editing.model}` : 'New Spec Record'}</h4>
+
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {txtField('Make *', 'make')}
+            {txtField('Model *', 'model')}
+            {txtField('Boat Type', 'boat_type')}
+            {numField('Year From', 'year_from', '1')}
+            {numField('Year To', 'year_to', '1')}
+            <div /> {/* spacer */}
+          </div>
+
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Physical Dimensions</p>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {numField('Length (ft)', 'length_feet')}
+            {numField('Beam (ft)', 'beam_feet')}
+            {numField('Draft (ft)', 'draft_feet')}
+            {txtField('Hull Material', 'hull_material')}
+            {txtField('Hull Type', 'hull_type')}
+          </div>
+
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Capacities &amp; Layout</p>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {numField('Fuel (gal)', 'fuel_capacity_gallons')}
+            {numField('Water (gal)', 'water_capacity_gallons')}
+            <div />
+            {numField('Cabins', 'cabins', '1')}
+            {numField('Berths', 'berths', '1')}
+            {numField('Heads', 'heads', '1')}
+          </div>
+
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Performance</p>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {numField('Max Speed (kts)', 'max_speed_knots')}
+            {numField('Cruising Speed (kts)', 'cruising_speed_knots')}
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs text-gray-500 mb-0.5">Notes</label>
+            <textarea rows={2} value={String(form.notes ?? '')} onChange={e => setF('notes', e.target.value)}
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-teal-400 focus:outline-none resize-none" placeholder="Optional notes…" />
+          </div>
+
+          {msg && <p className="text-xs text-teal-700 mb-3">{msg}</p>}
+
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50">
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Create Record'}
+            </button>
+            {editing && (
+              <button onClick={startNew} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+                + New
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

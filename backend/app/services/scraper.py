@@ -57,7 +57,7 @@ except Exception:
 import hashlib
 
 from app.models.listing import Listing, ListingImage
-from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym
+from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym, BoatModelSpecs
 from app.models.user import User
 from app.models.guest_broker import GuestBroker
 from app.db.session import get_db, SessionLocal
@@ -84,6 +84,50 @@ def _load_synonym_cache(db) -> Dict[str, str]:
     except Exception as exc:
         logger.warning(f"_load_synonym_cache: could not load field synonyms: {exc}")
         return {}
+
+
+def _apply_boat_specs_lookup(data: Dict, db) -> None:
+    """
+    Look up BoatModelSpecs by make/model/year and fill in any blank fields.
+    Only fills fields that are None/missing — scraped values always win.
+    Modifies `data` in place.
+    """
+    make  = (data.get("make")  or "").strip()
+    model = (data.get("model") or "").strip()
+    year  = data.get("year")
+    if not make or not model:
+        return
+    try:
+        from app.api.routes_scraper import _find_boat_specs
+        spec = _find_boat_specs(db, make, model, int(year) if year else None)
+    except Exception as exc:
+        logger.debug(f"_apply_boat_specs_lookup: lookup failed for {make}/{model}: {exc}")
+        return
+    if not spec:
+        return
+
+    _FILLABLE = [
+        ("boat_type",     spec.boat_type),
+        ("length_feet",   spec.length_feet),
+        ("beam_feet",     spec.beam_feet),
+        ("draft_feet",    spec.draft_feet),
+        ("hull_material", spec.hull_material),
+        ("hull_type",     spec.hull_type),
+        ("fuel_capacity_gallons",  spec.fuel_capacity_gallons),
+        ("water_capacity_gallons", spec.water_capacity_gallons),
+        ("cabins",               spec.cabins),
+        ("berths",               spec.berths),
+        ("heads",                spec.heads),
+        ("max_speed_knots",      spec.max_speed_knots),
+        ("cruising_speed_knots", spec.cruising_speed_knots),
+    ]
+    filled = []
+    for field, value in _FILLABLE:
+        if value is not None and not data.get(field):
+            data[field] = value
+            filled.append(field)
+    if filled:
+        logger.info(f"boat_specs_lookup: filled {filled} from DB for {make} {model} {year or ''}")
 
 
 def _compute_confidence(data: Dict) -> float:
@@ -3114,6 +3158,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
                                 _t_parts.append(f"{_t_len_int}ft")
                         if _t_parts:
                             yacht_data["title"] = " ".join(_t_parts)
+
+                    # Fill blank spec fields from the boat model database
+                    _apply_boat_specs_lookup(yacht_data, db)
 
                     confidence = _compute_confidence(yacht_data)
                     skip_reason = None

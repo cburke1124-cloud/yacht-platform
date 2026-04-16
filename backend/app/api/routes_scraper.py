@@ -71,7 +71,7 @@ class _LogCapture(logging.Handler):
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing, ListingImage
-from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym
+from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym, BoatModelSpecs
 from app.exceptions import AuthorizationException, ValidationException
 
 router = APIRouter()
@@ -1338,6 +1338,7 @@ def reparse_raw_page(
         OptimizedYachtScraper,
         _load_synonym_cache,
         _compute_confidence,
+        _apply_boat_specs_lookup,
     )
     from datetime import datetime as _dt
 
@@ -1445,6 +1446,10 @@ def reparse_raw_page(
         det_desc = scraper.extract_description_from_text(page.raw_text or html)
         if det_desc:
             merged["description"] = det_desc
+
+    # Fill blank spec fields from the boat model database (e.g. hull material,
+    # beam, draft for well-known production boats like Hatteras or Boston Whaler).
+    _apply_boat_specs_lookup(merged, db)
 
     confidence = _compute_confidence(merged)
     page.merged_data = merged
@@ -1666,3 +1671,184 @@ def apply_raw_page(
     db.commit()
     db.refresh(listing)
     return {"success": True, "listing_id": listing.id, "title": listing.title, "action": "created"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BOAT MODEL SPECS — reference database for auto-filling blank listing fields
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class BoatSpecsCreate(BaseModel):
+    make: str
+    model: str
+    year_from: Optional[int] = None
+    year_to: Optional[int] = None
+    boat_type: Optional[str] = None
+    length_feet: Optional[float] = None
+    beam_feet: Optional[float] = None
+    draft_feet: Optional[float] = None
+    hull_material: Optional[str] = None
+    hull_type: Optional[str] = None
+    fuel_capacity_gallons: Optional[float] = None
+    water_capacity_gallons: Optional[float] = None
+    cabins: Optional[int] = None
+    berths: Optional[int] = None
+    heads: Optional[int] = None
+    max_speed_knots: Optional[float] = None
+    cruising_speed_knots: Optional[float] = None
+    notes: Optional[str] = None
+    source: Optional[str] = "manual"
+
+
+def _spec_to_dict(s: BoatModelSpecs) -> dict:
+    return {
+        "id": s.id,
+        "make": s.make,
+        "model": s.model,
+        "year_from": s.year_from,
+        "year_to": s.year_to,
+        "boat_type": s.boat_type,
+        "length_feet": s.length_feet,
+        "beam_feet": s.beam_feet,
+        "draft_feet": s.draft_feet,
+        "hull_material": s.hull_material,
+        "hull_type": s.hull_type,
+        "fuel_capacity_gallons": s.fuel_capacity_gallons,
+        "water_capacity_gallons": s.water_capacity_gallons,
+        "cabins": s.cabins,
+        "berths": s.berths,
+        "heads": s.heads,
+        "max_speed_knots": s.max_speed_knots,
+        "cruising_speed_knots": s.cruising_speed_knots,
+        "notes": s.notes,
+        "source": s.source,
+        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+    }
+
+
+@router.get("/scraper/boat-specs")
+def list_boat_specs(
+    q: str = "",
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    query = db.query(BoatModelSpecs)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            (BoatModelSpecs.make.ilike(like)) | (BoatModelSpecs.model.ilike(like))
+        )
+    total = query.count()
+    specs = query.order_by(BoatModelSpecs.make, BoatModelSpecs.model).offset(offset).limit(limit).all()
+    return {"success": True, "total": total, "specs": [_spec_to_dict(s) for s in specs]}
+
+
+@router.get("/scraper/boat-specs/lookup")
+def lookup_boat_specs(
+    make: str,
+    model: str,
+    year: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the best matching spec record for a make/model/year combination."""
+    _require_admin(current_user)
+    result = _find_boat_specs(db, make, model, year)
+    if not result:
+        return {"success": False, "spec": None}
+    return {"success": True, "spec": _spec_to_dict(result)}
+
+
+@router.post("/scraper/boat-specs")
+def create_boat_spec(
+    data: BoatSpecsCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    spec = BoatModelSpecs(**data.dict())
+    db.add(spec)
+    db.commit()
+    db.refresh(spec)
+    return {"success": True, "spec": _spec_to_dict(spec)}
+
+
+@router.put("/scraper/boat-specs/{spec_id}")
+def update_boat_spec(
+    spec_id: int,
+    data: BoatSpecsCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    spec = db.query(BoatModelSpecs).filter(BoatModelSpecs.id == spec_id).first()
+    if not spec:
+        raise HTTPException(status_code=404, detail="Spec not found")
+    for field, value in data.dict(exclude_unset=True).items():
+        setattr(spec, field, value)
+    db.commit()
+    db.refresh(spec)
+    return {"success": True, "spec": _spec_to_dict(spec)}
+
+
+@router.delete("/scraper/boat-specs/{spec_id}")
+def delete_boat_spec(
+    spec_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    spec = db.query(BoatModelSpecs).filter(BoatModelSpecs.id == spec_id).first()
+    if not spec:
+        raise HTTPException(status_code=404, detail="Spec not found")
+    db.delete(spec)
+    db.commit()
+    return {"success": True}
+
+
+# ── Shared lookup helper used by scraper pipeline ────────────────────────────
+
+def _find_boat_specs(db: Session, make: str, model: str, year: Optional[int] = None) -> Optional[BoatModelSpecs]:
+    """
+    Find the best BoatModelSpecs match for a given make/model/year.
+
+    Matching rules (in priority order):
+    1. Exact make+model match (case-insensitive) with year in year_from..year_to range
+    2. Exact make+model match with no year constraint (year_from and year_to both NULL)
+    3. Exact make+model match ignoring year (best available)
+
+    Returns None if no record exists for this make/model.
+    """
+    if not make or not model:
+        return None
+
+    candidates = (
+        db.query(BoatModelSpecs)
+        .filter(
+            BoatModelSpecs.make.ilike(make.strip()),
+            BoatModelSpecs.model.ilike(model.strip()),
+        )
+        .all()
+    )
+    if not candidates:
+        return None
+
+    if year:
+        # 1. Year in range
+        ranged = [
+            c for c in candidates
+            if c.year_from is not None and c.year_to is not None
+            and c.year_from <= year <= c.year_to
+        ]
+        if ranged:
+            return ranged[0]
+        # 2. No year constraint
+        unranged = [c for c in candidates if c.year_from is None and c.year_to is None]
+        if unranged:
+            return unranged[0]
+
+    # 3. Fall back to first match
+    return candidates[0]
+

@@ -255,7 +255,57 @@ class FieldSynonym(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class CurrencyRate(Base):
+class BoatModelSpecs(Base):
+    """
+    Reference database of production boat specifications keyed by make + model.
+    Covers the year range in which the model was manufactured with those specs.
+
+    Used by the scraper pipeline: once year/make/model are resolved, we look up
+    this table and fill in any blank fields (length, beam, draft, hull_material,
+    boat_type, etc.) — identical to how an auto VIN lookup fills a car listing.
+
+    Engine specs are intentionally excluded because engines are routinely replaced.
+    Custom one-off builds should not be added here.
+
+    Lookup priority: scraped value wins over spec-db value (spec-db only fills blanks).
+    """
+    __tablename__ = "boat_model_specs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # ── Identity ──────────────────────────────────────────────────────────────
+    make  = Column(String, nullable=False, index=True)   # e.g. "Hatteras"
+    model = Column(String, nullable=False, index=True)   # e.g. "55 Convertible"
+    # Production year span. NULL = unknown / applies to all years.
+    year_from = Column(Integer, nullable=True)
+    year_to   = Column(Integer, nullable=True)
+
+    # ── Physical specs ────────────────────────────────────────────────────────
+    boat_type     = Column(String,  nullable=True)  # "Motor Yacht", "Sailboat", etc.
+    length_feet   = Column(Float,   nullable=True)
+    beam_feet     = Column(Float,   nullable=True)
+    draft_feet    = Column(Float,   nullable=True)
+    hull_material = Column(String,  nullable=True)  # "Fiberglass", "Aluminum", etc.
+    hull_type     = Column(String,  nullable=True)  # "Monohull", "Catamaran", etc.
+
+    # ── Capacities / layout ───────────────────────────────────────────────────
+    fuel_capacity_gallons   = Column(Float,   nullable=True)
+    water_capacity_gallons  = Column(Float,   nullable=True)
+    cabins = Column(Integer, nullable=True)
+    berths = Column(Integer, nullable=True)
+    heads  = Column(Integer, nullable=True)
+
+    # ── Performance ───────────────────────────────────────────────────────────
+    max_speed_knots      = Column(Float, nullable=True)
+    cruising_speed_knots = Column(Float, nullable=True)
+
+    # ── Meta ──────────────────────────────────────────────────────────────────
+    notes      = Column(Text,    nullable=True)  # free-form notes for admin
+    source     = Column(String,  nullable=True)  # "manual", "import", etc.
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
     __tablename__ = "currency_rates"
 
     id = Column(Integer, primary_key=True, index=True)
