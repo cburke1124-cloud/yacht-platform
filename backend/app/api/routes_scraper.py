@@ -1345,17 +1345,26 @@ def reparse_raw_page(
     scraper = OptimizedYachtScraper(api_key=api_key)
 
     # Stage 2: Normalize
+    # ── Start from the ORIGINAL normalized_data so we preserve everything the
+    # initial scrape built (H1 title, WP REST fields, structured extraction,
+    # description, normalized location, etc.).  We only OVERLAY the freshly
+    # re-parsed spec-table fields so that newly added synonyms are reflected
+    # without wiping out data that only the full network fetch can produce.
     synonym_cache = _load_synonym_cache(db)
     html = page.raw_html or ""
-    normalized = scraper._parse_spec_tables_with_synonyms(html, synonym_cache)
-    additional = scraper.extract_specs_from_text(page.raw_text or page.raw_html or "")
+    original_normalized = dict(page.normalized_data or {})
+
+    fresh_spec = scraper._parse_spec_tables_with_synonyms(html, synonym_cache)
+    additional = scraper.extract_specs_from_text(page.raw_text or html)
+
+    # Build normalized: original base → fresh spec table overlay → regex additions
+    normalized = {**original_normalized, **fresh_spec}
     for k, v in additional.items():
         if v and not normalized.get(k):
             normalized[k] = v
 
-    # Re-extract images from stored HTML so they are never lost across reparses.
-    # We preserve any previously curated list in merged_data and keep the full
-    # candidate pool in normalized_data so the image gallery always shows everything.
+    # Re-extract images from stored HTML so any template-selector or filter
+    # improvements are picked up.  We keep the full pool in normalized_data.
     extracted_images = scraper.extract_images(html, page.source_url) if html else []
     if extracted_images:
         normalized["images"] = extracted_images
@@ -1369,20 +1378,35 @@ def reparse_raw_page(
     page.normalized_data = normalized
     page.normalized_at = _dt.utcnow()
     page.stage = "normalized"
+    # Commit Stage 2 before possibly closing the session for AI.
+    db.commit()
+
+    # Capture scalar values we'll need after closing the session (if AI runs)
+    prior_curated_images = (page.merged_data or {}).get("images")
+    _page_source_url = page.source_url  # str — safe after session close
 
     # Stage 3: AI parse if needed
     ai_data = {}
     ai_used = False
     if scraper._needs_ai_check(normalized):
-        text_for_ai = page.raw_text or page.raw_html or ""
+        text_for_ai = page.raw_text or html
+        # Close the DB session BEFORE the long Anthropic API call so the
+        # connection isn't held idle (prevents "not bound to a Session" on slow calls).
+        db.close()
         try:
-            ai_result = scraper.scrape_with_ai(text_for_ai[:20000], page.source_url, normalized)
+            ai_result = scraper.scrape_with_ai(text_for_ai[:20000], _page_source_url, normalized)
             if isinstance(ai_result, dict) and "error" not in ai_result:
                 ai_data = ai_result
                 ai_used = True
         except Exception as exc:
             logger.warning("reparse AI stage failed for raw_page %s: %s", raw_page_id, exc)
+        # Re-open session and re-query page so it is bound to the new session.
+        db = SessionLocal()
+        page = db.query(RawScrapedPage).filter(RawScrapedPage.id == raw_page_id).first()
+        if not page:
+            raise HTTPException(status_code=404, detail="Raw page disappeared during AI parse")
         page.ai_data = ai_data
+        page.ai_used = ai_used
         page.ai_parsed_at = _dt.utcnow()
         page.stage = "ai_parsed"
 
@@ -1392,9 +1416,8 @@ def reparse_raw_page(
     # Preserve any previously curated image selection from merged_data.
     # If the user had manually deselected images, keep their curated list;
     # otherwise seed from the freshly extracted pool.
-    prior_curated = (page.merged_data or {}).get("images")
-    if prior_curated:
-        merged["images"] = prior_curated
+    if prior_curated_images:
+        merged["images"] = prior_curated_images
     elif extracted_images:
         merged["images"] = extracted_images
 
@@ -1409,8 +1432,6 @@ def reparse_raw_page(
         _model_str = str(merged.get("model", "")).strip()
         if _model_str:
             _parts.append(_model_str)
-        # Append length only when it isn't already embedded in the model string.
-        # Compare the integer portion to avoid "55ft" duplication in "55 Express GT".
         _length = merged.get("length_feet")
         if _length:
             _len_int = str(int(float(_length)))
