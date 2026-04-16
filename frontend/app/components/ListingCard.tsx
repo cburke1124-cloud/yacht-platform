@@ -181,7 +181,7 @@ export default function ListingCard({
     <Link href={`/listings/${id}`} className="block group h-full">
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col h-full">
         {/* Image with Featured Badge and Action Buttons */}
-        <div className="relative aspect-[4/3] bg-gray-200 overflow-hidden flex-shrink-0">
+        <div className="relative aspect-[16/9] bg-gray-200 overflow-hidden flex-shrink-0">
           <img
             src={imageUrl}
             alt={title}
@@ -284,18 +284,18 @@ export default function ListingCard({
         </div>
 
         {/* Content */}
-        <div className="p-4 flex flex-col flex-1">
-          <h3 className="text-lg font-semibold text-[#10214F] line-clamp-2 mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+        <div className="p-3 flex flex-col flex-1">
+          <h3 className="text-sm font-semibold text-[#10214F] line-clamp-1 mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
             {title}
           </h3>
 
           <div className="mb-2">
             {priceFormatted ? (
-              <p className="text-xl font-bold text-[#01BBDC]">
+              <p className="text-base font-bold text-[#01BBDC]">
                 {priceFormatted}
               </p>
             ) : (
-              <p className="text-xl font-bold text-gray-500">
+              <p className="text-base font-bold text-gray-500">
                 Contact for Pricing
               </p>
             )}
