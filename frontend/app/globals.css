@@ -11,6 +11,17 @@
   --color-dark: #2E2E2E;      /* Charcoal */
   --color-white: #FFFFFF;
   --color-soft: #F5F7FA;
+
+  /* ── Global 6 px radius system ── */
+  --radius-none:   0px;
+  --radius-sm:     6px;
+  --radius:        6px;
+  --radius-md:     6px;
+  --radius-lg:     6px;
+  --radius-xl:     6px;
+  --radius-2xl:    6px;
+  --radius-3xl:    6px;
+  --radius-full:   9999px;  /* keep circles as circles */
 }
 
 /* =========================
@@ -38,6 +49,23 @@
 
   button, [role="button"] {
     cursor: pointer;
+  }
+
+  /* ── Enforce 6 px radius on all non-circular UI elements ── */
+  button:not(.rounded-full),
+  input,
+  select,
+  textarea,
+  [class*="rounded"]:not(.rounded-full):not(.rounded-none) {
+    border-radius: 6px !important;
+  }
+
+  /* ── Catch inline borderRadius on cards, panels, dropdowns ── */
+  div[style*="border-radius"],
+  section[style*="border-radius"],
+  span[style*="border-radius"],
+  a[style*="border-radius"] {
+    border-radius: 6px !important;
   }
 }
 
@@ -97,7 +125,7 @@ nav {
   .glass-card {
     background: #FFFFFF;
     border: 1px solid #E5E7EB;
-    border-radius: 0.75rem;
+    border-radius: 6px;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     transition: box-shadow 0.2s ease, border-color 0.2s ease;
   }
@@ -111,7 +139,7 @@ nav {
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     background: rgba(255, 255, 255, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.6);
-    border-radius: 0.75rem;
+    border-radius: 6px;
     box-shadow: 
       0 8px 32px 0 rgba(31, 38, 135, 0.1),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
