@@ -908,8 +908,8 @@ function UnifiedListingsContent() {
 
                 {/* Pagination bar */}
                 {totalPages > 1 && (
-                  <div className="flex flex-col items-center gap-3 mt-8 pb-2">
-                    {/* Navigation row */}
+                  <div className="mt-8 pb-2 relative">
+                    {/* Navigation row — centered */}
                     <div className="flex items-center gap-2 flex-wrap justify-center">
                       {/* Skip to first */}
                       <button
@@ -990,8 +990,11 @@ function UnifiedListingsContent() {
                       </button>
                     </div>
 
-                    {/* Page size dropdown */}
-                    <div className="flex items-center gap-2" style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.6)' }}>
+                    {/* Per-page dropdown — far right */}
+                    <div
+                      className="absolute right-0 top-0 flex items-center gap-1.5"
+                      style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.6)' }}
+                    >
                       <span>Show</span>
                       <select
                         value={pageSize}
@@ -1011,7 +1014,6 @@ function UnifiedListingsContent() {
                         <option value={48}>48</option>
                         <option value={96}>96</option>
                       </select>
-                      <span>per page</span>
                     </div>
                   </div>
                 )}
