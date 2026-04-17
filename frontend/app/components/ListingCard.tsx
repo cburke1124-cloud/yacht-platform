@@ -290,6 +290,26 @@ export default function ListingCard({
           </h3>
 
           <div className="mb-2">
+            {(() => {
+              const isKnown = (v?: string) => !!v && v.trim().toLowerCase() !== 'unknown';
+              const parts = [city, state].filter(isKnown);
+              return (parts.length > 0 || length) ? (
+                <p className="text-xs text-[#10214F] mb-1 inline-flex items-center gap-3">
+                  {length ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                      <Ruler size={11} className="text-[#01BBDC] flex-shrink-0" />
+                      {Math.round(length)}ft
+                    </span>
+                  ) : null}
+                  {parts.length > 0 && (
+                    <span className="inline-flex items-center gap-1 min-w-0">
+                      <MapPin size={11} className="text-[#01BBDC] flex-shrink-0" />
+                      <span className="truncate">{parts.join(', ')}</span>
+                    </span>
+                  )}
+                </p>
+              ) : null;
+            })()}
             {priceFormatted ? (
               <p className="text-base font-bold text-[#01BBDC]">
                 {priceFormatted}
@@ -299,26 +319,6 @@ export default function ListingCard({
                 Contact for Pricing
               </p>
             )}
-            {(() => {
-              const isKnown = (v?: string) => !!v && v.trim().toLowerCase() !== 'unknown';
-              const parts = [city, state].filter(isKnown);
-              return (parts.length > 0 || length) ? (
-                <p className="text-sm text-[#10214F] mt-1 inline-flex items-center gap-3">
-                  {length ? (
-                    <span className="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0">
-                      <Ruler size={13} className="text-[#01BBDC] flex-shrink-0" />
-                      {Math.round(length)}ft
-                    </span>
-                  ) : null}
-                  {parts.length > 0 && (
-                    <span className="inline-flex items-center gap-1 min-w-0">
-                      <MapPin size={13} className="text-[#01BBDC] flex-shrink-0" />
-                      <span className="truncate">{parts.join(', ')}</span>
-                    </span>
-                  )}
-                </p>
-              ) : null;
-            })()}
           </div>
 
           <div className="flex items-center flex-wrap gap-2 text-sm text-[#10214F]/70 mb-2">

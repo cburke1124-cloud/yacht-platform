@@ -224,7 +224,7 @@ function UnifiedListingsContent() {
     [...POWER_TYPES, ...SAIL_TYPES];
 
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 25;
+  const [pageSize, setPageSize] = useState(20);
 
   const [currency, setCurrency] = useState('USD');
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
@@ -394,8 +394,8 @@ function UnifiedListingsContent() {
   const pinnedFeatured = processedListings.filter((l) => l.featured).slice(0, 4);
   const pinnedIds = new Set(pinnedFeatured.map((l) => l.id));
   const regularListings = processedListings.filter((l) => !pinnedIds.has(l.id));
-  const totalPages = Math.ceil(regularListings.length / PAGE_SIZE);
-  const pagedListings = regularListings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(regularListings.length / pageSize);
+  const pagedListings = regularListings.slice(page * pageSize, (page + 1) * pageSize);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
@@ -908,42 +908,111 @@ function UnifiedListingsContent() {
 
                 {/* Pagination bar */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-3 mt-8 pb-2">
-                    <button
-                      onClick={() => { setPage(p => Math.max(0, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      disabled={page === 0}
-                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: page === 0 ? '#f3f4f6' : '#10214F', color: page === 0 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      ← Previous
-                    </button>
-                    <div className="flex items-center gap-1.5">
-                      {Array.from({ length: totalPages }, (_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                          className="w-8 h-8 rounded-full text-sm font-medium transition-colors"
-                          style={{
-                            backgroundColor: i === page ? '#01BBDC' : '#f3f4f6',
-                            color: i === page ? '#FFFFFF' : '#6b7280',
-                            fontFamily: 'Poppins, sans-serif',
-                            display: Math.abs(i - page) <= 2 ? 'flex' : 'none',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {i + 1}
-                        </button>
-                      ))}
+                  <div className="flex flex-col items-center gap-3 mt-8 pb-2">
+                    {/* Navigation row */}
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                      {/* Skip to first */}
+                      <button
+                        onClick={() => { setPage(0); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        disabled={page === 0}
+                        title="First page"
+                        className="px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: '#f3f4f6', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        «
+                      </button>
+
+                      <button
+                        onClick={() => { setPage(p => Math.max(0, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        disabled={page === 0}
+                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: page === 0 ? '#f3f4f6' : '#10214F', color: page === 0 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        ← Prev
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => {
+                          if (Math.abs(i - page) > 2) return null;
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              className="w-8 h-8 rounded-full text-sm font-medium transition-colors"
+                              style={{
+                                backgroundColor: i === page ? '#01BBDC' : '#f3f4f6',
+                                color: i === page ? '#FFFFFF' : '#6b7280',
+                                fontFamily: 'Poppins, sans-serif',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {i + 1}
+                            </button>
+                          );
+                        })}
+                        {/* Show last page number if not visible */}
+                        {page < totalPages - 3 && (
+                          <>
+                            {page < totalPages - 4 && (
+                              <span style={{ color: '#9ca3af', fontSize: 13, padding: '0 2px' }}>…</span>
+                            )}
+                            <button
+                              onClick={() => { setPage(totalPages - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              className="w-8 h-8 rounded-full text-sm font-medium transition-colors"
+                              style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontFamily: 'Poppins, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              {totalPages}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => { setPage(p => Math.min(totalPages - 1, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        disabled={page >= totalPages - 1}
+                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: page >= totalPages - 1 ? '#f3f4f6' : '#10214F', color: page >= totalPages - 1 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        Next →
+                      </button>
+
+                      {/* Skip to last */}
+                      <button
+                        onClick={() => { setPage(totalPages - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        disabled={page >= totalPages - 1}
+                        title="Last page"
+                        className="px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: '#f3f4f6', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        »
+                      </button>
                     </div>
-                    <button
-                      onClick={() => { setPage(p => Math.min(totalPages - 1, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      disabled={page >= totalPages - 1}
-                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: page >= totalPages - 1 ? '#f3f4f6' : '#10214F', color: page >= totalPages - 1 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      Next →
-                    </button>
+
+                    {/* Page size dropdown */}
+                    <div className="flex items-center gap-2" style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.6)' }}>
+                      <span>Show</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
+                        className="focus:outline-none"
+                        style={{
+                          border: '1px solid rgba(16,33,79,0.15)',
+                          borderRadius: 8,
+                          padding: '4px 8px',
+                          fontSize: 13,
+                          fontFamily: 'Poppins, sans-serif',
+                          color: '#10214F',
+                          backgroundColor: '#FAFAFA',
+                        }}
+                      >
+                        <option value={20}>20</option>
+                        <option value={48}>48</option>
+                        <option value={96}>96</option>
+                      </select>
+                      <span>per page</span>
+                    </div>
                   </div>
                 )}
               </div>
