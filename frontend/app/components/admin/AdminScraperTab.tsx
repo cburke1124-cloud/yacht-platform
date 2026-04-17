@@ -111,6 +111,7 @@ type QueueItem = {
   listingId?: number;
   title?: string;
   error?: string;
+  logs?: Array<{ t: string; level: string; logger: string; msg: string }>;
 };
 
 function ManualImportSection({
@@ -127,6 +128,7 @@ function ManualImportSection({
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [running, setRunning] = useState(false);
   const [batchMsg, setBatchMsg] = useState('');
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const addUrls = () => {
     const lines = urlInput
@@ -171,14 +173,14 @@ function ManualImportSection({
           setQueue((prev) =>
             prev.map((q) =>
               q.id === item.id
-                ? { ...q, status: 'done', listingId: data.listing_id, title: data.title }
+                ? { ...q, status: 'done', listingId: data.listing_id, title: data.title, logs: data.logs }
                 : q
             )
           );
         } else {
           setQueue((prev) =>
             prev.map((q) =>
-              q.id === item.id ? { ...q, status: 'error', error: data.error || 'Import failed' } : q
+              q.id === item.id ? { ...q, status: 'error', error: data.error || 'Import failed', logs: data.logs } : q
             )
           );
         }
@@ -280,27 +282,58 @@ function ManualImportSection({
 
           <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 max-h-72 overflow-y-auto">
             {queue.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 px-3 py-2.5">
-                <span className="mt-1 flex-shrink-0">{statusIcon(item.status)}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-mono text-gray-700 truncate">{item.url}</p>
-                  {item.status === 'done' && (
-                    <p className="text-xs text-green-700 mt-0.5">
-                      ✓ Imported{item.title ? `: ${item.title}` : ''}{item.listingId ? ` (#${item.listingId})` : ''}
-                    </p>
+              <div key={item.id} className="border-b border-gray-100 last:border-b-0">
+                <div className="flex items-start gap-3 px-3 py-2.5">
+                  <span className="mt-1 flex-shrink-0">{statusIcon(item.status)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono text-gray-700 truncate">{item.url}</p>
+                    {item.status === 'done' && (
+                      <p className="text-xs text-green-700 mt-0.5">
+                        ✓ Imported{item.title ? `: ${item.title}` : ''}{item.listingId ? ` (#${item.listingId})` : ''}
+                      </p>
+                    )}
+                    {item.status === 'error' && (
+                      <p className="text-xs text-red-600 mt-0.5">✗ {item.error}</p>
+                    )}
+                  </div>
+                  {item.logs && item.logs.length > 0 && (item.status === 'done' || item.status === 'error') && (
+                    <button
+                      onClick={() => setExpandedLogId(expandedLogId === item.id ? null : item.id)}
+                      className="flex-shrink-0 text-xs text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1"
+                      title="Toggle scrape logs"
+                    >
+                      <span>Logs</span>
+                      <span style={{ fontSize: 10 }}>{expandedLogId === item.id ? '▲' : '▼'}</span>
+                    </button>
                   )}
-                  {item.status === 'error' && (
-                    <p className="text-xs text-red-600 mt-0.5">✗ {item.error}</p>
+                  {item.status === 'pending' && (
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors"
+                      title="Remove"
+                    >
+                      <X size={14} />
+                    </button>
                   )}
                 </div>
-                {item.status === 'pending' && (
-                  <button
-                    onClick={() => removeItem(item.id)}
-                    className="flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors"
-                    title="Remove"
+                {expandedLogId === item.id && item.logs && item.logs.length > 0 && (
+                  <div
+                    className="mx-3 mb-2 rounded overflow-y-auto"
+                    style={{ maxHeight: 180, backgroundColor: '#0f172a', padding: '8px 10px' }}
                   >
-                    <X size={14} />
-                  </button>
+                    {item.logs.map((line, i) => (
+                      <div key={i} className="flex gap-2 text-xs font-mono leading-relaxed">
+                        <span style={{ color: '#64748b', flexShrink: 0 }}>{line.t}</span>
+                        <span style={{
+                          flexShrink: 0,
+                          color: line.level === 'ERROR' ? '#f87171' : line.level === 'WARNING' ? '#fbbf24' : '#94a3b8',
+                        }}>
+                          {line.level.slice(0, 4)}
+                        </span>
+                        <span style={{ color: '#cbd5e1', wordBreak: 'break-all' }}>{line.msg}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}

@@ -2104,6 +2104,11 @@ except Exception as e:
             )
             response_text = message.content[0].text
             response_text = re.sub(r"```json\s*|\s*```", "", response_text).strip()
+            # AI sometimes appends explanatory text after the JSON object.
+            # Extract just the first valid JSON object to avoid "Extra data" errors.
+            _json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if _json_match:
+                response_text = _json_match.group(0)
             yacht_data = json.loads(response_text)
             if partial_data:
                 yacht_data = {**partial_data, **yacht_data}

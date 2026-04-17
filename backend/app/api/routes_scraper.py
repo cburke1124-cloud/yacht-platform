@@ -48,8 +48,11 @@ class _LogCapture(logging.Handler):
         super().__init__(level=logging.DEBUG)
         self.lines: list = []
         self.setFormatter(logging.Formatter("%(message)s"))
+        self._tid = threading.current_thread().ident  # only capture from this thread
 
     def emit(self, record: logging.LogRecord) -> None:
+        if threading.current_thread().ident != self._tid:
+            return  # ignore logs from concurrent requests
         try:
             self.lines.append({
                 "t": _dt.utcnow().strftime("%H:%M:%S.%f")[:-3],
@@ -609,10 +612,22 @@ def import_single_listing(
 
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
-    raw = scraper.scrape_single_listing(data.url)
+
+    with _LogCapture() as cap:
+        raw = scraper.scrape_single_listing(data.url)
+    scrape_logs = cap.lines
 
     if "error" in raw:
-        return {"success": False, "error": raw["error"]}
+        return {"success": False, "error": raw["error"], "logs": scrape_logs}
+
+    # Guard: if AI extraction failed completely (no title extracted), return a clear error
+    # instead of crashing on the NOT NULL constraint for the title column.
+    if not raw.get("title"):
+        return {
+            "success": False,
+            "error": "Could not extract listing data from this page. The page may be blocked, require JavaScript rendering, or returned no content.",
+            "logs": scrape_logs,
+        }
 
     # Check dealer exists
     dealer = db.query(User).filter(User.id == data.dealer_id).first()
@@ -653,6 +668,7 @@ def import_single_listing(
         "listing_id": listing.id,
         "title": listing.title,
         "detected_agent_name": raw.get("detected_agent_name"),
+        "logs": scrape_logs,
         "data": raw,
     }
 
