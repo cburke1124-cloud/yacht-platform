@@ -2083,58 +2083,19 @@ except Exception as e:
         if not self.client:
             return partial_data or {}
         try:
+            from app.services.prompt_store import get_prompt
             if partial_data and len(partial_data) > 5:
-                prompt = f"""Fill in as many missing fields as possible for this yacht listing.
-Existing data: {json.dumps(partial_data)}
-
-URL: {url}
-Content: {content[:8000]}
-
-CRITICAL: Many yacht broker sites do NOT put location in a dedicated field — it appears only
-in the description or body text. Read the FULL content carefully and look for:
-- Explicit location mentions: "located in X", "currently in X", "presently at X marina",
-  "homeported in X", "available in X", "moored at X", "on the coast of X"
-- Named marinas or ports that imply a city/country (e.g. "Coal Harbour" → Vancouver, BC, Canada;
-  "Antibes" → France; "Palma" → Mallorca, Spain; "Newport" → check context for RI vs. CA)
-- Country context clues: phone number format, currency, broker address, marina/port names
-
-Also extract from prose if not in structured fields: length ("X feet", "X'", "Xm"),
-engine horsepower/power, beam, draft, and any other specs mentioned in sentences.
-
-Return ONLY a JSON object with all yacht listing fields you can determine.
-Include "agent_name" if a listing agent/salesman name is clearly present.
-Include: features (multi-line text, one per line prefixed with "- "), feature_bullets (array ≤12 short bullets).
-For country: use the actual country where the VESSEL is located, not the broker. Be specific."""
+                instructions = get_prompt("partial")
+                prompt = (
+                    f"Fill in as many missing fields as possible for this yacht listing.\n"
+                    f"Existing data: {json.dumps(partial_data)}\n\n"
+                    f"URL: {url}\n"
+                    f"Content: {content[:8000]}\n\n"
+                    f"{instructions}"
+                )
             else:
-                prompt = f"""Extract all yacht listing data from the text below. Return ONLY a JSON object.
-
-Fields to extract: title, make, model, year, price, currency, length_feet, beam_feet, draft_feet,
-cabins, berths, heads, engine_count, engine_hours, fuel_type, max_speed_knots, cruising_speed_knots,
-hull_material, hull_type, city, state, country, description, boat_type,
-agent_name (listing agent/salesman name if clearly present),
-features (all notable features and equipment as a single multi-line text block, one feature per line prefixed with "- "),
-feature_bullets (array of up to 12 short bullet-point strings highlighting the best features).
-
-CRITICAL INSTRUCTIONS:
-1. Location (city/state/country) is often NOT in a dedicated field. Read the FULL text carefully:
-   - Look for: "located in X", "currently in X", "presently at X marina", "homeported in X",
-     "available in X", "moored at X", "berthed at X", "on the [coast/waterway] of X"
-   - Recognize marina and port names that imply a location:
-     e.g. "Coal Harbour" or "False Creek" → Vancouver, BC, Canada
-          "Shilshole Bay" → Seattle, WA, USA
-          "Antibes" or "Port Vauban" → France
-          "Palma" or "Puerto Portals" → Mallorca, Spain
-          "Ft. Lauderdale" / "Fort Lauderdale" → Florida, USA
-          "Annapolis" → Maryland, USA
-   - Use context clues: phone number country code, currency, broker's own city, marina names
-2. Length, engine horsepower/power, beam, draft, and other specs may appear ONLY in description
-   prose — extract them even if they are not in a labeled spec field.
-3. For country: use the actual country where the vessel IS LOCATED (not the broker's country).
-   Be specific — never default to USA unless the text clearly places the vessel there.
-4. If a field is genuinely not mentioned anywhere in the text, omit it rather than guessing.
-
-URL: {url}
-Content: {content[:12000]}"""
+                instructions = get_prompt("full")
+                prompt = f"{instructions}\n\nURL: {url}\nContent: {content[:12000]}"
 
             message = self.client.messages.create(
                 model="claude-haiku-4-5",

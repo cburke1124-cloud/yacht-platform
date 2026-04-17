@@ -333,6 +333,195 @@ function ManualImportSection({
 
 
 
+// ─── AI Prompt Editor ─────────────────────────────────────────────────────────
+
+interface PromptData {
+  key: string;
+  label: string;
+  description: string;
+  text: string;
+  is_customized: boolean;
+  default: string;
+}
+
+function PromptEditorSection({
+  apiUrl: _apiUrl,
+  authHeaders: _authHeaders,
+}: {
+  apiUrl: (path: string) => string;
+  authHeaders: () => Record<string, string>;
+}) {
+  const [prompts, setPrompts] = useState<Record<string, PromptData> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<string | null>(null);
+  const [edited, setEdited] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState<{ key: string; text: string; ok: boolean } | null>(null);
+
+  const flash = (key: string, text: string, ok = true) => {
+    setMsg({ key, text, ok });
+    setTimeout(() => setMsg(null), 3500);
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(_apiUrl('/scraper/prompts'), { headers: _authHeaders() })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setPrompts(d.prompts);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (key: string) => {
+    const text = edited[key] ?? prompts?.[key]?.text ?? '';
+    if (!text.trim()) return;
+    setSaving(key);
+    try {
+      const res = await fetch(_apiUrl(`/scraper/prompts/${key}`), {
+        method: 'PUT',
+        headers: _authHeaders(),
+        body: JSON.stringify({ text }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setPrompts(d.prompts);
+        setEdited((prev) => { const copy = { ...prev }; delete copy[key]; return copy; });
+        flash(key, 'Prompt saved.', true);
+      } else {
+        flash(key, d.detail || 'Save failed.', false);
+      }
+    } catch {
+      flash(key, 'Network error.', false);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleReset = async (key: string) => {
+    if (!confirm('Reset this prompt to the built-in default?')) return;
+    setResetting(key);
+    try {
+      const res = await fetch(_apiUrl(`/scraper/prompts/${key}`), {
+        method: 'DELETE',
+        headers: _authHeaders(),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setPrompts(d.prompts);
+        setEdited((prev) => { const copy = { ...prev }; delete copy[key]; return copy; });
+        flash(key, 'Reset to default.', true);
+      } else {
+        flash(key, d.detail || 'Reset failed.', false);
+      }
+    } catch {
+      flash(key, 'Network error.', false);
+    } finally {
+      setResetting(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 text-sm text-gray-500 animate-pulse">Loading prompts…</div>
+    );
+  }
+
+  if (!prompts) {
+    return <div className="p-6 text-sm text-red-500">Failed to load prompts.</div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900">AI Prompt Editor</h3>
+        <p className="text-sm text-gray-500 mt-1">
+          These are the instructions sent to Claude when scraping yacht listings. Changes take
+          effect on the next scrape — no restart required.
+        </p>
+      </div>
+
+      {(['full', 'partial'] as const).map((key) => {
+        const p = prompts[key];
+        const isDirty = key in edited && edited[key] !== p.text;
+        const currentText = edited[key] ?? p.text;
+        return (
+          <div key={key} className="border border-gray-200 rounded-xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-start justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-gray-900">{p.label}</span>
+                  {p.is_customized ? (
+                    <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                      Custom
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+                      Default
+                    </span>
+                  )}
+                  {isDirty && (
+                    <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">
+                      Unsaved changes
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">{p.description}</p>
+              </div>
+              <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                {p.is_customized && (
+                  <button
+                    onClick={() => handleReset(key)}
+                    disabled={resetting === key}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {resetting === key ? 'Resetting…' : 'Reset to Default'}
+                  </button>
+                )}
+                <button
+                  onClick={() => handleSave(key)}
+                  disabled={saving === key || !isDirty}
+                  className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 font-medium"
+                >
+                  {saving === key ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+
+            {/* Textarea */}
+            <div className="p-3 bg-white">
+              <textarea
+                rows={14}
+                value={currentText}
+                onChange={(e) => setEdited((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y bg-gray-50"
+                spellCheck={false}
+              />
+            </div>
+
+            {/* Flash message */}
+            {msg && msg.key === key && (
+              <div
+                className={`px-4 py-2 text-xs font-medium ${msg.ok ? 'bg-green-50 text-green-700 border-t border-green-200' : 'bg-red-50 text-red-700 border-t border-red-200'}`}
+              >
+                {msg.text}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3 border border-gray-100">
+        <strong>Note:</strong> The URL and page content are always appended automatically by the
+        scraper — you only edit the instruction text above. If you break something, use
+        &ldquo;Reset to Default&rdquo; to restore the built-in prompt.
+      </div>
+    </div>
+  );
+}
+
+
 function LogPanel({ logs, loading }: { logs: LogLine[]; loading: boolean }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
@@ -407,7 +596,7 @@ function fmtDate(iso?: string) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -857,6 +1046,9 @@ export default function AdminScraperTab() {
           </button>
           <button onClick={() => setSection('manual')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'manual' ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             Manual Import
+          </button>
+          <button onClick={() => setSection('prompt')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'prompt' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            AI Prompts
           </button>
         </div>
       </div>
@@ -1665,6 +1857,9 @@ export default function AdminScraperTab() {
 
       {/* ══ MANUAL IMPORT ══════════════════════════════════════════════════ */}
       {section === 'manual' && <ManualImportSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
+
+      {/* ══ AI PROMPTS ═════════════════════════════════════════════════════ */}
+      {section === 'prompt' && <PromptEditorSection apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (

@@ -1793,6 +1793,57 @@ def update_boat_spec(
     return {"success": True, "spec": _spec_to_dict(spec)}
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI PROMPT MANAGEMENT — view and override the Claude prompts used by the scraper
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PromptUpdateRequest(BaseModel):
+    text: str
+
+
+@router.get("/scraper/prompts")
+def get_scraper_prompts(
+    current_user: User = Depends(get_current_user),
+):
+    """Return all AI prompts with their current text (override or default)."""
+    _require_admin(current_user)
+    from app.services.prompt_store import get_all_prompts
+    return {"success": True, "prompts": get_all_prompts()}
+
+
+@router.put("/scraper/prompts/{key}")
+def update_scraper_prompt(
+    key: str,
+    data: PromptUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Save a custom override for the given prompt key ('full' or 'partial')."""
+    _require_admin(current_user)
+    if key not in ("full", "partial"):
+        raise HTTPException(status_code=400, detail="Invalid prompt key. Must be 'full' or 'partial'.")
+    text = (data.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Prompt text cannot be empty.")
+    from app.services.prompt_store import save_prompt, get_all_prompts
+    save_prompt(key, text)
+    return {"success": True, "prompts": get_all_prompts()}
+
+
+@router.delete("/scraper/prompts/{key}")
+def reset_scraper_prompt(
+    key: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Reset the given prompt key back to the built-in default."""
+    _require_admin(current_user)
+    if key not in ("full", "partial"):
+        raise HTTPException(status_code=400, detail="Invalid prompt key. Must be 'full' or 'partial'.")
+    from app.services.prompt_store import reset_prompt, get_all_prompts
+    reset_prompt(key)
+    return {"success": True, "prompts": get_all_prompts()}
+
+
 @router.delete("/scraper/boat-specs/{spec_id}")
 def delete_boat_spec(
     spec_id: int,
