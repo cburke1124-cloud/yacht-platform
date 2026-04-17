@@ -285,16 +285,17 @@ export default function ListingCard({
 
         {/* Content */}
         <div className="p-3 flex flex-col flex-1">
-          <h3 className="text-sm font-semibold text-[#10214F] line-clamp-1 mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+          <h3 className="font-semibold text-[#10214F] line-clamp-1 mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontSize: 15 }}>
             {title}
           </h3>
 
+          {/* Location / Length */}
           <div className="mb-2">
             {(() => {
               const isKnown = (v?: string) => !!v && v.trim().toLowerCase() !== 'unknown';
               const parts = [city, state].filter(isKnown);
               return (parts.length > 0 || length) ? (
-                <p className="text-xs text-[#10214F] mb-1 inline-flex items-center gap-3">
+                <p className="text-xs text-[#10214F] inline-flex items-center gap-3">
                   {length ? (
                     <span className="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0">
                       <Ruler size={11} className="text-[#01BBDC] flex-shrink-0" />
@@ -310,15 +311,6 @@ export default function ListingCard({
                 </p>
               ) : null;
             })()}
-            {priceFormatted ? (
-              <p className="text-base font-bold text-[#01BBDC]">
-                {priceFormatted}
-              </p>
-            ) : (
-              <p className="text-base font-bold text-gray-500">
-                Contact for Pricing
-              </p>
-            )}
           </div>
 
           <div className="flex items-center flex-wrap gap-2 text-sm text-[#10214F]/70 mb-2">
@@ -339,8 +331,19 @@ export default function ListingCard({
             )}
           </div>
 
+          {/* Price — sits just above the dealer divider */}
+          {priceFormatted ? (
+            <p className="text-base font-bold text-[#01BBDC] mt-auto mb-1">
+              {priceFormatted}
+            </p>
+          ) : (
+            <p className="text-base font-bold text-gray-500 mt-auto mb-1">
+              Contact for Pricing
+            </p>
+          )}
+
           {/* Dealer Info */}
-          <div className="mt-auto pt-3 border-t border-gray-100">
+          <div className="pt-3 border-t border-gray-100">
             {dealerInfo ? (
               <div
                 role="button"

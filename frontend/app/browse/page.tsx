@@ -574,6 +574,67 @@ function BrowseContent() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
 
+      {/* ══════ COMPACT AI SEARCH BAR ══════ */}
+      <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid rgba(16,33,79,0.06)' }}>
+        <div className="mx-auto" style={{ maxWidth: 1440, padding: '10px 24px' }}>
+          <form
+            onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } }}
+            className="flex items-center gap-2 mx-auto"
+            style={{ maxWidth: 960 }}
+            role="search"
+            aria-label="AI yacht search"
+          >
+            <div className="relative flex-1">
+              <input
+                type="search"
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } } }}
+                placeholder="Describe your ideal yacht — size, lifestyle, budget, cruising plans…"
+                className="w-full focus:outline-none"
+                style={{
+                  height: 40,
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: 999,
+                  backgroundColor: '#F8FAFC',
+                  paddingLeft: 20,
+                  paddingRight: 48,
+                  fontSize: 13,
+                  fontFamily: 'Poppins, sans-serif',
+                  color: '#10214F',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 30 30" fill="none">
+                  <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
+                  <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
+                  <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
+                </svg>
+              </span>
+            </div>
+            <button
+              type="submit"
+              aria-label="Search with AI"
+              className="text-white font-medium transition-opacity hover:opacity-90 whitespace-nowrap"
+              style={{
+                backgroundColor: '#01BBDC',
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 999,
+                height: 40,
+                paddingLeft: 20,
+                paddingRight: 20,
+                flexShrink: 0,
+              }}
+            >
+              AI Search
+            </button>
+          </form>
+        </div>
+      </div>
+
       {/* ══════ STICKY SEARCH + FILTER BAR ══════ */}
       <div
         ref={searchBarRef}
@@ -588,97 +649,8 @@ function BrowseContent() {
           className="mx-auto"
           style={{ maxWidth: 1440, padding: '12px 24px' }}
         >
-          {/* Row 1: logo area (placeholder), search input, AI toggle, currency, sort, save */}
+          {/* Row 1: currency, sort, save */}
           <div className="flex items-center gap-3 mb-3">
-            {/* Search input */}
-            <div className="relative flex-1" style={{ maxWidth: 480 }}>
-              <Search
-                size={15}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: 'rgba(16,33,79,0.35)' }}
-              />
-              <input
-                type="search"
-                value={searchType === 'ai' ? aiQuery : filters.search}
-                onChange={(e) => {
-                  if (searchType === 'ai') setAiQuery(e.target.value);
-                  else handleFilterChange('search', e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchType === 'ai' && aiQuery.trim()) {
-                    fetchListings(true);
-                  }
-                }}
-                placeholder={searchType === 'ai' ? 'Describe your ideal yacht…' : 'Search by keyword…'}
-                className="w-full focus:outline-none"
-                style={{
-                  height: 40,
-                  paddingLeft: 36,
-                  paddingRight: 12,
-                  border: '1.5px solid rgba(16,33,79,0.15)',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontFamily: 'Poppins, sans-serif',
-                  color: '#10214F',
-                  backgroundColor: '#FAFAFA',
-                }}
-              />
-            </div>
-
-            {/* AI / Basic toggle */}
-            <div
-              className="flex items-center rounded-xl overflow-hidden flex-shrink-0"
-              style={{ border: '1.5px solid rgba(16,33,79,0.12)', backgroundColor: '#F3F4F8' }}
-            >
-              <button
-                type="button"
-                onClick={() => setSearchType('basic')}
-                className="px-3 py-1.5 text-xs font-medium transition-all"
-                style={{
-                  fontFamily: 'Poppins, sans-serif',
-                  backgroundColor: searchType === 'basic' ? '#FFFFFF' : 'transparent',
-                  color: searchType === 'basic' ? '#10214F' : 'rgba(16,33,79,0.5)',
-                  boxShadow: searchType === 'basic' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                  borderRadius: 6,
-                  margin: 2,
-                }}
-              >
-                Basic
-              </button>
-              <button
-                type="button"
-                onClick={() => setSearchType('ai')}
-                className="px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition-all"
-                style={{
-                  fontFamily: 'Poppins, sans-serif',
-                  backgroundColor: searchType === 'ai' ? '#01BBDC' : 'transparent',
-                  color: searchType === 'ai' ? '#FFFFFF' : 'rgba(16,33,79,0.5)',
-                  boxShadow: searchType === 'ai' ? '0 1px 4px rgba(1,187,220,0.3)' : 'none',
-                  borderRadius: 6,
-                  margin: 2,
-                }}
-              >
-                <Sparkles size={11} />
-                AI
-              </button>
-            </div>
-
-            {/* AI search button */}
-            {searchType === 'ai' && (
-              <button
-                type="button"
-                onClick={() => fetchListings(true)}
-                className="px-4 py-2 rounded-xl text-sm font-medium flex-shrink-0 transition-opacity hover:opacity-90"
-                style={{
-                  backgroundColor: '#01BBDC',
-                  color: '#FFFFFF',
-                  fontFamily: 'Poppins, sans-serif',
-                }}
-              >
-                Search
-              </button>
-            )}
-
             <div className="flex items-center gap-2 ml-auto flex-shrink-0">
               {/* Currency */}
               <select

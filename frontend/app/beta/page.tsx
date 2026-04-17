@@ -147,7 +147,7 @@ function AISearchBox() {
       style={{
         background: '#FFFFFF',
         borderRadius: '24px 24px 0 0',
-        padding: '43px 0 43px 0',
+        padding: '22px 0 18px 0',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -178,7 +178,7 @@ function AISearchBox() {
           fontSize: 'clamp(26px, 2.5vw, 40px)',
           lineHeight: '48px',
           fontWeight: 400,
-          marginBottom: 22,
+          marginBottom: 10,
         }}
       >
         Skip the Filters - Find the Yacht
@@ -191,7 +191,7 @@ function AISearchBox() {
           fontFamily: 'Poppins, sans-serif',
           fontSize: 16,
           lineHeight: '24px',
-          marginBottom: 46,
+          marginBottom: 22,
           opacity: 0.7,
         }}
       >
@@ -268,7 +268,7 @@ function AISearchBox() {
           fontFamily: 'Poppins, sans-serif',
           fontSize: 16,
           lineHeight: '24px',
-          marginTop: 42,
+          marginTop: 20,
           opacity: 0.7,
         }}
       >
@@ -295,13 +295,13 @@ export default function HomePage() {
     // Fetch listings
     const fetchListings = async () => {
       try {
-        const res = await fetch(`${API_ROOT}/listings?limit=8&status=active`);
+        const res = await fetch(`${API_ROOT}/listings?limit=12&status=active&sort=price_desc`);
         if (!res.ok) {
           setListings([]);
         } else {
           const data = await res.json();
           const listingsArray = Array.isArray(data) ? data : (data.listings ?? []);
-          setListings(listingsArray.slice(0, 8));
+          setListings(listingsArray.slice(0, 12));
         }
       } catch {
         setListings([]);
@@ -502,7 +502,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-stretch" style={{ gap: 24 }}>
-              {listings.slice(0, 8).map((listing) => (
+              {listings.slice(0, 12).map((listing) => (
                 <ListingCard
                   key={listing.id}
                   id={Number(listing.id)}
