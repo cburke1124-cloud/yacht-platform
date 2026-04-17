@@ -102,7 +102,236 @@ interface SiteTemplate {
   field_rules?: { field: string; pattern: string; type: string }[];
 }
 
-// ─── Log panel ────────────────────────────────────────────────────────────────
+// ─── Manual Import Section ────────────────────────────────────────────────────
+
+type QueueItem = {
+  id: string;
+  url: string;
+  status: 'pending' | 'running' | 'done' | 'error';
+  listingId?: number;
+  title?: string;
+  error?: string;
+};
+
+function ManualImportSection({
+  dealers,
+  apiUrl: _apiUrl,
+  authHeaders: _authHeaders,
+}: {
+  dealers: Dealer[];
+  apiUrl: (path: string) => string;
+  authHeaders: () => Record<string, string>;
+}) {
+  const [dealerId, setDealerId] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [running, setRunning] = useState(false);
+  const [batchMsg, setBatchMsg] = useState('');
+
+  const addUrls = () => {
+    const lines = urlInput
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.startsWith('http'));
+    if (!lines.length) return;
+    const newItems: QueueItem[] = lines.map((url) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      url,
+      status: 'pending',
+    }));
+    setQueue((prev) => [...prev, ...newItems]);
+    setUrlInput('');
+  };
+
+  const removeItem = (id: string) =>
+    setQueue((prev) => prev.filter((q) => q.id !== id));
+
+  const clearDone = () =>
+    setQueue((prev) => prev.filter((q) => q.status !== 'done' && q.status !== 'error'));
+
+  const runQueue = async () => {
+    if (!dealerId) { setBatchMsg('Please select a broker first.'); return; }
+    const pending = queue.filter((q) => q.status === 'pending');
+    if (!pending.length) { setBatchMsg('No pending URLs in queue.'); return; }
+    setRunning(true);
+    setBatchMsg('');
+
+    for (const item of pending) {
+      setQueue((prev) =>
+        prev.map((q) => q.id === item.id ? { ...q, status: 'running' } : q)
+      );
+      try {
+        const res = await fetch(_apiUrl('/scraper/import-single'), {
+          method: 'POST',
+          headers: _authHeaders(),
+          body: JSON.stringify({ url: item.url, dealer_id: Number(dealerId) }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? { ...q, status: 'done', listingId: data.listing_id, title: data.title }
+                : q
+            )
+          );
+        } else {
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id ? { ...q, status: 'error', error: data.error || 'Import failed' } : q
+            )
+          );
+        }
+      } catch (err: any) {
+        setQueue((prev) =>
+          prev.map((q) =>
+            q.id === item.id ? { ...q, status: 'error', error: err.message || 'Network error' } : q
+          )
+        );
+      }
+    }
+
+    setRunning(false);
+    setBatchMsg('Queue finished.');
+  };
+
+  const pendingCount = queue.filter((q) => q.status === 'pending').length;
+  const doneCount = queue.filter((q) => q.status === 'done').length;
+  const errorCount = queue.filter((q) => q.status === 'error').length;
+
+  const statusIcon = (status: QueueItem['status']) => {
+    if (status === 'pending') return <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />;
+    if (status === 'running') return <span className="w-2 h-2 rounded-full bg-blue-400 inline-block animate-pulse" />;
+    if (status === 'done') return <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />;
+    return <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />;
+  };
+
+  return (
+    <div className="p-6 flex flex-col gap-6 max-w-3xl">
+      <div>
+        <h3 className="font-semibold text-gray-800 mb-1">Manual Listing Import</h3>
+        <p className="text-sm text-gray-500">
+          Pick a broker, paste one or more listing page URLs, then run the queue. Each URL is scraped individually using AI and imported as an <em>awaiting review</em> listing.
+        </p>
+      </div>
+
+      {/* Step 1 — Broker */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+          1 · Select Broker
+        </label>
+        <select
+          value={dealerId}
+          onChange={(e) => setDealerId(e.target.value)}
+          className="w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+        >
+          <option value="">— Choose a broker —</option>
+          {dealers.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.company_name || d.name} ({d.email})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Step 2 — Add URLs */}
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+          2 · Paste Listing URLs
+        </label>
+        <p className="text-xs text-gray-400 mb-2">One URL per line, or comma-separated. Must start with http.</p>
+        <textarea
+          rows={5}
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          placeholder="https://broker.com/listing/1&#10;https://broker.com/listing/2&#10;https://broker.com/listing/3"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-400 resize-y"
+        />
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={addUrls}
+            disabled={!urlInput.trim()}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-40"
+          >
+            + Add to Queue
+          </button>
+          {queue.length > 0 && (
+            <button
+              onClick={clearDone}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+            >
+              Clear Completed
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Step 3 — Queue */}
+      {queue.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              3 · Queue ({queue.length} URL{queue.length !== 1 ? 's' : ''})
+            </label>
+            <span className="text-xs text-gray-400">
+              {pendingCount} pending · {doneCount} done · {errorCount} error{errorCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 max-h-72 overflow-y-auto">
+            {queue.map((item) => (
+              <div key={item.id} className="flex items-start gap-3 px-3 py-2.5">
+                <span className="mt-1 flex-shrink-0">{statusIcon(item.status)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono text-gray-700 truncate">{item.url}</p>
+                  {item.status === 'done' && (
+                    <p className="text-xs text-green-700 mt-0.5">
+                      ✓ Imported{item.title ? `: ${item.title}` : ''}{item.listingId ? ` (#${item.listingId})` : ''}
+                    </p>
+                  )}
+                  {item.status === 'error' && (
+                    <p className="text-xs text-red-600 mt-0.5">✗ {item.error}</p>
+                  )}
+                </div>
+                {item.status === 'pending' && (
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors"
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              onClick={runQueue}
+              disabled={running || pendingCount === 0 || !dealerId}
+              className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-40"
+            >
+              <Play size={14} />
+              {running ? 'Running…' : `Run Queue (${pendingCount} pending)`}
+            </button>
+            {batchMsg && (
+              <span className="text-xs text-gray-600">{batchMsg}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {queue.length === 0 && (
+        <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-gray-400">
+          <p className="text-sm">No URLs in queue. Paste listing URLs above and click <strong>Add to Queue</strong>.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 function LogPanel({ logs, loading }: { logs: LogLine[]; loading: boolean }) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -178,7 +407,7 @@ function fmtDate(iso?: string) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -625,6 +854,9 @@ export default function AdminScraperTab() {
           </button>
           <button onClick={() => setSection('specs')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'specs' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             Specs DB
+          </button>
+          <button onClick={() => setSection('manual')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'manual' ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Manual Import
           </button>
         </div>
       </div>
@@ -1430,6 +1662,9 @@ export default function AdminScraperTab() {
 
       {/* ══ SPECS DATABASE ═════════════════════════════════════════════════ */}
       {section === 'specs' && <BoatSpecsSection apiUrl={apiUrl} authHeaders={authHeaders} />}
+
+      {/* ══ MANUAL IMPORT ══════════════════════════════════════════════════ */}
+      {section === 'manual' && <ManualImportSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (

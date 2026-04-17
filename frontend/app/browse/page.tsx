@@ -576,7 +576,38 @@ function BrowseContent() {
 
       {/* ══════ COMPACT AI SEARCH BAR ══════ */}
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid rgba(16,33,79,0.06)' }}>
-        <div className="mx-auto" style={{ maxWidth: 1440, padding: '10px 24px' }}>
+        <div className="mx-auto" style={{ maxWidth: 1440, padding: '14px 24px' }}>
+          {/* Heading row */}
+          <div className="flex items-center justify-between mb-3" style={{ maxWidth: 960, margin: '0 auto 10px auto' }}>
+            <h2
+              style={{
+                fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                fontSize: 'clamp(17px, 1.4vw, 22px)',
+                fontWeight: 400,
+                color: '#10214F',
+                lineHeight: 1.2,
+              }}
+            >
+              Skip the Filters
+            </h2>
+            <span
+              className="inline-flex items-center gap-1.5"
+              style={{
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 11,
+                color: '#01BBDC',
+                fontWeight: 500,
+                letterSpacing: '0.02em',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 30 30" fill="none" aria-hidden="true">
+                <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
+                <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
+                <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
+              </svg>
+              Powered by YachtVersal AI — understands natural language queries
+            </span>
+          </div>
           <form
             onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } }}
             className="flex items-center gap-2 mx-auto"
