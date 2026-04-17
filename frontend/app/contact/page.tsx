@@ -113,7 +113,7 @@ export default function ContactPage() {
           `}</style>
 
           {/* ── Left: Form ─────────────────────────────────────────────── */}
-          <div style={{ background: '#fff', borderRadius: 16, padding: '40px 36px', boxShadow: '0 2px 16px rgba(0,0,0,0.07)' }}>
+          <div style={{ background: '#fff', borderRadius: 6, padding: '40px 36px', boxShadow: '0 2px 16px rgba(0,0,0,0.07)' }}>
             <h2 style={{ color: '#10214F', fontSize: 22, fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', margin: '0 0 24px' }}>
               Send Us a Message
             </h2>
@@ -127,7 +127,7 @@ export default function ContactPage() {
                 <p style={{ color: '#6b7280', lineHeight: 1.6, marginBottom: 24 }}>{success}</p>
                 <button
                   onClick={() => setSuccess('')}
-                  style={{ background: '#01BBDC', color: '#fff', padding: '10px 28px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}
+                  style={{ background: '#01BBDC', color: '#fff', padding: '10px 28px', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 600, fontFamily: 'Poppins, sans-serif' }}
                 >
                   Send Another Message
                 </button>
@@ -148,7 +148,7 @@ export default function ContactPage() {
                       onChange={e => setName(e.target.value)}
                       placeholder="John Smith"
                       required
-                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                     />
                   </div>
                   <div>
@@ -161,7 +161,7 @@ export default function ContactPage() {
                       onChange={e => setEmail(e.target.value)}
                       placeholder="john@example.com"
                       required
-                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                     />
                   </div>
                 </div>
@@ -177,7 +177,7 @@ export default function ContactPage() {
                       value={company}
                       onChange={e => setCompany(e.target.value)}
                       placeholder="Your brokerage name"
-                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                     />
                   </div>
                   <div>
@@ -189,7 +189,7 @@ export default function ContactPage() {
                       value={phone}
                       onChange={e => setPhone(e.target.value)}
                       placeholder="+1 (555) 000-0000"
-                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                     />
                   </div>
                 </div>
@@ -202,7 +202,7 @@ export default function ContactPage() {
                   <select
                     value={subject}
                     onChange={e => setSubject(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', backgroundColor: '#fff', fontFamily: 'inherit' }}
+                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', backgroundColor: '#fff', fontFamily: 'inherit' }}
                   >
                     {SUBJECTS.map(s => <option key={s}>{s}</option>)}
                   </select>
@@ -219,13 +219,13 @@ export default function ContactPage() {
                     placeholder="Tell us how we can help..."
                     required
                     rows={5}
-                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10, fontSize: 15, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
                   />
                 </div>
 
                 {/* Error */}
                 {error && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fecaca', padding: '12px 16px', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fecaca', padding: '12px 16px', borderRadius: 6 }}>
                     <AlertCircle size={18} style={{ color: '#dc2626', flexShrink: 0 }} />
                     <p style={{ margin: 0, color: '#dc2626', fontSize: 14 }}>{error}</p>
                   </div>
@@ -243,7 +243,7 @@ export default function ContactPage() {
                     background: loading ? '#9ca3af' : '#01BBDC',
                     color: '#fff',
                     padding: '13px 28px',
-                    borderRadius: 12,
+                    borderRadius: 6,
                     border: 'none',
                     fontSize: 16,
                     fontWeight: 600,
@@ -270,13 +270,13 @@ export default function ContactPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {/* General contact */}
-            <div style={{ background: '#fff', borderRadius: 16, padding: '28px 28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ background: '#fff', borderRadius: 6, padding: '28px 28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
               <h3 style={{ color: '#10214F', fontSize: 16, fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', margin: '0 0 20px', fontWeight: 700 }}>
                 Contact Information
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 6, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Mail size={18} style={{ color: '#01BBDC' }} />
                   </div>
                   <div>
@@ -288,7 +288,7 @@ export default function ContactPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 6, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Clock size={18} style={{ color: '#01BBDC' }} />
                   </div>
                   <div>
@@ -298,7 +298,7 @@ export default function ContactPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 6, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Phone size={18} style={{ color: '#01BBDC' }} />
                   </div>
                   <div>
@@ -310,7 +310,7 @@ export default function ContactPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 6, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <MapPin size={18} style={{ color: '#01BBDC' }} />
                   </div>
                   <div>
@@ -320,7 +320,7 @@ export default function ContactPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 6, background: 'rgba(1,187,220,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <MapPin size={18} style={{ color: '#01BBDC' }} />
                   </div>
                   <div>
@@ -332,7 +332,7 @@ export default function ContactPage() {
             </div>
 
             {/* Dealer CTA */}
-            <div style={{ background: '#10214F', borderRadius: 16, padding: '28px 28px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: '#10214F', borderRadius: 6, padding: '28px 28px', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: '50%', background: 'rgba(1,187,220,0.15)' }} />
               <div style={{ position: 'relative', zIndex: 1 }}>
                 <h3 style={{ color: '#fff', fontSize: 16, fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', margin: '0 0 10px', fontWeight: 700 }}>
@@ -348,7 +348,7 @@ export default function ContactPage() {
                     background: '#01BBDC',
                     color: '#fff',
                     padding: '10px 22px',
-                    borderRadius: 10,
+                    borderRadius: 6,
                     textDecoration: 'none',
                     fontSize: 14,
                     fontWeight: 600,
@@ -361,7 +361,7 @@ export default function ContactPage() {
             </div>
 
             {/* FAQ note */}
-            <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+            <div style={{ background: '#fff', borderRadius: 6, padding: '24px 28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
               <h3 style={{ color: '#10214F', fontSize: 15, fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', margin: '0 0 10px', fontWeight: 700 }}>
                 Looking for quick answers?
               </h3>

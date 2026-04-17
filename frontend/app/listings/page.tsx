@@ -61,7 +61,7 @@ function AISearchBox({
       className="bg-secondary w-full"
       style={{
         boxShadow: '0px 1px 10.2px rgba(0,0,0,0.15)',
-        borderRadius: 24,
+        borderRadius: 6,
         padding: 'clamp(20px, 3vw, 36px) clamp(16px, 3vw, 40px)',
       }}
     >
@@ -145,7 +145,7 @@ function AISearchBox({
             fontSize: 16,
             lineHeight: '24px',
             fontWeight: 500,
-            borderRadius: 12,
+            borderRadius: 6,
             width: 121,
             height: 56,
             flexShrink: 0,
@@ -486,7 +486,7 @@ function UnifiedListingsContent() {
               style={{
                 backgroundColor: '#01BBDC',
                 color: '#FFFFFF',
-                borderRadius: 12,
+                borderRadius: 6,
                 fontFamily: 'Poppins, sans-serif',
                 fontSize: 14,
               }}
@@ -500,7 +500,7 @@ function UnifiedListingsContent() {
               className="lg:hidden flex items-center gap-2 px-4 py-2 text-sm font-medium"
               style={{
                 border: '1px solid rgba(0,0,0,0.1)',
-                borderRadius: 12,
+                borderRadius: 6,
                 color: '#10214F',
                 fontFamily: 'Poppins, sans-serif',
               }}
@@ -536,7 +536,7 @@ function UnifiedListingsContent() {
                     type="button"
                     onClick={() => setSortOpen((v) => !v)}
                     className="w-full flex items-center justify-between py-2.5 px-4 font-medium transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 12, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
+                    style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 6, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
                   >
                     <span>{SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Nearest First'}</span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${sortOpen ? 'rotate-180' : ''}`} />
@@ -1002,7 +1002,7 @@ function UnifiedListingsContent() {
                         className="focus:outline-none"
                         style={{
                           border: '1px solid rgba(16,33,79,0.15)',
-                          borderRadius: 8,
+                          borderRadius: 6,
                           padding: '4px 8px',
                           fontSize: 13,
                           fontFamily: 'Poppins, sans-serif',

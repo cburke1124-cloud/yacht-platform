@@ -128,7 +128,7 @@ function FAQAccordion() {
                   key={itemId}
                   style={{
                     background: '#fff',
-                    borderRadius: 12,
+                    borderRadius: 6,
                     border: '1px solid #e5e7eb',
                     overflow: 'hidden',
                     transition: 'all 0.2s ease',
@@ -241,7 +241,7 @@ export default function FAQPage() {
           marginTop: 80,
           padding: '40px 36px',
           background: '#fff',
-          borderRadius: 16,
+          borderRadius: 6,
           boxShadow: '0 2px 16px rgba(0,0,0,0.07)',
           textAlign: 'center',
         }}>

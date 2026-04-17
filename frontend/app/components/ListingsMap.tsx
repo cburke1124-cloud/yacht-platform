@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useRef } from 'react';
 
@@ -151,7 +151,7 @@ export default function ListingsMap({ listings }: Props) {
   return (
     <div
       style={{
-        borderRadius: 16,
+        borderRadius: 6,
         overflow: 'hidden',
         border: '1px solid rgba(0,0,0,0.1)',
         boxShadow: '0 2px 12px rgba(0,0,0,0.08)',

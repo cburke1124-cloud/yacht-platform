@@ -62,7 +62,7 @@ function StepCard({
       style={{
         backgroundColor: '#FFFFFF',
         border: '1px solid rgba(0, 0, 0, 0.1)',
-        borderRadius: 12,
+        borderRadius: 6,
         paddingBottom: 16,
       }}
     >
@@ -472,7 +472,7 @@ export default function HomePage() {
                 fontSize: 16,
                 lineHeight: '24px',
                 fontWeight: 500,
-                borderRadius: 12,
+                borderRadius: 6,
                 height: 48,
                 paddingLeft: 22,
                 paddingRight: 22,

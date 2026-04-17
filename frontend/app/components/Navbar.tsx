@@ -479,14 +479,14 @@ export default function Navbar() {
                 <Link
                   href="/login/buyer"
                   className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: '#10214F', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
+                  style={{ backgroundColor: '#10214F', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
                 >
                   Buyer Sign In
                 </Link>
                 <Link
                   href="/login/seller"
                   className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: '#01BBDC', borderRadius: 12, fontFamily: 'Poppins, sans-serif' }}
+                  style={{ backgroundColor: '#01BBDC', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
                 >
                   Seller Sign In
                 </Link>

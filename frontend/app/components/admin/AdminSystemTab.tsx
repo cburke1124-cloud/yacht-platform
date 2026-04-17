@@ -157,7 +157,7 @@ function LogsTab() {
           onChange={e => setSearch(e.target.value)}
           placeholder="Search messages…"
           style={{
-            padding: '6px 12px', borderRadius: 8, border: '1px solid #334155',
+            padding: '6px 12px', borderRadius: 6, border: '1px solid #334155',
             background: '#0f172a', color: '#e2e8f0', fontSize: 13, width: 220,
           }}
         />
@@ -167,7 +167,7 @@ function LogsTab() {
           value={limit}
           onChange={e => setLimit(Number(e.target.value))}
           style={{
-            padding: '6px 10px', borderRadius: 8, border: '1px solid #334155',
+            padding: '6px 10px', borderRadius: 6, border: '1px solid #334155',
             background: '#0f172a', color: '#e2e8f0', fontSize: 13,
           }}
         >
@@ -204,7 +204,7 @@ function LogsTab() {
       {/* Log table */}
       <div style={{
         background: '#0a0f1a',
-        borderRadius: 10,
+        borderRadius: 6,
         border: '1px solid #1e293b',
         overflow: 'hidden',
         fontFamily: 'monospace',
@@ -323,7 +323,7 @@ function HealthTab() {
     <div style={{
       background: '#0f172a',
       border: '1px solid #1e293b',
-      borderRadius: 12,
+      borderRadius: 6,
       padding: 20,
       minWidth: 260,
     }}>
@@ -476,7 +476,7 @@ function ApiTesterTab() {
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '10px 16px',
               background: '#0f172a',
-              borderRadius: 8,
+              borderRadius: 6,
               border: '1px solid #1e293b',
             }}>
               <button
@@ -577,7 +577,7 @@ function EnvironmentTab() {
         <div style={{
           background: '#0f172a',
           border: '1px solid #1e293b',
-          borderRadius: 12,
+          borderRadius: 6,
           overflow: 'hidden',
         }}>
           {/* Header */}
@@ -636,7 +636,7 @@ function EnvironmentTab() {
 function btnStyle(bg: string, disabled = false): React.CSSProperties {
   return {
     padding: '7px 16px',
-    borderRadius: 8,
+    borderRadius: 6,
     border: 'none',
     cursor: disabled ? 'not-allowed' : 'pointer',
     fontSize: 13,

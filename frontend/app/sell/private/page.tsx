@@ -315,7 +315,7 @@ export default function SellPrivatePage() {
                           transform: 'translateX(-50%)',
                           top: 0,
                           backgroundColor: '#01BBDC',
-                          borderRadius: 12,
+                          borderRadius: 6,
                           width: 118,
                           height: 48,
                           zIndex: 2,
@@ -341,7 +341,7 @@ export default function SellPrivatePage() {
                           backgroundColor: '#FFFFFF',
                           border: '1px solid #01BBDC',
                           boxShadow: '0px 0px 4px rgba(0,0,0,0.25)',
-                          borderRadius: 12,
+                          borderRadius: 6,
                           minHeight: 403,
                           paddingTop: 40,
                           paddingLeft: 32,
@@ -407,7 +407,7 @@ export default function SellPrivatePage() {
                               fontSize: 18,
                               lineHeight: '22px',
                               fontWeight: 600,
-                              borderRadius: 12,
+                              borderRadius: 6,
                               height: 48,
                             }}
                           >
@@ -425,7 +425,7 @@ export default function SellPrivatePage() {
                               fontSize: 18,
                               lineHeight: '22px',
                               fontWeight: 600,
-                              borderRadius: 12,
+                              borderRadius: 6,
                               height: 48,
                             }}
                           >
@@ -486,7 +486,7 @@ export default function SellPrivatePage() {
                 style={{
                   backgroundColor: '#FFFFFF',
                   border: '1px solid rgba(16,33,79,0.1)',
-                  borderRadius: 12,
+                  borderRadius: 6,
                   padding: 32,
                   minHeight: 269,
                   gap: 16,
@@ -523,7 +523,7 @@ export default function SellPrivatePage() {
               style={{
                 backgroundColor: '#FFFFFF',
                 border: '1px solid rgba(16,33,79,0.1)',
-                borderRadius: 12,
+                borderRadius: 6,
                 padding: 32,
                 minHeight: 269,
               }}
@@ -578,7 +578,7 @@ export default function SellPrivatePage() {
                 <div className="w-full lg:w-1/2">
                   <div
                     className="relative w-full overflow-hidden"
-                    style={{ aspectRatio: '636 / 344', borderRadius: 12, backgroundColor: '#F0FEFF' }}
+                    style={{ aspectRatio: '636 / 344', borderRadius: 6, backgroundColor: '#F0FEFF' }}
                   >
                     <Image
                       src={step.image}
@@ -730,7 +730,7 @@ export default function SellPrivatePage() {
                 fontSize: 16,
                 lineHeight: '24px',
                 fontWeight: 500,
-                borderRadius: 12,
+                borderRadius: 6,
                 width: 278,
                 height: 48,
               }}

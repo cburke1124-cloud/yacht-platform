@@ -210,7 +210,7 @@ function RangeInputs({
 const rangeInputStyle: React.CSSProperties = {
   padding: '7px 10px',
   border: '1.5px solid rgba(16,33,79,0.15)',
-  borderRadius: 8,
+  borderRadius: 6,
   fontSize: 13,
   fontFamily: 'Poppins, sans-serif',
   color: '#10214F',
@@ -616,7 +616,7 @@ function BrowseContent() {
                   paddingLeft: 36,
                   paddingRight: 12,
                   border: '1.5px solid rgba(16,33,79,0.15)',
-                  borderRadius: 10,
+                  borderRadius: 6,
                   fontSize: 14,
                   fontFamily: 'Poppins, sans-serif',
                   color: '#10214F',
@@ -639,7 +639,7 @@ function BrowseContent() {
                   backgroundColor: searchType === 'basic' ? '#FFFFFF' : 'transparent',
                   color: searchType === 'basic' ? '#10214F' : 'rgba(16,33,79,0.5)',
                   boxShadow: searchType === 'basic' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                  borderRadius: 9,
+                  borderRadius: 6,
                   margin: 2,
                 }}
               >
@@ -654,7 +654,7 @@ function BrowseContent() {
                   backgroundColor: searchType === 'ai' ? '#01BBDC' : 'transparent',
                   color: searchType === 'ai' ? '#FFFFFF' : 'rgba(16,33,79,0.5)',
                   boxShadow: searchType === 'ai' ? '0 1px 4px rgba(1,187,220,0.3)' : 'none',
-                  borderRadius: 9,
+                  borderRadius: 6,
                   margin: 2,
                 }}
               >
@@ -689,7 +689,7 @@ function BrowseContent() {
                   fontFamily: 'Poppins, sans-serif',
                   fontSize: 13,
                   border: '1.5px solid rgba(16,33,79,0.15)',
-                  borderRadius: 10,
+                  borderRadius: 6,
                   padding: '6px 10px',
                   color: '#10214F',
                   backgroundColor: '#FAFAFA',
@@ -712,7 +712,7 @@ function BrowseContent() {
                   fontFamily: 'Poppins, sans-serif',
                   fontSize: 13,
                   border: '1.5px solid rgba(16,33,79,0.15)',
-                  borderRadius: 10,
+                  borderRadius: 6,
                   padding: '6px 10px',
                   color: '#10214F',
                   backgroundColor: '#FAFAFA',
