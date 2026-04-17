@@ -54,7 +54,7 @@ function NavDropdown({
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 hover:text-primary transition-colors"
-        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 14, color: '#10214F', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}
+        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 14, color: '#10214F', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}
       >
         {label}
         <ChevronDown
@@ -74,7 +74,7 @@ function NavDropdown({
               href={item.href}
               onClick={() => setOpen(false)}
               className="block px-5 py-3 transition-colors hover:bg-gray-50"
-              style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 14, textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}
+              style={{ color: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 14, textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}
             >
               {item.label}
             </Link>
@@ -272,7 +272,7 @@ export default function Navbar() {
     { label: 'Contact', href: '/contact' },
   ];
 
-  const navLinkStyle = { fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 14, color: '#10214F', textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
+  const navLinkStyle = { fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 14, color: '#10214F', textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
   const isDashboard = pathname?.startsWith('/dashboard');
 
   return (

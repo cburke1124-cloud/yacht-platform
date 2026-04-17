@@ -365,7 +365,6 @@ function BrowseContent() {
   const [makes, setMakes] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const moreFiltersRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
   const searchBarRef = useRef<HTMLDivElement>(null);
 
@@ -438,16 +437,6 @@ function BrowseContent() {
         () => {}
       );
     }
-  }, []);
-
-  // Close "more filters" on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (moreFiltersRef.current && !moreFiltersRef.current.contains(e.target as Node))
-        setMoreFiltersOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   // Fetch
@@ -577,37 +566,21 @@ function BrowseContent() {
       {/* ══════ COMPACT AI SEARCH BAR ══════ */}
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid rgba(16,33,79,0.06)' }}>
         <div className="mx-auto" style={{ maxWidth: 1440, padding: '14px 24px' }}>
-          {/* Heading row */}
-          <div className="flex items-center justify-between mb-3" style={{ maxWidth: 960, margin: '0 auto 10px auto' }}>
-            <h2
-              style={{
-                fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                fontSize: 'clamp(17px, 1.4vw, 22px)',
-                fontWeight: 400,
-                color: '#10214F',
-                lineHeight: 1.2,
-              }}
-            >
-              Skip the Filters
-            </h2>
-            <span
-              className="inline-flex items-center gap-1.5"
-              style={{
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 11,
-                color: '#01BBDC',
-                fontWeight: 500,
-                letterSpacing: '0.02em',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 30 30" fill="none" aria-hidden="true">
-                <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
-                <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
-                <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
-              </svg>
-              Powered by YachtVersal AI — understands natural language queries
-            </span>
-          </div>
+          {/* Heading — centred */}
+          <h2
+            className="text-center"
+            style={{
+              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+              fontSize: 'clamp(17px, 1.4vw, 22px)',
+              fontWeight: 400,
+              color: '#10214F',
+              lineHeight: 1.2,
+              maxWidth: 960,
+              margin: '0 auto 8px auto',
+            }}
+          >
+            Skip the Filters
+          </h2>
           <form
             onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } }}
             className="flex items-center gap-2 mx-auto"
@@ -663,6 +636,26 @@ function BrowseContent() {
               AI Search
             </button>
           </form>
+          {/* Badge — centred below search input */}
+          <div className="flex justify-center" style={{ maxWidth: 960, margin: '7px auto 0 auto' }}>
+            <span
+              className="inline-flex items-center gap-1.5"
+              style={{
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 11,
+                color: '#01BBDC',
+                fontWeight: 500,
+                letterSpacing: '0.02em',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 30 30" fill="none" aria-hidden="true">
+                <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
+                <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
+                <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
+              </svg>
+              Powered by YachtVersal AI — understands natural language queries
+            </span>
+          </div>
         </div>
       </div>
 
@@ -680,67 +673,10 @@ function BrowseContent() {
           className="mx-auto"
           style={{ maxWidth: 1440, padding: '12px 24px' }}
         >
-          {/* Row 1: currency, sort, save */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex items-center gap-2 ml-auto flex-shrink-0">
-              {/* Currency */}
-              <select
-                value={currency}
-                onChange={(e) => { setCurrency(e.target.value); localStorage.setItem('preferredCurrency', e.target.value); }}
-                className="focus:outline-none"
-                style={{
-                  fontFamily: 'Poppins, sans-serif',
-                  fontSize: 13,
-                  border: '1.5px solid rgba(16,33,79,0.15)',
-                  borderRadius: 6,
-                  padding: '6px 10px',
-                  color: '#10214F',
-                  backgroundColor: '#FAFAFA',
-                }}
-              >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-
-              {/* Sort */}
-              <select
-                value={sort}
-                onChange={(e) => {
-                  const newSort = e.target.value;
-                  setSort(newSort);
-                  setPage(0);
-                  fetchListings(false, 0, newSort, pageSize);
-                }}
-                className="focus:outline-none"
-                style={{
-                  fontFamily: 'Poppins, sans-serif',
-                  fontSize: 13,
-                  border: '1.5px solid rgba(16,33,79,0.15)',
-                  borderRadius: 6,
-                  padding: '6px 10px',
-                  color: '#10214F',
-                  backgroundColor: '#FAFAFA',
-                }}
-              >
-                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {/* Save search */}
-              <button
-                onClick={handleSaveSearch}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-opacity hover:opacity-90 flex-shrink-0"
-                style={{
-                  backgroundColor: '#10214F',
-                  color: '#FFFFFF',
-                  fontFamily: 'Poppins, sans-serif',
-                }}
-              >
-                <Save size={13} />
-                Save
-              </button>
-            </div>
-          </div>
-
-          {/* Row 2: filter chips row */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Filter + controls — single row */}
+          <div className="flex items-start gap-3">
+            {/* Filter chips */}
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
             {/* Condition */}
             <FilterDropdown
               label="Condition"
@@ -909,80 +845,24 @@ function BrowseContent() {
               </div>
             </FilterDropdown>
 
-            {/* More filters */}
-            <div ref={moreFiltersRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setMoreFiltersOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-                style={{
-                  fontFamily: 'Poppins, sans-serif',
-                  border: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
-                    ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
-                  backgroundColor: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
-                    ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
-                  color: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
-                    ? '#01BBDC' : '#10214F',
-                }}
-              >
-                <SlidersHorizontal size={13} />
-                More
-              </button>
-
-              {moreFiltersOpen && (
-                <div
-                  className="absolute left-0 top-full mt-1.5 z-50 rounded-2xl"
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid rgba(16,33,79,0.12)',
-                    boxShadow: '0 8px 32px rgba(16,33,79,0.14)',
-                    width: 300,
-                    padding: 20,
-                  }}
-                >
-                  <div className="space-y-4">
-                    <div>
-                      <label style={dropdownLabelStyle}>Fuel Type</label>
-                      <ToggleChips
-                        options={['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other']}
-                        value={filters.fuel}
-                        onChange={(v) => handleFilterChange('fuel', v)}
-                      />
-                    </div>
-                    <div>
-                      <label style={dropdownLabelStyle}>Hull Material</label>
-                      <ToggleChips
-                        options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fiber', 'Wood', 'Composite']}
-                        value={filters.hull_material}
-                        onChange={(v) => handleFilterChange('hull_material', v)}
-                      />
-                    </div>
-                    <div>
-                      <label style={dropdownLabelStyle}>Engine Details</label>
-                      <input
-                        type="text"
-                        value={filters.engine}
-                        onChange={(e) => handleFilterChange('engine', e.target.value)}
-                        placeholder="e.g. Twin diesel"
-                        className="w-full focus:outline-none"
-                        style={rangeInputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={dropdownLabelStyle}>Brokerage</label>
-                      <input
-                        type="text"
-                        value={filters.brokerage}
-                        onChange={(e) => handleFilterChange('brokerage', e.target.value)}
-                        placeholder="Any brokerage"
-                        className="w-full focus:outline-none"
-                        style={rangeInputStyle}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* More filters — opens left drawer */}
+            <button
+              type="button"
+              onClick={() => setMoreFiltersOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{
+                fontFamily: 'Poppins, sans-serif',
+                border: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
+                  ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
+                backgroundColor: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
+                  ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
+                color: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
+                  ? '#01BBDC' : '#10214F',
+              }}
+            >
+              <SlidersHorizontal size={13} />
+              More
+            </button>
 
             {/* Divider */}
             {hasActiveFilters && (
@@ -1000,7 +880,36 @@ function BrowseContent() {
                 Clear all
               </button>
             )}
-          </div>
+            </div>{/* end filter chips */}
+
+            {/* Controls: currency · sort · save */}
+            <div className="flex items-center gap-2 flex-shrink-0 self-start">
+              <select
+                value={currency}
+                onChange={(e) => { setCurrency(e.target.value); localStorage.setItem('preferredCurrency', e.target.value); }}
+                className="focus:outline-none"
+                style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, border: '1.5px solid rgba(16,33,79,0.15)', borderRadius: 6, padding: '6px 10px', color: '#10214F', backgroundColor: '#FAFAFA' }}
+              >
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={sort}
+                onChange={(e) => { const newSort = e.target.value; setSort(newSort); setPage(0); fetchListings(false, 0, newSort, pageSize); }}
+                className="focus:outline-none"
+                style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, border: '1.5px solid rgba(16,33,79,0.15)', borderRadius: 6, padding: '6px 10px', color: '#10214F', backgroundColor: '#FAFAFA' }}
+              >
+                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <button
+                onClick={handleSaveSearch}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-opacity hover:opacity-90 flex-shrink-0"
+                style={{ backgroundColor: '#10214F', color: '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+              >
+                <Save size={13} />
+                Save
+              </button>
+            </div>
+          </div>{/* end filter+controls row */}
 
           {/* Active filter pills */}
           {filterPills.length > 0 && (
@@ -1335,6 +1244,154 @@ function BrowseContent() {
             )}
           </>
         )}
+      </div>
+
+      {/* ══ Filter drawer — slides in from the left ══════════════════════════ */}
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/40 transition-opacity duration-200"
+        style={{ opacity: moreFiltersOpen ? 1 : 0, pointerEvents: moreFiltersOpen ? 'auto' : 'none' }}
+        onClick={() => setMoreFiltersOpen(false)}
+      />
+      {/* Panel */}
+      <div
+        className="fixed left-0 top-0 h-full z-50 overflow-y-auto"
+        style={{
+          width: 340,
+          backgroundColor: '#FFFFFF',
+          boxShadow: '4px 0 30px rgba(16,33,79,0.15)',
+          transform: moreFiltersOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between sticky top-0 bg-white z-10"
+          style={{ padding: '16px 20px', borderBottom: '1px solid rgba(16,33,79,0.08)' }}
+        >
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={16} style={{ color: '#10214F' }} />
+            <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600, color: '#10214F' }}>
+              All Filters
+            </span>
+            {filterPills.length > 0 && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                style={{ backgroundColor: '#01BBDC', color: '#FFF', fontFamily: 'Poppins, sans-serif' }}
+              >
+                {filterPills.length}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setMoreFiltersOpen(false)}
+            style={{ color: 'rgba(16,33,79,0.4)', padding: 4 }}
+            aria-label="Close filters"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label style={dropdownLabelStyle}>Condition</label>
+            <ToggleChips options={['New', 'Used']} values={['new', 'used']} value={filters.condition} onChange={(v) => handleFilterChange('condition', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Propulsion</label>
+            <ToggleChips options={['Power', 'Sail']} values={['power', 'sail']} value={filters.propulsion} onChange={(v) => { handleFilterChange('propulsion', v); handleFilterChange('boat_type', ''); }} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Type</label>
+            <div className="flex flex-wrap gap-1.5">
+              {typeOptions.map((opt) => {
+                const active = filters.boat_type === opt || filters.boat_type.split(',').includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => handleFilterChange('boat_type', active ? '' : opt)}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                    style={{ fontFamily: 'Poppins, sans-serif', border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.2)', backgroundColor: active ? '#01BBDC' : 'transparent', color: active ? '#FFF' : '#10214F' }}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Make</label>
+            <SearchableList items={makes} value={filters.make} onChange={(v) => { handleFilterChange('make', v); handleFilterChange('model', ''); }} placeholder="Search makes…" />
+          </div>
+          {filters.make && (
+            <div>
+              <label style={dropdownLabelStyle}>Model</label>
+              <SearchableList items={models} value={filters.model} onChange={(v) => handleFilterChange('model', v)} placeholder="Search models…" />
+            </div>
+          )}
+          <div>
+            <label style={dropdownLabelStyle}>Price (USD)</label>
+            <RangeInputs minVal={filters.min_price} maxVal={filters.max_price} minPlaceholder="Min" maxPlaceholder="Max" onMinChange={(v) => handleFilterChange('min_price', v)} onMaxChange={(v) => handleFilterChange('max_price', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Length (ft)</label>
+            <RangeInputs minVal={filters.min_length} maxVal={filters.max_length} minPlaceholder="Min ft" maxPlaceholder="Max ft" onMinChange={(v) => handleFilterChange('min_length', v)} onMaxChange={(v) => handleFilterChange('max_length', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Year</label>
+            <RangeInputs minVal={filters.min_year} maxVal={filters.max_year} minPlaceholder="From" maxPlaceholder="To" onMinChange={(v) => handleFilterChange('min_year', v)} onMaxChange={(v) => handleFilterChange('max_year', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Country</label>
+            <select value={filters.country} onChange={(e) => { handleFilterChange('country', e.target.value); handleFilterChange('state', ''); }} className="w-full focus:outline-none" style={rangeInputStyle}>
+              <option value="">Any country</option>
+              {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>State / Province</label>
+            {filters.country && STATES_BY_COUNTRY[filters.country] ? (
+              <select value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} className="w-full focus:outline-none" style={rangeInputStyle}>
+                <option value="">Any state</option>
+                {STATES_BY_COUNTRY[filters.country].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State / Province" className="w-full focus:outline-none" style={rangeInputStyle} />
+            )}
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>City</label>
+            <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" className="w-full focus:outline-none" style={rangeInputStyle} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Fuel Type</label>
+            <ToggleChips options={['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other']} value={filters.fuel} onChange={(v) => handleFilterChange('fuel', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Hull Material</label>
+            <ToggleChips options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fiber', 'Wood', 'Composite']} value={filters.hull_material} onChange={(v) => handleFilterChange('hull_material', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Engine Details</label>
+            <input type="text" value={filters.engine} onChange={(e) => handleFilterChange('engine', e.target.value)} placeholder="e.g. Twin diesel" className="w-full focus:outline-none" style={rangeInputStyle} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Brokerage</label>
+            <input type="text" value={filters.brokerage} onChange={(e) => handleFilterChange('brokerage', e.target.value)} placeholder="Any brokerage" className="w-full focus:outline-none" style={rangeInputStyle} />
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => { clearFilters(); setMoreFiltersOpen(false); }}
+              className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
+              style={{ backgroundColor: 'rgba(16,33,79,0.05)', color: '#10214F', fontFamily: 'Poppins, sans-serif', border: '1.5px solid rgba(16,33,79,0.15)' }}
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
