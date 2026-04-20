@@ -43,6 +43,7 @@ from app.api.routes_video_embeds import router as video_embeds_router
 from app.api.routes_media import router as media_router
 from app.api.routes_profiles import router as profiles_router
 from app.api.routes_scraper import router as scraper_router
+from app.api.routes_yachtworld import router as yachtworld_router
 
 
 
@@ -224,6 +225,7 @@ app.include_router(media_router, prefix="/api/media", tags=["media"])
 app.include_router(bulk_import_export_router, prefix="/api", tags=["bulk-import"])
 app.include_router(profiles_router, prefix="/api", tags=["profiles"])
 app.include_router(scraper_router, prefix="/api", tags=["scraper"])
+app.include_router(yachtworld_router, prefix="/api", tags=["yachtworld"])
 app.include_router(wp_sites_router, prefix="/api", tags=["wordpress-sites"])
 app.include_router(email_inbound_router, tags=["inbound"])
 app.include_router(sms_inbound_router, tags=["inbound"])

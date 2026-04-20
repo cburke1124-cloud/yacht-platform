@@ -32,8 +32,6 @@ interface ScraperJob {
   total_runs: number;
   last_error?: string;
   notes?: string;
-  feed_type?: string;      // "html" | "yachtworld_api"
-  api_key_set?: boolean;   // true when an API key is stored (key itself not returned)
   created_at?: string;
   last_run_log?: Array<{
     url: string;
@@ -628,10 +626,296 @@ function fmtDate(iso?: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// ─── Feed Jobs Section (YachtWorld / Boats Group REST API) ───────────────────
+
+interface YWJob {
+  id: number;
+  dealer_id: number;
+  salesman_id?: number;
+  site_name?: string;
+  api_endpoint: string;
+  api_key_set: boolean;
+  schedule_hours: number;
+  enabled: boolean;
+  status: string;
+  notes?: string;
+  listings_found: number;
+  listings_created: number;
+  listings_updated: number;
+  listings_removed: number;
+  total_runs: number;
+  last_error?: string;
+  last_run_at?: string;
+  next_run_at?: string;
+  created_at?: string;
+}
+
+function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; apiUrl: string; authHeaders: Record<string, string> }) {
+  const [jobs, setJobs] = useState<YWJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [actionMsg, setActionMsg] = useState('');
+  const [editingJob, setEditingJob] = useState<YWJob | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', api_endpoint: '', api_key: '', schedule_hours: '24', notes: '', enabled: true as boolean });
+
+  async function loadJobs() {
+    setLoading(true); setError('');
+    try {
+      const r = await fetch(`${apiUrl}/yachtworld/jobs`, { headers: authHeaders });
+      if (!r.ok) throw new Error(await r.text());
+      setJobs(await r.json());
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load feed jobs');
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadJobs(); }, []);
+
+  function handleStartEdit(job: YWJob) {
+    setEditingJob(job);
+    setForm({ dealer_id: String(job.dealer_id), salesman_id: job.salesman_id ? String(job.salesman_id) : '', site_name: job.site_name || '', api_endpoint: job.api_endpoint, api_key: '', schedule_hours: String(job.schedule_hours), notes: job.notes || '', enabled: job.enabled });
+    setFormError('');
+    setShowForm(true);
+  }
+
+  function handleCancelForm() {
+    setShowForm(false); setEditingJob(null);
+    setForm({ dealer_id: '', salesman_id: '', site_name: '', api_endpoint: '', api_key: '', schedule_hours: '24', notes: '', enabled: true });
+    setFormError('');
+  }
+
+  async function handleSaveJob(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
+    if (!form.api_endpoint) { setFormError('API endpoint URL is required'); return; }
+    if (!editingJob && !form.api_key) { setFormError('API key is required'); return; }
+    setFormSaving(true); setFormError('');
+    try {
+      const body: Record<string, unknown> = {
+        dealer_id: parseInt(form.dealer_id),
+        salesman_id: form.salesman_id ? parseInt(form.salesman_id) : null,
+        site_name: form.site_name || form.api_endpoint,
+        api_endpoint: form.api_endpoint,
+        schedule_hours: parseInt(form.schedule_hours) || 24,
+        notes: form.notes || null,
+        enabled: form.enabled,
+      };
+      if (form.api_key.trim()) body.api_key = form.api_key.trim();
+      if (!editingJob) body.api_key = form.api_key.trim();
+
+      const url = editingJob ? `${apiUrl}/yachtworld/jobs/${editingJob.id}` : `${apiUrl}/yachtworld/jobs`;
+      const method = editingJob ? 'PUT' : 'POST';
+      const r = await fetch(url, { method, headers: { ...authHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(await r.text());
+      await loadJobs();
+      handleCancelForm();
+      setActionMsg(editingJob ? 'Feed job updated.' : 'Feed job created.');
+      setTimeout(() => setActionMsg(''), 4000);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : 'Save failed');
+    } finally { setFormSaving(false); }
+  }
+
+  async function handleRunJob(job: YWJob) {
+    try {
+      const r = await fetch(`${apiUrl}/yachtworld/jobs/${job.id}/run`, { method: 'POST', headers: authHeaders });
+      if (!r.ok) throw new Error(await r.text());
+      setActionMsg(`Feed job "${job.site_name || job.api_endpoint}" started.`);
+      setTimeout(() => setActionMsg(''), 5000);
+      setTimeout(loadJobs, 2000);
+    } catch (e: unknown) {
+      setActionMsg(`Error: ${e instanceof Error ? e.message : 'failed'}`);
+    }
+  }
+
+  async function handleToggleJob(job: YWJob) {
+    try {
+      const r = await fetch(`${apiUrl}/yachtworld/jobs/${job.id}/toggle`, { method: 'POST', headers: authHeaders });
+      if (!r.ok) throw new Error(await r.text());
+      await loadJobs();
+    } catch (e: unknown) {
+      setActionMsg(`Error: ${e instanceof Error ? e.message : 'failed'}`);
+    }
+  }
+
+  async function handleDeleteJob(job: YWJob) {
+    if (!confirm(`Delete feed job "${job.site_name || job.api_endpoint}"?\nThis will not remove already-imported listings.`)) return;
+    try {
+      const r = await fetch(`${apiUrl}/yachtworld/jobs/${job.id}`, { method: 'DELETE', headers: authHeaders });
+      if (!r.ok) throw new Error(await r.text());
+      await loadJobs();
+    } catch (e: unknown) {
+      setActionMsg(`Error: ${e instanceof Error ? e.message : 'failed'}`);
+    }
+  }
+
+  const StatusBadge = ({ status }: { status: string }) => {
+    const map: Record<string, string> = { idle: 'bg-gray-100 text-gray-600', running: 'bg-blue-100 text-blue-700', completed: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-700' };
+    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`}>{status}</span>;
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">YachtWorld / Boats Group Feed Jobs</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Pull listings directly from the Boats Group REST API. All requests are routed through the proxy.</p>
+        </div>
+        {!showForm && (
+          <button onClick={() => { setShowForm(true); setEditingJob(null); }}
+            className="px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800">
+            + New Feed Job
+          </button>
+        )}
+      </div>
+
+      {actionMsg && <div className="mb-4 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">{actionMsg}</div>}
+
+      {showForm && (
+        <form onSubmit={handleSaveJob} className="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl">
+          <h4 className="text-sm font-semibold text-gray-800 mb-4">{editingJob ? 'Edit Feed Job' : 'New Feed Job'}</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Dealer *</label>
+              <select value={form.dealer_id} onChange={e => setForm(f => ({ ...f, dealer_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">— Select a dealer —</option>
+                {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Site Label</label>
+              <input type="text" value={form.site_name} onChange={e => setForm(f => ({ ...f, site_name: e.target.value }))}
+                placeholder="e.g. Terraglio Fleet"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">API Endpoint URL *</label>
+              <input type="url" value={form.api_endpoint} onChange={e => setForm(f => ({ ...f, api_endpoint: e.target.value }))}
+                placeholder="https://www.yachtworld.com/api/inventory/search"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+              <p className="text-xs text-gray-400 mt-1">The Boats Group REST API search endpoint. Provided by Terraglio / your Boats Group rep.</p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                API Key {editingJob ? <span className="text-gray-400 font-normal">(leave blank to keep existing)</span> : '*'}
+              </label>
+              <input type="password" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
+                placeholder={editingJob?.api_key_set ? '••••••••••••••••' : 'Boats Group / YachtWorld API key'}
+                autoComplete="off"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 font-mono" />
+              {editingJob?.api_key_set && !form.api_key && (
+                <p className="text-xs text-green-600 mt-1">✓ API key already saved — enter a new value only to rotate it.</p>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Stored server-side. Never returned to the browser after saving.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Sync Frequency</label>
+              <select value={form.schedule_hours} onChange={e => setForm(f => ({ ...f, schedule_hours: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="6">Every 6 hours</option>
+                <option value="12">Every 12 hours</option>
+                <option value="24">Daily (every 24 hours)</option>
+                <option value="48">Every 2 days</option>
+                <option value="168">Weekly</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Admin Notes</label>
+              <input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="e.g. Permission on file from Terraglio"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-4">
+            <button type="button" onClick={() => setForm(f => ({ ...f, enabled: !f.enabled }))} className="flex items-center gap-2 text-sm text-gray-700">
+              <span className={`inline-block w-10 h-5 rounded-full transition-colors ${form.enabled ? 'bg-green-500' : 'bg-gray-300'} relative`}>
+                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </span>
+              {form.enabled ? 'Enabled — runs on schedule' : 'Disabled — won\'t run automatically'}
+            </button>
+          </div>
+          {formError && <p className="mt-3 text-sm text-red-600">{formError}</p>}
+          <div className="flex gap-3 mt-4">
+            <button type="submit" disabled={formSaving}
+              className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800 disabled:opacity-50">
+              {formSaving ? 'Saving...' : editingJob ? 'Save Changes' : 'Create Feed Job'}
+            </button>
+            <button type="button" onClick={handleCancelForm}
+              className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-500 text-sm">Loading feed jobs...</div>
+      ) : error ? (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>
+      ) : jobs.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-gray-500 text-sm">No feed jobs yet. Add one above to pull listings from the Boats Group API.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {jobs.map(job => {
+            const dealer = dealers.find(d => d.id === job.dealer_id);
+            return (
+              <div key={job.id} className="border border-gray-200 rounded-xl p-4 bg-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900">{job.site_name || job.api_endpoint}</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">YW API Feed</span>
+                      <StatusBadge status={job.status} />
+                      {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                      <span>Dealer: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
+                      <span>Every {job.schedule_hours}h</span>
+                      <span>Runs: {job.total_runs}</span>
+                      {job.last_run_at && <span>Last: {fmtDate(job.last_run_at)}</span>}
+                      {job.next_run_at && job.enabled && <span>Next: {fmtDate(job.next_run_at)}</span>}
+                    </div>
+                    {job.total_runs > 0 && (
+                      <div className="mt-1 flex gap-3 text-xs text-gray-500">
+                        <span className="text-green-700">+{job.listings_created} created</span>
+                        <span className="text-blue-700">{job.listings_updated} updated</span>
+                        <span className="text-gray-500">{job.listings_removed} archived</span>
+                      </div>
+                    )}
+                    {job.last_error && <p className="mt-1 text-xs text-red-600 truncate">{job.last_error}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => handleRunJob(job)} title="Run now"
+                      className="px-3 py-1.5 text-xs bg-blue-700 text-white rounded-lg hover:bg-blue-800 font-medium">▶ Run</button>
+                    <button onClick={() => handleToggleJob(job)} title={job.enabled ? 'Disable' : 'Enable'}
+                      className={`px-3 py-1.5 text-xs rounded-lg font-medium ${job.enabled ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`}>
+                      {job.enabled ? 'Pause' : 'Enable'}
+                    </button>
+                    <button onClick={() => handleStartEdit(job)} title="Edit"
+                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">Edit</button>
+                    <button onClick={() => handleDeleteJob(job)} title="Delete"
+                      className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium">Delete</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt' | 'feeds'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -655,7 +939,7 @@ export default function AdminScraperTab() {
   // ── Add/Edit job form ──
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingJob, setEditingJob] = useState<ScraperJob | null>(null);
-  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean, feed_type: 'html', api_key: '' });
+  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [formTeamMembers, setFormTeamMembers] = useState<TeamMember[]>([]);
@@ -950,8 +1234,6 @@ export default function AdminScraperTab() {
       schedule_hours: String(job.schedule_hours),
       notes: job.notes || '',
       enabled: job.enabled,
-      feed_type: job.feed_type || 'html',
-      api_key: '',  // never pre-fill; server masks it
     });
     loadTeamMembers(String(job.dealer_id), setFormTeamMembers);
     setFormError('');
@@ -965,7 +1247,7 @@ export default function AdminScraperTab() {
   function handleCancelForm() {
     setShowAddForm(false);
     setEditingJob(null);
-    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true, feed_type: 'html', api_key: '' });
+    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true });
     setFormTeamMembers([]);
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
@@ -976,12 +1258,10 @@ export default function AdminScraperTab() {
   async function handleSaveJob(e: React.FormEvent) {
     e.preventDefault();
     if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
-    const isApiJob = form.feed_type === 'yachtworld_api';
-    if (!form.broker_url) { setFormError(isApiJob ? 'API endpoint URL is required' : 'Broker URL is required'); return; }
-    if (isApiJob && !editingJob && !form.api_key) { setFormError('API key is required for YachtWorld API jobs'); return; }
+    if (!form.broker_url) { setFormError('Broker URL is required'); return; }
     setFormSaving(true); setFormError('');
     try {
-      const body: Record<string, unknown> = {
+      const body = {
         dealer_id: parseInt(form.dealer_id),
         salesman_id: form.salesman_id ? parseInt(form.salesman_id) : null,
         site_name: form.site_name || form.broker_url,
@@ -989,10 +1269,7 @@ export default function AdminScraperTab() {
         schedule_hours: parseInt(form.schedule_hours) || 24,
         notes: form.notes || null,
         enabled: form.enabled,
-        feed_type: form.feed_type === 'yachtworld_api' ? 'yachtworld_api' : null,
       };
-      // Only send api_key when explicitly provided (empty string = no change on edit)
-      if (form.api_key.trim()) body.api_key = form.api_key.trim();
       const isEdit = !!editingJob;
       const res = await fetch(
         isEdit ? apiUrl(`/scraper/jobs/${editingJob!.id}`) : apiUrl('/scraper/jobs'),
@@ -1092,6 +1369,9 @@ export default function AdminScraperTab() {
           <button onClick={() => setSection('prompt')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'prompt' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             AI Prompts
           </button>
+          <button onClick={() => setSection('feeds')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'feeds' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Feed Jobs
+          </button>
         </div>
       </div>
 
@@ -1160,45 +1440,13 @@ export default function AdminScraperTab() {
                     placeholder="e.g. Suntex Marina Fleet"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Feed Type</label>
-                  <select value={form.feed_type} onChange={e => setForm(f => ({ ...f, feed_type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
-                    <option value="html">HTML Scraper (default)</option>
-                    <option value="yachtworld_api">YachtWorld / Boats Group API</option>
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">Use "HTML Scraper" for most brokers. Select "YachtWorld API" when the dealer has an authorized Boats Group feed.</p>
-                </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    {form.feed_type === 'yachtworld_api' ? 'API Endpoint URL *' : 'Broker Inventory URL *'}
-                  </label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Broker Inventory URL *</label>
                   <input type="url" value={form.broker_url} onChange={e => setForm(f => ({ ...f, broker_url: e.target.value }))}
-                    placeholder={form.feed_type === 'yachtworld_api'
-                      ? 'https://api.boatsgroup.com/inventory/search'
-                      : 'https://broker-website.com/inventory'}
+                    placeholder="https://broker-website.com/inventory"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {form.feed_type === 'yachtworld_api'
-                      ? 'The Boats Group REST API search endpoint. Terraglio / your Boats Group rep will provide this URL.'
-                      : "The broker's main listings/inventory page. The scraper crawls it to discover all individual listing URLs."}
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">The broker's main listings/inventory page. The scraper crawls it to discover all individual listing URLs.</p>
                 </div>
-                {form.feed_type === 'yachtworld_api' && (
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      API Key {editingJob ? <span className="text-gray-400 font-normal">(leave blank to keep existing)</span> : '*'}
-                    </label>
-                    <input type="password" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
-                      placeholder={editingJob?.api_key_set ? '••••••••••••••••' : 'Boats Group / YachtWorld API key'}
-                      autoComplete="off"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary font-mono" />
-                    {editingJob?.api_key_set && !form.api_key && (
-                      <p className="text-xs text-green-600 mt-1">✓ API key already saved — enter a new value only to rotate it.</p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">Stored securely. Never returned to the browser after saving.</p>
-                  </div>
-                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Sync Frequency</label>
                   <select value={form.schedule_hours} onChange={e => setForm(f => ({ ...f, schedule_hours: e.target.value }))}
@@ -1517,9 +1765,6 @@ export default function AdminScraperTab() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-900">{job.site_name || job.broker_url}</span>
-                    {job.feed_type === 'yachtworld_api' && (
-                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">YW API</span>
-                    )}
                             <StatusBadge status={job.status} />
                             {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
                           </div>
@@ -1937,6 +2182,9 @@ export default function AdminScraperTab() {
 
       {/* ══ AI PROMPTS ═════════════════════════════════════════════════════ */}
       {section === 'prompt' && <PromptEditorSection apiUrl={apiUrl} authHeaders={authHeaders} />}
+
+      {/* ══ FEED JOBS (YachtWorld / Boats Group REST API) ══════════════════ */}
+      {section === 'feeds' && <FeedJobsSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (

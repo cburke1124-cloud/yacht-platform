@@ -127,11 +127,7 @@ class ScraperJob(Base):
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # admin who configured this
 
     site_name = Column(String)                        # friendly label e.g. "Suntex Marina Fleet"
-    broker_url = Column(String, nullable=False)        # inventory/listings page URL (or API base URL for api feeds)
-
-    # Feed type: NULL / "html" = HTML scraper (default); "yachtworld_api" = Boats Group REST API
-    feed_type = Column(String, nullable=True)
-    api_key = Column(String, nullable=True)            # API key for feed_type="yachtworld_api"
+    broker_url = Column(String, nullable=False)        # inventory/listings page URL
 
     # State
     enabled = Column(Boolean, default=True)            # whether the scheduler should auto-run this
@@ -539,3 +535,44 @@ class WebhookLog(Base):
     
     sent_at = Column(DateTime, default=datetime.utcnow)
     retry_count = Column(Integer, default=0)
+
+class YachtworldSyncJob(Base):
+    """Standalone YachtWorld / Boats Group REST API feed job.
+
+    Runs completely independently of the HTML scraper system.
+    All requests MUST go through the proxy (enforced in the service layer).
+    """
+    __tablename__ = "yachtworld_sync_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dealer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    salesman_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    site_name = Column(String)                      # friendly label e.g. "Terraglio Fleet"
+    api_endpoint = Column(String, nullable=False)   # Boats Group REST API search URL
+    api_key = Column(String, nullable=False)        # API key (stored as-is; no client-side exposure)
+
+    # State
+    enabled = Column(Boolean, default=True)
+    status = Column(String, default="idle")         # idle | running | completed | failed
+
+    # Schedule
+    schedule_hours = Column(Integer, default=24)
+    next_run_at = Column(DateTime)
+    last_run_at = Column(DateTime)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+
+    # Last-run counters
+    listings_found = Column(Integer, default=0)
+    listings_created = Column(Integer, default=0)
+    listings_updated = Column(Integer, default=0)
+    listings_removed = Column(Integer, default=0)
+    total_runs = Column(Integer, default=0)
+
+    last_error = Column(Text)
+    notes = Column(Text)
+    last_run_log = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)

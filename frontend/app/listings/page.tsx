@@ -1,14 +1,16 @@
-'use client';
+﻿'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import { Search, Sparkles, Save, SlidersHorizontal, X, AlertTriangle, ChevronDown } from 'lucide-react';
+import {
+  Search, Sparkles, Save, X, AlertTriangle, ChevronDown,
+  SlidersHorizontal, MapPin, ChevronLeft, ChevronRight,
+} from 'lucide-react';
 import ListingCard from '../components/ListingCard';
 import { apiUrl } from '@/app/lib/apiRoot';
 import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 
-const ListingsMap = dynamic(() => import('../components/ListingsMap'), { ssr: false });
+// ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 interface Listing {
   id: number;
@@ -26,7 +28,7 @@ interface Listing {
   latitude?: number;
   longitude?: number;
   cabins?: number;
-  images: Array<{ url: string }>;
+  images: Array<{ url: string } | string>;
   condition: string;
   featured: boolean;
   match_score?: number;
@@ -37,1103 +39,187 @@ interface Listing {
     company_name?: string;
     slug?: string;
     logo_url?: string;
+    photo?: string;
   };
 }
 
-// ─── AI Search Box (same design as homepage) ─────────────────────────────────
-
-function AISearchBox({
-  query,
-  setQuery,
-  onSearch,
-}: {
-  query: string;
-  setQuery: (v: string) => void;
-  onSearch: () => void;
-}) {
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearch();
-  };
-
-  return (
-    <div
-      className="bg-secondary w-full"
-      style={{
-        boxShadow: '0px 1px 10.2px rgba(0,0,0,0.15)',
-        borderRadius: 6,
-        padding: 'clamp(20px, 3vw, 36px) clamp(16px, 3vw, 40px)',
-      }}
-    >
-      {/* Heading */}
-      <h2
-        className="text-center font-normal"
-        style={{
-          color: '#FFFFFF',
-          fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-          fontSize: 'clamp(22px, 2.5vw, 40px)',
-          lineHeight: '1.2',
-          fontWeight: 400,
-          marginBottom: 10,
-        }}
-      >
-        Skip the Filters - Find the Yacht
-      </h2>
-
-      <p
-        className="text-center"
-        style={{
-          color: '#FFFFFF',
-          fontFamily: 'Poppins, sans-serif',
-          fontSize: 16,
-          lineHeight: '24px',
-          marginBottom: 28,
-        }}
-      >
-        Our AI-powered search goes beyond basic filters. Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
-      </p>
-
-      {/* Search row */}
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center gap-3 mx-auto"
-        style={{ maxWidth: 799 }}
-        role="search"
-        aria-label="Yacht AI search"
-      >
-        <label htmlFor="listing-ai-search" className="sr-only">
-          Describe your ideal yacht
-        </label>
-        <div className="relative flex-1">
-          <input
-            id="listing-ai-search"
-            type="search"
-            placeholder="Describe your ideal yacht..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full focus:outline-none"
-            style={{
-              height: 56,
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 6,
-              backgroundColor: 'rgba(255,255,255,0.08)',
-              paddingLeft: 20,
-              paddingRight: 52,
-              fontSize: 14,
-              lineHeight: '21px',
-              fontFamily: 'Poppins, sans-serif',
-              color: '#FFFFFF',
-            }}
-          />
-          {/* Spark icon */}
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-              <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
-              <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
-              <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
-            </svg>
-          </span>
-        </div>
-
-        <button
-          type="submit"
-          aria-label="AI search for yachts"
-          className="text-white font-medium transition-opacity hover:opacity-90 whitespace-nowrap"
-          style={{
-            backgroundColor: '#01BBDC',
-            fontFamily: 'Poppins, sans-serif',
-            fontSize: 16,
-            lineHeight: '24px',
-            fontWeight: 500,
-            borderRadius: 6,
-            width: 121,
-            height: 56,
-            flexShrink: 0,
-          }}
-        >
-          Search
-        </button>
-      </form>
-
-      {/* AI tag line */}
-      <p
-        className="text-center flex items-center justify-center gap-2"
-        style={{
-          color: '#FFFFFF',
-          fontFamily: 'Poppins, sans-serif',
-          fontSize: 16,
-          lineHeight: '24px',
-          marginTop: 24,
-        }}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 2C12 2 13.5 7 17 8.5C13.5 10 12 15 12 15C12 15 10.5 10 7 8.5C10.5 7 12 2 12 2Z" fill="#01BBDC" />
-          <path d="M19 14C19 14 19.75 16.5 21.5 17.25C19.75 18 19 20.5 19 20.5C19 20.5 18.25 18 16.5 17.25C18.25 16.5 19 14 19 14Z" fill="#01BBDC" opacity="0.6" />
-          <path d="M5 3C5 3 5.5 4.75 7 5.5C5.5 6.25 5 8 5 8C5 8 4.5 6.25 3 5.5C4.5 4.75 5 3 5 3Z" fill="#01BBDC" opacity="0.4" />
-        </svg>
-        Powered by YachtVersal AI — understands natural language queries
-      </p>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
-function UnifiedListingsContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
-  const [searchType, setSearchType] = useState<'basic' | 'ai'>('basic');
-  const [aiQuery, setAiQuery] = useState('');
-  const [sort, setSort] = useState<'nearest' | 'price_asc' | 'price_desc' | 'year_desc' | 'year_asc'>('nearest');
-  const [sortOpen, setSortOpen] = useState(false);
-  const [userLat, setUserLat] = useState<number | null>(null);
-  const [userLng, setUserLng] = useState<number | null>(null);
-  const isFirstRender = useRef(true);
-
-  const [filters, setFilters] = useState({
-    search: searchParams.get('search') || '',
-    boat_type: searchParams.get('boat_type') || '',
-    make: searchParams.get('make') || '',
-    model: searchParams.get('model') || '',
-    propulsion: searchParams.get('propulsion') || '',
-    min_price: searchParams.get('min_price') || '',
-    max_price: searchParams.get('max_price') || '',
-    min_length: searchParams.get('min_length') || '',
-    max_length: searchParams.get('max_length') || '',
-    min_year: searchParams.get('min_year') || '',
-    max_year: searchParams.get('max_year') || '',
-    state: searchParams.get('state') || '',
-    city: searchParams.get('city') || '',
-    condition: searchParams.get('condition') || '',
-    fuel: searchParams.get('fuel') || '',
-    hull_material: searchParams.get('hull_material') || '',
-    engine: searchParams.get('engine') || '',
-    brokerage: searchParams.get('brokerage') || '',
-    country: searchParams.get('country') || '',
-  });
-
-  const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Superyacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
-  const SAIL_TYPES  = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner', 'Motorsailer'];
-  const typeOptions =
-    filters.propulsion === 'power' ? POWER_TYPES :
-    filters.propulsion === 'sail'  ? SAIL_TYPES  :
-    [...POWER_TYPES, ...SAIL_TYPES];
-
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
-
-  const [currency, setCurrency] = useState('USD');
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    fetch(apiUrl('/currencies/rates'))
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.rates) setExchangeRates(data.rates); })
-      .catch(() => {});
-    const saved = localStorage.getItem('preferredCurrency');
-    if (saved) setCurrency(saved);
-  }, []);
-
-  const handleCurrencyChange = (code: string) => {
-    setCurrency(code);
-    localStorage.setItem('preferredCurrency', code);
-  };
-
-  const [makes, setMakes] = useState<string[]>([]);
-  const [models, setModels] = useState<string[]>([]);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const [makeSearch, setMakeSearch] = useState('');
-  const [modelSearch, setModelSearch] = useState('');
-  const [typeSearch, setTypeSearch] = useState('');
-  const toggleSection = (key: string) =>
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
-
-  useEffect(() => {
-    fetch(apiUrl('/listings/makes'))
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: string[]) => setMakes(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!filters.make) { setModels([]); return; }
-    fetch(apiUrl(`/listings/models?make=${encodeURIComponent(filters.make)}`))
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: string[]) => setModels(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, [filters.make]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => { fetchListings(); }, []);
-
-  // Auto-apply filters when they change (debounced 400ms, skips initial render)
-  useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-    const timer = setTimeout(() => { applyFilters(); }, 400);
-    return () => clearTimeout(timer);
-  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Request browser geolocation for nearest-first sort
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => { setUserLat(pos.coords.latitude); setUserLng(pos.coords.longitude); },
-        () => {}
-      );
-    }
-  }, []);
-
-  const fetchListings = async (isAISearch = false) => {
-    setLoading(true);
-    try {
-      let url = apiUrl('/listings?status=active&limit=2000');
-      if (isAISearch && aiQuery) {
-        url = apiUrl(`/ai/search?query=${encodeURIComponent(aiQuery)}`);
-      } else {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value) url += `&${key}=${encodeURIComponent(value)}`;
-        });
-      }
-      const response = await fetch(url);
-      const data = await response.json();
-      if (isAISearch) {
-        // AI results are wrapped: { listing: {...}, match_score, match_reasons, warnings }
-        // Flatten them so the rest of the page treats them as regular Listing objects.
-        const flat = (data.results || []).map((r: any) => ({
-          ...(r.listing || {}),
-          match_score: r.match_score,
-          match_reasons: r.match_reasons,
-          warnings: r.warnings,
-        }));
-        setListings(flat);
-      } else {
-        setListings(data.listings ?? (Array.isArray(data) ? data : []));
-      }
-      setPage(0); // reset to first page on new results
-    } catch (error) {
-      console.error('Error fetching listings:', error);
-      setListings([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFilterChange = (key: string, value: string) =>
-    setFilters((prev) => ({ ...prev, [key]: value }));
-
-  const applyFilters = async () => {
-    fetchListings(searchType === 'ai');
-  };
-
-  const clearFilters = () => {
-    setFilters({ search: '', boat_type: '', make: '', model: '', propulsion: '', min_price: '', max_price: '', min_length: '', max_length: '', min_year: '', max_year: '', state: '', city: '', condition: '', fuel: '', hull_material: '', engine: '', brokerage: '', country: '' });
-    setAiQuery('');
-    setSearchType('basic');
-    setPage(0);
-    fetchListings(false);
-  };
-
-  const handleAISearch = () => {
-    if (aiQuery.trim()) {
-      setSearchType('ai');
-      fetchListings(true);
-    }
-  };
-
-  const switchToBasicSearch = () => {
-    setSearchType('basic');
-    setAiQuery('');
-    fetchListings(false);
-  };
-
-  const handleSaveSearch = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) { alert('Please log in to save searches'); router.push('/login'); return; }
-    try {
-      const response = await fetch(apiUrl('/search-alerts'), {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `Search: ${filters.search || filters.boat_type || 'All Yachts'}`, filters }),
-      });
-      alert(response.ok ? 'Search saved successfully!' : 'Failed to save search');
-    } catch { alert('Failed to save search'); }
-  };
-
-  const SORT_OPTIONS = [
-    { value: 'nearest',    label: 'Nearest First' },
-    { value: 'price_asc',  label: 'Price: Low to High' },
-    { value: 'price_desc', label: 'Price: High to Low' },
-    { value: 'year_desc',  label: 'Year: Newest First' },
-    { value: 'year_asc',   label: 'Year: Oldest First' },
-  ];
-
-  const haversineMiles = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 3958.8;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
-
-  let processedListings = [...listings];
-  processedListings.sort((a, b) => {
-    if (sort === 'nearest' && userLat !== null && userLng !== null) {
-      const da = (a.latitude && a.longitude) ? haversineMiles(userLat, userLng, a.latitude, a.longitude) : Infinity;
-      const db = (b.latitude && b.longitude) ? haversineMiles(userLat, userLng, b.latitude, b.longitude) : Infinity;
-      return da - db;
-    }
-    if (sort === 'price_asc')  return (a.price || 0) - (b.price || 0);
-    if (sort === 'price_desc') return (b.price || 0) - (a.price || 0);
-    if (sort === 'year_desc')  return (b.year  || 0) - (a.year  || 0);
-    if (sort === 'year_asc')   return (a.year  || 0) - (b.year  || 0);
-    return 0;
-  });
-  const pinnedFeatured = processedListings.filter((l) => l.featured).slice(0, 4);
-  const pinnedIds = new Set(pinnedFeatured.map((l) => l.id));
-  const regularListings = processedListings.filter((l) => !pinnedIds.has(l.id));
-  const totalPages = Math.ceil(regularListings.length / pageSize);
-  const pagedListings = regularListings.slice(page * pageSize, (page + 1) * pageSize);
-
-  return (
-    <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          AI SEARCH CARD — sits at top of page, no hero above it
-      ══════════════════════════════════════════════════════════════════ */}
-      <div
-        className="mx-auto"
-        style={{
-          maxWidth: 1296,
-          paddingLeft: 'clamp(16px, 2vw, 0px)',
-          paddingRight: 'clamp(16px, 2vw, 0px)',
-          paddingTop: 40,
-          paddingBottom: 40,
-        }}
-      >
-        <AISearchBox query={aiQuery} setQuery={setAiQuery} onSearch={handleAISearch} />
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          MAIN CONTENT — filters sidebar + 3-col results grid
-      ══════════════════════════════════════════════════════════════════ */}
-      <div
-        className="mx-auto"
-        style={{
-          maxWidth: 1296,
-          paddingLeft: 'clamp(16px, 4vw, 0px)',
-          paddingRight: 'clamp(16px, 4vw, 0px)',
-          paddingBottom: 80,
-        }}
-      >
-        {/* Top bar: result count + sort + action buttons */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div className="flex items-center gap-4">
-            <span
-              style={{
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 16,
-                lineHeight: '24px',
-                color: '#000000',
-              }}
-            >
-              {processedListings.length.toLocaleString()} yacht{processedListings.length !== 1 ? 's' : ''} found
-              {totalPages > 1 && ` · Page ${page + 1} of ${totalPages}`}
-            </span>
-            {searchType === 'ai' && (
-              <span
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
-                style={{
-                  backgroundColor: 'rgba(1,187,220,0.1)',
-                  color: '#01BBDC',
-                  border: '1px solid rgba(1,187,220,0.3)',
-                  fontFamily: 'Poppins, sans-serif',
-                }}
-              >
-                <Sparkles size={12} />
-                AI-Ranked
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Currency selector */}
-            <select
-              value={currency}
-              onChange={(e) => handleCurrencyChange(e.target.value)}
-              className="text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white text-[#10214F] cursor-pointer"
-              style={{ fontFamily: 'Poppins, sans-serif', outline: 'none' }}
-              title="Display prices in selected currency"
-            >
-              {['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CHF', 'JPY', 'NZD', 'HKD', 'SGD', 'NOK', 'SEK', 'DKK', 'AED', 'BRL', 'MXN'].map((code) => (
-                <option key={code} value={code}>{code}</option>
-              ))}
-            </select>
-            {searchType === 'ai' && (
-              <button
-                onClick={switchToBasicSearch}
-                className="flex items-center gap-2 text-sm transition-opacity hover:opacity-70"
-                style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
-              >
-                <X size={14} /> Clear AI Search
-              </button>
-            )}
-            <button
-              onClick={handleSaveSearch}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
-              style={{
-                backgroundColor: '#01BBDC',
-                color: '#FFFFFF',
-                borderRadius: 6,
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 14,
-              }}
-            >
-              <Save size={15} />
-              Save Search
-            </button>
-            {/* Mobile filter toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="lg:hidden flex items-center gap-2 px-4 py-2 text-sm font-medium"
-              style={{
-                border: '1px solid rgba(0,0,0,0.1)',
-                borderRadius: 6,
-                color: '#10214F',
-                fontFamily: 'Poppins, sans-serif',
-              }}
-            >
-              <SlidersHorizontal size={15} />
-              {showFilters ? 'Hide Filters' : 'Filters'}
-            </button>
-          </div>
-        </div>
-
-        {/* Two-column layout: sidebar + results */}
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-
-          {/* ── FILTERS SIDEBAR ── */}
-          <div
-            className={`flex-shrink-0 w-full lg:w-[306px] ${showFilters ? 'block' : 'hidden lg:block'}`}
-          >
-            <div
-              className="sticky"
-              style={{
-                top: 16,
-                backgroundColor: '#FFFFFF',
-                border: '1px solid rgba(0,0,0,0.1)',
-                borderRadius: 6,
-              }}
-            >
-              <div className="p-4">
-
-                {/* ── Sort dropdown ── */}
-                <div className="relative mb-2">
-                  <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 11, fontWeight: 600, color: 'rgba(16,33,79,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>Sort by</p>
-                  <button
-                    type="button"
-                    onClick={() => setSortOpen((v) => !v)}
-                    className="w-full flex items-center justify-between py-2.5 px-4 font-medium transition-opacity hover:opacity-90"
-                    style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', borderRadius: 6, fontFamily: 'Poppins, sans-serif', fontSize: 14 }}
-                  >
-                    <span>{SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Nearest First'}</span>
-                    <ChevronDown size={14} className={`transition-transform duration-200 ${sortOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {sortOpen && (
-                    <div
-                      className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl overflow-hidden z-50"
-                      style={{ border: '1px solid rgba(0,0,0,0.1)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
-                    >
-                      {SORT_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-gray-50"
-                          style={{
-                            fontFamily: 'Poppins, sans-serif',
-                            color: sort === opt.value ? '#01BBDC' : '#10214F',
-                            fontWeight: sort === opt.value ? 600 : 400,
-                          }}
-                          onClick={() => { setSort(opt.value as typeof sort); setSortOpen(false); }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {Object.values(filters).some((v) => v) && (
-                  <button
-                    onClick={clearFilters}
-                    className="w-full text-sm font-medium text-center py-1.5 transition-opacity hover:opacity-70"
-                    style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-                  >
-                    Clear all filters
-                  </button>
-                )}
-                <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)', marginTop: 4 }} />
-
-                {/* ── Accordion sections ── */}
-                <div>
-
-                  <FilterAccordion label="Condition" isOpen={!!openSections.condition} onToggle={() => toggleSection('condition')}>
-                    <FilterOptions
-                      options={['New', 'Used']}
-                      values={['new', 'used']}
-                      value={filters.condition}
-                      onChange={(v) => handleFilterChange('condition', v)}
-                    />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Power / Sail" isOpen={!!openSections.propulsion} onToggle={() => toggleSection('propulsion')}>
-                    <FilterOptions
-                      options={['Power', 'Sail']}
-                      values={['power', 'sail']}
-                      value={filters.propulsion}
-                      onChange={(v) => handleFilterChange('propulsion', v)}
-                    />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Type" isOpen={!!openSections.boat_type} onToggle={() => toggleSection('boat_type')}>
-                    <FilterSearchList
-                      items={typeOptions}
-                      value={filters.boat_type}
-                      search={typeSearch}
-                      onSearchChange={setTypeSearch}
-                      onChange={(v) => handleFilterChange('boat_type', v)}
-                      placeholder="Search types…"
-                    />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Manufacturer" isOpen={!!openSections.make} onToggle={() => toggleSection('make')}>
-                    <FilterSearchList
-                      items={makes}
-                      value={filters.make}
-                      search={makeSearch}
-                      onSearchChange={setMakeSearch}
-                      onChange={(v) => {
-                        handleFilterChange('make', v);
-                        handleFilterChange('model', '');
-                        setModelSearch('');
-                      }}
-                      placeholder="Search makes…"
-                    />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Model" isOpen={!!openSections.model} onToggle={() => toggleSection('model')}>
-                    {filters.make ? (
-                      <FilterSearchList
-                        items={models}
-                        value={filters.model}
-                        search={modelSearch}
-                        onSearchChange={setModelSearch}
-                        onChange={(v) => handleFilterChange('model', v)}
-                        placeholder="Search models…"
-                        emptyMsg={models.length === 0 ? 'Loading…' : 'No models found'}
-                      />
-                    ) : (
-                      <p style={{ fontSize: 13, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif', padding: '4px 2px 8px' }}>
-                        Select a manufacturer first
-                      </p>
-                    )}
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Price" isOpen={!!openSections.price} onToggle={() => toggleSection('price')}>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" value={filters.min_price} onChange={(e) => handleFilterChange('min_price', e.target.value)} placeholder="Min ($)" style={accInputStyle} className="focus:outline-none" />
-                      <input type="number" value={filters.max_price} onChange={(e) => handleFilterChange('max_price', e.target.value)} placeholder="Max ($)" style={accInputStyle} className="focus:outline-none" />
-                    </div>
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Length (ft)" isOpen={!!openSections.length} onToggle={() => toggleSection('length')}>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" value={filters.min_length} onChange={(e) => handleFilterChange('min_length', e.target.value)} placeholder="Min" style={accInputStyle} className="focus:outline-none" />
-                      <input type="number" value={filters.max_length} onChange={(e) => handleFilterChange('max_length', e.target.value)} placeholder="Max" style={accInputStyle} className="focus:outline-none" />
-                    </div>
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Year Built" isOpen={!!openSections.year} onToggle={() => toggleSection('year')}>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" value={filters.min_year} onChange={(e) => handleFilterChange('min_year', e.target.value)} placeholder="From" style={accInputStyle} className="focus:outline-none" />
-                      <input type="number" value={filters.max_year} onChange={(e) => handleFilterChange('max_year', e.target.value)} placeholder="To" style={accInputStyle} className="focus:outline-none" />
-                    </div>
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Location" isOpen={!!openSections.location} onToggle={() => toggleSection('location')}>
-                    <div style={{ marginBottom: 6 }}>
-                      <label style={{ fontSize: 11, color: 'rgba(16,33,79,0.6)', fontFamily: 'Poppins, sans-serif', display: 'block', marginBottom: 4 }}>Country</label>
-                      <select value={filters.country} onChange={(e) => { handleFilterChange('country', e.target.value); handleFilterChange('state', ''); }} style={accInputStyle} className="focus:outline-none">
-                        <option value="">Any country</option>
-                        {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ marginBottom: 6 }}>
-                      <label style={{ fontSize: 11, color: 'rgba(16,33,79,0.6)', fontFamily: 'Poppins, sans-serif', display: 'block', marginBottom: 4 }}>State / Province</label>
-                      {filters.country && STATES_BY_COUNTRY[filters.country] ? (
-                        <select value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} style={accInputStyle} className="focus:outline-none">
-                          <option value="">Any state</option>
-                          {STATES_BY_COUNTRY[filters.country].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      ) : (
-                        <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State / Province" style={accInputStyle} className="focus:outline-none" />
-                      )}
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'rgba(16,33,79,0.6)', fontFamily: 'Poppins, sans-serif', display: 'block', marginBottom: 4 }}>City</label>
-                      <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" style={accInputStyle} className="focus:outline-none" />
-                    </div>
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Engine Details" isOpen={!!openSections.engine} onToggle={() => toggleSection('engine')}>
-                    <input type="text" value={filters.engine} onChange={(e) => handleFilterChange('engine', e.target.value)} placeholder="e.g. Twin diesel" style={accInputStyle} className="w-full focus:outline-none" />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Fuel" isOpen={!!openSections.fuel} onToggle={() => toggleSection('fuel')}>
-                    <FilterOptions
-                      options={['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other']}
-                      value={filters.fuel}
-                      onChange={(v) => handleFilterChange('fuel', v)}
-                    />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Hull Material" isOpen={!!openSections.hull_material} onToggle={() => toggleSection('hull_material')}>
-                    <FilterOptions
-                      options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fiber', 'Wood', 'Composite', 'Other']}
-                      value={filters.hull_material}
-                      onChange={(v) => handleFilterChange('hull_material', v)}
-                    />
-                  </FilterAccordion>
-
-                  <FilterAccordion label="Brokerage" isOpen={!!openSections.brokerage} onToggle={() => toggleSection('brokerage')} noBorder>
-                    <input type="text" value={filters.brokerage} onChange={(e) => handleFilterChange('brokerage', e.target.value)} placeholder="Any brokerage" style={accInputStyle} className="w-full focus:outline-none" />
-                  </FilterAccordion>
-
-                </div>
-
-              </div>
-            </div>
-          </div>
-
-          {/* ── RESULTS — 3-column grid ── */}
-          <div className="flex-1 min-w-0">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-24">
-                <div
-                  className="animate-spin rounded-full border-b-2"
-                  style={{ width: 48, height: 48, borderColor: '#01BBDC' }}
-                />
-                <p className="mt-4" style={{ color: 'rgba(16,33,79,0.7)', fontFamily: 'Poppins, sans-serif' }}>
-                  Searching…
-                </p>
-              </div>
-            ) : listings.length === 0 ? (
-              <div
-                className="flex flex-col items-center justify-center py-24 rounded-2xl"
-                style={{ backgroundColor: '#FFFFFF', border: '1px solid rgba(0,0,0,0.1)' }}
-              >
-                <Search size={64} style={{ color: '#d1d5db', marginBottom: 16 }} />
-                <h3
-                  style={{
-                    color: '#10214F',
-                    fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                    fontSize: 24, lineHeight: '29px', marginBottom: 8,
-                  }}
-                >
-                  No yachts found
-                </h3>
-                <p style={{ color: 'rgba(16,33,79,0.7)', fontFamily: 'Poppins, sans-serif', fontSize: 16 }}>
-                  Try adjusting your filters or use the AI search above.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* AI Search info banner */}
-                {searchType === 'ai' && (
-                  <div
-                    className="flex items-start gap-3 p-4 rounded-2xl"
-                    style={{ backgroundColor: 'rgba(1,187,220,0.08)', border: '1px solid rgba(1,187,220,0.25)' }}
-                  >
-                    <Sparkles size={18} style={{ color: '#01BBDC', flexShrink: 0, marginTop: 2 }} />
-                    <p style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 14, lineHeight: '21px' }}>
-                      <strong>AI-Powered Results:</strong> These yachts are ranked by how well they match your request.
-                      You can still refine using the filters on the left.
-                    </p>
-                  </div>
-                )}
-
-                {/* ── Featured strip (first page only) ── */}
-                {pinnedFeatured.length > 0 && page === 0 && (
-                  <div className="mb-6">
-                    <p
-                      className="mb-3 text-xs font-semibold uppercase tracking-wider"
-                      style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-                    >
-                      ★ Featured Listings
-                    </p>
-                    <div
-                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
-                      style={{ gap: 16 }}
-                    >
-                      {pinnedFeatured.map((listing) => (
-                        <div key={`featured-${listing.id}`} className="relative">
-                          <div
-                            className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full text-xs font-semibold"
-                            style={{ backgroundColor: '#01BBDC', color: '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
-                          >
-                            Featured
-                          </div>
-                          <ListingCard
-                            id={listing.id}
-                            title={listing.title}
-                            price={listing.price}
-                            year={listing.year}
-                            make={listing.make}
-                            model={listing.model}
-                            boatType={listing.boat_type}
-                            cabins={listing.cabins}
-                            length={listing.length_feet}
-                            city={listing.city}
-                            state={listing.state}
-                            images={listing.images.map((img) => (typeof img === 'string' ? img : img.url))}
-                            condition={listing.condition}
-                            featured={listing.featured}
-                            currencyCode={currency}
-                            exchangeRate={currency !== 'USD' ? (exchangeRates[currency] ?? 1) : 1}
-                            dealerInfo={listing.dealer ? {
-                              name: listing.dealer.name || '',
-                              company: listing.dealer.company_name || '',
-                              slug: listing.dealer.slug,
-                              logoUrl: listing.dealer.logo_url,
-                            } : undefined}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', marginTop: 16, marginBottom: 20 }} />
-                  </div>
-                )}
-
-                {/* ── All Results grid ── */}
-                <div
-                  className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
-                  style={{ gap: 24 }}
-                >
-                  {pagedListings.map((listing) => (
-                    <div key={listing.id} className="relative">
-                      {/* AI Match Score Badge */}
-                      {listing.match_score !== undefined && (
-                        <div
-                          className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
-                          style={{ backgroundColor: '#FFFFFF', border: '2px solid #01BBDC', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
-                        >
-                          <span
-                            className="font-bold text-base"
-                            style={{
-                              color: listing.match_score >= 90 ? '#01BBDC'
-                                : listing.match_score >= 75 ? '#f59e0b'
-                                : listing.match_score >= 60 ? '#10214F'
-                                : 'rgba(16,33,79,0.4)',
-                              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                            }}
-                          >
-                            {listing.match_score}%
-                          </span>
-                          <span style={{ color: 'rgba(0,0,0,0.5)', fontSize: 12, fontFamily: 'Poppins, sans-serif' }}>match</span>
-                        </div>
-                      )}
-
-                      <ListingCard
-                        id={listing.id}
-                        title={listing.title}
-                        price={listing.price}
-                        year={listing.year}
-                        make={listing.make}
-                        model={listing.model}
-                        boatType={listing.boat_type}
-                        cabins={listing.cabins}
-                        length={listing.length_feet}
-                        city={listing.city}
-                        state={listing.state}
-                        images={listing.images.map((img) => (typeof img === 'string' ? img : img.url))}
-                        condition={listing.condition}
-                        featured={listing.featured}
-                        currencyCode={currency}
-                        exchangeRate={currency !== 'USD' ? (exchangeRates[currency] ?? 1) : 1}
-                        dealerInfo={listing.dealer ? {
-                          name: listing.dealer.name || '',
-                          company: listing.dealer.company_name || '',
-                          slug: listing.dealer.slug,
-                          logoUrl: listing.dealer.logo_url,
-                        } : undefined}
-                      />
-
-                      {/* AI Match Reasons */}
-                      {listing.match_reasons && listing.match_reasons.length > 0 && (
-                        <div
-                          className="mt-2 p-3 rounded-xl"
-                          style={{ backgroundColor: 'rgba(1,187,220,0.05)', border: '1px solid rgba(1,187,220,0.2)' }}
-                        >
-                          <p className="text-xs font-semibold mb-1" style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}>Why this matches:</p>
-                          <ul className="space-y-0.5">
-                            {listing.match_reasons.slice(0, 2).map((reason, i) => (
-                              <li key={i} className="text-xs flex items-start gap-1.5" style={{ color: 'rgba(16,33,79,0.8)', fontFamily: 'Poppins, sans-serif' }}>
-                                <span style={{ color: '#01BBDC' }}>•</span>
-                                {reason.replace('✓ ', '')}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* AI Warnings */}
-                      {listing.warnings && listing.warnings.length > 0 && (
-                        <div
-                          className="mt-2 p-3 rounded-xl"
-                          style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}
-                        >
-                          <p className="text-xs font-semibold mb-1 flex items-center gap-1.5" style={{ color: '#f59e0b', fontFamily: 'Poppins, sans-serif' }}>
-                            <AlertTriangle size={12} /> Note:
-                          </p>
-                          {listing.warnings.slice(0, 1).map((w, i) => (
-                            <p key={i} className="text-xs" style={{ color: 'rgba(16,33,79,0.8)', fontFamily: 'Poppins, sans-serif' }}>• {w}</p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Pagination bar */}
-                {totalPages > 1 && (
-                  <div className="mt-8 pb-2 relative">
-                    {/* Navigation row — centered */}
-                    <div className="flex items-center gap-2 flex-wrap justify-center">
-                      {/* Skip to first */}
-                      <button
-                        onClick={() => { setPage(0); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        disabled={page === 0}
-                        title="First page"
-                        className="px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: '#f3f4f6', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        «
-                      </button>
-
-                      <button
-                        onClick={() => { setPage(p => Math.max(0, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        disabled={page === 0}
-                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: page === 0 ? '#f3f4f6' : '#10214F', color: page === 0 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        ← Prev
-                      </button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: totalPages }, (_, i) => {
-                          if (Math.abs(i - page) > 2) return null;
-                          return (
-                            <button
-                              key={i}
-                              onClick={() => { setPage(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                              className="w-8 h-8 rounded-full text-sm font-medium transition-colors"
-                              style={{
-                                backgroundColor: i === page ? '#01BBDC' : '#f3f4f6',
-                                color: i === page ? '#FFFFFF' : '#6b7280',
-                                fontFamily: 'Poppins, sans-serif',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              {i + 1}
-                            </button>
-                          );
-                        })}
-                        {/* Show last page number if not visible */}
-                        {page < totalPages - 3 && (
-                          <>
-                            {page < totalPages - 4 && (
-                              <span style={{ color: '#9ca3af', fontSize: 13, padding: '0 2px' }}>…</span>
-                            )}
-                            <button
-                              onClick={() => { setPage(totalPages - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                              className="w-8 h-8 rounded-full text-sm font-medium transition-colors"
-                              style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontFamily: 'Poppins, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            >
-                              {totalPages}
-                            </button>
-                          </>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => { setPage(p => Math.min(totalPages - 1, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        disabled={page >= totalPages - 1}
-                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: page >= totalPages - 1 ? '#f3f4f6' : '#10214F', color: page >= totalPages - 1 ? '#9ca3af' : '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        Next →
-                      </button>
-
-                      {/* Skip to last */}
-                      <button
-                        onClick={() => { setPage(totalPages - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        disabled={page >= totalPages - 1}
-                        title="Last page"
-                        className="px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ backgroundColor: '#f3f4f6', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        »
-                      </button>
-                    </div>
-
-                    {/* Per-page dropdown — far right */}
-                    <div
-                      className="absolute right-0 top-0 flex items-center gap-1.5"
-                      style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.6)' }}
-                    >
-                      <span>Show</span>
-                      <select
-                        value={pageSize}
-                        onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0); }}
-                        className="focus:outline-none"
-                        style={{
-                          border: '1px solid rgba(16,33,79,0.15)',
-                          borderRadius: 6,
-                          padding: '4px 8px',
-                          fontSize: 13,
-                          fontFamily: 'Poppins, sans-serif',
-                          color: '#10214F',
-                          backgroundColor: '#FAFAFA',
-                        }}
-                      >
-                        <option value={20}>20</option>
-                        <option value={48}>48</option>
-                        <option value={96}>96</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Listings Map ─────────────────────────────────────────────── */}
-      {!loading && processedListings.some((l) => l.latitude && l.longitude) && (
-        <div
-          style={{
-            maxWidth: 1296,
-            margin: '0 auto',
-            padding: '0 clamp(16px, 4vw, 48px) 80px',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-              fontSize: 24,
-              fontWeight: 400,
-              color: '#10214F',
-              marginBottom: 16,
-            }}
-          >
-            Listings Map
-          </h2>
-          <ListingsMap
-            listings={processedListings
-              .filter((l) => l.latitude && l.longitude)
-              .map((l) => ({
-                id: l.id,
-                title: l.title,
-                price: l.price,
-                currency: l.currency,
-                make: l.make,
-                model: l.model,
-                year: l.year,
-                city: l.city,
-                state: l.state,
-                latitude: l.latitude!,
-                longitude: l.longitude!,
-                featured: l.featured,
-              }))}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ListingsLoading() {
-  return <div className="min-h-screen section-light" />;
-}
-
-export default function UnifiedListingsPage() {
-  return (
-    <Suspense fallback={<ListingsLoading />}>
-      <UnifiedListingsContent />
-    </Suspense>
-  );
-}
-
-// ─── Small helpers ────────────────────────────────────────────────────────────
-
-const accInputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  border: '1px solid rgba(0,0,0,0.15)',
-  borderRadius: 6,
-  fontSize: 14,
-  fontFamily: 'Poppins, sans-serif',
-  color: '#10214F',
-  width: '100%',
-  backgroundColor: '#FFFFFF',
+// ΓöÇΓöÇΓöÇ Filter pill state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+const EMPTY_FILTERS = {
+  search: '',
+  boat_type: '',
+  make: '',
+  model: '',
+  propulsion: '',
+  min_price: '',
+  max_price: '',
+  min_length: '',
+  max_length: '',
+  min_year: '',
+  max_year: '',
+  state: '',
+  city: '',
+  condition: '',
+  fuel: '',
+  hull_material: '',
+  engine: '',
+  brokerage: '',
+  country: '',
 };
 
-function FilterAccordion({
-  label, isOpen, onToggle, children, noBorder = false,
+const POWER_TYPES = ['Motor Yacht', 'Mega Yacht', 'Superyacht', 'Trawler', 'Express Cruiser', 'Sport Fisher', 'Center Console'];
+const SAIL_TYPES  = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner', 'Motorsailer'];
+const CURRENCIES  = ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CHF', 'JPY', 'NZD', 'HKD', 'SGD', 'NOK', 'SEK', 'DKK', 'AED', 'BRL', 'MXN'];
+const SORT_OPTIONS = [
+  { value: 'nearest',    label: 'Nearest first' },
+  { value: 'price_asc',  label: 'Price: Low ΓåÆ High' },
+  { value: 'price_desc', label: 'Price: High ΓåÆ Low' },
+  { value: 'year_desc',  label: 'Year: Newest first' },
+  { value: 'year_asc',   label: 'Year: Oldest first' },
+];
+const PAGE_SIZE = 32;
+
+// ΓöÇΓöÇΓöÇ Haversine ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 3958.8;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ΓöÇΓöÇΓöÇ Active filter pill component ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function FilterPill({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium"
+      style={{
+        backgroundColor: 'rgba(1,187,220,0.1)',
+        color: '#01BBDC',
+        border: '1px solid rgba(1,187,220,0.3)',
+        fontFamily: 'Poppins, sans-serif',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+      <button
+        onClick={onRemove}
+        className="rounded-full p-0.5 hover:bg-[#01BBDC] hover:text-white transition-colors"
+        aria-label={`Remove ${label} filter`}
+      >
+        <X size={10} />
+      </button>
+    </span>
+  );
+}
+
+// ΓöÇΓöÇΓöÇ Dropdown panel (used by each top-filter button) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function FilterDropdown({
+  label,
+  active,
+  children,
 }: {
   label: string;
-  isOpen: boolean;
-  onToggle: () => void;
+  active?: boolean;
   children: React.ReactNode;
-  noBorder?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   return (
-    <div>
+    <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={onToggle}
-        className="w-full flex items-center justify-between"
-        style={{ padding: '13px 0', background: 'none', border: 'none', cursor: 'pointer' }}
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+        style={{
+          fontFamily: 'Poppins, sans-serif',
+          border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
+          backgroundColor: active ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
+          color: active ? '#01BBDC' : '#10214F',
+          whiteSpace: 'nowrap',
+        }}
       >
-        <span style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 500 }}>
-          {label}
-        </span>
-        <ChevronDown
-          size={18}
-          style={{
-            color: '#10214F',
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-            flexShrink: 0,
-          }}
-        />
+        {label}
+        <ChevronDown size={13} className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
-      {isOpen && (
-        <div style={{ paddingBottom: 8 }}>
-          {children}
+
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1.5 z-50 rounded-2xl overflow-hidden"
+          style={{
+            backgroundColor: '#FFFFFF',
+            border: '1px solid rgba(16,33,79,0.12)',
+            boxShadow: '0 8px 32px rgba(16,33,79,0.14)',
+            minWidth: 220,
+          }}
+        >
+          <div className="p-4">{children}</div>
         </div>
       )}
-      {!noBorder && <div style={{ borderTop: '1px solid rgba(0,0,0,0.1)' }} />}
     </div>
   );
 }
 
-// Checkbox-style multi-select option picker (Condition, Power/Sail, Fuel, Hull Material)
-function FilterOptions({
+// ΓöÇΓöÇΓöÇ Range input pair ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function RangeInputs({
+  minVal, maxVal, minPlaceholder, maxPlaceholder,
+  onMinChange, onMaxChange,
+}: {
+  minVal: string; maxVal: string;
+  minPlaceholder: string; maxPlaceholder: string;
+  onMinChange: (v: string) => void;
+  onMaxChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="number"
+        value={minVal}
+        onChange={(e) => onMinChange(e.target.value)}
+        placeholder={minPlaceholder}
+        className="flex-1 focus:outline-none"
+        style={rangeInputStyle}
+      />
+      <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 12 }}>ΓÇô</span>
+      <input
+        type="number"
+        value={maxVal}
+        onChange={(e) => onMaxChange(e.target.value)}
+        placeholder={maxPlaceholder}
+        className="flex-1 focus:outline-none"
+        style={rangeInputStyle}
+      />
+    </div>
+  );
+}
+
+const rangeInputStyle: React.CSSProperties = {
+  padding: '7px 10px',
+  border: '1.5px solid rgba(16,33,79,0.15)',
+  borderRadius: 6,
+  fontSize: 13,
+  fontFamily: 'Poppins, sans-serif',
+  color: '#10214F',
+  backgroundColor: '#FAFAFA',
+};
+
+// ΓöÇΓöÇΓöÇ Small toggle chips ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function ToggleChips({
   options, values, value, onChange,
 }: {
   options: string[];
@@ -1143,12 +229,12 @@ function FilterOptions({
 }) {
   const selected = value ? value.split(',').filter(Boolean) : [];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 4 }}>
+    <div className="flex flex-wrap gap-1.5">
       {options.map((opt, i) => {
         const val = values ? values[i] : opt.toLowerCase();
         const active = selected.includes(val);
         const toggle = () => {
-          const next = active ? selected.filter((v) => v !== val) : [...selected, val];
+          const next = active ? selected.filter((s) => s !== val) : [...selected, val];
           onChange(next.join(','));
         };
         return (
@@ -1156,24 +242,15 @@ function FilterOptions({
             key={val}
             type="button"
             onClick={toggle}
-            className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md transition-colors text-left"
-            style={{ backgroundColor: active ? 'rgba(1,187,220,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
-          >
-            <span style={{
-              width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-              border: `2px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.3)'}`,
+            className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+            style={{
+              fontFamily: 'Poppins, sans-serif',
+              border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.2)',
               backgroundColor: active ? '#01BBDC' : 'transparent',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {active && (
-                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                  <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </span>
-            <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, color: active ? '#01BBDC' : '#10214F', fontWeight: active ? 500 : 400 }}>
-              {opt}
-            </span>
+              color: active ? '#FFFFFF' : '#10214F',
+            }}
+          >
+            {opt}
           </button>
         );
       })}
@@ -1181,80 +258,1175 @@ function FilterOptions({
   );
 }
 
-// Searchable scrollable list (Type, Manufacturer, Model)
-function FilterSearchList({
-  items, value, search, onSearchChange, onChange, placeholder, emptyMsg,
+// ΓöÇΓöÇΓöÇ Searchable scroll list ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function SearchableList({
+  items, value, onChange, placeholder,
 }: {
   items: string[];
   value: string;
-  search: string;
-  onSearchChange: (v: string) => void;
   onChange: (v: string) => void;
   placeholder?: string;
-  emptyMsg?: string;
 }) {
-  const filtered = search
-    ? items.filter((it) => it.toLowerCase().includes(search.toLowerCase()))
-    : items;
-
+  const [q, setQ] = useState('');
   const selected = value ? value.split(',').filter(Boolean) : [];
+  const filtered = q ? items.filter((it) => it.toLowerCase().includes(q.toLowerCase())) : items;
 
   return (
     <div>
-      <div style={{ position: 'relative', marginBottom: 6 }}>
-        <Search
-          size={13}
-          style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'rgba(16,33,79,0.35)', pointerEvents: 'none' }}
-        />
+      <div className="relative mb-2">
+        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
           type="text"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={placeholder || 'Search...'}
-          className="w-full focus:outline-none"
-          style={{ ...accInputStyle, paddingLeft: 28, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={placeholder ?? 'SearchΓÇª'}
+          className="w-full focus:outline-none pl-7"
+          style={{ ...rangeInputStyle, paddingLeft: 28, fontSize: 12 }}
         />
       </div>
-      <div style={{ maxHeight: 168, overflowY: 'auto' }}>
-        {filtered.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif', padding: '6px 4px' }}>
-            {emptyMsg || 'No results'}
-          </p>
-        ) : (
-          filtered.map((item) => {
-            const active = selected.includes(item);
-            const toggle = () => {
-              const next = active ? selected.filter((v) => v !== item) : [...selected, item];
-              onChange(next.join(','));
-            };
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={toggle}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors"
-                style={{ backgroundColor: active ? 'rgba(1,187,220,0.1)' : 'transparent', border: 'none', cursor: 'pointer' }}
-              >
-                <span style={{
-                  width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                  border: `2px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.25)'}`,
+      <div style={{ maxHeight: 180, overflowY: 'auto' }} className="space-y-0.5">
+        {filtered.map((item) => {
+          const val = item.toLowerCase();
+          const active = selected.includes(val) || selected.includes(item);
+          const toggle = () => {
+            // Try exact match first, fallback to lowercase
+            const key = selected.includes(item) ? item : val;
+            const next = active
+              ? selected.filter((s) => s !== item && s !== val)
+              : [...selected, item];
+            onChange(next.join(','));
+          };
+          return (
+            <button
+              key={item}
+              type="button"
+              onClick={toggle}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left"
+              style={{
+                backgroundColor: active ? 'rgba(1,187,220,0.08)' : 'transparent',
+                color: active ? '#01BBDC' : '#10214F',
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 13,
+                fontWeight: active ? 500 : 400,
+              }}
+            >
+              <span
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 3,
+                  flexShrink: 0,
+                  border: `1.5px solid ${active ? '#01BBDC' : 'rgba(16,33,79,0.3)'}`,
                   backgroundColor: active ? '#01BBDC' : 'transparent',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {active && (
-                    <svg width="9" height="7" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </span>
-                <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: active ? '#01BBDC' : '#10214F', fontWeight: active ? 500 : 400 }}>
-                  {item}
-                </span>
-              </button>
-            );
-          })
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {active && (
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <path d="M1 3.5L3 5.5L8 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
+              {item}
+            </button>
+          );
+        })}
+        {filtered.length === 0 && (
+          <p style={{ fontSize: 12, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif', padding: '4px 2px' }}>
+            No results
+          </p>
         )}
       </div>
     </div>
+  );
+}
+
+// ΓöÇΓöÇΓöÇ Main Page Content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function BrowseContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchType, setSearchType] = useState<'basic' | 'ai'>('basic');
+  const [aiQuery, setAiQuery] = useState('');
+  const [sort, setSort] = useState<string>('nearest');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number>(0);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [currency, setCurrency] = useState('USD');
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+  const [makes, setMakes] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const isFirstRender = useRef(true);
+  const searchBarRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const [filters, setFilters] = useState({ ...EMPTY_FILTERS,
+    search:     searchParams.get('search')     || '',
+    boat_type:  searchParams.get('boat_type')  || '',
+    make:       searchParams.get('make')       || '',
+    model:      searchParams.get('model')      || '',
+    propulsion: searchParams.get('propulsion') || '',
+    min_price:  searchParams.get('min_price')  || '',
+    max_price:  searchParams.get('max_price')  || '',
+    min_length: searchParams.get('min_length') || '',
+    max_length: searchParams.get('max_length') || '',
+    min_year:   searchParams.get('min_year')   || '',
+    max_year:   searchParams.get('max_year')   || '',
+    state:      searchParams.get('state')      || '',
+    city:       searchParams.get('city')       || '',
+    condition:  searchParams.get('condition')  || '',
+    fuel:       searchParams.get('fuel')       || '',
+    hull_material: searchParams.get('hull_material') || '',
+    engine:     searchParams.get('engine')     || '',
+    brokerage:  searchParams.get('brokerage')  || '',
+    country:    searchParams.get('country')    || '',
+  });
+
+  const handleFilterChange = useCallback((key: string, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(0);
+  }, []);
+
+  const clearFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setAiQuery('');
+    setSearchType('basic');
+    setPage(0);
+  };
+
+  // Currency
+  useEffect(() => {
+    fetch(apiUrl('/currencies/rates'))
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.rates) setExchangeRates(data.rates); })
+      .catch(() => {});
+    const saved = localStorage.getItem('preferredCurrency');
+    if (saved) setCurrency(saved);
+  }, []);
+
+  // Makes
+  useEffect(() => {
+    fetch(apiUrl('/listings/makes'))
+      .then((r) => r.ok ? r.json() : [])
+      .then((d: string[]) => setMakes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
+  // Models when make changes
+  useEffect(() => {
+    if (!filters.make) { setModels([]); return; }
+    fetch(apiUrl(`/listings/models?make=${encodeURIComponent(filters.make)}`))
+      .then((r) => r.ok ? r.json() : [])
+      .then((d: string[]) => setModels(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [filters.make]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Geolocation
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { setUserLat(pos.coords.latitude); setUserLng(pos.coords.longitude); },
+        () => {}
+      );
+    }
+  }, []);
+
+  // Fetch
+  const fetchListings = useCallback(async (isAI = false, pg = page, sr = sort, ps = pageSize) => {
+    // Cancel any in-flight fetch so stale results never overwrite newer ones
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    try {
+      let url: string;
+      if (isAI && aiQuery) {
+        url = apiUrl(`/ai/search?query=${encodeURIComponent(aiQuery)}`);
+      } else {
+        const isNearest = sr === 'nearest';
+        const fetchLimit = isNearest ? 2000 : ps;
+        const fetchSkip  = isNearest ? 0    : pg * ps;
+        url = apiUrl(`/listings?status=active&limit=${fetchLimit}&skip=${fetchSkip}`);
+        if (!isNearest) url += `&sort=${sr}`;
+        Object.entries(filters).forEach(([k, v]) => {
+          if (v) url += `&${k}=${encodeURIComponent(v)}`;
+        });
+      }
+      const res = await fetch(url, { signal: controller.signal });
+      const data = await res.json();
+      if (isAI) {
+        const results = (data.results || []).map((r: any) => ({
+          ...(r.listing || {}),
+          match_score: r.match_score,
+          match_reasons: r.match_reasons,
+          warnings: r.warnings,
+        }));
+        setListings(results);
+        setTotal(results.length);
+      } else {
+        const items: Listing[] = data.listings ?? (Array.isArray(data) ? data : []);
+        setListings(items);
+        setTotal(data.total ?? items.length);
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // Ignore cancelled fetches
+      setListings([]);
+      setTotal(0);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, [filters, aiQuery, page, sort, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchListings(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced auto-apply
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    const t = setTimeout(() => fetchListings(searchType === 'ai', 0, sort), 400);
+    return () => clearTimeout(t);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sort + paginate
+  const typeOptions =
+    filters.propulsion === 'power' ? POWER_TYPES :
+    filters.propulsion === 'sail'  ? SAIL_TYPES  :
+    [...POWER_TYPES, ...SAIL_TYPES];
+
+  let sorted = [...listings];
+  if (sort === 'nearest' && userLat !== null && userLng !== null) {
+    sorted.sort((a, b) => {
+      const da = (a.latitude && a.longitude) ? haversineMiles(userLat, userLng, a.latitude, a.longitude) : Infinity;
+      const db = (b.latitude && b.longitude) ? haversineMiles(userLat, userLng, b.latitude, b.longitude) : Infinity;
+      return da - db;
+    });
+  }
+
+  const featured = sorted.filter((l) => l.featured).slice(0, 4);
+  const featuredIds = new Set(featured.map((l) => l.id));
+  const regular = sorted.filter((l) => !featuredIds.has(l.id));
+  const totalPages = sort === 'nearest'
+    ? Math.ceil(regular.length / pageSize)
+    : Math.ceil(total / pageSize);
+  const paged = sort === 'nearest'
+    ? regular.slice(page * pageSize, (page + 1) * pageSize)
+    : regular;
+  const displayTotal = sort === 'nearest' ? listings.length : total;
+
+  const xr = currency !== 'USD' ? (exchangeRates[currency] ?? 1) : 1;
+
+  const imgUrl = (img: { url: string } | string) => typeof img === 'string' ? img : img.url;
+
+  const hasActiveFilters = Object.values(filters).some((v) => v);
+
+  // Build active filter pills
+  const filterPills: { label: string; clear: () => void }[] = [];
+  if (filters.search)       filterPills.push({ label: `"${filters.search}"`,        clear: () => handleFilterChange('search', '') });
+  if (filters.condition)    filterPills.push({ label: filters.condition,             clear: () => handleFilterChange('condition', '') });
+  if (filters.propulsion)   filterPills.push({ label: filters.propulsion,           clear: () => handleFilterChange('propulsion', '') });
+  if (filters.boat_type)    filterPills.push({ label: filters.boat_type,            clear: () => handleFilterChange('boat_type', '') });
+  if (filters.make)         filterPills.push({ label: filters.make,                 clear: () => handleFilterChange('make', '') });
+  if (filters.model)        filterPills.push({ label: filters.model,                clear: () => handleFilterChange('model', '') });
+  if (filters.min_price || filters.max_price) filterPills.push({
+    label: `$${filters.min_price || '0'} ΓÇô $${filters.max_price || 'Γê₧'}`,
+    clear: () => { handleFilterChange('min_price', ''); handleFilterChange('max_price', ''); },
+  });
+  if (filters.min_length || filters.max_length) filterPills.push({
+    label: `${filters.min_length || '0'}ΓÇô${filters.max_length || 'Γê₧'} ft`,
+    clear: () => { handleFilterChange('min_length', ''); handleFilterChange('max_length', ''); },
+  });
+  if (filters.min_year || filters.max_year) filterPills.push({
+    label: `${filters.min_year || ''}ΓÇô${filters.max_year || ''}`,
+    clear: () => { handleFilterChange('min_year', ''); handleFilterChange('max_year', ''); },
+  });
+  if (filters.country)      filterPills.push({ label: filters.country,              clear: () => handleFilterChange('country', '') });
+  if (filters.state)        filterPills.push({ label: filters.state,                clear: () => handleFilterChange('state', '') });
+  if (filters.city)         filterPills.push({ label: filters.city,                 clear: () => handleFilterChange('city', '') });
+  if (filters.fuel)         filterPills.push({ label: `Fuel: ${filters.fuel}`,      clear: () => handleFilterChange('fuel', '') });
+  if (filters.hull_material) filterPills.push({ label: filters.hull_material,       clear: () => handleFilterChange('hull_material', '') });
+
+  const handleSaveSearch = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) { router.push('/login'); return; }
+    try {
+      const res = await fetch(apiUrl('/search-alerts'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `Search: ${filters.search || filters.boat_type || 'All Yachts'}`, filters }),
+      });
+      alert(res.ok ? 'Search saved!' : 'Failed to save search');
+    } catch { alert('Failed to save search'); }
+  };
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
+
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ COMPACT AI SEARCH BAR ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid rgba(16,33,79,0.06)' }}>
+        <div className="mx-auto" style={{ maxWidth: 1440, padding: '14px 24px' }}>
+          {/* Heading ΓÇö centred */}
+          <h2
+            className="text-center"
+            style={{
+              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+              fontSize: 'clamp(17px, 1.4vw, 22px)',
+              fontWeight: 400,
+              color: '#10214F',
+              lineHeight: 1.2,
+              maxWidth: 960,
+              margin: '0 auto 8px auto',
+            }}
+          >
+            Skip the Filters
+          </h2>
+          <form
+            onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } }}
+            className="flex items-center gap-2 mx-auto"
+            style={{ maxWidth: 960 }}
+            role="search"
+            aria-label="AI yacht search"
+          >
+            <div className="relative flex-1">
+              <input
+                type="search"
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } } }}
+                placeholder="Describe your ideal yacht ΓÇö size, lifestyle, budget, cruising plansΓÇª"
+                className="w-full focus:outline-none"
+                style={{
+                  height: 40,
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: 999,
+                  backgroundColor: '#F8FAFC',
+                  paddingLeft: 20,
+                  paddingRight: 48,
+                  fontSize: 13,
+                  fontFamily: 'Poppins, sans-serif',
+                  color: '#10214F',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 30 30" fill="none">
+                  <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
+                  <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
+                  <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
+                </svg>
+              </span>
+            </div>
+            <button
+              type="submit"
+              aria-label="Search with AI"
+              className="text-white font-medium transition-opacity hover:opacity-90 whitespace-nowrap"
+              style={{
+                backgroundColor: '#01BBDC',
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 13,
+                fontWeight: 500,
+                borderRadius: 999,
+                height: 40,
+                paddingLeft: 20,
+                paddingRight: 20,
+                flexShrink: 0,
+              }}
+            >
+              AI Search
+            </button>
+          </form>
+          {/* Badge ΓÇö centred below search input */}
+          <div className="flex justify-center" style={{ maxWidth: 960, margin: '7px auto 0 auto' }}>
+            <span
+              className="inline-flex items-center gap-1.5"
+              style={{
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 11,
+                color: '#01BBDC',
+                fontWeight: 500,
+                letterSpacing: '0.02em',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 30 30" fill="none" aria-hidden="true">
+                <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
+                <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
+                <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
+              </svg>
+              Powered by YachtVersal AI ΓÇö understands natural language queries
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ STICKY SEARCH + FILTER BAR ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      <div
+        ref={searchBarRef}
+        className="sticky top-0 z-40"
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderBottom: '1px solid rgba(16,33,79,0.08)',
+          boxShadow: '0 2px 12px rgba(16,33,79,0.06)',
+        }}
+      >
+        <div
+          className="mx-auto"
+          style={{ maxWidth: 1440, padding: '12px 24px' }}
+        >
+          {/* Filter + controls ΓÇö single row */}
+          <div className="flex items-start gap-3">
+            {/* Filter chips */}
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+            {/* Condition */}
+            <FilterDropdown
+              label="Condition"
+              active={!!filters.condition}
+            >
+              <ToggleChips
+                options={['New', 'Used']}
+                values={['new', 'used']}
+                value={filters.condition}
+                onChange={(v) => handleFilterChange('condition', v)}
+              />
+            </FilterDropdown>
+
+            {/* Power / Sail */}
+            <FilterDropdown
+              label="Power / Sail"
+              active={!!filters.propulsion}
+            >
+              <ToggleChips
+                options={['Power', 'Sail']}
+                values={['power', 'sail']}
+                value={filters.propulsion}
+                onChange={(v) => { handleFilterChange('propulsion', v); handleFilterChange('boat_type', ''); }}
+              />
+            </FilterDropdown>
+
+            {/* Type */}
+            <FilterDropdown
+              label={filters.boat_type || 'Type'}
+              active={!!filters.boat_type}
+            >
+              <SearchableList
+                items={typeOptions}
+                value={filters.boat_type}
+                onChange={(v) => handleFilterChange('boat_type', v)}
+                placeholder="Search typesΓÇª"
+              />
+            </FilterDropdown>
+
+            {/* Make */}
+            <FilterDropdown
+              label={filters.make || 'Make'}
+              active={!!filters.make}
+            >
+              <SearchableList
+                items={makes}
+                value={filters.make}
+                onChange={(v) => { handleFilterChange('make', v); handleFilterChange('model', ''); }}
+                placeholder="Search makesΓÇª"
+              />
+            </FilterDropdown>
+
+            {/* Model */}
+            <FilterDropdown
+              label={filters.model || 'Model'}
+              active={!!filters.model}
+            >
+              {filters.make ? (
+                <SearchableList
+                  items={models}
+                  value={filters.model}
+                  onChange={(v) => handleFilterChange('model', v)}
+                  placeholder="Search modelsΓÇª"
+                />
+              ) : (
+                <p style={{ fontSize: 13, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif' }}>
+                  Select a make first
+                </p>
+              )}
+            </FilterDropdown>
+
+            {/* Price */}
+            <FilterDropdown
+              label="Price"
+              active={!!(filters.min_price || filters.max_price)}
+            >
+              <p style={{ fontSize: 11, color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Price (USD)</p>
+              <RangeInputs
+                minVal={filters.min_price} maxVal={filters.max_price}
+                minPlaceholder="Min" maxPlaceholder="Max"
+                onMinChange={(v) => handleFilterChange('min_price', v)}
+                onMaxChange={(v) => handleFilterChange('max_price', v)}
+              />
+            </FilterDropdown>
+
+            {/* Length */}
+            <FilterDropdown
+              label="Length"
+              active={!!(filters.min_length || filters.max_length)}
+            >
+              <p style={{ fontSize: 11, color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Length (ft)</p>
+              <RangeInputs
+                minVal={filters.min_length} maxVal={filters.max_length}
+                minPlaceholder="Min ft" maxPlaceholder="Max ft"
+                onMinChange={(v) => handleFilterChange('min_length', v)}
+                onMaxChange={(v) => handleFilterChange('max_length', v)}
+              />
+            </FilterDropdown>
+
+            {/* Year */}
+            <FilterDropdown
+              label="Year"
+              active={!!(filters.min_year || filters.max_year)}
+            >
+              <p style={{ fontSize: 11, color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Year Built</p>
+              <RangeInputs
+                minVal={filters.min_year} maxVal={filters.max_year}
+                minPlaceholder="From" maxPlaceholder="To"
+                onMinChange={(v) => handleFilterChange('min_year', v)}
+                onMaxChange={(v) => handleFilterChange('max_year', v)}
+              />
+            </FilterDropdown>
+
+            {/* Location */}
+            <FilterDropdown
+              label="Location"
+              active={!!(filters.country || filters.state || filters.city)}
+            >
+              <div className="space-y-3" style={{ minWidth: 240 }}>
+                <div>
+                  <label style={dropdownLabelStyle}>Country</label>
+                  <select
+                    value={filters.country}
+                    onChange={(e) => { handleFilterChange('country', e.target.value); handleFilterChange('state', ''); }}
+                    className="w-full focus:outline-none"
+                    style={rangeInputStyle}
+                  >
+                    <option value="">Any country</option>
+                    {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={dropdownLabelStyle}>State / Province</label>
+                  {filters.country && STATES_BY_COUNTRY[filters.country] ? (
+                    <select
+                      value={filters.state}
+                      onChange={(e) => handleFilterChange('state', e.target.value)}
+                      className="w-full focus:outline-none"
+                      style={rangeInputStyle}
+                    >
+                      <option value="">Any state</option>
+                      {STATES_BY_COUNTRY[filters.country].map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={filters.state}
+                      onChange={(e) => handleFilterChange('state', e.target.value)}
+                      placeholder="State / Province"
+                      className="w-full focus:outline-none"
+                      style={rangeInputStyle}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label style={dropdownLabelStyle}>City</label>
+                  <input
+                    type="text"
+                    value={filters.city}
+                    onChange={(e) => handleFilterChange('city', e.target.value)}
+                    placeholder="City"
+                    className="w-full focus:outline-none"
+                    style={rangeInputStyle}
+                  />
+                </div>
+              </div>
+            </FilterDropdown>
+
+            {/* More filters ΓÇö opens left drawer */}
+            <button
+              type="button"
+              onClick={() => setMoreFiltersOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{
+                fontFamily: 'Poppins, sans-serif',
+                border: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
+                  ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
+                backgroundColor: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
+                  ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
+                color: (filters.fuel || filters.hull_material || filters.engine || filters.brokerage)
+                  ? '#01BBDC' : '#10214F',
+              }}
+            >
+              <SlidersHorizontal size={13} />
+              More
+            </button>
+
+            {/* Divider */}
+            {hasActiveFilters && (
+              <div style={{ width: 1, height: 20, backgroundColor: 'rgba(16,33,79,0.12)', flexShrink: 0 }} />
+            )}
+
+            {/* Clear all */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs font-medium px-2 transition-opacity hover:opacity-70 flex-shrink-0"
+                style={{ color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif' }}
+              >
+                Clear all
+              </button>
+            )}
+            </div>{/* end filter chips */}
+
+            {/* Controls: currency ┬╖ sort ┬╖ save */}
+            <div className="flex items-center gap-2 flex-shrink-0 self-start">
+              <select
+                value={currency}
+                onChange={(e) => { setCurrency(e.target.value); localStorage.setItem('preferredCurrency', e.target.value); }}
+                className="focus:outline-none"
+                style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, border: '1.5px solid rgba(16,33,79,0.15)', borderRadius: 6, padding: '6px 10px', color: '#10214F', backgroundColor: '#FAFAFA' }}
+              >
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={sort}
+                onChange={(e) => { const newSort = e.target.value; setSort(newSort); setPage(0); fetchListings(false, 0, newSort, pageSize); }}
+                className="focus:outline-none"
+                style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, border: '1.5px solid rgba(16,33,79,0.15)', borderRadius: 6, padding: '6px 10px', color: '#10214F', backgroundColor: '#FAFAFA' }}
+              >
+                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <button
+                onClick={handleSaveSearch}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-opacity hover:opacity-90 flex-shrink-0"
+                style={{ backgroundColor: '#10214F', color: '#FFFFFF', fontFamily: 'Poppins, sans-serif' }}
+              >
+                <Save size={13} />
+                Save
+              </button>
+            </div>
+          </div>{/* end filter+controls row */}
+
+          {/* Active filter pills */}
+          {filterPills.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              {filterPills.map((pill) => (
+                <FilterPill key={pill.label} label={pill.label} onRemove={pill.clear} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ RESULTS ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      <div
+        className="mx-auto"
+        style={{ maxWidth: 1440, padding: '24px 24px 80px' }}
+      >
+        {/* Result count + AI badge */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <span
+              style={{
+                fontFamily: 'Poppins, sans-serif',
+                fontSize: 14,
+                color: 'rgba(16,33,79,0.6)',
+              }}
+            >
+              <strong style={{ color: '#10214F' }}>{displayTotal.toLocaleString()}</strong> yacht{displayTotal !== 1 ? 's' : ''}
+              {totalPages > 1 && ` ┬╖ page ${page + 1} of ${totalPages}`}
+            </span>
+            {searchType === 'ai' && (
+              <span
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium"
+                style={{
+                  backgroundColor: 'rgba(1,187,220,0.1)',
+                  color: '#01BBDC',
+                  border: '1px solid rgba(1,187,220,0.3)',
+                  fontFamily: 'Poppins, sans-serif',
+                }}
+              >
+                <Sparkles size={11} />
+                AI-Ranked
+              </span>
+            )}
+          </div>
+          {searchType === 'ai' && (
+            <button
+              onClick={() => { setSearchType('basic'); setAiQuery(''); fetchListings(false); }}
+              className="flex items-center gap-1.5 text-xs transition-opacity hover:opacity-70"
+              style={{ color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif' }}
+            >
+              <X size={12} /> Clear AI search
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-32">
+            <div
+              className="animate-spin rounded-full border-b-2"
+              style={{ width: 44, height: 44, borderColor: '#01BBDC' }}
+            />
+            <p className="mt-4 text-sm" style={{ color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif' }}>
+              SearchingΓÇª
+            </p>
+          </div>
+        ) : sorted.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-32 rounded-2xl"
+            style={{ backgroundColor: '#FFFFFF', border: '1px solid rgba(16,33,79,0.08)' }}
+          >
+            <Search size={52} style={{ color: '#d1d5db', marginBottom: 16 }} />
+            <h3
+              style={{
+                color: '#10214F',
+                fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                fontSize: 22,
+                marginBottom: 8,
+              }}
+            >
+              No yachts found
+            </h3>
+            <p style={{ color: 'rgba(16,33,79,0.55)', fontFamily: 'Poppins, sans-serif', fontSize: 14 }}>
+              Try adjusting your filters or switch to AI search.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Featured strip */}
+            {featured.length > 0 && page === 0 && (
+              <div className="mb-8">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wider mb-3"
+                  style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
+                >
+                  Γÿà Featured
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 14 }}>
+                  {featured.map((l) => (
+                    <ListingCard
+                      key={`f-${l.id}`}
+                      id={l.id}
+                      title={l.title}
+                      price={l.price}
+                      year={l.year}
+                      make={l.make}
+                      model={l.model}
+                      boatType={l.boat_type}
+                      cabins={l.cabins}
+                      length={l.length_feet}
+                      city={l.city}
+                      state={l.state}
+                      images={l.images.map(imgUrl)}
+                      condition={l.condition}
+                      featured={l.featured}
+                      currencyCode={currency}
+                      exchangeRate={xr}
+                      dealerInfo={l.dealer ? {
+                        name: l.dealer.name || '',
+                        company: l.dealer.company_name || '',
+                        slug: l.dealer.slug,
+                        logoUrl: l.dealer.logo_url,
+                        photo: l.dealer.photo,
+                      } : undefined}
+                    />
+                  ))}
+                </div>
+                <div style={{ borderBottom: '1px solid rgba(16,33,79,0.07)', marginTop: 20, marginBottom: 24 }} />
+              </div>
+            )}
+
+            {/* AI info banner */}
+            {searchType === 'ai' && (
+              <div
+                className="flex items-start gap-3 p-4 rounded-2xl mb-5"
+                style={{ backgroundColor: 'rgba(1,187,220,0.06)', border: '1px solid rgba(1,187,220,0.2)' }}
+              >
+                <Sparkles size={16} style={{ color: '#01BBDC', flexShrink: 0, marginTop: 2 }} />
+                <p style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 13, lineHeight: '20px' }}>
+                  <strong>AI-Powered Results</strong> ΓÇö ranked by how well they match your request. Refine further using the filters above.
+                </p>
+              </div>
+            )}
+
+            {/* 4-across grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4" style={{ gap: 16 }}>
+              {paged.map((l) => (
+                <div key={l.id} className="relative">
+                  {l.match_score !== undefined && (
+                    <div
+                      className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 rounded-lg"
+                      style={{ backgroundColor: '#FFFFFF', border: '1.5px solid #01BBDC', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                    >
+                      <span
+                        className="font-bold text-sm"
+                        style={{
+                          color: l.match_score >= 90 ? '#01BBDC'
+                            : l.match_score >= 75 ? '#f59e0b'
+                            : 'rgba(16,33,79,0.5)',
+                          fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                        }}
+                      >
+                        {l.match_score}%
+                      </span>
+                      <span style={{ color: 'rgba(0,0,0,0.4)', fontSize: 11, fontFamily: 'Poppins, sans-serif' }}>match</span>
+                    </div>
+                  )}
+                  <ListingCard
+                    id={l.id}
+                    title={l.title}
+                    price={l.price}
+                    year={l.year}
+                    make={l.make}
+                    model={l.model}
+                    boatType={l.boat_type}
+                    cabins={l.cabins}
+                    length={l.length_feet}
+                    city={l.city}
+                    state={l.state}
+                    images={l.images.map(imgUrl)}
+                    condition={l.condition}
+                    featured={l.featured}
+                    currencyCode={currency}
+                    exchangeRate={xr}
+                    dealerInfo={l.dealer ? {
+                      name: l.dealer.name || '',
+                      company: l.dealer.company_name || '',
+                      slug: l.dealer.slug,
+                      logoUrl: l.dealer.logo_url,
+                      photo: l.dealer.photo,
+                    } : undefined}
+                  />
+                  {l.match_reasons && l.match_reasons.length > 0 && (
+                    <div
+                      className="mt-1.5 px-2.5 py-2 rounded-xl"
+                      style={{ backgroundColor: 'rgba(1,187,220,0.05)', border: '1px solid rgba(1,187,220,0.15)' }}
+                    >
+                      <ul className="space-y-0.5">
+                        {l.match_reasons.slice(0, 2).map((r, i) => (
+                          <li key={i} className="text-xs flex items-start gap-1" style={{ color: 'rgba(16,33,79,0.75)', fontFamily: 'Poppins, sans-serif' }}>
+                            <span style={{ color: '#01BBDC' }}>ΓÇó</span>
+                            {r.replace('Γ£ô ', '')}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {l.warnings && l.warnings.length > 0 && (
+                    <div
+                      className="mt-1.5 px-2.5 py-2 rounded-xl"
+                      style={{ backgroundColor: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}
+                    >
+                      <p className="text-xs flex items-center gap-1" style={{ color: '#f59e0b', fontFamily: 'Poppins, sans-serif' }}>
+                        <AlertTriangle size={11} /> {l.warnings[0]}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex flex-col items-center gap-3 mt-10">
+                {/* Navigation row with per-page dropdown far right */}
+                <div className="relative w-full flex items-center justify-center">
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    {/* Skip to first */}
+                    <button
+                      onClick={() => { setPage(0); fetchListings(false, 0, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={page === 0}
+                      title="First page"
+                      className="flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                      style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      ┬½
+                    </button>
+
+                    <button
+                      onClick={() => { const np = Math.max(0, page - 1); setPage(np); fetchListings(false, np, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={page === 0}
+                      className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                      style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      <ChevronLeft size={15} /> Prev
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => {
+                        if (Math.abs(i - page) > 2) return null;
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => { setPage(i); fetchListings(false, i, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                            className="w-8 h-8 rounded-lg text-sm font-medium transition-all"
+                            style={{
+                              fontFamily: 'Poppins, sans-serif',
+                              backgroundColor: i === page ? '#01BBDC' : '#FFFFFF',
+                              color: i === page ? '#FFFFFF' : 'rgba(16,33,79,0.6)',
+                              border: i === page ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.12)',
+                            }}
+                          >
+                            {i + 1}
+                          </button>
+                        );
+                      })}
+                      {/* Always show last page if not in window */}
+                      {page < totalPages - 3 && (
+                        <>
+                          {page < totalPages - 4 && (
+                            <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 13, padding: '0 2px' }}>ΓÇª</span>
+                          )}
+                          <button
+                            onClick={() => { setPage(totalPages - 1); fetchListings(false, totalPages - 1, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                            className="w-8 h-8 rounded-lg text-sm font-medium transition-all"
+                            style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: '#FFFFFF', color: 'rgba(16,33,79,0.6)', border: '1.5px solid rgba(16,33,79,0.12)' }}
+                          >
+                            {totalPages}
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => { const np = Math.min(totalPages - 1, page + 1); setPage(np); fetchListings(false, np, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={page >= totalPages - 1}
+                      className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                      style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      Next <ChevronRight size={15} />
+                    </button>
+
+                    {/* Skip to last */}
+                    <button
+                      onClick={() => { setPage(totalPages - 1); fetchListings(false, totalPages - 1, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      disabled={page >= totalPages - 1}
+                      title="Last page"
+                      className="flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                      style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      ┬╗
+                    </button>
+                  </div>
+
+                  {/* Per-page dropdown ΓÇö far right */}
+                  <div
+                    className="absolute right-0 flex items-center gap-2"
+                    style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.5)' }}
+                  >
+                    <span>Show</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => { const ps = Number(e.target.value); setPageSize(ps); setPage(0); fetchListings(false, 0, sort, ps); }}
+                      className="focus:outline-none"
+                      style={{
+                        border: '1.5px solid rgba(16,33,79,0.15)',
+                        borderRadius: 6,
+                        padding: '4px 8px',
+                        fontSize: 13,
+                        fontFamily: 'Poppins, sans-serif',
+                        color: '#10214F',
+                        backgroundColor: '#FAFAFA',
+                      }}
+                    >
+                      <option value={20}>20</option>
+                      <option value={48}>48</option>
+                      <option value={96}>96</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ΓòÉΓòÉ Filter drawer ΓÇö slides in from the left ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/40 transition-opacity duration-200"
+        style={{ opacity: moreFiltersOpen ? 1 : 0, pointerEvents: moreFiltersOpen ? 'auto' : 'none' }}
+        onClick={() => setMoreFiltersOpen(false)}
+      />
+      {/* Panel */}
+      <div
+        className="fixed left-0 top-0 h-full z-50 overflow-y-auto"
+        style={{
+          width: 340,
+          backgroundColor: '#FFFFFF',
+          boxShadow: '4px 0 30px rgba(16,33,79,0.15)',
+          transform: moreFiltersOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between sticky top-0 bg-white z-10"
+          style={{ padding: '16px 20px', borderBottom: '1px solid rgba(16,33,79,0.08)' }}
+        >
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={16} style={{ color: '#10214F' }} />
+            <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600, color: '#10214F' }}>
+              All Filters
+            </span>
+            {filterPills.length > 0 && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                style={{ backgroundColor: '#01BBDC', color: '#FFF', fontFamily: 'Poppins, sans-serif' }}
+              >
+                {filterPills.length}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setMoreFiltersOpen(false)}
+            style={{ color: 'rgba(16,33,79,0.4)', padding: 4 }}
+            aria-label="Close filters"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label style={dropdownLabelStyle}>Condition</label>
+            <ToggleChips options={['New', 'Used']} values={['new', 'used']} value={filters.condition} onChange={(v) => handleFilterChange('condition', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Propulsion</label>
+            <ToggleChips options={['Power', 'Sail']} values={['power', 'sail']} value={filters.propulsion} onChange={(v) => { handleFilterChange('propulsion', v); handleFilterChange('boat_type', ''); }} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Type</label>
+            <div className="flex flex-wrap gap-1.5">
+              {typeOptions.map((opt) => {
+                const active = filters.boat_type === opt || filters.boat_type.split(',').includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => handleFilterChange('boat_type', active ? '' : opt)}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                    style={{ fontFamily: 'Poppins, sans-serif', border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.2)', backgroundColor: active ? '#01BBDC' : 'transparent', color: active ? '#FFF' : '#10214F' }}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Make</label>
+            <SearchableList items={makes} value={filters.make} onChange={(v) => { handleFilterChange('make', v); handleFilterChange('model', ''); }} placeholder="Search makesΓÇª" />
+          </div>
+          {filters.make && (
+            <div>
+              <label style={dropdownLabelStyle}>Model</label>
+              <SearchableList items={models} value={filters.model} onChange={(v) => handleFilterChange('model', v)} placeholder="Search modelsΓÇª" />
+            </div>
+          )}
+          <div>
+            <label style={dropdownLabelStyle}>Price (USD)</label>
+            <RangeInputs minVal={filters.min_price} maxVal={filters.max_price} minPlaceholder="Min" maxPlaceholder="Max" onMinChange={(v) => handleFilterChange('min_price', v)} onMaxChange={(v) => handleFilterChange('max_price', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Length (ft)</label>
+            <RangeInputs minVal={filters.min_length} maxVal={filters.max_length} minPlaceholder="Min ft" maxPlaceholder="Max ft" onMinChange={(v) => handleFilterChange('min_length', v)} onMaxChange={(v) => handleFilterChange('max_length', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Year</label>
+            <RangeInputs minVal={filters.min_year} maxVal={filters.max_year} minPlaceholder="From" maxPlaceholder="To" onMinChange={(v) => handleFilterChange('min_year', v)} onMaxChange={(v) => handleFilterChange('max_year', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Country</label>
+            <select value={filters.country} onChange={(e) => { handleFilterChange('country', e.target.value); handleFilterChange('state', ''); }} className="w-full focus:outline-none" style={rangeInputStyle}>
+              <option value="">Any country</option>
+              {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>State / Province</label>
+            {filters.country && STATES_BY_COUNTRY[filters.country] ? (
+              <select value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} className="w-full focus:outline-none" style={rangeInputStyle}>
+                <option value="">Any state</option>
+                {STATES_BY_COUNTRY[filters.country].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            ) : (
+              <input type="text" value={filters.state} onChange={(e) => handleFilterChange('state', e.target.value)} placeholder="State / Province" className="w-full focus:outline-none" style={rangeInputStyle} />
+            )}
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>City</label>
+            <input type="text" value={filters.city} onChange={(e) => handleFilterChange('city', e.target.value)} placeholder="City" className="w-full focus:outline-none" style={rangeInputStyle} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Fuel Type</label>
+            <ToggleChips options={['Diesel', 'Gasoline', 'Electric', 'Hybrid', 'Other']} value={filters.fuel} onChange={(v) => handleFilterChange('fuel', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Hull Material</label>
+            <ToggleChips options={['Fiberglass', 'Steel', 'Aluminum', 'Carbon Fiber', 'Wood', 'Composite']} value={filters.hull_material} onChange={(v) => handleFilterChange('hull_material', v)} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Engine Details</label>
+            <input type="text" value={filters.engine} onChange={(e) => handleFilterChange('engine', e.target.value)} placeholder="e.g. Twin diesel" className="w-full focus:outline-none" style={rangeInputStyle} />
+          </div>
+          <div>
+            <label style={dropdownLabelStyle}>Brokerage</label>
+            <input type="text" value={filters.brokerage} onChange={(e) => handleFilterChange('brokerage', e.target.value)} placeholder="Any brokerage" className="w-full focus:outline-none" style={rangeInputStyle} />
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => { clearFilters(); setMoreFiltersOpen(false); }}
+              className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
+              style={{ backgroundColor: 'rgba(16,33,79,0.05)', color: '#10214F', fontFamily: 'Poppins, sans-serif', border: '1.5px solid rgba(16,33,79,0.15)' }}
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ΓöÇΓöÇΓöÇ Label style ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+const dropdownLabelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  color: 'rgba(16,33,79,0.45)',
+  fontFamily: 'Poppins, sans-serif',
+  marginBottom: 6,
+};
+
+// ΓöÇΓöÇΓöÇ Export ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+function BrowseLoading() {
+  return <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }} />;
+}
+
+export default function BrowsePage() {
+  return (
+    <Suspense fallback={<BrowseLoading />}>
+      <BrowseContent />
+    </Suspense>
   );
 }

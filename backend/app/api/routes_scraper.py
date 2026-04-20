@@ -106,8 +106,6 @@ class CreateJobRequest(BaseModel):
     schedule_hours: int = 24
     notes: Optional[str] = None
     enabled: bool = True
-    feed_type: Optional[str] = None   # None/"html" = HTML scraper; "yachtworld_api" = Boats Group REST API
-    api_key: Optional[str] = None     # API key for feed_type="yachtworld_api"
 
 
 class UpdateJobRequest(BaseModel):
@@ -118,8 +116,6 @@ class UpdateJobRequest(BaseModel):
     schedule_hours: Optional[int] = None
     notes: Optional[str] = None
     enabled: Optional[bool] = None
-    feed_type: Optional[str] = None
-    api_key: Optional[str] = None
 
 
 class ImportSingleRequest(BaseModel):
@@ -736,10 +732,6 @@ def _job_to_dict(job: ScraperJob) -> dict:
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "site_template": job.site_template or {},
         "last_run_log": job.last_run_log or [],
-        "feed_type": job.feed_type or "html",
-        # Never expose the raw api_key to the client — return a masked placeholder
-        # so the frontend knows one is set without leaking the value.
-        "api_key_set": bool(job.api_key),
     }
 
 
@@ -762,10 +754,6 @@ def create_scraper_job(
     _require_admin(current_user)
     if not data.broker_url:
         raise ValidationException("broker_url is required")
-    feed_type = (data.feed_type or "").strip().lower() or None
-    if feed_type and feed_type not in ("html", "yachtworld_api"):
-        raise HTTPException(status_code=400, detail=f"Unknown feed_type '{feed_type}'. Supported: html, yachtworld_api")
-
     job = ScraperJob(
         dealer_id=data.dealer_id,
         salesman_id=data.salesman_id,
@@ -776,8 +764,6 @@ def create_scraper_job(
         notes=data.notes,
         enabled=data.enabled,
         status="idle",
-        feed_type=feed_type,
-        api_key=data.api_key or None,
     )
     db.add(job)
     db.commit()
