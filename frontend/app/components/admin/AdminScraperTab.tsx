@@ -650,7 +650,7 @@ interface YWJob {
   created_at?: string;
 }
 
-function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; apiUrl: string; authHeaders: Record<string, string> }) {
+function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }: { dealers: Dealer[]; apiUrl: (path: string) => string; authHeaders: () => Record<string, string> }) {
   const [jobs, setJobs] = useState<YWJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -664,7 +664,7 @@ function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; 
   async function loadJobs() {
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${apiUrl}/yachtworld/jobs`, { headers: authHeaders });
+      const r = await fetch(_apiUrl('/yachtworld/jobs'), { headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
       setJobs(await r.json());
     } catch (e: unknown) {
@@ -706,9 +706,9 @@ function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; 
       if (form.api_key.trim()) body.api_key = form.api_key.trim();
       if (!editingJob) body.api_key = form.api_key.trim();
 
-      const url = editingJob ? `${apiUrl}/yachtworld/jobs/${editingJob.id}` : `${apiUrl}/yachtworld/jobs`;
+      const url = editingJob ? _apiUrl(`/yachtworld/jobs/${editingJob.id}`) : _apiUrl('/yachtworld/jobs');
       const method = editingJob ? 'PUT' : 'POST';
-      const r = await fetch(url, { method, headers: { ...authHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(url, { method, headers: { ..._authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(await r.text());
       await loadJobs();
       handleCancelForm();
@@ -721,7 +721,7 @@ function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; 
 
   async function handleRunJob(job: YWJob) {
     try {
-      const r = await fetch(`${apiUrl}/yachtworld/jobs/${job.id}/run`, { method: 'POST', headers: authHeaders });
+      const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/run`), { method: 'POST', headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
       setActionMsg(`Feed job "${job.site_name || job.api_endpoint}" started.`);
       setTimeout(() => setActionMsg(''), 5000);
@@ -733,7 +733,7 @@ function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; 
 
   async function handleToggleJob(job: YWJob) {
     try {
-      const r = await fetch(`${apiUrl}/yachtworld/jobs/${job.id}/toggle`, { method: 'POST', headers: authHeaders });
+      const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/toggle`), { method: 'POST', headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
       await loadJobs();
     } catch (e: unknown) {
@@ -744,7 +744,7 @@ function FeedJobsSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; 
   async function handleDeleteJob(job: YWJob) {
     if (!confirm(`Delete feed job "${job.site_name || job.api_endpoint}"?\nThis will not remove already-imported listings.`)) return;
     try {
-      const r = await fetch(`${apiUrl}/yachtworld/jobs/${job.id}`, { method: 'DELETE', headers: authHeaders });
+      const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}`), { method: 'DELETE', headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
       await loadJobs();
     } catch (e: unknown) {
