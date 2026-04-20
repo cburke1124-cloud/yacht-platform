@@ -269,7 +269,6 @@ export default function Navbar() {
   const resourceItems = [
     { label: 'How Buying Works / Buyer\'s Guide', href: '/resources/how-buying-works' },
     { label: 'Financing', href: '/resources/financing' },
-    { label: 'Contact', href: '/contact' },
   ];
 
   const navLinkStyle = { fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 14, color: '#10214F', textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
@@ -315,6 +314,7 @@ export default function Navbar() {
             <Link href="/listings" className="hover:text-primary transition-colors" style={navLinkStyle}>Search Listings</Link>
             <NavDropdown label="Sell / List" items={sellItems} />
             <NavDropdown label="Resources" items={resourceItems} />
+            <Link href="/contact" className="hover:text-primary transition-colors" style={navLinkStyle}>Contact</Link>
           </div>
 
           {/* ── Right Side ── */}
@@ -574,6 +574,9 @@ export default function Navbar() {
                     </div>
                   )}
                 </div>
+
+                {/* Contact */}
+                <Link href="/contact" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }} onClick={() => setMobileMenuOpen(false)}>Contact</Link>
               </>
             )}
 

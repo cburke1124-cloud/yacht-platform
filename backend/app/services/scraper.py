@@ -1791,10 +1791,12 @@ except Exception as e:
 
     def extract_description_from_text(self, text: str) -> Optional[str]:
         """Extract the main description block from the clean text."""
-        # Look for content block after a 'Description(s)' heading
+        # Look for content block after a 'Description(s)' or international equivalent heading
         desc_match = re.search(
-            r"descriptions?\s*\n(.+?)(?:\n(?:features?|contact|gallery|images?|photos?|"
-            r"location|map|specifications?|details|amenities|utilities)\s*\n|\Z)",
+            r"(?:descriptions?|descrizione|descrizione\s+imbarcazione|details?|overview|about\s+this\s+(?:vessel|yacht|boat))\s*\n"
+            r"(.+?)(?:\n(?:features?|caratteristiche|contact|gallery|images?|photos?|"
+            r"location|map|specifications?|details|amenities|utilities|equipments?|"
+            r"dotazioni|specifiche|contatt)\s*\n|\Z)",
             text, re.IGNORECASE | re.DOTALL
         )
         if desc_match:
@@ -1804,13 +1806,30 @@ except Exception as e:
             desc = " ".join(lines)
             if len(desc) > 50:
                 return desc
-        # Fallback: first big paragraph (>100 chars) that isn't a nav/price line
+        # Fallback 1: first big paragraph (>100 chars) that isn't a nav/price line
         for para in re.split(r"\n{2,}", text):
             para = para.strip()
             if (len(para) > 100
-                    and not re.match(r"^[\$\d]", para)
+                    and not re.match(r"^[\$\d\d]", para)
                     and not re.search(r"(cookie|privacy|copyright|all rights)", para, re.I)):
                 return para
+        # Fallback 2: collect consecutive non-spec lines (handles short-line layouts)
+        lines_all = [l.strip() for l in text.splitlines()]
+        prose_buffer: list[str] = []
+        _spec_re = re.compile(r"^[\$\d€£]|^\w[\w\s]{0,25}:\s+\S|^(year|make|model|length|beam|draft|price|engine|fuel|hull|cabin)", re.I)
+        for line in lines_all:
+            if len(line) > 30 and not _spec_re.match(line):
+                prose_buffer.append(line)
+                if len(" ".join(prose_buffer)) > 120:
+                    candidate = " ".join(prose_buffer)
+                    if not re.search(r"(cookie|privacy|copyright|all rights)", candidate, re.I):
+                        return candidate
+            else:
+                if len(" ".join(prose_buffer)) > 120:
+                    candidate = " ".join(prose_buffer)
+                    if not re.search(r"(cookie|privacy|copyright|all rights)", candidate, re.I):
+                        return candidate
+                prose_buffer = []
         return None
 
     # ---------------------------------------------------------
@@ -2651,7 +2670,35 @@ except Exception as e:
                         yacht_data["title"] = _boat
                     break
 
-        # Description fallback: if AI still didn't return one, use deterministic extract
+        # Reconstruct title as 'YEAR MAKE MODEL' whenever we have make/model data.
+        # Length is displayed separately on listing cards, so it is excluded from title.
+        _t_year  = yacht_data.get('year')
+        _t_make  = yacht_data.get('make')
+        _t_model = yacht_data.get('model')
+        if _t_make or _t_model:
+            _rebuilt = ' '.join(filter(None, [
+                str(_t_year) if _t_year else '',
+                _t_make or '',
+                _t_model or '',
+            ])).strip()
+            if _rebuilt:
+                yacht_data['title'] = _rebuilt
+
+                # Reconstruct title as 'YEAR MAKE MODEL' whenever we have make/model data.
+        # Length is displayed separately on listing cards, so it is excluded from title.
+        _t_year  = yacht_data.get('year')
+        _t_make  = yacht_data.get('make')
+        _t_model = yacht_data.get('model')
+        if _t_make or _t_model:
+            _rebuilt = ' '.join(filter(None, [
+                str(_t_year) if _t_year else '',
+                _t_make or '',
+                _t_model or '',
+            ])).strip()
+            if _rebuilt:
+                yacht_data['title'] = _rebuilt
+
+                # Description fallback: if AI still didn't return one, use deterministic extract
         if not yacht_data.get("description") and partial.get("description"):
             yacht_data["description"] = partial["description"]
 

@@ -23,7 +23,7 @@ export default function Footer() {
 
   return (
     <footer className="relative overflow-hidden bg-secondary text-light">
-      <div className="pointer-events-none absolute right-0 top-10 hidden opacity-20 lg:block">
+      <div className="pointer-events-none absolute right-0 top-10 hidden lg:block">
         <Image
           src="/logo/footer-watermark.png"
           alt=""

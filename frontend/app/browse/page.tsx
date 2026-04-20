@@ -367,6 +367,7 @@ function BrowseContent() {
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const isFirstRender = useRef(true);
   const searchBarRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS,
     search:     searchParams.get('search')     || '',
@@ -441,6 +442,11 @@ function BrowseContent() {
 
   // Fetch
   const fetchListings = useCallback(async (isAI = false, pg = page, sr = sort, ps = pageSize) => {
+    // Cancel any in-flight fetch so stale results never overwrite newer ones
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     try {
       let url: string;
@@ -456,7 +462,7 @@ function BrowseContent() {
           if (v) url += `&${k}=${encodeURIComponent(v)}`;
         });
       }
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: controller.signal });
       const data = await res.json();
       if (isAI) {
         const results = (data.results || []).map((r: any) => ({
@@ -472,11 +478,12 @@ function BrowseContent() {
         setListings(items);
         setTotal(data.total ?? items.length);
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // Ignore cancelled fetches
       setListings([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [filters, aiQuery, page, sort, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
 

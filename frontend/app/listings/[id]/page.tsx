@@ -728,151 +728,130 @@ export default function ListingDetailPage() {
 
           {/* ── Contact card: 4 cols ── */}
           <div className="lg:col-span-4">
-            <div className="rounded-3xl border border-gray-200 bg-white">
+            <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
               {(sc || dealer) ? (
-                <div className="p-6">
-                  {sc ? (
-                    <div className="flex gap-4 mb-5">
-                      {sc.photo_url ? (
-                        <img src={sc.photo_url} alt={sc.name || 'Sales contact photo'}
-                          className="w-20 h-20 rounded-2xl object-cover flex-shrink-0"
-                          onError={e => { (e.target as HTMLImageElement).src = '/images/user-placeholder.png'; }} />
+                <>
+                  {/* ── Broker section ──────────────────────────────── */}
+                  <div className="p-6 text-center">
+                    {/* Photo / Avatar */}
+                    <div className="flex justify-center mb-4">
+                      {sc?.photo_url ? (
+                        <img src={sc.photo_url} alt={sc.name || 'Broker'}
+                          className="w-24 h-24 rounded-full object-cover border-2 border-gray-100 shadow-sm"
+                          onError={e => { (e.target as HTMLImageElement).src = '/logo/logo-icon.png'; }} />
+                      ) : (dealer?.logo_url && !sc) ? (
+                        <img src={dealer.logo_url} alt={dealer.company_name || 'Dealer'}
+                          className="w-24 h-24 rounded-full object-contain bg-gray-50 p-2 border border-gray-100"
+                          onError={e => { (e.target as HTMLImageElement).src = '/logo/logo-icon.png'; }} />
                       ) : (
-                        <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
-                          <User size={36} className="text-gray-400" />
+                        <div className="w-24 h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
+                          <img src="/logo/logo-icon.png" alt="YachtVersal" className="w-14 h-14 object-contain" />
                         </div>
                       )}
-                      <div className="min-w-0 pt-1">
-                        {sc.id ? (
-                          <Link href={`/salesmen/${sc.id}`}
-                            className="font-bold text-lg text-[#10214F] mb-0.5 hover:underline block">
-                            {sc.name}
-                          </Link>
-                        ) : (
-                          <p className="font-bold text-lg text-[#10214F] mb-0.5">{sc.name}</p>
-                        )}
-                        {sc.title && (
-                          <p className="text-sm text-gray-600 mb-1">{sc.title}</p>
-                        )}
-                        {sc.phone && (
-                          <a href={`tel:${sc.phone}`}
-                            className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors flex items-center gap-1.5 mt-0.5">
-                            <Phone size={12} /> {formatPhone(sc.phone)}
-                          </a>
-                        )}
-                        {sc.email && (
-                          <a href={`mailto:${sc.email}`}
-                            className="text-xs text-gray-500 hover:text-[#01BBDC] transition-colors block mt-1">
-                            {sc.email}
-                          </a>
-                        )}
-                      </div>
                     </div>
-                  ) : (
-                    dealer && (dealer.company_name || dealer.name) && (
-                      <div className="flex gap-4 mb-5">
-                        {dealer.logo_url ? (
-                          <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`}
-                            className="w-16 h-16 rounded-2xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
-                            onError={e => { (e.target as HTMLImageElement).src = '/images/company-placeholder.png'; }} />
-                        ) : (
-                          <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gray-100 border border-gray-200">
-                            <Building2 size={28} className="text-gray-400" />
-                          </div>
-                        )}
-                        <div className="min-w-0 pt-1">
-                          {dealer.slug ? (
-                            <Link href={`/dealers/${dealer.slug}`}
-                              className="font-bold text-lg text-[#10214F] mb-1 hover:underline block">
-                              {dealer.company_name || dealer.name}
-                            </Link>
-                          ) : (
-                            <p className="font-bold text-lg text-[#10214F] mb-1">{dealer.company_name || dealer.name}</p>
-                          )}
-                          {(dealer.city || dealer.state) && (
-                            <p className="text-sm text-gray-600 flex items-center gap-1">
-                              <MapPin size={12} />
-                              {[dealer.city, dealer.state].filter(Boolean).join(', ')}
-                            </p>
-                          )}
-                          {dealer.phone && (
-                            <a href={`tel:${dealer.phone}`}
-                              className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors mt-1 flex items-center gap-1.5">
-                              <Phone size={12} /> {formatPhone(dealer.phone)}
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  )}
 
-                  {/* Divider */}
-                  <div className="h-px bg-gray-200 mb-5" />
+                    {/* Name */}
+                    {sc?.id ? (
+                      <Link href={`/salesmen/${sc.id}`} className="hover:underline"
+                        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', fontSize: 15, color: '#10214F', display: 'block', marginBottom: 2 }}>
+                        {sc.name}
+                      </Link>
+                    ) : sc?.name ? (
+                      <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 2 }}>
+                        {sc.name}
+                      </p>
+                    ) : dealer?.slug ? (
+                      <Link href={`/dealers/${dealer.slug}`} className="hover:underline"
+                        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', fontSize: 15, color: '#10214F', display: 'block', marginBottom: 2 }}>
+                        {dealer.company_name || dealer.name}
+                      </Link>
+                    ) : (
+                      <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 2 }}>
+                        {dealer?.company_name || dealer?.name}
+                      </p>
+                    )}
 
-                  {/* CTA buttons */}
-                  <div className="flex flex-col gap-3">
+                    {/* Title */}
+                    {sc?.title && (
+                      <p className="text-sm text-gray-500 mb-2">{sc.title}</p>
+                    )}
+
+                    {/* Phone */}
+                    {(sc?.phone || dealer?.phone) && (
+                      <a href={`tel:${sc?.phone || dealer?.phone}`}
+                        className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2"
+                        style={{ color: '#10214F' }}>
+                        <Phone size={13} /> {formatPhone(sc?.phone || dealer?.phone)}
+                      </a>
+                    )}
+
+                    {/* Location */}
+                    {(dealer?.city || dealer?.state) && (
+                      <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-5">
+                        <MapPin size={10} />
+                        {[dealer.city, dealer.state].filter(Boolean).join(', ')}
+                      </p>
+                    )}
+
+                    {/* CTA */}
                     <button onClick={() => setShowMsg(true)}
-                      className="w-full py-3.5 rounded-2xl text-white font-semibold flex items-center justify-center gap-2 transition-all bg-[#10214F] hover:opacity-90">
-                      <Mail size={18} /> Message Broker
+                      className="w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
+                      style={{ backgroundColor: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.08em', fontSize: 13 }}>
+                      CONTACT BROKER
                     </button>
                   </div>
 
-                </div>
-              ) : (
-                <div className="p-6 flex flex-col items-center justify-center text-center">
-                  <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                    <Building2 size={36} className="text-gray-400" />
-                  </div>
-                  <p className="text-sm text-gray-500 mb-4">Contact information not available</p>
-                  <button onClick={() => setShowMsg(true)}
-                    className="w-full py-3 rounded-2xl text-white font-semibold bg-[#01BBDC] hover:opacity-90 transition-all">
-                    Send Inquiry
-                  </button>
-                </div>
-              )}
-
-              {/* Brokerage info (when sales contact has parent dealer) */}
-              {sc && dealer && (dealer.company_name || dealer.name) && (
-                <div className="px-6 py-5 border-t border-gray-200 bg-gray-50">
-                  <div className="flex gap-3 items-start">
-                    {dealer.logo_url ? (
-                      <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name || 'Dealer'} logo`} className="w-14 h-14 rounded-xl object-contain bg-white p-2 flex-shrink-0 border border-gray-100"
-                        onError={e => { (e.target as HTMLImageElement).src = '/images/company-placeholder.png'; }} />
-                    ) : (
-                      <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border border-gray-100">
-                        <Building2 size={24} className="text-gray-400" />
+                  {/* ── Company section ──────────────────────────────── */}
+                  {dealer && (dealer.company_name || dealer.name) && (
+                    <div className="border-t border-gray-100 p-5" style={{ backgroundColor: '#F8F9FC' }}>
+                      {/* Logo */}
+                      <div className="flex justify-center mb-3">
+                        {dealer.logo_url ? (
+                          <img src={dealer.logo_url} alt={`${dealer.company_name || dealer.name} logo`}
+                            className="h-12 max-w-[140px] object-contain"
+                            onError={e => { (e.target as HTMLImageElement).src = '/logo/logo-icon.png'; }} />
+                        ) : (
+                          <img src="/logo/logo-icon.png" alt="YachtVersal" className="h-10 w-auto object-contain opacity-30" />
+                        )}
                       </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      {dealer.slug ? (
+
+                      {/* Company name */}
+                      {sc && (dealer.slug ? (
                         <Link href={`/dealers/${dealer.slug}`}
-                          className="font-bold text-[#10214F] truncate text-sm hover:text-[#01BBDC] hover:underline block">
+                          className="block text-center text-xs font-semibold text-[#10214F] hover:text-[#01BBDC] hover:underline mb-3 uppercase tracking-wider">
                           {dealer.company_name || dealer.name}
                         </Link>
                       ) : (
-                        <p className="font-bold text-[#10214F] truncate text-sm">{dealer.company_name || dealer.name}</p>
-                      )}
-                      {(dealer.city || dealer.state) && (
-                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                          <MapPin size={10} /> {[dealer.city, dealer.state].filter(Boolean).join(', ')}
+                        <p className="text-center text-xs font-semibold text-[#10214F] mb-3 uppercase tracking-wider">
+                          {dealer.company_name || dealer.name}
                         </p>
-                      )}
+                      ))}
+
+                      {/* Visit website */}
                       {dealer.website && (
                         <a href={dealer.website.startsWith('http') ? dealer.website : `https://${dealer.website}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 mt-1.5 text-xs hover:underline text-[#01BBDC]">
-                          <Globe size={11} />
-                          {dealer.website.replace(/^https?:\/\//, '')}
+                          className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80"
+                          style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.06em', border: '1.5px solid #10214F', color: '#10214F' }}>
+                          VISIT WEBSITE
                         </a>
                       )}
                     </div>
-                    {dealer.slug && (
-                      <Link href={`/dealers/${dealer.slug}`}
-                        className="text-xs font-semibold hover:underline flex items-center gap-1 flex-shrink-0 text-[#01BBDC]">
-                        View all <ExternalLink size={10} />
-                      </Link>
-                    )}
+                  )}
+                </>
+              ) : (
+                <div className="p-6 text-center">
+                  <div className="flex justify-center mb-4">
+                    <div className="w-24 h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
+                      <img src="/logo/logo-icon.png" alt="YachtVersal" className="w-14 h-14 object-contain opacity-40" />
+                    </div>
                   </div>
+                  <p className="text-sm text-gray-500 mb-4">Contact information not available</p>
+                  <button onClick={() => setShowMsg(true)}
+                    className="w-full py-3.5 rounded-2xl text-white font-semibold bg-[#01BBDC] hover:opacity-90 transition-all"
+                    style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.08em', fontSize: 13 }}>
+                    SEND INQUIRY
+                  </button>
                 </div>
               )}
 

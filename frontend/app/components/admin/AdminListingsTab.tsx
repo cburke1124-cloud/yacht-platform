@@ -20,12 +20,24 @@ export default function AdminListingsTab() {
   const [quickEditMode, setQuickEditMode] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [brokerFilter, setBrokerFilter] = useState('');
   const PAGE_SIZE = 25;
 
   useEffect(() => {
     fetchListings();
     setPage(0); // reset page when filter changes
   }, [filter]);
+
+  // Derived broker options from loaded listings
+  const brokerOptions = [...new Set(
+    listings.map((l: any) => l.company_name).filter(Boolean)
+  )].sort() as string[];
+
+  // Apply both status + broker filters
+  const filteredListings = listings.filter((l: any) =>
+    (filter === 'all' || l.status === filter) &&
+    (!brokerFilter || l.company_name === brokerFilter)
+  );
 
   const fetchListings = async () => {
     try {
@@ -220,19 +232,44 @@ export default function AdminListingsTab() {
         </div>
       </div>
 
+      {/* Broker filter */}
+      {brokerOptions.length > 0 && (
+        <div className="flex items-center gap-3 mb-4">
+          <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Filter by Broker:</label>
+          <select
+            value={brokerFilter}
+            onChange={(e) => { setBrokerFilter(e.target.value); setPage(0); }}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary bg-white"
+          >
+            <option value="">— All Brokers —</option>
+            {brokerOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          {brokerFilter && (
+            <button
+              onClick={() => { setBrokerFilter(''); setPage(0); }}
+              className="text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filter Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {['all', 'active', 'draft', 'awaiting_review', 'archived', 'sold'].map((status) => (
           <button
             key={status}
-            onClick={() => setFilter(status)}
+            onClick={() => { setFilter(status); setPage(0); }}
             className={`px-4 py-2 rounded-lg capitalize ${
               filter === status
                       ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {status === 'awaiting_review' ? 'Awaiting Approval' : status} ({listings.filter(l => status === 'all' || l.status === status).length})
+            {status === 'awaiting_review' ? 'Awaiting Approval' : status} ({listings.filter((l: any) => (status === 'all' || l.status === status) && (!brokerFilter || l.company_name === brokerFilter)).length})
           </button>
         ))}
       </div>
@@ -263,14 +300,14 @@ export default function AdminListingsTab() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {listings.length === 0 ? (
+            {filteredListings.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   No listings found
                 </td>
               </tr>
             ) : (
-              listings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((listing) => (
+              filteredListings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((listing) => (
                 <tr key={listing.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -398,10 +435,10 @@ export default function AdminListingsTab() {
         </table>
 
         {/* Pagination bar */}
-        {Math.ceil(listings.length / PAGE_SIZE) > 1 && (
+        {Math.ceil(filteredListings.length / PAGE_SIZE) > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
             <span className="text-sm text-gray-500">
-              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, listings.length)} of {listings.length}
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredListings.length)} of {filteredListings.length}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -412,11 +449,11 @@ export default function AdminListingsTab() {
                 ← Previous
               </button>
               <span className="text-sm text-gray-700 font-medium px-2">
-                Page {page + 1} of {Math.ceil(listings.length / PAGE_SIZE)}
+                Page {page + 1} of {Math.ceil(filteredListings.length / PAGE_SIZE)}
               </span>
               <button
-                onClick={() => setPage(p => Math.min(Math.ceil(listings.length / PAGE_SIZE) - 1, p + 1))}
-                disabled={page >= Math.ceil(listings.length / PAGE_SIZE) - 1}
+                onClick={() => setPage(p => Math.min(Math.ceil(filteredListings.length / PAGE_SIZE) - 1, p + 1))}
+                disabled={page >= Math.ceil(filteredListings.length / PAGE_SIZE) - 1}
                 className="px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Next →
