@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -194,7 +194,7 @@ function RangeInputs({
         className="flex-1 focus:outline-none"
         style={rangeInputStyle}
       />
-      <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 12 }}>ΓÇô</span>
+      <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 12 }}>–</span>
       <input
         type="number"
         value={maxVal}
@@ -280,7 +280,7 @@ function SearchableList({
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={placeholder ?? 'SearchΓÇª'}
+          placeholder={placeholder ?? 'Search…'}
           className="w-full focus:outline-none pl-7"
           style={{ ...rangeInputStyle, paddingLeft: 28, fontSize: 12 }}
         />
@@ -537,15 +537,15 @@ function BrowseContent() {
   if (filters.make)         filterPills.push({ label: filters.make,                 clear: () => handleFilterChange('make', '') });
   if (filters.model)        filterPills.push({ label: filters.model,                clear: () => handleFilterChange('model', '') });
   if (filters.min_price || filters.max_price) filterPills.push({
-    label: `$${filters.min_price || '0'} ΓÇô $${filters.max_price || 'Γê₧'}`,
+    label: `$${filters.min_price || '0'} – $${filters.max_price || '∞'}`,
     clear: () => { handleFilterChange('min_price', ''); handleFilterChange('max_price', ''); },
   });
   if (filters.min_length || filters.max_length) filterPills.push({
-    label: `${filters.min_length || '0'}ΓÇô${filters.max_length || 'Γê₧'} ft`,
+    label: `${filters.min_length || '0'}–${filters.max_length || '∞'} ft`,
     clear: () => { handleFilterChange('min_length', ''); handleFilterChange('max_length', ''); },
   });
   if (filters.min_year || filters.max_year) filterPills.push({
-    label: `${filters.min_year || ''}ΓÇô${filters.max_year || ''}`,
+    label: `${filters.min_year || ''}–${filters.max_year || ''}`,
     clear: () => { handleFilterChange('min_year', ''); handleFilterChange('max_year', ''); },
   });
   if (filters.country)      filterPills.push({ label: filters.country,              clear: () => handleFilterChange('country', '') });
@@ -570,10 +570,10 @@ function BrowseContent() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
 
-      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ COMPACT AI SEARCH BAR ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      {/* ══════ COMPACT AI SEARCH BAR ══════ */}
       <div style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid rgba(16,33,79,0.06)' }}>
         <div className="mx-auto" style={{ maxWidth: 1440, padding: '14px 24px' }}>
-          {/* Heading ΓÇö centred */}
+          {/* Heading — centred */}
           <h2
             className="text-center"
             style={{
@@ -601,7 +601,7 @@ function BrowseContent() {
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } } }}
-                placeholder="Describe your ideal yacht ΓÇö size, lifestyle, budget, cruising plansΓÇª"
+                placeholder="Describe your ideal yacht — size, lifestyle, budget, cruising plans…"
                 className="w-full focus:outline-none"
                 style={{
                   height: 40,
@@ -643,7 +643,7 @@ function BrowseContent() {
               AI Search
             </button>
           </form>
-          {/* Badge ΓÇö centred below search input */}
+          {/* Badge — centred below search input */}
           <div className="flex justify-center" style={{ maxWidth: 960, margin: '7px auto 0 auto' }}>
             <span
               className="inline-flex items-center gap-1.5"
@@ -660,13 +660,13 @@ function BrowseContent() {
                 <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
                 <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
               </svg>
-              Powered by YachtVersal AI ΓÇö understands natural language queries
+              Powered by YachtVersal AI — understands natural language queries
             </span>
           </div>
         </div>
       </div>
 
-      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ STICKY SEARCH + FILTER BAR ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      {/* ══════ STICKY SEARCH + FILTER BAR ══════ */}
       <div
         ref={searchBarRef}
         className="sticky top-0 z-40"
@@ -680,7 +680,7 @@ function BrowseContent() {
           className="mx-auto"
           style={{ maxWidth: 1440, padding: '12px 24px' }}
         >
-          {/* Filter + controls ΓÇö single row */}
+          {/* Filter + controls — single row */}
           <div className="flex items-start gap-3">
             {/* Filter chips */}
             <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
@@ -719,7 +719,7 @@ function BrowseContent() {
                 items={typeOptions}
                 value={filters.boat_type}
                 onChange={(v) => handleFilterChange('boat_type', v)}
-                placeholder="Search typesΓÇª"
+                placeholder="Search types…"
               />
             </FilterDropdown>
 
@@ -732,7 +732,7 @@ function BrowseContent() {
                 items={makes}
                 value={filters.make}
                 onChange={(v) => { handleFilterChange('make', v); handleFilterChange('model', ''); }}
-                placeholder="Search makesΓÇª"
+                placeholder="Search makes…"
               />
             </FilterDropdown>
 
@@ -746,7 +746,7 @@ function BrowseContent() {
                   items={models}
                   value={filters.model}
                   onChange={(v) => handleFilterChange('model', v)}
-                  placeholder="Search modelsΓÇª"
+                  placeholder="Search models…"
                 />
               ) : (
                 <p style={{ fontSize: 13, color: 'rgba(16,33,79,0.4)', fontFamily: 'Poppins, sans-serif' }}>
@@ -852,7 +852,7 @@ function BrowseContent() {
               </div>
             </FilterDropdown>
 
-            {/* More filters ΓÇö opens left drawer */}
+            {/* More filters — opens left drawer */}
             <button
               type="button"
               onClick={() => setMoreFiltersOpen((v) => !v)}
@@ -929,7 +929,7 @@ function BrowseContent() {
         </div>
       </div>
 
-      {/* ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ RESULTS ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      {/* ══════ RESULTS ══════ */}
       <div
         className="mx-auto"
         style={{ maxWidth: 1440, padding: '24px 24px 80px' }}
@@ -980,7 +980,7 @@ function BrowseContent() {
               style={{ width: 44, height: 44, borderColor: '#01BBDC' }}
             />
             <p className="mt-4 text-sm" style={{ color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif' }}>
-              SearchingΓÇª
+              Searching…
             </p>
           </div>
         ) : sorted.length === 0 ? (
@@ -1056,7 +1056,7 @@ function BrowseContent() {
               >
                 <Sparkles size={16} style={{ color: '#01BBDC', flexShrink: 0, marginTop: 2 }} />
                 <p style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontSize: 13, lineHeight: '20px' }}>
-                  <strong>AI-Powered Results</strong> ΓÇö ranked by how well they match your request. Refine further using the filters above.
+                  <strong>AI-Powered Results</strong> — ranked by how well they match your request. Refine further using the filters above.
                 </p>
               </div>
             )}
@@ -1117,7 +1117,7 @@ function BrowseContent() {
                       <ul className="space-y-0.5">
                         {l.match_reasons.slice(0, 2).map((r, i) => (
                           <li key={i} className="text-xs flex items-start gap-1" style={{ color: 'rgba(16,33,79,0.75)', fontFamily: 'Poppins, sans-serif' }}>
-                            <span style={{ color: '#01BBDC' }}>ΓÇó</span>
+                            <span style={{ color: '#01BBDC' }}>•</span>
                             {r.replace('Γ£ô ', '')}
                           </li>
                         ))}
@@ -1187,7 +1187,7 @@ function BrowseContent() {
                       {page < totalPages - 3 && (
                         <>
                           {page < totalPages - 4 && (
-                            <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 13, padding: '0 2px' }}>ΓÇª</span>
+                            <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 13, padding: '0 2px' }}>…</span>
                           )}
                           <button
                             onClick={() => { setPage(totalPages - 1); fetchListings(false, totalPages - 1, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
@@ -1221,7 +1221,7 @@ function BrowseContent() {
                     </button>
                   </div>
 
-                  {/* Per-page dropdown ΓÇö far right */}
+                  {/* Per-page dropdown — far right */}
                   <div
                     className="absolute right-0 flex items-center gap-2"
                     style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.5)' }}
@@ -1253,7 +1253,7 @@ function BrowseContent() {
         )}
       </div>
 
-      {/* ΓòÉΓòÉ Filter drawer ΓÇö slides in from the left ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ */}
+      {/* ══ Filter drawer — slides in from the left ══════════════════════════ */}
       {/* Backdrop */}
       <div
         className="fixed inset-0 z-50 bg-black/40 transition-opacity duration-200"
@@ -1330,12 +1330,12 @@ function BrowseContent() {
           </div>
           <div>
             <label style={dropdownLabelStyle}>Make</label>
-            <SearchableList items={makes} value={filters.make} onChange={(v) => { handleFilterChange('make', v); handleFilterChange('model', ''); }} placeholder="Search makesΓÇª" />
+            <SearchableList items={makes} value={filters.make} onChange={(v) => { handleFilterChange('make', v); handleFilterChange('model', ''); }} placeholder="Search makes…" />
           </div>
           {filters.make && (
             <div>
               <label style={dropdownLabelStyle}>Model</label>
-              <SearchableList items={models} value={filters.model} onChange={(v) => handleFilterChange('model', v)} placeholder="Search modelsΓÇª" />
+              <SearchableList items={models} value={filters.model} onChange={(v) => handleFilterChange('model', v)} placeholder="Search models…" />
             </div>
           )}
           <div>
