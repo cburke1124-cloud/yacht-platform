@@ -2884,6 +2884,523 @@ def _rehost_image(img_url: str) -> str:
         return img_url
 
 
+# ─── Boats Group / YachtWorld REST API feed sync ─────────────────────────────
+
+def _yw_get(d, *keys, default=None):
+    """Safely traverse a nested dict with multiple possible key paths.
+    Each element in *keys may be a string key or a list of fallback keys."""
+    for key in keys:
+        if d is None:
+            return default
+        if isinstance(key, list):
+            for k in key:
+                v = d.get(k) if isinstance(d, dict) else None
+                if v is not None:
+                    d = v
+                    break
+            else:
+                return default
+        else:
+            d = d.get(key) if isinstance(d, dict) else None
+    return d if d is not None else default
+
+
+def _yw_to_feet(value, unit: str) -> Optional[float]:
+    """Convert a length value to decimal feet."""
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    unit = (unit or "").lower().strip()
+    if unit in ("m", "meter", "meters", "metre", "metres"):
+        return round(v * 3.28084, 2)
+    return v  # assume feet
+
+
+def _map_yw_record(rec: dict) -> dict:
+    """
+    Map a single Boats Group API record to our internal normalized data dict.
+    Handles both flat and nested response formats produced by different API
+    versions and vendor configurations.
+    """
+    g = lambda *args, **kw: _yw_get(rec, *args, **kw)  # noqa: E731
+
+    # ── Identity ─────────────────────────────────────────────────────────────
+    external_id = str(g(["id", "listingId", "listing_id"]) or "")
+
+    # ── Year / Make / Model ───────────────────────────────────────────────────
+    year_raw = g(["year", "modelYear", "model_year"])
+    try:
+        year = int(year_raw) if year_raw else None
+    except (TypeError, ValueError):
+        year = None
+
+    make = (
+        g("make")
+        or g("makeString")
+        or g("manufacturer")
+        or _yw_get(rec, "make", "label")
+    )
+
+    model_raw = g("model")
+    if isinstance(model_raw, dict):
+        model = model_raw.get("label") or model_raw.get("name")
+    else:
+        model = model_raw
+
+    # ── Title / Name ─────────────────────────────────────────────────────────
+    title = (
+        g(["boatName", "name", "title", "vesselName"])
+        or g("boat", "name")
+    )
+    if not title and make and model:
+        parts = []
+        if year:
+            parts.append(str(year))
+        if make:
+            parts.append(str(make).strip())
+        if model:
+            parts.append(str(model).strip())
+        title = " ".join(parts) if parts else None
+
+    # ── Price / Currency ─────────────────────────────────────────────────────
+    price = None
+    currency = "USD"
+
+    price_node = g("price")
+    if isinstance(price_node, (int, float)):
+        price = float(price_node)
+    elif isinstance(price_node, dict):
+        # Format 1: {"type":{"hasSinglePrice":true}, "singlePrice":{"amount":{"USD":450000}}}
+        sp = price_node.get("singlePrice") or {}
+        amount_map = sp.get("amount") if sp else None
+        if isinstance(amount_map, dict):
+            for cur, amt in amount_map.items():
+                try:
+                    price = float(amt)
+                    currency = cur
+                    break
+                except (TypeError, ValueError):
+                    pass
+        # Format 2: {"amount": {"amount": 450000, "currency": {"code": "USD"}}}
+        if price is None:
+            amt_node = price_node.get("amount") or {}
+            if isinstance(amt_node, dict):
+                raw_amt = amt_node.get("amount")
+                cur_node = amt_node.get("currency") or {}
+                if raw_amt is not None:
+                    try:
+                        price = float(raw_amt)
+                        currency = cur_node.get("code", "USD") if isinstance(cur_node, dict) else "USD"
+                    except (TypeError, ValueError):
+                        pass
+        # Format 3: flat {"price": {"USD": 450000}}
+        if price is None:
+            for k, v in price_node.items():
+                if len(k) == 3 and k.isupper():
+                    try:
+                        price = float(v)
+                        currency = k
+                        break
+                    except (TypeError, ValueError):
+                        pass
+
+    if price is None:
+        # Flat fallback
+        for pk in ("asking_price", "listPrice", "list_price"):
+            if rec.get(pk) is not None:
+                try:
+                    price = float(rec[pk])
+                    break
+                except (TypeError, ValueError):
+                    pass
+
+    currency_override = g(["price_currency", "priceCurrencyCode", "currency"])
+    if currency_override:
+        currency = str(currency_override).upper()
+
+    # ── Dimensions ───────────────────────────────────────────────────────────
+    # Length
+    length_feet = None
+    len_node = g("length")
+    if isinstance(len_node, dict):
+        ft_val = _yw_get(len_node, "ft", "value") or _yw_get(len_node, "feet", "value")
+        m_val = _yw_get(len_node, "m", "value") or _yw_get(len_node, "meter", "value")
+        if ft_val is not None:
+            length_feet = _yw_to_feet(ft_val, "feet")
+        elif m_val is not None:
+            length_feet = _yw_to_feet(m_val, "m")
+    elif isinstance(len_node, (int, float)):
+        unit_str = g(["lengthUnits", "length_unit", "lengthUnit"]) or "feet"
+        length_feet = _yw_to_feet(len_node, str(unit_str))
+    else:
+        len_str = g(["lengthString", "length_string"])
+        unit_str = g(["lengthUnits", "length_unit", "lengthUnit"]) or "feet"
+        length_feet = _yw_to_feet(len_str, str(unit_str))
+
+    beam_feet = None
+    beam_node = g("beam")
+    if isinstance(beam_node, dict):
+        bft = _yw_get(beam_node, "ft", "value") or _yw_get(beam_node, "feet", "value")
+        bm = _yw_get(beam_node, "m", "value")
+        if bft is not None:
+            beam_feet = _yw_to_feet(bft, "feet")
+        elif bm is not None:
+            beam_feet = _yw_to_feet(bm, "m")
+    elif isinstance(beam_node, (int, float)):
+        beam_feet = float(beam_node)
+    else:
+        beam_feet = _yw_to_feet(g(["beamString", "beam_string"]), g(["beamUnits", "beam_unit"]) or "feet")
+
+    draft_feet = None
+    draft_node = g("draft")
+    if isinstance(draft_node, dict):
+        dft = (
+            _yw_get(draft_node, "maxDraft", "ft", "value")
+            or _yw_get(draft_node, "ft", "value")
+            or _yw_get(draft_node, "feet", "value")
+        )
+        dm = _yw_get(draft_node, "m", "value")
+        if dft is not None:
+            draft_feet = _yw_to_feet(dft, "feet")
+        elif dm is not None:
+            draft_feet = _yw_to_feet(dm, "m")
+
+    # ── Condition ────────────────────────────────────────────────────────────
+    cond_raw = g("condition")
+    if isinstance(cond_raw, dict):
+        cond_raw = cond_raw.get("label") or cond_raw.get("name")
+    condition = str(cond_raw or "used").lower()
+    if condition not in ("new", "used"):
+        condition = "used"
+
+    # ── Boat type / class ────────────────────────────────────────────────────
+    boat_type = (
+        g("boat", "class", "label")
+        or g(["boat_class", "boatClass", "boatType", "boat_type", "typeLabel", "class"])
+        or g("type", "label")
+        or g("category", "label")
+    )
+    if isinstance(boat_type, dict):
+        boat_type = boat_type.get("label") or boat_type.get("name")
+
+    # ── Hull ─────────────────────────────────────────────────────────────────
+    hull_material = (
+        g("boat", "hull", "material", "label")
+        or g(["hull_material", "hullMaterial", "hull"])
+        or g("hull", "label")
+    )
+    if isinstance(hull_material, dict):
+        hull_material = hull_material.get("label") or hull_material.get("name")
+
+    # ── Location ─────────────────────────────────────────────────────────────
+    city = g("location", "city") or g(["city", "location_city"])
+    state_node = g("location", "state")
+    if isinstance(state_node, dict):
+        state = state_node.get("abbreviation") or state_node.get("label")
+    else:
+        state = state_node or g(["state", "location_state", "stateCode"])
+
+    country_node = g("location", "country")
+    if isinstance(country_node, dict):
+        country = country_node.get("label") or country_node.get("name") or country_node.get("countryCode")
+    else:
+        country = country_node or g(["country", "location_country", "countryLabel"])
+
+    # ── Description ──────────────────────────────────────────────────────────
+    desc_node = g("description")
+    if isinstance(desc_node, dict):
+        description = desc_node.get("body") or desc_node.get("text") or desc_node.get("content")
+    else:
+        description = desc_node
+
+    # ── Images ───────────────────────────────────────────────────────────────
+    images: list = []
+    img_node = g("images")
+    if isinstance(img_node, list):
+        for img in img_node:
+            if isinstance(img, str) and img.startswith("http"):
+                images.append(img)
+            elif isinstance(img, dict):
+                url = (
+                    img.get("uri.base") or img.get("uri")
+                    or img.get("url") or img.get("src")
+                    or img.get("original") or img.get("large")
+                )
+                if url and str(url).startswith("http"):
+                    images.append(str(url))
+
+    # ── Engine / fuel ────────────────────────────────────────────────────────
+    fuel_type = (
+        g("fuelType", "label")
+        or g(["fuel_type", "fuelType"])
+        or g("propulsion", "fuelType", "label")
+    )
+    if isinstance(fuel_type, dict):
+        fuel_type = fuel_type.get("label")
+
+    cabins_raw = g(["cabinsNum", "cabins_num", "cabins", "cabinsCount"])
+    try:
+        cabins = int(cabins_raw) if cabins_raw is not None else None
+    except (TypeError, ValueError):
+        cabins = None
+
+    engine_count_raw = g(["enginesCount", "engine_count", "numEngines"])
+    try:
+        engine_count = int(engine_count_raw) if engine_count_raw is not None else None
+    except (TypeError, ValueError):
+        engine_count = None
+
+    engine_hours_raw = g(["engineHours", "engine_hours"])
+    try:
+        engine_hours = float(engine_hours_raw) if engine_hours_raw is not None else None
+    except (TypeError, ValueError):
+        engine_hours = None
+
+    # ── Compose output dict ───────────────────────────────────────────────────
+    return {
+        "_yw_id": external_id,
+        "title": title,
+        "make": make,
+        "model": model,
+        "year": year,
+        "price": price,
+        "currency": currency,
+        "condition": condition,
+        "length_feet": length_feet,
+        "beam_feet": beam_feet,
+        "draft_feet": draft_feet,
+        "boat_type": boat_type,
+        "hull_material": hull_material,
+        "city": city,
+        "state": state,
+        "country": country,
+        "description": description,
+        "images": images,
+        "fuel_type": fuel_type,
+        "cabins": cabins,
+        "engine_count": engine_count,
+        "engine_hours": engine_hours,
+    }
+
+
+def sync_yachtworld_feed(job_id: int, db) -> Dict:
+    """
+    Sync a ScraperJob of feed_type="yachtworld_api" against the Boats Group
+    / YachtWorld REST API (Accept: application/vnd.dmm-v1+json).
+
+    Pagination: rows=100, offset incremented until records is empty.
+    Upserts listings via the same ScrapedListing / Listing mechanism used by
+    the HTML scraper so cancellation / archival works identically.
+
+    broker_url  — the full API search endpoint,
+                  e.g. https://www.yachtworld.com/api/inventory/search
+    api_key     — the Boats Group API key
+    """
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        return {"error": f"Job {job_id} not found"}
+
+    job.status = "running"
+    job.started_at = datetime.utcnow()
+    job.last_error = None
+    db.commit()
+
+    stats = {"found": 0, "created": 0, "updated": 0, "archived": 0, "errors": 0}
+    run_log: list = []
+    seen_source_urls: set = set()
+
+    ROWS = 100
+    headers = {
+        "Accept": "application/vnd.dmm-v1+json",
+        "User-Agent": "YachtVersal/1.0",
+    }
+    base_url = (job.broker_url or "").rstrip("/")
+    api_key = job.api_key or ""
+
+    try:
+        offset = 0
+        while True:
+            params = {
+                "key": api_key,
+                "rows": ROWS,
+                "offset": offset,
+            }
+            try:
+                resp = requests.get(base_url, params=params, headers=headers, timeout=30)
+                resp.raise_for_status()
+                payload = resp.json()
+            except Exception as exc:
+                logger.error(f"[Job {job_id}] YW API fetch error at offset={offset}: {exc}")
+                job.status = "failed"
+                job.last_error = str(exc)
+                db.commit()
+                return {"success": False, "error": str(exc)}
+
+            # Locate the records list — tolerates multiple response shapes
+            records = (
+                _yw_get(payload, "search", "records")
+                or _yw_get(payload, "results")
+                or _yw_get(payload, "listings")
+                or (payload if isinstance(payload, list) else [])
+            )
+            if not isinstance(records, list) or not records:
+                break  # no more results
+
+            stats["found"] += len(records)
+            job.listings_found = stats["found"]
+            db.commit()
+
+            for rec in records:
+                raw = _map_yw_record(rec)
+                external_id = raw.pop("_yw_id", "")
+
+                # Build a stable source URL from the external ID so upsert works correctly.
+                # Format: {base_url}?id={external_id}  (never fetched, just an identifier key)
+                source_url = f"{base_url}?id={external_id}" if external_id else None
+                if not source_url:
+                    stats["errors"] += 1
+                    run_log.append({"url": "", "outcome": "error", "error": "no listing id in record"})
+                    continue
+
+                seen_source_urls.add(source_url)
+
+                # Look up existing ScrapedListing for this source_url
+                existing_scraped = (
+                    db.query(ScrapedListing)
+                    .filter(ScrapedListing.job_id == job_id, ScrapedListing.source_url == source_url)
+                    .first()
+                )
+
+                is_sold = bool(raw.get("is_sold"))
+
+                if existing_scraped and existing_scraped.listing_id:
+                    listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
+                    if listing:
+                        _apply_scraped_data(listing, raw, job)
+                        if is_sold:
+                            listing.status = "sold"
+                        elif listing.status not in ("draft", "awaiting_review"):
+                            listing.status = "active"
+                        # Sync images: replace any existing scraped images
+                        if raw.get("images"):
+                            db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
+                            for img_url in raw["images"]:
+                                db.add(ListingImage(listing_id=listing.id, url=img_url))
+                        existing_scraped.last_seen = datetime.utcnow()
+                        existing_scraped.still_active = True
+                        stats["updated"] += 1
+                        run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
+                                        "listing_id": listing.id, "title": listing.title})
+                else:
+                    # Check for orphaned listing with same source_url
+                    orphan = (
+                        db.query(Listing)
+                        .filter(
+                            Listing.user_id == job.dealer_id,
+                            Listing.source_url == source_url,
+                            Listing.deleted_at == None,
+                        )
+                        .first()
+                    )
+                    if orphan:
+                        _apply_scraped_data(orphan, raw, job)
+                        if is_sold:
+                            orphan.status = "sold"
+                        elif orphan.status not in ("draft", "awaiting_review"):
+                            orphan.status = "active"
+                        if existing_scraped:
+                            existing_scraped.listing_id = orphan.id
+                            existing_scraped.last_seen = datetime.utcnow()
+                            existing_scraped.still_active = True
+                        else:
+                            db.add(ScrapedListing(
+                                job_id=job_id, listing_id=orphan.id,
+                                source_url=source_url,
+                                last_seen=datetime.utcnow(), still_active=True,
+                            ))
+                        stats["updated"] += 1
+                        run_log.append({"url": source_url, "outcome": "updated", "listing_id": orphan.id, "title": orphan.title})
+                    else:
+                        # Create new listing
+                        listing = Listing(
+                            user_id=job.dealer_id,
+                            assigned_salesman_id=job.salesman_id,
+                            source="scraped",
+                            source_url=source_url,
+                            status="awaiting_review" if is_sold is False else "sold",
+                            condition="used",
+                        )
+                        # Generate BIN
+                        try:
+                            listing.bin = _generate_bin(db)
+                        except Exception:
+                            pass
+                        _apply_scraped_data(listing, raw, job)
+                        db.add(listing)
+                        db.flush()
+                        for img_url in raw.get("images", []):
+                            db.add(ListingImage(listing_id=listing.id, url=img_url))
+                        db.add(ScrapedListing(
+                            job_id=job_id, listing_id=listing.id,
+                            source_url=source_url,
+                            last_seen=datetime.utcnow(), still_active=True,
+                        ))
+                        stats["created"] += 1
+                        run_log.append({"url": source_url, "outcome": "created",
+                                        "listing_id": listing.id, "title": listing.title})
+                db.commit()
+
+            if len(records) < ROWS:
+                break  # last page
+            offset += ROWS
+
+        # Archive listings from previous runs that no longer appear in the feed
+        previously_active = (
+            db.query(ScrapedListing)
+            .filter(ScrapedListing.job_id == job_id, ScrapedListing.still_active == True)
+            .all()
+        )
+        for scraped_record in previously_active:
+            if scraped_record.source_url not in seen_source_urls:
+                scraped_record.still_active = False
+                if scraped_record.listing_id:
+                    listing = db.query(Listing).filter(Listing.id == scraped_record.listing_id).first()
+                    if listing and listing.status == "active":
+                        listing.status = "archived"
+                        stats["archived"] += 1
+                        run_log.append({"url": scraped_record.source_url, "outcome": "archived",
+                                        "listing_id": scraped_record.listing_id})
+                        logger.info(f"[Job {job_id}] Archived listing #{scraped_record.listing_id} — no longer in feed")
+
+        job.status = "completed"
+        job.completed_at = datetime.utcnow()
+        job.last_run_at = datetime.utcnow()
+        job.listings_found = stats["found"]
+        job.listings_created = stats["created"]
+        job.listings_updated = stats["updated"]
+        job.listings_removed = stats["archived"]
+        job.total_runs = (job.total_runs or 0) + 1
+        job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
+        job.last_run_log = run_log
+        db.commit()
+
+        logger.info(f"[Job {job_id}] YachtWorld feed sync complete: {stats}")
+        return {"success": True, "job_id": job_id, **stats}
+
+    except Exception as exc:
+        job.status = "failed"
+        job.last_error = str(exc)
+        job.completed_at = datetime.utcnow()
+        db.commit()
+        logger.error(f"[Job {job_id}] YachtWorld feed sync failed: {exc}")
+        return {"success": False, "error": str(exc)}
+
+
+# ─── Main scraper job dispatcher ─────────────────────────────────────────────
+
 def run_scraper_job(job_id: int, db) -> Dict:
     """
     Full sync for a ScraperJob:
@@ -2898,6 +3415,10 @@ def run_scraper_job(job_id: int, db) -> Dict:
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         return {"error": f"Job {job_id} not found"}
+
+    # Delegate to the appropriate sync strategy based on feed_type
+    if job.feed_type == "yachtworld_api":
+        return sync_yachtworld_feed(job_id, db)
 
     job.status = "running"
     job.started_at = datetime.utcnow()

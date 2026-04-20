@@ -32,6 +32,8 @@ interface ScraperJob {
   total_runs: number;
   last_error?: string;
   notes?: string;
+  feed_type?: string;      // "html" | "yachtworld_api"
+  api_key_set?: boolean;   // true when an API key is stored (key itself not returned)
   created_at?: string;
   last_run_log?: Array<{
     url: string;
@@ -653,7 +655,7 @@ export default function AdminScraperTab() {
   // ── Add/Edit job form ──
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingJob, setEditingJob] = useState<ScraperJob | null>(null);
-  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean });
+  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean, feed_type: 'html', api_key: '' });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [formTeamMembers, setFormTeamMembers] = useState<TeamMember[]>([]);
@@ -948,6 +950,8 @@ export default function AdminScraperTab() {
       schedule_hours: String(job.schedule_hours),
       notes: job.notes || '',
       enabled: job.enabled,
+      feed_type: job.feed_type || 'html',
+      api_key: '',  // never pre-fill; server masks it
     });
     loadTeamMembers(String(job.dealer_id), setFormTeamMembers);
     setFormError('');
@@ -961,7 +965,7 @@ export default function AdminScraperTab() {
   function handleCancelForm() {
     setShowAddForm(false);
     setEditingJob(null);
-    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true });
+    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true, feed_type: 'html', api_key: '' });
     setFormTeamMembers([]);
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
@@ -972,10 +976,12 @@ export default function AdminScraperTab() {
   async function handleSaveJob(e: React.FormEvent) {
     e.preventDefault();
     if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
-    if (!form.broker_url) { setFormError('Broker URL is required'); return; }
+    const isApiJob = form.feed_type === 'yachtworld_api';
+    if (!form.broker_url) { setFormError(isApiJob ? 'API endpoint URL is required' : 'Broker URL is required'); return; }
+    if (isApiJob && !editingJob && !form.api_key) { setFormError('API key is required for YachtWorld API jobs'); return; }
     setFormSaving(true); setFormError('');
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         dealer_id: parseInt(form.dealer_id),
         salesman_id: form.salesman_id ? parseInt(form.salesman_id) : null,
         site_name: form.site_name || form.broker_url,
@@ -983,7 +989,10 @@ export default function AdminScraperTab() {
         schedule_hours: parseInt(form.schedule_hours) || 24,
         notes: form.notes || null,
         enabled: form.enabled,
+        feed_type: form.feed_type === 'yachtworld_api' ? 'yachtworld_api' : null,
       };
+      // Only send api_key when explicitly provided (empty string = no change on edit)
+      if (form.api_key.trim()) body.api_key = form.api_key.trim();
       const isEdit = !!editingJob;
       const res = await fetch(
         isEdit ? apiUrl(`/scraper/jobs/${editingJob!.id}`) : apiUrl('/scraper/jobs'),
@@ -1151,13 +1160,45 @@ export default function AdminScraperTab() {
                     placeholder="e.g. Suntex Marina Fleet"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Broker Inventory URL *</label>
-                  <input type="url" value={form.broker_url} onChange={e => setForm(f => ({ ...f, broker_url: e.target.value }))}
-                    placeholder="https://broker-website.com/inventory"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
-                  <p className="text-xs text-gray-500 mt-1">The broker's main listings/inventory page. The scraper crawls it to discover all individual listing URLs.</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Feed Type</label>
+                  <select value={form.feed_type} onChange={e => setForm(f => ({ ...f, feed_type: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
+                    <option value="html">HTML Scraper (default)</option>
+                    <option value="yachtworld_api">YachtWorld / Boats Group API</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Use "HTML Scraper" for most brokers. Select "YachtWorld API" when the dealer has an authorized Boats Group feed.</p>
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    {form.feed_type === 'yachtworld_api' ? 'API Endpoint URL *' : 'Broker Inventory URL *'}
+                  </label>
+                  <input type="url" value={form.broker_url} onChange={e => setForm(f => ({ ...f, broker_url: e.target.value }))}
+                    placeholder={form.feed_type === 'yachtworld_api'
+                      ? 'https://api.boatsgroup.com/inventory/search'
+                      : 'https://broker-website.com/inventory'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary" />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {form.feed_type === 'yachtworld_api'
+                      ? 'The Boats Group REST API search endpoint. Terraglio / your Boats Group rep will provide this URL.'
+                      : "The broker's main listings/inventory page. The scraper crawls it to discover all individual listing URLs."}
+                  </p>
+                </div>
+                {form.feed_type === 'yachtworld_api' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      API Key {editingJob ? <span className="text-gray-400 font-normal">(leave blank to keep existing)</span> : '*'}
+                    </label>
+                    <input type="password" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
+                      placeholder={editingJob?.api_key_set ? '••••••••••••••••' : 'Boats Group / YachtWorld API key'}
+                      autoComplete="off"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary font-mono" />
+                    {editingJob?.api_key_set && !form.api_key && (
+                      <p className="text-xs text-green-600 mt-1">✓ API key already saved — enter a new value only to rotate it.</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">Stored securely. Never returned to the browser after saving.</p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Sync Frequency</label>
                   <select value={form.schedule_hours} onChange={e => setForm(f => ({ ...f, schedule_hours: e.target.value }))}
@@ -1476,6 +1517,9 @@ export default function AdminScraperTab() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-900">{job.site_name || job.broker_url}</span>
+                    {job.feed_type === 'yachtworld_api' && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">YW API</span>
+                    )}
                             <StatusBadge status={job.status} />
                             {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
                           </div>

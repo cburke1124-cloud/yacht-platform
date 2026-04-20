@@ -127,7 +127,11 @@ class ScraperJob(Base):
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # admin who configured this
 
     site_name = Column(String)                        # friendly label e.g. "Suntex Marina Fleet"
-    broker_url = Column(String, nullable=False)        # inventory/listings page URL
+    broker_url = Column(String, nullable=False)        # inventory/listings page URL (or API base URL for api feeds)
+
+    # Feed type: NULL / "html" = HTML scraper (default); "yachtworld_api" = Boats Group REST API
+    feed_type = Column(String, nullable=True)
+    api_key = Column(String, nullable=True)            # API key for feed_type="yachtworld_api"
 
     # State
     enabled = Column(Boolean, default=True)            # whether the scheduler should auto-run this
