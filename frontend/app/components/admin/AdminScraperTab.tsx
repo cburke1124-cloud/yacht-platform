@@ -763,7 +763,8 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
     try {
       const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/log`), { headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
-      setLogData(prev => ({ ...prev, [job.id]: await r.json() }));
+      const data = await r.json();
+      setLogData(prev => ({ ...prev, [job.id]: data }));
     } catch (e: unknown) {
       setLogData(prev => ({ ...prev, [job.id]: { status: 'error', last_error: e instanceof Error ? e.message : 'Failed to load log', log: [] } }));
     } finally { setLogLoading(null); }
