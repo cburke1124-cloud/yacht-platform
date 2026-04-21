@@ -664,15 +664,16 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
   const [logData, setLogData] = useState<Record<number, { status: string; last_error?: string; started_at?: string; completed_at?: string; log: Array<{ t: string; level: string; msg: string }> }>>({});
   const [logLoading, setLogLoading] = useState<number | null>(null);
 
-  async function loadJobs() {
-    setLoading(true); setError('');
+  async function loadJobs(silent = false) {
+    if (!silent) setLoading(true);
+    setError('');
     try {
       const r = await fetch(_apiUrl('/yachtworld/jobs'), { headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
       setJobs(await r.json());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load feed jobs');
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }
 
   useEffect(() => { loadJobs(); }, []);
@@ -727,30 +728,34 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
   async function handleRunJob(job: YWJob) {
     if (runningId === job.id) return;
     setRunningId(job.id);
-    // Clear cached log so the next Log click fetches fresh data
     setLogData(prev => { const n = { ...prev }; delete n[job.id]; return n; });
     setLogOpenId(null);
     try {
       const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/run`), { method: 'POST', headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
       setActionMsg(`Running "${job.site_name || job.api_endpoint}"…`);
-      // Poll job status every 3s until it leaves 'running'
       let polls = 0;
       const poll = async () => {
         polls++;
-        await loadJobs();
-        const fresh = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}`), { headers: _authHeaders() });
-        if (fresh.ok) {
-          const j = await fresh.json();
-          if (j.status === 'running' && polls < 40) {
+        try {
+          // Silent refresh — no loading spinner flash
+          const listRes = await fetch(_apiUrl('/yachtworld/jobs'), { headers: _authHeaders() });
+          if (!listRes.ok) { setRunningId(null); return; }
+          const freshJobs: YWJob[] = await listRes.json();
+          setJobs(freshJobs);
+          const current = freshJobs.find(j => j.id === job.id);
+          if (current && current.status === 'running' && polls < 40) {
             setTimeout(poll, 3000);
           } else {
             setRunningId(null);
-            setActionMsg(j.status === 'completed' ? `Sync complete — ${j.listings_created ?? 0} created, ${j.listings_updated ?? 0} updated` : `Sync ${j.status}`);
-            setTimeout(() => setActionMsg(''), 6000);
-            await loadJobs();
+            if (current) {
+              setActionMsg(current.status === 'completed'
+                ? `Sync complete — ${current.listings_created ?? 0} created, ${current.listings_updated ?? 0} updated`
+                : `Sync ${current.status}`);
+              setTimeout(() => setActionMsg(''), 6000);
+            }
           }
-        } else {
+        } catch {
           setRunningId(null);
         }
       };
