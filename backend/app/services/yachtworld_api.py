@@ -310,13 +310,11 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
     Listing upsert uses the same ScrapedListing / Listing mechanism as the
     HTML scraper for consistency and archive detection.
     """
-    proxy_url = os.getenv("SCRAPER_PROXY_URL", "").strip()
-    if not proxy_url:
-        raise ValueError(
-            "SCRAPER_PROXY_URL must be set. YachtWorld API calls must always "
-            "route through the proxy."
-        )
-    proxies = {"http": proxy_url, "https": proxy_url}
+    # The Boats Group REST API uses key-based auth and does not need a proxy.
+    # Using a proxy (e.g. ScraperAPI) causes 403s because their IP ranges are
+    # blocked by the API. We make direct HTTPS calls with verify=False to
+    # handle intermediate cert issues in some hosting environments.
+    proxies = None
 
     job: Optional[YachtworldSyncJob] = (
         db.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
@@ -357,7 +355,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
     # was embedded in the endpoint URL under "key".
     api_key = job.api_key or _existing_params.get("key", "")
 
-    _log("info", f"Starting sync — endpoint: {base_url}  key: {_mask_key(api_key)}  proxy: {_mask_proxy(proxy_url)}")
+    _log("info", f"Starting sync — endpoint: {base_url}  key: {_mask_key(api_key)}  (direct, no proxy)")
 
     try:
         offset = 0
