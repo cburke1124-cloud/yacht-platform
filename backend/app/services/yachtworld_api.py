@@ -67,198 +67,201 @@ def _yw_to_feet(value, unit: str) -> Optional[float]:
     return v  # assume feet
 
 
+def _parse_price_string(val) -> tuple:
+    """Parse Boats Group price strings like '559900.00 USD' → (559900.0, 'USD')."""
+    if val is None:
+        return None, "USD"
+    if isinstance(val, (int, float)):
+        return float(val), "USD"
+    s = str(val).strip()
+    parts = s.split()
+    currency = "USD"
+    if len(parts) == 2 and parts[1].isalpha() and len(parts[1]) == 3:
+        currency = parts[1].upper()
+        s = parts[0]
+    elif len(parts) == 1:
+        pass
+    try:
+        return float(s.replace(",", "")), currency
+    except (TypeError, ValueError):
+        return None, currency
+
+
+def _parse_nested(val):
+    """
+    The Boats Group API sometimes returns nested objects as Python dicts,
+    sometimes as stringified dicts (when truncated in logs).  Always return
+    the actual dict when available.
+    """
+    if isinstance(val, dict):
+        return val
+    return {}
+
+
 def _map_yw_record(rec: dict) -> dict:
     """
-    Map a single Boats Group API record to our internal normalized data dict.
-    Handles both flat and nested response formats produced by different API
-    versions and vendor configurations.
+    Map a single Boats Group / boats.com API record to our internal
+    normalized data dict.
+
+    Actual field names observed from the API (DocumentID, MakeString, etc.)
+    are tried first; generic fallbacks follow for forward-compatibility.
     """
-    g = lambda *args, **kw: _yw_get(rec, *args, **kw)  # noqa: E731
+    def g(*keys, default=None):
+        for k in keys:
+            v = rec.get(k)
+            if v is not None and v != "":
+                return v
+        return default
 
     # -- Identity -------------------------------------------------------------
-    external_id = str(g(["id", "listingId", "listing_id"]) or "")
+    external_id = str(g("DocumentID", "id", "listingId", "listing_id") or "")
 
     # -- Year / Make / Model --------------------------------------------------
-    year_raw = g(["year", "modelYear", "model_year"])
+    year_raw = g("ModelYear", "year", "modelYear", "model_year")
     try:
-        year = int(year_raw) if year_raw else None
+        year = int(str(year_raw).strip()) if year_raw else None
     except (TypeError, ValueError):
         year = None
 
-    make_raw = (
-        g("make")
-        or g(["manufacturer", "Manufacturer"])
-        or g("make", "label")
-    )
-    make = str(make_raw).strip() if make_raw else None
-
-    model_raw = g("model") or g("model", "label")
-    model = str(model_raw).strip() if model_raw else None
+    make = str(g("MakeString", "MakeStringExact", "make", "manufacturer") or "").strip() or None
+    model = str(g("Model", "ModelExact", "model") or "").strip() or None
+    boat_name = str(g("BoatName", "name", "title", "listing_title") or "").strip() or None
 
     # -- Title ----------------------------------------------------------------
-    title_raw = g(["name", "title", "listing_title", "listingTitle"])
-    title = str(title_raw).strip() if title_raw else None
+    # Prefer BoatName if it looks like a real title; otherwise synthesize
+    title = boat_name or None
     if not title and make and model:
         title = f"{year or ''} {make} {model}".strip()
+    elif not title and make:
+        title = f"{year or ''} {make}".strip()
 
     # -- Price / Currency -----------------------------------------------------
-    price_node = g(["price", "Price"])
-    if isinstance(price_node, dict):
-        price_val = price_node.get("amount") or price_node.get("value") or price_node.get("list")
-        currency = str(price_node.get("currency", "USD")).upper()
-    else:
-        price_val = price_node
-        currency = str(g(["currency", "Currency"], default="USD")).upper()
-    try:
-        price = float(price_val) if price_val else None
-    except (TypeError, ValueError):
-        price = None
+    price, currency = _parse_price_string(g("Price", "OriginalPrice", "price"))
 
-    # -- Condition ------------------------------------------------------------
-    cond_raw = str(g(["condition", "boatCondition", "boat_condition"], default="") or "").lower()
-    condition = "new" if "new" in cond_raw else "used"
+    # -- Condition (SaleClassCode: N=new, U=used) ------------------------------
+    sale_class = str(g("SaleClassCode", "condition", "boatCondition") or "").upper()
+    condition = "new" if sale_class in ("N", "NEW") else "used"
+
+    # -- Status ----------------------------------------------------------------
+    status_str = str(g("SalesStatus", "status", "listingStatus") or "").lower()
+    is_sold = "sold" in status_str
+
+    # -- Location (BoatLocation is a nested dict) ------------------------------
+    loc_node = _parse_nested(g("BoatLocation", "location", "Location"))
+    city    = str(loc_node.get("BoatCityName")    or loc_node.get("city")    or g("BoatCityNameNoCaseAlnumOnly") or "").strip() or None
+    state   = str(loc_node.get("BoatStateCode")   or loc_node.get("state")   or "").strip() or None
+    country = str(loc_node.get("BoatCountryID")   or loc_node.get("country") or "").strip() or None
+
+    # -- Boat type ---------------------------------------------------------------
+    cat_code = str(g("BoatCategoryCode", "type", "boatType", "boat_type", "category") or "").strip()
+    # Map Boats Group category codes to our labels where known
+    _CAT_MAP = {
+        "PWC": "Personal Watercraft", "PA": "Motor Yacht", "DP": "Motor Yacht",
+        "SE": "Motor Yacht", "SP": "Sport Boat", "FB": "Sport Fisher",
+        "SL": "Sailing Yacht", "SC": "Sailing Yacht", "CT": "Catamaran",
+        "TR": "Trawler", "HB": "Trawler", "MH": "Mega Yacht",
+        "CC": "Center Console", "BI": "Inflatable", "SK": "Skiff",
+        "WK": "Trawler",
+    }
+    boat_type = _CAT_MAP.get(cat_code.upper(), cat_code) or None
 
     # -- Dimensions -----------------------------------------------------------
-    len_node = g(["length", "Length", "loa", "LOA"])
     length_feet: Optional[float] = None
-    if isinstance(len_node, dict):
-        ft_val = _yw_get(len_node, "ft", "value") or _yw_get(len_node, "feet", "value")
-        m_val = _yw_get(len_node, "m", "value") or _yw_get(len_node, "meter", "value")
-        unit_str = _yw_get(len_node, "unit") or ("ft" if ft_val else "m")
+    len_node = _parse_nested(g("Length", "length", "loa", "LOA"))
+    if len_node:
+        ft_val = len_node.get("Feet") or len_node.get("ft") or len_node.get("feet")
+        m_val  = len_node.get("Meters") or len_node.get("m") or len_node.get("meter")
         if ft_val:
             length_feet = _yw_to_feet(ft_val, "feet")
         elif m_val:
             length_feet = _yw_to_feet(m_val, "m")
-    elif len_node is not None:
-        unit_str = str(g(["lengthUnit", "length_unit", "loaUnit"], default="ft") or "ft")
-        length_feet = _yw_to_feet(len_node, str(unit_str))
+    # fallback: flat numeric fields
     if length_feet is None:
-        len_str = g(["lengthString", "length_string", "loaString"])
-        if len_str:
-            unit_str = str(g(["lengthUnit", "length_unit"], default="ft") or "ft")
-            length_feet = _yw_to_feet(len_str, str(unit_str))
+        for k in ("LengthFt", "LOAFeet", "length_ft"):
+            v = rec.get(k)
+            if v:
+                length_feet = _yw_to_feet(v, "feet")
+                break
 
-    beam_node = g(["beam", "Beam"])
     beam_feet: Optional[float] = None
-    if isinstance(beam_node, dict):
-        bft = _yw_get(beam_node, "ft", "value") or _yw_get(beam_node, "feet", "value")
-        bm = _yw_get(beam_node, "m", "value")
+    beam_node = _parse_nested(g("Beam", "beam"))
+    if beam_node:
+        bft = beam_node.get("Feet") or beam_node.get("ft") or beam_node.get("feet")
+        bm  = beam_node.get("Meters") or beam_node.get("m")
         if bft:
             beam_feet = _yw_to_feet(bft, "feet")
         elif bm:
             beam_feet = _yw_to_feet(bm, "m")
-    elif beam_node is not None:
-        beam_unit = str(g(["beamUnit", "beam_unit"], default="ft") or "ft")
-        beam_feet = _yw_to_feet(
-            g(["beamString", "beam_string"]), g(["beamUnit", "beam_unit"])
-        )
 
-    draft_node = g(["draft", "Draft", "maxDraft", "max_draft"])
     draft_feet: Optional[float] = None
-    if isinstance(draft_node, dict):
-        dft = (
-            _yw_get(draft_node, "maxDraft", "ft", "value")
-            or _yw_get(draft_node, "ft", "value")
-            or _yw_get(draft_node, "feet", "value")
-        )
-        dm = _yw_get(draft_node, "m", "value")
-        if dft:
-            draft_feet = _yw_to_feet(dft, "feet")
-        elif dm:
-            draft_feet = _yw_to_feet(dm, "m")
-
-    # -- Boat type / hull -----------------------------------------------------
-    boat_type = str(g(["type", "boatType", "boat_type", "category"], default="") or "").strip() or None
-    hull_material = str(g(["hullMaterial", "hull_material", "hull"], default="") or "").strip() or None
-    fuel_type = str(g(["fuelType", "fuel_type", "fuel"], default="") or "").strip() or None
-
-    # -- Location -------------------------------------------------------------
-    loc_node = g(["location", "Location"])
-    if isinstance(loc_node, dict):
-        city = str(loc_node.get("city") or loc_node.get("locality") or "").strip() or None
-        state = str(loc_node.get("state") or loc_node.get("region") or "").strip() or None
-        country = str(loc_node.get("country") or loc_node.get("countryCode") or "").strip() or None
-    else:
-        city = str(g(["city", "City"], default="") or "").strip() or None
-        state = str(g(["state", "State", "region"], default="") or "").strip() or None
-        country = str(g(["country", "Country", "countryCode"], default="") or "").strip() or None
 
     # -- Description ----------------------------------------------------------
-    description = str(g(["description", "Description", "comments"], default="") or "").strip() or None
+    description = str(g("Description", "description", "comments") or "").strip() or None
 
     # -- Images ---------------------------------------------------------------
-    images_raw = (
-        g("images")
-        or g("photos")
-        or g("media")
-        or []
-    )
     images: list[str] = []
-    for img in (images_raw if isinstance(images_raw, list) else []):
-        if isinstance(img, dict):
-            url = (
-                img.get("url") or img.get("uri") or img.get("src")
-                or img.get("large") or img.get("full") or img.get("medium")
-            )
-            if url:
-                images.append(str(url))
-        elif isinstance(img, str) and img.startswith("http"):
-            images.append(img)
+    images_raw = g("Images", "images", "photos", "media") or []
+    if isinstance(images_raw, list):
+        for img in images_raw:
+            if isinstance(img, dict):
+                url = (img.get("Uri") or img.get("url") or img.get("uri")
+                       or img.get("src") or img.get("large") or img.get("full"))
+                if url:
+                    images.append(str(url))
+            elif isinstance(img, str) and img.startswith("http"):
+                images.append(img)
 
     # -- Engine ---------------------------------------------------------------
-    engines_raw = g(["engines", "engine", "Engines"])
     engine_count: Optional[int] = None
     engine_hours: Optional[float] = None
+    n_eng = g("NumberOfEngines", "engine_count")
+    try:
+        engine_count = int(n_eng) if n_eng else None
+    except (TypeError, ValueError):
+        pass
+    engines_raw = g("Engines", "engines", "engine")
     if isinstance(engines_raw, list) and engines_raw:
-        engine_count = len(engines_raw)
-        hrs_raw = _yw_get(engines_raw[0], ["hours", "engineHours", "engine_hours"])
-        try:
-            engine_hours = float(hrs_raw) if hrs_raw else None
-        except (TypeError, ValueError):
-            pass
-    elif isinstance(engines_raw, dict):
-        engine_count = 1
-        hrs_raw = _yw_get(engines_raw, ["hours", "engineHours", "engine_hours"])
+        engine_count = engine_count or len(engines_raw)
+        hrs_raw = _yw_get(engines_raw[0], ["Hours", "hours", "engineHours"])
         try:
             engine_hours = float(hrs_raw) if hrs_raw else None
         except (TypeError, ValueError):
             pass
 
-    # -- Cabins ---------------------------------------------------------------
-    cabins_raw = g(["cabins", "Cabins", "staterooms"])
+    # -- Cabins / hull --------------------------------------------------------
+    cabins_raw = g("Cabins", "cabins", "Staterooms", "staterooms")
     try:
         cabins = int(cabins_raw) if cabins_raw is not None else None
     except (TypeError, ValueError):
         cabins = None
 
-    # -- Sold flag ------------------------------------------------------------
-    status_str = str(g(["status", "listingStatus", "listing_status"], default="") or "").lower()
-    is_sold = "sold" in status_str
+    hull_material = str(g("HullMaterial", "hullMaterial", "hull_material", "hull") or "").strip() or None
+    fuel_type     = str(g("FuelType", "fuelType", "fuel_type", "fuel") or "").strip() or None
 
     return {
-        "_yw_id": external_id,
-        "title": title,
-        "make": make,
-        "model": model,
-        "year": year,
-        "price": price,
-        "currency": currency,
-        "condition": condition,
-        "length_feet": length_feet,
-        "beam_feet": beam_feet,
-        "draft_feet": draft_feet,
-        "boat_type": boat_type,
-        "hull_material": hull_material,
-        "city": city,
-        "state": state,
-        "country": country,
-        "description": description,
-        "images": images,
-        "fuel_type": fuel_type,
-        "cabins": cabins,
+        "_yw_id":       external_id,
+        "title":        title,
+        "make":         make,
+        "model":        model,
+        "year":         year,
+        "price":        price,
+        "currency":     currency,
+        "condition":    condition,
+        "length_feet":  length_feet,
+        "beam_feet":    beam_feet,
+        "draft_feet":   draft_feet,
+        "boat_type":    boat_type,
+        "hull_material":hull_material,
+        "city":         city,
+        "state":        state,
+        "country":      country,
+        "description":  description,
+        "images":       images,
+        "fuel_type":    fuel_type,
+        "cabins":       cabins,
         "engine_count": engine_count,
         "engine_hours": engine_hours,
-        "is_sold": is_sold,
+        "is_sold":      is_sold,
     }
 
 
@@ -400,12 +403,6 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 break
 
             _log("info", f"Processing {len(records)} records from offset={offset}")
-            # DEBUG: log the keys and a few values from the first record so we can
-            # identify the API's field names for ID, make, etc.
-            if records and offset == 0:
-                first = records[0]
-                _log("info", f"DEBUG first record keys: {list(first.keys())[:30]}")
-                _log("info", f"DEBUG first record (truncated): { {k: str(v)[:80] for k, v in list(first.items())[:20]} }")
             stats["found"] += len(records)
             job.listings_found = stats["found"]
             db.commit()
