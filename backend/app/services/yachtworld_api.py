@@ -345,15 +345,25 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
         "Accept": "application/vnd.dmm-v1+json",
         "User-Agent": "YachtVersal/1.0",
     }
-    base_url = (job.api_endpoint or "").rstrip("/")
-    api_key = job.api_key or ""
+    # Split any query string already embedded in the stored endpoint URL so
+    # we never send duplicate parameters (e.g. ?key= appearing twice).
+    from urllib.parse import urlsplit, parse_qs, urlencode, urlunsplit
+    _raw_endpoint = (job.api_endpoint or "").rstrip("/")
+    _split = urlsplit(_raw_endpoint)
+    _existing_params = {k: v[0] for k, v in parse_qs(_split.query).items()}
+    base_url = urlunsplit((_split.scheme, _split.netloc, _split.path, "", ""))
+
+    # api_key: prefer the job's dedicated api_key field; fall back to whatever
+    # was embedded in the endpoint URL under "key".
+    api_key = job.api_key or _existing_params.get("key", "")
 
     _log("info", f"Starting sync — endpoint: {base_url}  key: {_mask_key(api_key)}  proxy: {_mask_proxy(proxy_url)}")
 
     try:
         offset = 0
         while True:
-            params = {"key": api_key, "rows": ROWS, "offset": offset}
+            # Start from any params already in the endpoint URL, then add/override pagination params
+            params = {**_existing_params, "key": api_key, "rows": ROWS, "offset": offset}
             import time as _time
             t0 = _time.monotonic()
             try:
