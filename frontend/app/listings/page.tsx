@@ -72,8 +72,8 @@ const SAIL_TYPES  = ['Sailing Yacht', 'Catamaran', 'Sloop', 'Ketch', 'Schooner',
 const CURRENCIES  = ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CHF', 'JPY', 'NZD', 'HKD', 'SGD', 'NOK', 'SEK', 'DKK', 'AED', 'BRL', 'MXN'];
 const SORT_OPTIONS = [
   { value: 'nearest',    label: 'Nearest first' },
-  { value: 'price_asc',  label: 'Price: Low ΓåÆ High' },
-  { value: 'price_desc', label: 'Price: High ΓåÆ Low' },
+  { value: 'price_asc',  label: 'Price: Low → High' },
+  { value: 'price_desc', label: 'Price: High → Low' },
   { value: 'year_desc',  label: 'Year: Newest first' },
   { value: 'year_asc',   label: 'Year: Oldest first' },
 ];
@@ -889,7 +889,7 @@ function BrowseContent() {
             )}
             </div>{/* end filter chips */}
 
-            {/* Controls: currency ┬╖ sort ┬╖ save */}
+            {/* Controls: currency · sort · save */}
             <div className="flex items-center gap-2 flex-shrink-0 self-start">
               <select
                 value={currency}
@@ -945,7 +945,7 @@ function BrowseContent() {
               }}
             >
               <strong style={{ color: '#10214F' }}>{displayTotal.toLocaleString()}</strong> yacht{displayTotal !== 1 ? 's' : ''}
-              {totalPages > 1 && ` ┬╖ page ${page + 1} of ${totalPages}`}
+              {totalPages > 1 && ` · page ${page + 1} of ${totalPages}`}
             </span>
             {searchType === 'ai' && (
               <span
@@ -1012,7 +1012,7 @@ function BrowseContent() {
                   className="text-xs font-semibold uppercase tracking-wider mb-3"
                   style={{ color: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                 >
-                  Γÿà Featured
+                  ★ Featured
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: 14 }}>
                   {featured.map((l) => (
@@ -1118,7 +1118,7 @@ function BrowseContent() {
                         {l.match_reasons.slice(0, 2).map((r, i) => (
                           <li key={i} className="text-xs flex items-start gap-1" style={{ color: 'rgba(16,33,79,0.75)', fontFamily: 'Poppins, sans-serif' }}>
                             <span style={{ color: '#01BBDC' }}>•</span>
-                            {r.replace('Γ£ô ', '')}
+                            {r.replace('✔ ', '')}
                           </li>
                         ))}
                       </ul>
@@ -1152,7 +1152,7 @@ function BrowseContent() {
                       className="flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
                       style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                     >
-                      ┬½
+                      «
                     </button>
 
                     <button
@@ -1217,7 +1217,7 @@ function BrowseContent() {
                       className="flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
                       style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
                     >
-                      ┬╗
+                      »
                     </button>
                   </div>
 
