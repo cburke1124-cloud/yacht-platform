@@ -354,6 +354,7 @@ function BrowseContent() {
   const [loading, setLoading] = useState(true);
   const [searchType, setSearchType] = useState<'basic' | 'ai'>('basic');
   const [aiQuery, setAiQuery] = useState('');
+  const [aiSearchContext, setAiSearchContext] = useState<{ no_exact_make?: string; exact_make?: string; showing_similar?: boolean } | null>(null);
   const [sort, setSort] = useState<string>('nearest');
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState<number>(0);
@@ -473,10 +474,12 @@ function BrowseContent() {
         }));
         setListings(results);
         setTotal(results.length);
+        setAiSearchContext(data.search_context || null);
       } else {
         const items: Listing[] = data.listings ?? (Array.isArray(data) ? data : []);
         setListings(items);
         setTotal(data.total ?? items.length);
+        setAiSearchContext(null);
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') return; // Ignore cancelled fetches
@@ -964,7 +967,7 @@ function BrowseContent() {
           </div>
           {searchType === 'ai' && (
             <button
-              onClick={() => { setSearchType('basic'); setAiQuery(''); fetchListings(false); }}
+              onClick={() => { setSearchType('basic'); setAiQuery(''); setAiSearchContext(null); fetchListings(false); }}
               className="flex items-center gap-1.5 text-xs transition-opacity hover:opacity-70"
               style={{ color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif' }}
             >
@@ -1005,6 +1008,24 @@ function BrowseContent() {
           </div>
         ) : (
           <>
+            {/* AI search context banner — no exact make/model match */}
+            {searchType === 'ai' && aiSearchContext?.no_exact_make && (
+              <div
+                className="mb-6 px-5 py-4 rounded-2xl flex items-start gap-3"
+                style={{ backgroundColor: 'rgba(1,187,220,0.06)', border: '1px solid rgba(1,187,220,0.25)' }}
+              >
+                <Sparkles size={16} style={{ color: '#01BBDC', flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, color: '#10214F', fontWeight: 600, marginBottom: 2 }}>
+                    No {aiSearchContext.no_exact_make} listings currently available
+                  </p>
+                  <p style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, color: 'rgba(16,33,79,0.65)' }}>
+                    We don&apos;t currently have any {aiSearchContext.no_exact_make} yachts in our inventory, but here are similar yachts you may want to consider.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Featured strip */}
             {featured.length > 0 && page === 0 && (
               <div className="mb-8">

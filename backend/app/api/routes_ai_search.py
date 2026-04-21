@@ -23,6 +23,8 @@ class AISearchRequest(BaseModel):
 
 class SearchCriteria(BaseModel):
     """Extracted search criteria from natural language"""
+    make: Optional[str] = None          # e.g. "Cheoy Lee", "Azimut", "Hatteras"
+    model: Optional[str] = None         # e.g. "68 Evolution", "Convertible"
     boat_types: Optional[List[str]] = None
     min_price: Optional[float] = None
     max_price: Optional[float] = None
@@ -54,6 +56,8 @@ def extract_search_criteria(query: str) -> SearchCriteria:
 
 Return ONLY a JSON object with these fields (use null for unspecified):
 {{
+  "make": "exact brand/manufacturer name" or null,
+  "model": "exact model name" or null,
   "boat_types": ["Motor Yacht", "Sailing Yacht", etc.] or null,
   "min_price": number or null,
   "max_price": number or null,
@@ -67,6 +71,11 @@ Return ONLY a JSON object with these fields (use null for unspecified):
   "features": ["fishing equipment", "party deck", "entertainment system", etc.] or null,
   "use_case": "party" | "fishing" | "cruising" | "racing" | "living" | null
 }}
+
+IMPORTANT — make/model extraction:
+- If the query mentions a brand name (e.g. "Cheoy Lee", "Azimut", "Hatteras", "Sunseeker", "Ferretti", "Beneteau"), set "make" to that exact brand name.
+- If the query mentions a specific model (e.g. "68 Evolution", "Convertible 60"), set "model" to that model name.
+- Do NOT put brand or model names into "features" — they belong in "make"/"model".
 
 Key conversions:
 - "10 people" = at least 10 berths (sleeping) or estimate cabins
@@ -119,21 +128,53 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
     max_score = 0
     match_reasons = []
     warnings = []
-    
-    # Boat type match (20 points)
-    max_score += 20
+
+    # Make match (30 points) — highest weight: brand is a hard identity criterion
+    max_score += 30
+    if criteria.make:
+        listing_make = (listing.make or "").strip().lower()
+        wanted_make = criteria.make.strip().lower()
+        if listing_make == wanted_make:
+            score += 30
+            match_reasons.append(f"✓ Exact make match: {listing.make}")
+        elif wanted_make in listing_make or listing_make in wanted_make:
+            score += 18
+            match_reasons.append(f"✓ Make match: {listing.make}")
+        else:
+            # Wrong brand — hard penalty, no free points
+            score += 0
+            warnings.append(f"Different make: {listing.make} (searched for {criteria.make})")
+    else:
+        score += 30  # No make preference — full credit
+
+    # Model match (15 points)
+    max_score += 15
+    if criteria.model:
+        listing_model = (listing.model or "").strip().lower()
+        wanted_model = criteria.model.strip().lower()
+        if listing_model == wanted_model or wanted_model in listing_model or listing_model in wanted_model:
+            score += 15
+            match_reasons.append(f"✓ Model match: {listing.model}")
+        else:
+            score += 0
+            warnings.append(f"Different model: {listing.model}")
+    else:
+        score += 15  # No model preference — full credit
+
+    # Boat type match (15 points)
+    max_score += 15
     if criteria.boat_types:
         if listing.boat_type and listing.boat_type in criteria.boat_types:
-            score += 20
+            score += 15
             match_reasons.append(f"✓ Exact boat type match: {listing.boat_type}")
         else:
-            score += 5
+            score += 3
             warnings.append(f"Different boat type: {listing.boat_type}")
     else:
-        score += 20  # No preference specified
+        score += 15  # No preference specified
     
-    # Price match (15 points)
-    max_score += 15
+    # Price match (10 points)
+    max_score += 10
     if criteria.min_price or criteria.max_price:
         if listing.price:
             in_range = True
@@ -145,17 +186,17 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
                 warnings.append(f"Above desired price range (${listing.price:,.0f} > ${criteria.max_price:,.0f})")
             
             if in_range:
-                score += 15
+                score += 10
                 match_reasons.append(f"✓ Within budget: ${listing.price:,.0f}")
             else:
-                score += 3
+                score += 2
         else:
-            score += 7  # Some credit if no price specified
+            score += 5  # Some credit if no price specified
     else:
-        score += 15
+        score += 10
     
-    # Size/Length match (15 points)
-    max_score += 15
+    # Size/Length match (10 points)
+    max_score += 10
     if criteria.min_length or criteria.max_length:
         if listing.length_feet:
             in_range = True
@@ -167,45 +208,45 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
                 warnings.append(f"Larger than desired ({listing.length_feet}' > {criteria.max_length}')")
             
             if in_range:
-                score += 15
+                score += 10
                 match_reasons.append(f"✓ Perfect size: {listing.length_feet} feet")
             else:
-                score += 5
+                score += 3
         else:
-            score += 7
+            score += 5
     else:
-        score += 15
+        score += 10
     
-    # Capacity - Cabins (15 points)
-    max_score += 15
+    # Capacity - Cabins (10 points)
+    max_score += 10
     if criteria.min_cabins:
         if listing.cabins and listing.cabins >= criteria.min_cabins:
-            score += 15
+            score += 10
             match_reasons.append(f"✓ Has {listing.cabins} cabins (need {criteria.min_cabins}+)")
         elif listing.cabins:
-            score += 5
+            score += 3
             warnings.append(f"Only {listing.cabins} cabins (wanted {criteria.min_cabins}+)")
         else:
-            score += 7
+            score += 5
     else:
-        score += 15
+        score += 10
     
-    # Capacity - Berths/People (15 points)
-    max_score += 15
+    # Capacity - Berths/People (10 points)
+    max_score += 10
     if criteria.min_berths:
         if listing.berths and listing.berths >= criteria.min_berths:
-            score += 15
+            score += 10
             match_reasons.append(f"✓ Sleeps {listing.berths} people (need {criteria.min_berths}+)")
         elif listing.berths:
-            score += 5
+            score += 3
             warnings.append(f"Only sleeps {listing.berths} (wanted {criteria.min_berths}+)")
         else:
-            score += 7
+            score += 5
     else:
-        score += 15
+        score += 10
     
-    # Year/Age (10 points)
-    max_score += 10
+    # Year/Age (5 points)
+    max_score += 5
     if criteria.min_year or criteria.max_year:
         if listing.year:
             in_range = True
@@ -216,17 +257,17 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
                 in_range = False
             
             if in_range:
-                score += 10
+                score += 5
                 match_reasons.append(f"✓ Year: {listing.year}")
             else:
-                score += 3
+                score += 1
         else:
-            score += 5
+            score += 2
     else:
-        score += 10
+        score += 5
     
-    # Location match (10 points)
-    max_score += 10
+    # Location match (5 points)
+    max_score += 5
     if criteria.locations:
         location_match = False
         for loc in criteria.locations:
@@ -240,12 +281,12 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
                 break
         
         if location_match:
-            score += 10
+            score += 5
         else:
-            score += 3
+            score += 1
             warnings.append(f"Different location: {listing.city}, {listing.state}")
     else:
-        score += 10
+        score += 5
     
     # Use case bonus (bonus points, can exceed 100)
     if criteria.use_case:
@@ -382,14 +423,33 @@ async def ai_search(
         
         if criteria.boat_types:
             query = query.filter(Listing.boat_type.in_(criteria.boat_types))
+
+        # Check if exact make exists in inventory before filtering
+        exact_make_exists = False
+        if criteria.make:
+            exact_make_exists = db.query(Listing.id).filter(
+                Listing.status == "active",
+                Listing.deleted_at.is_(None),
+                func.lower(Listing.make) == criteria.make.strip().lower()
+            ).first() is not None
+
+        # If an exact make match exists, filter down to it; otherwise cast wider net
+        if criteria.make and exact_make_exists:
+            candidates_query = query.filter(func.lower(Listing.make) == criteria.make.strip().lower())
+        else:
+            candidates_query = query
         
         # Get candidate listings (cast wider net for scoring)
-        candidates = query.limit(50).all()
+        candidates = candidates_query.limit(50).all()
         
         if not candidates:
             return {
                 "query": request.query,
                 "understood_criteria": criteria.dict(),
+                "search_context": {
+                    "no_exact_make": criteria.make if criteria.make and not exact_make_exists else None,
+                    "showing_similar": False,
+                },
                 "results": [],
                 "message": "No yachts found matching your criteria. Try broadening your search."
             }
@@ -406,10 +466,20 @@ async def ai_search(
         # Step 4: Sort by score and return top results
         scored_listings.sort(key=lambda x: x.score, reverse=True)
         top_results = scored_listings[:request.max_results]
+
+        # Build search context message for the frontend banner
+        search_context: Dict[str, Any] = {}
+        if criteria.make and not exact_make_exists:
+            search_context["no_exact_make"] = criteria.make
+            search_context["showing_similar"] = True
+        elif criteria.make and exact_make_exists:
+            search_context["exact_make"] = criteria.make
+            search_context["showing_similar"] = False
         
         return {
             "query": request.query,
             "understood_criteria": criteria.dict(),
+            "search_context": search_context,
             "total_found": len(candidates),
             "results": [
                 {
