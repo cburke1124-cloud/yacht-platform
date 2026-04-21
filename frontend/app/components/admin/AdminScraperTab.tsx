@@ -722,14 +722,41 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
     } finally { setFormSaving(false); }
   }
 
+  const [runningId, setRunningId] = useState<number | null>(null);
+
   async function handleRunJob(job: YWJob) {
+    if (runningId === job.id) return;
+    setRunningId(job.id);
+    // Clear cached log so the next Log click fetches fresh data
+    setLogData(prev => { const n = { ...prev }; delete n[job.id]; return n; });
+    setLogOpenId(null);
     try {
       const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/run`), { method: 'POST', headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
-      setActionMsg(`Feed job "${job.site_name || job.api_endpoint}" started.`);
-      setTimeout(() => setActionMsg(''), 5000);
-      setTimeout(loadJobs, 2000);
+      setActionMsg(`Running "${job.site_name || job.api_endpoint}"…`);
+      // Poll job status every 3s until it leaves 'running'
+      let polls = 0;
+      const poll = async () => {
+        polls++;
+        await loadJobs();
+        const fresh = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}`), { headers: _authHeaders() });
+        if (fresh.ok) {
+          const j = await fresh.json();
+          if (j.status === 'running' && polls < 40) {
+            setTimeout(poll, 3000);
+          } else {
+            setRunningId(null);
+            setActionMsg(j.status === 'completed' ? `Sync complete — ${j.listings_created ?? 0} created, ${j.listings_updated ?? 0} updated` : `Sync ${j.status}`);
+            setTimeout(() => setActionMsg(''), 6000);
+            await loadJobs();
+          }
+        } else {
+          setRunningId(null);
+        }
+      };
+      setTimeout(poll, 2000);
     } catch (e: unknown) {
+      setRunningId(null);
       setActionMsg(`Error: ${e instanceof Error ? e.message : 'failed'}`);
     }
   }
@@ -909,15 +936,32 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                     {job.last_error && <p className="mt-1 text-xs text-red-600 truncate">{job.last_error}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => handleRunJob(job)} title="Run now"
-                      className="px-3 py-1.5 text-xs bg-blue-700 text-white rounded-lg hover:bg-blue-800 font-medium">▶ Run</button>
-                    <button onClick={() => handleViewLog(job)} title="View log"
-                      className={`px-3 py-1.5 text-xs rounded-lg font-medium ${logOpenId === job.id ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    {/* Run button — primary action */}
+                    <button
+                      onClick={() => handleRunJob(job)}
+                      disabled={runningId === job.id || job.status === 'running'}
+                      title="Run sync now"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-700 text-white rounded-lg hover:bg-blue-800 font-medium disabled:opacity-60 disabled:cursor-not-allowed">
+                      {runningId === job.id || job.status === 'running'
+                        ? <><span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Running…</>
+                        : <>▶ Run</>}
+                    </button>
+                    {/* Log button */}
+                    <button onClick={() => handleViewLog(job)} title="View last run log"
+                      className={`px-3 py-1.5 text-xs rounded-lg font-medium ${logOpenId === job.id ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                       {logLoading === job.id ? '…' : 'Log'}
                     </button>
-                    <button onClick={() => handleToggleJob(job)} title={job.enabled ? 'Disable' : 'Enable'}
-                      className={`px-3 py-1.5 text-xs rounded-lg font-medium ${job.enabled ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`}>
-                      {job.enabled ? 'Pause' : 'Enable'}
+                    {/* Enabled toggle */}
+                    <button
+                      onClick={() => handleToggleJob(job)}
+                      title={job.enabled ? 'Click to disable auto-sync' : 'Click to enable auto-sync'}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium border ${
+                        job.enabled
+                          ? 'bg-green-50 text-green-700 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                          : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200'
+                      }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${job.enabled ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      {job.enabled ? 'Enabled' : 'Disabled'}
                     </button>
                     <button onClick={() => handleStartEdit(job)} title="Edit"
                       className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">Edit</button>
