@@ -18,6 +18,9 @@ import string
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 import requests
 
 from app.db.session import SessionLocal
@@ -360,6 +363,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                     headers=req_headers,
                     proxies=proxies,
                     timeout=30,
+                    verify=False,
                 )
                 elapsed_ms = int((_time.monotonic() - t0) * 1000)
                 resp.raise_for_status()
