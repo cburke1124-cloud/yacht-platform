@@ -267,6 +267,29 @@ def _generate_yw_bin(db) -> str:
             return bin_val
 
 
+def _mask_key(api_key: str) -> str:
+    """Return a partially masked API key safe to store in logs."""
+    if not api_key:
+        return "(empty)"
+    return api_key[:6] + "***"
+
+
+def _mask_proxy(proxy_url: str) -> str:
+    """Strip credentials from a proxy URL for safe logging."""
+    try:
+        from urllib.parse import urlparse, urlunparse
+        p = urlparse(proxy_url)
+        # Replace userinfo with placeholder if present
+        masked = p._replace(netloc=f"{p.hostname}:{p.port}" if p.port else p.hostname or "")
+        return urlunparse(masked)
+    except Exception:
+        return "(proxy)"
+
+
+def _ts() -> str:
+    return datetime.utcnow().strftime("%H:%M:%S.%f")[:-3]
+
+
 # ---------------------------------------------------------------------------
 # Main sync function
 # ---------------------------------------------------------------------------
@@ -301,40 +324,58 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
     job.status = "running"
     job.started_at = datetime.utcnow()
     job.last_error = None
+    job.last_run_log = None
     db.commit()
 
     stats = {"found": 0, "created": 0, "updated": 0, "archived": 0, "errors": 0}
     run_log: list = []
     seen_source_urls: set = set()
 
+    def _log(level: str, msg: str, **extra):
+        entry = {"t": _ts(), "level": level, "msg": msg, **extra}
+        run_log.append(entry)
+        log_fn = logger.error if level == "error" else (logger.warning if level == "warn" else logger.info)
+        log_fn(f"[YWJob {job_id}] {msg}")
+
     ROWS = 100
-    headers = {
+    req_headers = {
         "Accept": "application/vnd.dmm-v1+json",
         "User-Agent": "YachtVersal/1.0",
     }
     base_url = (job.api_endpoint or "").rstrip("/")
     api_key = job.api_key or ""
 
+    _log("info", f"Starting sync — endpoint: {base_url}  key: {_mask_key(api_key)}  proxy: {_mask_proxy(proxy_url)}")
+
     try:
         offset = 0
         while True:
             params = {"key": api_key, "rows": ROWS, "offset": offset}
+            import time as _time
+            t0 = _time.monotonic()
             try:
                 resp = requests.get(
                     base_url,
                     params=params,
-                    headers=headers,
+                    headers=req_headers,
                     proxies=proxies,
                     timeout=30,
                 )
+                elapsed_ms = int((_time.monotonic() - t0) * 1000)
                 resp.raise_for_status()
                 payload = resp.json()
+                _log("info", f"Page offset={offset} — HTTP {resp.status_code} in {elapsed_ms}ms")
             except Exception as exc:
+                elapsed_ms = int((_time.monotonic() - t0) * 1000)
+                err_msg = str(exc)
+                _log("error", f"HTTP fetch failed at offset={offset} after {elapsed_ms}ms: {err_msg}")
                 logger.error(f"[YWJob {job_id}] API fetch error at offset={offset}: {exc}")
                 job.status = "failed"
-                job.last_error = str(exc)
+                job.last_error = err_msg
+                job.last_run_log = run_log
+                job.completed_at = datetime.utcnow()
                 db.commit()
-                return {"success": False, "error": str(exc)}
+                return {"success": False, "error": err_msg}
 
             records = (
                 _yw_get(payload, "search", "records")
@@ -343,8 +384,10 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 or (payload if isinstance(payload, list) else [])
             )
             if not isinstance(records, list) or not records:
+                _log("info", f"No more records at offset={offset} — pagination complete")
                 break
 
+            _log("info", f"Processing {len(records)} records from offset={offset}")
             stats["found"] += len(records)
             job.listings_found = stats["found"]
             db.commit()
@@ -470,6 +513,8 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                         run_log.append({"url": scraped_record.source_url, "outcome": "archived",
                                         "listing_id": scraped_record.listing_id})
 
+        summary = f"Sync complete — found={stats['found']} created={stats['created']} updated={stats['updated']} archived={stats['archived']} errors={stats['errors']}"
+        _log("info", summary)
         job.status = "completed"
         job.completed_at = datetime.utcnow()
         job.last_run_at = datetime.utcnow()
@@ -482,16 +527,22 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
         job.last_run_log = run_log
         db.commit()
 
-        logger.info(f"[YWJob {job_id}] Sync complete: {stats}")
+        logger.info(f"[YWJob {job_id}] {summary}")
         return {"success": True, "job_id": job_id, **stats}
 
     except Exception as exc:
+        err_msg = str(exc)
+        try:
+            _log("error", f"Unexpected error: {err_msg}")
+        except Exception:
+            pass
         job.status = "failed"
-        job.last_error = str(exc)
+        job.last_error = err_msg
         job.completed_at = datetime.utcnow()
+        job.last_run_log = run_log
         db.commit()
         logger.error(f"[YWJob {job_id}] Sync failed: {exc}")
-        return {"success": False, "error": str(exc)}
+        return {"success": False, "error": err_msg}
 
 
 # ---------------------------------------------------------------------------

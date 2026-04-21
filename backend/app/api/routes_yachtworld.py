@@ -243,3 +243,25 @@ def toggle_yw_job(
     job.enabled = not job.enabled
     db.commit()
     return {"success": True, "enabled": job.enabled}
+
+
+@router.get("/yachtworld/jobs/{job_id}/log")
+def get_yw_job_log(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the structured log from the most recent sync run."""
+    _require_admin(current_user)
+    job = db.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Feed job not found")
+    return {
+        "job_id": job.id,
+        "site_name": job.site_name,
+        "status": job.status,
+        "last_error": job.last_error,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        "log": job.last_run_log or [],
+    }

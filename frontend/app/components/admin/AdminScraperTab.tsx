@@ -660,6 +660,9 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', api_endpoint: '', api_key: '', schedule_hours: '24', notes: '', enabled: true as boolean });
+  const [logOpenId, setLogOpenId] = useState<number | null>(null);
+  const [logData, setLogData] = useState<Record<number, { status: string; last_error?: string; started_at?: string; completed_at?: string; log: Array<{ t: string; level: string; msg: string }> }>>({});
+  const [logLoading, setLogLoading] = useState<number | null>(null);
 
   async function loadJobs() {
     setLoading(true); setError('');
@@ -750,6 +753,20 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
     } catch (e: unknown) {
       setActionMsg(`Error: ${e instanceof Error ? e.message : 'failed'}`);
     }
+  }
+
+  async function handleViewLog(job: YWJob) {
+    if (logOpenId === job.id) { setLogOpenId(null); return; }
+    setLogOpenId(job.id);
+    if (logData[job.id]) return; // already loaded
+    setLogLoading(job.id);
+    try {
+      const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/log`), { headers: _authHeaders() });
+      if (!r.ok) throw new Error(await r.text());
+      setLogData(prev => ({ ...prev, [job.id]: await r.json() }));
+    } catch (e: unknown) {
+      setLogData(prev => ({ ...prev, [job.id]: { status: 'error', last_error: e instanceof Error ? e.message : 'Failed to load log', log: [] } }));
+    } finally { setLogLoading(null); }
   }
 
   const StatusBadge = ({ status }: { status: string }) => {
@@ -893,6 +910,10 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={() => handleRunJob(job)} title="Run now"
                       className="px-3 py-1.5 text-xs bg-blue-700 text-white rounded-lg hover:bg-blue-800 font-medium">▶ Run</button>
+                    <button onClick={() => handleViewLog(job)} title="View log"
+                      className={`px-3 py-1.5 text-xs rounded-lg font-medium ${logOpenId === job.id ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                      {logLoading === job.id ? '…' : 'Log'}
+                    </button>
                     <button onClick={() => handleToggleJob(job)} title={job.enabled ? 'Disable' : 'Enable'}
                       className={`px-3 py-1.5 text-xs rounded-lg font-medium ${job.enabled ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-100 text-green-800 hover:bg-green-200'}`}>
                       {job.enabled ? 'Pause' : 'Enable'}
@@ -903,6 +924,37 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                       className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium">Delete</button>
                   </div>
                 </div>
+
+                {/* Log panel */}
+                {logOpenId === job.id && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    {logLoading === job.id ? (
+                      <p className="text-xs text-gray-400">Loading log…</p>
+                    ) : logData[job.id] ? (
+                      <>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-xs font-semibold text-gray-700">Last run log</span>
+                          {logData[job.id].started_at && <span className="text-xs text-gray-400">{logData[job.id].started_at?.substring(0, 19).replace('T', ' ')} UTC</span>}
+                          <button onClick={() => { setLogData(prev => { const n = { ...prev }; delete n[job.id]; return n; }); handleViewLog(job); }}
+                            className="ml-auto text-xs text-blue-600 hover:underline">Refresh</button>
+                        </div>
+                        {logData[job.id].log.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic">No log entries yet. Run the job to generate a log.</p>
+                        ) : (
+                          <div className="bg-gray-900 rounded-lg p-3 max-h-72 overflow-y-auto font-mono text-xs leading-5">
+                            {logData[job.id].log.map((entry, i) => (
+                              <div key={i} className={`${entry.level === 'error' ? 'text-red-400' : entry.level === 'warn' ? 'text-yellow-400' : 'text-green-300'}`}>
+                                <span className="text-gray-500 select-none">{entry.t} </span>
+                                <span className={`font-semibold uppercase text-[10px] mr-1.5 ${entry.level === 'error' ? 'text-red-500' : entry.level === 'warn' ? 'text-yellow-500' : 'text-gray-400'}`}>{entry.level}</span>
+                                {entry.msg}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                )}
               </div>
             );
           })}
