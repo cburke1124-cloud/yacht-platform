@@ -164,6 +164,22 @@ async def startup_event():
     except Exception as e:
         print(f"[STARTUP] Documentation seed skipped: {e}", flush=True)
 
+    # Reset any jobs stuck in 'running' state from a previous server instance
+    try:
+        from app.db.session import SessionLocal
+        from app.models.misc import YachtworldSyncJob
+        _db = SessionLocal()
+        stuck = _db.query(YachtworldSyncJob).filter(YachtworldSyncJob.status == "running").all()
+        for j in stuck:
+            j.status = "failed"
+            j.last_error = "Interrupted: server restarted while job was running"
+        if stuck:
+            _db.commit()
+            print(f"[STARTUP] Reset {len(stuck)} stuck YW job(s) to failed", flush=True)
+        _db.close()
+    except Exception as e:
+        print(f"[STARTUP] YW stuck-job reset skipped: {e}", flush=True)
+
     setup_scheduler()
 
 

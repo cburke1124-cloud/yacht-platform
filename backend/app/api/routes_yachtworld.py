@@ -245,6 +245,23 @@ def toggle_yw_job(
     return {"success": True, "enabled": job.enabled}
 
 
+@router.post("/yachtworld/jobs/{job_id}/reset")
+def reset_yw_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Force-reset a stuck or errored job back to idle so it can be run again."""
+    _require_admin(current_user)
+    job = db.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Feed job not found")
+    job.status = "idle"
+    job.last_error = None
+    db.commit()
+    return {"success": True}
+
+
 @router.get("/yachtworld/jobs/{job_id}/log")
 def get_yw_job_log(
     job_id: int,

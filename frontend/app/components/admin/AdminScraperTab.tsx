@@ -771,6 +771,18 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
     }
   }
 
+  async function handleResetJob(job: YWJob) {
+    try {
+      const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/reset`), { method: 'POST', headers: _authHeaders() });
+      if (!r.ok) throw new Error(await r.text());
+      setActionMsg(`Job reset to idle.`);
+      setTimeout(() => setActionMsg(''), 4000);
+      await loadJobs();
+    } catch (e: unknown) {
+      setActionMsg(`Error: ${e instanceof Error ? e.message : 'failed'}`);
+    }
+  }
+
   async function handleDeleteJob(job: YWJob) {
     if (!confirm(`Delete feed job "${job.site_name || job.api_endpoint}"?\nThis will not remove already-imported listings.`)) return;
     try {
@@ -936,6 +948,15 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                     {job.last_error && <p className="mt-1 text-xs text-red-600 truncate">{job.last_error}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {/* Stuck-job reset — only visible when status=running but not triggered this session */}
+                    {job.status === 'running' && runningId !== job.id && (
+                      <button
+                        onClick={() => handleResetJob(job)}
+                        title="Job is stuck running — click to reset it"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 font-medium">
+                        ✕ Reset stuck job
+                      </button>
+                    )}
                     {/* Run button — primary action */}
                     <button
                       onClick={() => handleRunJob(job)}
