@@ -400,6 +400,12 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 break
 
             _log("info", f"Processing {len(records)} records from offset={offset}")
+            # DEBUG: log the keys and a few values from the first record so we can
+            # identify the API's field names for ID, make, etc.
+            if records and offset == 0:
+                first = records[0]
+                _log("info", f"DEBUG first record keys: {list(first.keys())[:30]}")
+                _log("info", f"DEBUG first record (truncated): { {k: str(v)[:80] for k, v in list(first.items())[:20]} }")
             stats["found"] += len(records)
             job.listings_found = stats["found"]
             db.commit()
@@ -411,7 +417,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 source_url = f"{base_url}?id={external_id}" if external_id else None
                 if not source_url:
                     stats["errors"] += 1
-                    run_log.append({"url": "", "outcome": "error", "error": "no listing id in record"})
+                    _log("error", f"No listing ID found in record — keys: {list(rec.keys())[:15]}")
                     continue
 
                 seen_source_urls.add(source_url)
