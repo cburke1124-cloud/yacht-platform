@@ -296,6 +296,41 @@ def _ts() -> str:
     return datetime.utcnow().strftime("%H:%M:%S.%f")[:-3]
 
 
+def _save_failure(db, job, job_id: int, err_msg: str, run_log: list) -> None:
+    """
+    Persist a failed-job status to the DB.  Handles the case where the current
+    session is already broken (mid-transaction error) by rolling back first,
+    and falling back to a brand-new session if that still doesn't work.
+    """
+    def _do_save(session, j):
+        j.status = "failed"
+        j.last_error = err_msg
+        j.completed_at = datetime.utcnow()
+        j.last_run_log = list(run_log)
+        session.commit()
+
+    # First attempt: rollback any pending transaction then commit on current session
+    try:
+        db.rollback()
+        _do_save(db, job)
+        return
+    except Exception:
+        pass
+
+    # Second attempt: open a fresh session entirely
+    try:
+        from app.db.session import SessionLocal
+        _fresh = SessionLocal()
+        try:
+            fresh_job = _fresh.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
+            if fresh_job:
+                _do_save(_fresh, fresh_job)
+        finally:
+            _fresh.close()
+    except Exception as fe:
+        logger.error(f"[YWJob {job_id}] _save_failure gave up: {fe}")
+
+
 # ---------------------------------------------------------------------------
 # Main sync function
 # ---------------------------------------------------------------------------
@@ -397,11 +432,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 err_msg = str(exc)
                 _log("error", f"HTTP fetch failed at offset={offset} after {elapsed_ms}ms: {err_msg}")
                 logger.error(f"[YWJob {job_id}] API fetch error at offset={offset}: {exc}")
-                job.status = "failed"
-                job.last_error = err_msg
-                job.last_run_log = list(run_log)
-                job.completed_at = datetime.utcnow()
-                db.commit()
+                _save_failure(db, job, job_id, err_msg, run_log)
                 return {"success": False, "error": err_msg}
 
             records = (
@@ -442,92 +473,105 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 seen_source_urls.add(source_url)
                 is_sold = bool(raw.get("is_sold"))
 
-                existing_scraped = (
-                    db.query(ScrapedListing)
-                    .filter(
-                        ScrapedListing.job_id == job_id,
-                        ScrapedListing.source_url == source_url,
-                    )
-                    .first()
-                )
-
-                if existing_scraped and existing_scraped.listing_id:
-                    listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
-                    if listing:
-                        _apply_scraped_data(listing, raw, job)
-                        if is_sold:
-                            listing.status = "sold"
-                        elif listing.status not in ("draft", "awaiting_review"):
-                            listing.status = "active"
-                        if raw.get("images"):
-                            db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
-                            for img_url in raw["images"]:
-                                db.add(ListingImage(listing_id=listing.id, url=img_url))
-                        existing_scraped.last_seen = datetime.utcnow()
-                        existing_scraped.still_active = True
-                        stats["updated"] += 1
-                        run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
-                                        "listing_id": listing.id, "title": listing.title})
-                else:
-                    orphan = (
-                        db.query(Listing)
+                try:
+                    existing_scraped = (
+                        db.query(ScrapedListing)
                         .filter(
-                            Listing.user_id == job.dealer_id,
-                            Listing.source_url == source_url,
-                            Listing.deleted_at.is_(None),
+                            ScrapedListing.job_id == job_id,
+                            ScrapedListing.source_url == source_url,
                         )
                         .first()
                     )
-                    if orphan:
-                        _apply_scraped_data(orphan, raw, job)
-                        if is_sold:
-                            orphan.status = "sold"
-                        elif orphan.status not in ("draft", "awaiting_review"):
-                            orphan.status = "active"
-                        if existing_scraped:
-                            existing_scraped.listing_id = orphan.id
+
+                    if existing_scraped and existing_scraped.listing_id:
+                        listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
+                        if listing:
+                            _apply_scraped_data(listing, raw, job)
+                            if is_sold:
+                                listing.status = "sold"
+                            elif listing.status not in ("draft", "awaiting_review"):
+                                listing.status = "active"
+                            if raw.get("images"):
+                                db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
+                                for img_url in raw["images"]:
+                                    db.add(ListingImage(listing_id=listing.id, url=img_url))
                             existing_scraped.last_seen = datetime.utcnow()
                             existing_scraped.still_active = True
+                            stats["updated"] += 1
+                            run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
+                                            "listing_id": listing.id, "title": listing.title})
+                    else:
+                        orphan = (
+                            db.query(Listing)
+                            .filter(
+                                Listing.user_id == job.dealer_id,
+                                Listing.source_url == source_url,
+                                Listing.deleted_at.is_(None),
+                            )
+                            .first()
+                        )
+                        if orphan:
+                            _apply_scraped_data(orphan, raw, job)
+                            if is_sold:
+                                orphan.status = "sold"
+                            elif orphan.status not in ("draft", "awaiting_review"):
+                                orphan.status = "active"
+                            if existing_scraped:
+                                existing_scraped.listing_id = orphan.id
+                                existing_scraped.last_seen = datetime.utcnow()
+                                existing_scraped.still_active = True
+                            else:
+                                db.add(ScrapedListing(
+                                    job_id=job_id,
+                                    listing_id=orphan.id,
+                                    source_url=source_url,
+                                    last_seen=datetime.utcnow(),
+                                    still_active=True,
+                                ))
+                            stats["updated"] += 1
+                            run_log.append({"url": source_url, "outcome": "updated",
+                                            "listing_id": orphan.id, "title": orphan.title})
                         else:
+                            listing = Listing(
+                                user_id=job.dealer_id,
+                                assigned_salesman_id=job.salesman_id,
+                                source="scraped",
+                                source_url=source_url,
+                                status="awaiting_review" if not is_sold else "sold",
+                                condition="used",
+                            )
+                            try:
+                                listing.bin = _generate_yw_bin(db)
+                            except Exception:
+                                pass
+                            _apply_scraped_data(listing, raw, job)
+                            db.add(listing)
+                            db.flush()
+                            for img_url in raw.get("images", []):
+                                db.add(ListingImage(listing_id=listing.id, url=img_url))
                             db.add(ScrapedListing(
                                 job_id=job_id,
-                                listing_id=orphan.id,
+                                listing_id=listing.id,
                                 source_url=source_url,
                                 last_seen=datetime.utcnow(),
                                 still_active=True,
                             ))
-                        stats["updated"] += 1
-                        run_log.append({"url": source_url, "outcome": "updated",
-                                        "listing_id": orphan.id, "title": orphan.title})
-                    else:
-                        listing = Listing(
-                            user_id=job.dealer_id,
-                            assigned_salesman_id=job.salesman_id,
-                            source="scraped",
-                            source_url=source_url,
-                            status="awaiting_review" if not is_sold else "sold",
-                            condition="used",
-                        )
-                        try:
-                            listing.bin = _generate_yw_bin(db)
-                        except Exception:
-                            pass
-                        _apply_scraped_data(listing, raw, job)
-                        db.add(listing)
-                        db.flush()
-                        for img_url in raw.get("images", []):
-                            db.add(ListingImage(listing_id=listing.id, url=img_url))
-                        db.add(ScrapedListing(
-                            job_id=job_id,
-                            listing_id=listing.id,
-                            source_url=source_url,
-                            last_seen=datetime.utcnow(),
-                            still_active=True,
-                        ))
-                        stats["created"] += 1
-                        run_log.append({"url": source_url, "outcome": "created",
-                                        "listing_id": listing.id, "title": listing.title})
-                db.commit()
+                            stats["created"] += 1
+                            run_log.append({"url": source_url, "outcome": "created",
+                                            "listing_id": listing.id, "title": listing.title})
+                    db.commit()
+                except Exception as rec_exc:
+                    # Roll back this record's changes and continue with the next one.
+                    # Without rollback here, SQLAlchemy marks the session as broken
+                    # and every subsequent db call in this thread fails.
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    stats["errors"] += 1
+                    err_detail = f"{source_url}: {rec_exc}"
+                    _log("error", f"Failed to save record ({err_detail})")
+                    logger.error(f"[YWJob {job_id}] Record save error: {rec_exc}")
 
             # Flush progress log to DB after each page so the UI can display it
             job.last_run_log = list(run_log)
@@ -573,16 +617,12 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
 
     except Exception as exc:
         err_msg = str(exc)
+        logger.error(f"[YWJob {job_id}] Sync failed: {exc}")
         try:
             _log("error", f"Unexpected error: {err_msg}")
         except Exception:
             pass
-        job.status = "failed"
-        job.last_error = err_msg
-        job.completed_at = datetime.utcnow()
-        job.last_run_log = run_log
-        db.commit()
-        logger.error(f"[YWJob {job_id}] Sync failed: {exc}")
+        _save_failure(db, job, job_id, err_msg, run_log)
         return {"success": False, "error": err_msg}
 
 
