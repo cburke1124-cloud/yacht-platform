@@ -15,6 +15,7 @@ import logging
 import os
 import random
 import string
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -98,6 +99,95 @@ def _parse_nested(val):
     return {}
 
 
+# ---------------------------------------------------------------------------
+# Geocoding helpers (Nominatim / OpenStreetMap — no API key required)
+# ---------------------------------------------------------------------------
+
+# Per-process cache so the same zip/coords are never looked up twice
+_geo_cache: Dict[str, dict] = {}
+_geo_last_call: float = 0.0
+_GEO_USER_AGENT = "yacht-platform-sync/1.0 (contact@yachtplatform.com)"
+_GEO_TIMEOUT    = 6   # seconds
+
+
+def _geo_sleep():
+    """Enforce Nominatim's 1-request-per-second policy."""
+    global _geo_last_call
+    elapsed = time.monotonic() - _geo_last_call
+    if elapsed < 1.1:
+        time.sleep(1.1 - elapsed)
+    _geo_last_call = time.monotonic()
+
+
+def _parse_nominatim_address(addr: dict) -> dict:
+    """Extract city/state/country from a Nominatim address dict."""
+    city = (
+        addr.get("city")
+        or addr.get("town")
+        or addr.get("village")
+        or addr.get("hamlet")
+        or addr.get("municipality")
+        or addr.get("county")
+    )
+    state   = addr.get("state") or addr.get("province") or addr.get("region")
+    country = (addr.get("country_code") or "").upper() or addr.get("country") or None
+    return {
+        "city":    city or None,
+        "state":   state or None,
+        "country": country or None,
+    }
+
+
+def _geocode_zip(zip_code: str) -> dict:
+    """Resolve city/state/country from a postal code via Nominatim.
+    Returns {} on any error."""
+    key = f"zip:{zip_code}"
+    if key in _geo_cache:
+        return _geo_cache[key]
+    try:
+        _geo_sleep()
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"postalcode": zip_code, "format": "json", "limit": 1, "addressdetails": 1},
+            headers={"User-Agent": _GEO_USER_AGENT},
+            timeout=_GEO_TIMEOUT,
+        )
+        data = resp.json()
+        if data:
+            result = _parse_nominatim_address(data[0].get("address", {}))
+            _geo_cache[key] = result
+            return result
+    except Exception:
+        pass
+    _geo_cache[key] = {}
+    return {}
+
+
+def _geocode_latlon(lat: float, lon: float) -> dict:
+    """Reverse-geocode lat/lon → city/state/country via Nominatim.
+    Returns {} on any error."""
+    key = f"ll:{round(lat, 3)},{round(lon, 3)}"
+    if key in _geo_cache:
+        return _geo_cache[key]
+    try:
+        _geo_sleep()
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat, "lon": lon, "format": "json"},
+            headers={"User-Agent": _GEO_USER_AGENT},
+            timeout=_GEO_TIMEOUT,
+        )
+        data = resp.json()
+        if "address" in data:
+            result = _parse_nominatim_address(data["address"])
+            _geo_cache[key] = result
+            return result
+    except Exception:
+        pass
+    _geo_cache[key] = {}
+    return {}
+
+
 def _map_yw_record(rec: dict) -> dict:
     """
     Map a single Boats Group / boats.com API record to our internal
@@ -164,6 +254,18 @@ def _map_yw_record(rec: dict) -> dict:
         longitude = float(v) if v is not None else None
     except (TypeError, ValueError):
         pass
+
+    # -- Fill missing city/state/country from zip or lat/lon via Nominatim ---
+    if not (city and state and country):
+        geo: dict = {}
+        if zip_code:
+            geo = _geocode_zip(zip_code)
+        if not geo and latitude is not None and longitude is not None:
+            geo = _geocode_latlon(latitude, longitude)
+        if geo:
+            city    = city    or geo.get("city")
+            state   = state   or geo.get("state")
+            country = country or geo.get("country")
 
     # -- Boat type ---------------------------------------------------------------
     cat_code = str(g("BoatCategoryCode", "type", "boatType", "boat_type", "category") or "").strip()
