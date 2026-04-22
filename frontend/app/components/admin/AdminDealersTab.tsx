@@ -44,6 +44,7 @@ export default function AdminDealersTab() {
   const [profileForm, setProfileForm] = useState<Record<string, any>>({});
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState<Record<string, boolean>>({});
 
   // Team accordion state: dealerId → member list (null = not yet loaded)
   const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
@@ -179,6 +180,27 @@ export default function AdminDealersTab() {
       }
     } catch {
       console.error('Failed to update dealer');
+    }
+  };
+
+  const handleMediaUpload = async (key: string, file: File) => {
+    setMediaUploading(prev => ({ ...prev, [key]: true }));
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(apiUrl('/media/upload'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+      setProfileForm((f: Record<string, any>) => ({ ...f, [key]: data.media.url }));
+    } catch (err: any) {
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setMediaUploading(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -642,9 +664,52 @@ export default function AdminDealersTab() {
                 <div>
                   <h3 className="text-xs font-semibold text-dark/40 uppercase tracking-wider mb-3">Social / Media</h3>
                   <div className="grid grid-cols-2 gap-3">
+                    {/* Logo and Banner — include file upload button */}
+                    {(['logo_url', 'banner_url'] as const).map((key) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-dark/60 mb-1">
+                          {key === 'logo_url' ? 'Logo URL' : 'Banner URL'}
+                        </label>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={profileForm[key] ?? ''}
+                            onChange={e => setProfileForm((f: Record<string, any>) => ({ ...f, [key]: e.target.value }))}
+                            className="flex-1 min-w-0 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            placeholder="https://..."
+                          />
+                          <label
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
+                              mediaUploading[key]
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                            }`}
+                          >
+                            {mediaUploading[key] ? '...' : '↑ Upload'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={!!mediaUploading[key]}
+                              onChange={e => {
+                                const f = e.target.files?.[0];
+                                if (f) handleMediaUpload(key, f);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        </div>
+                        {profileForm[key] && (
+                          <img
+                            src={profileForm[key]}
+                            alt=""
+                            className="mt-1.5 h-8 max-w-[120px] object-contain rounded border border-gray-100"
+                          />
+                        )}
+                      </div>
+                    ))}
+                    {/* Social links */}
                     {[
-                      { label: 'Logo URL', key: 'logo_url' },
-                      { label: 'Banner URL', key: 'banner_url' },
                       { label: 'Facebook URL', key: 'facebook_url' },
                       { label: 'Instagram URL', key: 'instagram_url' },
                       { label: 'Twitter URL', key: 'twitter_url' },
