@@ -957,7 +957,8 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
     try {
       const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/raw-sample`), { headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());
-      setRawSampleData(prev => ({ ...prev, [job.id]: await r.json() }));
+      const data = await r.json();
+      setRawSampleData(prev => ({ ...prev, [job.id]: data }));
     } catch (e: unknown) {
       setRawSampleData(prev => ({ ...prev, [job.id]: { error: e instanceof Error ? e.message : 'Failed' } }));
     } finally { setRawSampleLoading(null); }
