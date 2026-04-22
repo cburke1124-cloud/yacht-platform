@@ -669,7 +669,7 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
   const [jobId, setJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState<EnrichJob | null>(null);
   const [error, setError] = useState('');
-  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -717,7 +717,7 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
     }
   };
 
-  React.useEffect(() => () => stopPolling(), []);
+  useEffect(() => () => stopPolling(), []);
 
   const pct = progress && progress.total > 0
     ? Math.round((progress.done / progress.total) * 100) : 0;
