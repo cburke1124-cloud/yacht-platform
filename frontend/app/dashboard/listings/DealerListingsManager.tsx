@@ -56,10 +56,12 @@ interface DealerListingsManagerProps {
 }
 
 export default function DealerListingsManager({ onStatsUpdate }: DealerListingsManagerProps) {
-  const [listings, setListings] = useState<Listing[]>([]);
   const [deletedListings, setDeletedListings] = useState<Listing[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [guestBrokers, setGuestBrokers] = useState<GuestBroker[]>([]);
+  // `allListings` holds the full unfiltered set fetched once from the server.
+  // `listings` is derived below as a filtered view based on `statusFilter`.
+  const [allListings, setAllListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletedLoading, setDeletedLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -76,6 +78,12 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
 
+  // Client-side filtered view — tab switching is instant, no extra requests
+  const listings = useMemo(() => {
+    if (statusFilter === 'all' || statusFilter === 'recently_deleted') return allListings;
+    return allListings.filter(l => l.status === statusFilter);
+  }, [allListings, statusFilter]);
+
   const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(listings.length);
 
   // Quick-create guest broker inside the assign modal
@@ -83,29 +91,26 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   const [newGuest, setNewGuest] = useState({ first_name: '', last_name: '', email: '', phone: '', title: '' });
   const [savingGuest, setSavingGuest] = useState(false);
 
-  // Always load the deleted-listings count so the badge is accurate on first render
+  // Fetch everything once on mount.
   useEffect(() => {
+    fetchListings();
+    fetchTeamMembers();
+    fetchGuestBrokers();
     fetchDeletedListings();
   }, []);
 
+  // Reset to page 0 when filter changes (no re-fetch needed).
   useEffect(() => {
-    if (statusFilter === 'recently_deleted') {
-      fetchDeletedListings();
-    } else {
-      fetchListings();
-    }
-    fetchTeamMembers();
-    fetchGuestBrokers();
-    setPage(0); // reset to first page when tab changes
+    setPage(0);
+    clearSelection();
   }, [statusFilter]);
 
   const fetchListings = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const url = statusFilter === 'all'
-        ? apiUrl('/listings/my-listings')
-        : apiUrl(`/listings/my-listings?status=${statusFilter}`);
+      // Always fetch all listings — tabs filter client-side for instant switching
+      const url = apiUrl('/listings/my-listings');
       
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -113,7 +118,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       
       if (response.ok) {
         const data = await response.json();
-        setListings(data);
+        setAllListings(data);
         setQuickEdits(
           data.reduce((acc: Record<number, QuickEditDraft>, listing: Listing) => {
             acc[listing.id] = {
@@ -229,7 +234,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       });
 
       if (response.ok) {
-        setListings(listings.map(l =>
+        setAllListings(allListings.map(l =>
           l.id === listingId
             ? {
                 ...l,
@@ -324,7 +329,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         return;
       }
 
-      setListings(prev => prev.map((listing) =>
+      setAllListings(prev => prev.map((listing) =>
         listing.id === listingId
           ? {
               ...listing,
@@ -357,7 +362,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
         })
       )
     );
-    setListings(prev => prev.map(l => selectedIds.includes(l.id) ? { ...l, status: status as Listing['status'] } : l));
+    setAllListings(prev => prev.map(l => selectedIds.includes(l.id) ? { ...l, status: status as Listing['status'] } : l));
     clearSelection();
     if (onStatsUpdate) onStatsUpdate();
   };
@@ -409,7 +414,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       if (response.ok) {
         console.log(`[DELETE] Success — removing listing ${listingId} from UI`);
         // Remove from list immediately
-        setListings(prev => prev.filter(l => l.id !== listingId));
+        setAllListings(prev => prev.filter(l => l.id !== listingId));
         showToast('success', 'Listing moved to Recently Deleted. You can restore it within 30 days.');
         if (onStatsUpdate) onStatsUpdate();
         fetchDeletedListings();
@@ -528,8 +533,8 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
 
   const SortIcon = ({ field }: { field: typeof sortField }) =>
     sortField === field
-      ? (sortDir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
-      : <ArrowUpDown size={13} className="opacity-40" />;
+      ? (sortDir === 'asc' ? <ChevronUp size={14} className="text-blue-600" /> : <ChevronDown size={14} className="text-blue-600" />)
+      : <ArrowUpDown size={13} className="opacity-50" />;
 
   const saveNavContext = () => {
     try {
@@ -553,7 +558,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">My Listings</h2>
-          <p className="text-gray-600 mt-1">{listings.length} total listings</p>
+          <p className="text-gray-600 mt-1">{allListings.length} total listings</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -569,7 +574,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
       <BulkActionsBar
         selectedIds={selectedIds}
         totalCount={listings.length}
-        onSelectAll={() => selectAll(listings.map(l => l.id))}
+        onSelectAll={() => selectAll(sortedListings.map(l => l.id))}
         onClearSelection={clearSelection}
         onBulkDelete={handleBulkArchive}
         onBulkStatusChange={handleBulkStatusChange}
@@ -613,10 +618,10 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
             {tab.label}
             <span className="ml-2 text-sm">
               ({tab.id === 'all'
-                ? listings.length
+                ? allListings.length
                 : tab.id === 'recently_deleted'
                   ? deletedListings.length
-                  : listings.filter(l => l.status === tab.id).length})
+                  : allListings.filter(l => l.status === tab.id).length})
             </span>
           </button>
         ))}
@@ -729,7 +734,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button onClick={() => handleSort('title')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                  <button onClick={() => handleSort('title')} className={`flex items-center gap-1.5 hover:text-blue-700 transition-colors ${sortField === 'title' ? 'text-blue-700 font-semibold' : ''}`}>
                     Listing <SortIcon field="title" />
                   </button>
                 </th>
@@ -737,12 +742,12 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                   Location
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button onClick={() => handleSort('status')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                  <button onClick={() => handleSort('status')} className={`flex items-center gap-1.5 hover:text-blue-700 transition-colors ${sortField === 'status' ? 'text-blue-700 font-semibold' : ''}`}>
                     Status <SortIcon field="status" />
                   </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button onClick={() => handleSort('price')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                  <button onClick={() => handleSort('price')} className={`flex items-center gap-1.5 hover:text-blue-700 transition-colors ${sortField === 'price' ? 'text-blue-700 font-semibold' : ''}`}>
                     Price <SortIcon field="price" />
                   </button>
                 </th>
@@ -750,12 +755,12 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
                   Assigned To
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button onClick={() => handleSort('created_at')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                  <button onClick={() => handleSort('created_at')} className={`flex items-center gap-1.5 hover:text-blue-700 transition-colors ${sortField === 'created_at' ? 'text-blue-700 font-semibold' : ''}`}>
                     Date <SortIcon field="created_at" />
                   </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button onClick={() => handleSort('views')} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                  <button onClick={() => handleSort('views')} className={`flex items-center gap-1.5 hover:text-blue-700 transition-colors ${sortField === 'views' ? 'text-blue-700 font-semibold' : ''}`}>
                     Stats <SortIcon field="views" />
                   </button>
                 </th>

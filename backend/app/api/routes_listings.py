@@ -916,7 +916,7 @@ def get_my_listings(
         query = db.query(Listing).filter(*filters)
     if status:
         query = query.filter(Listing.status == status)
-    listings = query.options(selectinload(Listing.images)).order_by(Listing.created_at.desc()).all()
+    listings = query.order_by(Listing.created_at.desc()).all()
     listing_ids = [l.id for l in listings]
     media_map = _get_primary_images_for_listings(db, listing_ids)
 
@@ -940,10 +940,7 @@ def get_my_listings(
             "created_at": l.created_at.isoformat() if l.created_at else None,
             "assigned_salesman_id": l.assigned_salesman_id,
             "guest_salesman_id": l.guest_salesman_id,
-            "images": (
-                media_map.get(l.id, [])
-                or [{"url": img.url, "is_primary": img.is_primary} for img in l.images]
-            ),
+            "images": media_map.get(l.id, []),
         }
         for l in listings
     ]
