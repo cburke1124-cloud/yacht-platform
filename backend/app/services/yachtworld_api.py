@@ -519,13 +519,41 @@ def _map_yw_record(rec: dict) -> dict:
                 if label:
                     feature_bullets.append(str(label).strip())
 
-    # -- Description (try several common field names) -------------------------
+    # -- Description (try several common field names AND nested nodes) --------
+    # 1. Try direct top-level keys first
     description = str(
-        g("Description", "HtmlDescription", "BoatDescription",
-          "description", "comments", "Comments", "Remarks", "remarks") or ""
+        g("Description", "HtmlDescription", "BoatDescription", "ListingDescription",
+          "DescriptionText", "description", "comments", "Comments",
+          "Remarks", "remarks", "body", "content", "overview", "Overview") or ""
     ).strip() or None
 
-    return {
+    # 2. If still empty, look inside common nested containers
+    if not description:
+        for container_key in ("BoatDetails", "ListingDetails", "Details", "BoatContent", "Content"):
+            node = _parse_nested(rec.get(container_key))
+            if node:
+                desc_val = (
+                    node.get("Description") or node.get("HtmlDescription")
+                    or node.get("BoatDescription") or node.get("description")
+                    or node.get("comments") or node.get("Remarks")
+                )
+                if desc_val:
+                    description = str(desc_val).strip() or None
+                    break
+
+    # 3. If description contains HTML, strip tags to get plain text so it is
+    #    handled uniformly by the frontend's paragraph renderer rather than
+    #    depending on DOMPurify (which may not fire if listing.description
+    #    is set during SSR hydration).
+    if description and "<" in description:
+        import re as _re
+        description = _re.sub(r"<br\s*/?>", "\n", description, flags=_re.IGNORECASE)
+        description = _re.sub(r"</p>", "\n\n", description, flags=_re.IGNORECASE)
+        description = _re.sub(r"<[^>]+>", "", description)
+        import html as _html
+        description = _html.unescape(description).strip() or None
+
+
         "_yw_id":                 external_id,
         "title":                  title,
         "make":                   make,
@@ -760,6 +788,14 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
             stats["found"] += len(records)
             job.listings_found = stats["found"]
             db.commit()
+
+            # Diagnostic: log all top-level keys from the first record of the first
+            # page so we can verify which fields the API is actually returning.
+            if page_num == 1 and records:
+                _first_keys = sorted(records[0].keys())
+                _desc_val = records[0].get("Description") or records[0].get("HtmlDescription") or records[0].get("BoatDescription") or records[0].get("description")
+                _log("info", f"API record keys (first record): {_first_keys}")
+                _log("info", f"Description field preview: {str(_desc_val or '(empty)')[:200]}")
 
             for rec in records:
                 raw = _map_yw_record(rec)
