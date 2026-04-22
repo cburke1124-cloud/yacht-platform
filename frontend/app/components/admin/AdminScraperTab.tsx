@@ -650,6 +650,153 @@ interface YWJob {
   created_at?: string;
 }
 
+// ── BulkEnrichSection ─────────────────────────────────────────────────────
+
+interface EnrichJob {
+  status: 'running' | 'done';
+  total: number;
+  done: number;
+  updated: number;
+  errors: number;
+  log: string[];
+}
+
+function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; apiUrl: (path: string) => string; authHeaders: () => Record<string, string> }) {
+  const [source, setSource] = useState<string>('scraped');
+  const [dealerId, setDealerId] = useState<string>('');
+  const [limit, setLimit] = useState<number>(200);
+  const [running, setRunning] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<EnrichJob | null>(null);
+  const [error, setError] = useState('');
+  const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const startEnrich = async () => {
+    setError('');
+    setProgress(null);
+    setRunning(true);
+    try {
+      const res = await fetch(apiUrl('/scraper/listings/bulk-ai-enrich'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          source: source || null,
+          dealer_id: dealerId ? parseInt(dealerId) : null,
+          limit,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || `HTTP ${res.status}`);
+      }
+      const { job_id } = await res.json();
+      setJobId(job_id);
+      // start polling
+      pollRef.current = setInterval(async () => {
+        try {
+          const r2 = await fetch(apiUrl(`/scraper/listings/bulk-ai-enrich/${job_id}`), { headers: authHeaders() });
+          if (!r2.ok) return;
+          const data: EnrichJob = await r2.json();
+          setProgress(data);
+          if (data.status === 'done') {
+            stopPolling();
+            setRunning(false);
+          }
+        } catch { /* ignore poll errors */ }
+      }, 2500);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      setRunning(false);
+    }
+  };
+
+  React.useEffect(() => () => stopPolling(), []);
+
+  const pct = progress && progress.total > 0
+    ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  return (
+    <div className="p-6 max-w-3xl">
+      <p className="text-sm text-gray-600 mb-6">
+        Run Claude AI over existing listings to fill in missing specs, engine details, generators, and feature bullets extracted from the description and features text. Only empty fields are updated — existing data is never overwritten.
+      </p>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 space-y-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Source filter</label>
+            <select value={source} onChange={e => setSource(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="scraped">Scraped (HTML scraper)</option>
+              <option value="">All sources</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Dealer (optional)</label>
+            <select value={dealerId} onChange={e => setDealerId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="">All dealers</option>
+              {dealers.map(d => <option key={d.id} value={d.id}>{d.name || `Dealer #${d.id}`}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Max listings</label>
+            <input type="number" min={1} max={1000} value={limit} onChange={e => setLimit(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+        </div>
+
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+        )}
+
+        <button onClick={startEnrich} disabled={running}
+          className="px-5 py-2.5 bg-emerald-700 text-white rounded-lg text-sm font-medium hover:bg-emerald-800 disabled:opacity-50 transition-colors">
+          {running ? 'Running…' : 'Start AI Enrichment'}
+        </button>
+      </div>
+
+      {progress && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold text-gray-800">
+              {progress.status === 'done' ? 'Complete' : 'Running…'}
+            </span>
+            <span className="text-sm text-gray-500">
+              {progress.done}/{progress.total} processed · {progress.updated} updated · {progress.errors} errors
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full bg-gray-100 rounded-full h-2 mb-4">
+            <div
+              className={`h-2 rounded-full transition-all ${progress.status === 'done' ? 'bg-emerald-600' : 'bg-blue-500'}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          {/* Log */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 max-h-64 overflow-y-auto font-mono text-xs space-y-0.5">
+            {progress.log.length === 0 && <span className="text-gray-400">Waiting for results…</span>}
+            {[...progress.log].reverse().map((line, i) => (
+              <div key={i} className={
+                line.startsWith('✓') ? 'text-emerald-700' :
+                line.startsWith('✗') ? 'text-red-600' :
+                'text-gray-500'
+              }>{line}</div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }: { dealers: Dealer[]; apiUrl: (path: string) => string; authHeaders: () => Record<string, string> }) {
   const [jobs, setJobs] = useState<YWJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1055,7 +1202,7 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt' | 'feeds'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt' | 'feeds' | 'enrich'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -1511,6 +1658,9 @@ export default function AdminScraperTab() {
           </button>
           <button onClick={() => setSection('feeds')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'feeds' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             Feed Jobs
+          </button>
+          <button onClick={() => setSection('enrich')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'enrich' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            AI Enrich
           </button>
         </div>
       </div>
@@ -2325,6 +2475,9 @@ export default function AdminScraperTab() {
 
       {/* ══ FEED JOBS (YachtWorld / Boats Group REST API) ══════════════════ */}
       {section === 'feeds' && <FeedJobsSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
+
+      {/* ══ AI ENRICH ══════════════════════════════════════════════════════ */}
+      {section === 'enrich' && <BulkEnrichSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (

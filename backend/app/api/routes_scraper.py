@@ -1919,3 +1919,249 @@ def _find_boat_specs(db: Session, make: str, model: str, year: Optional[int] = N
     # 3. Fall back to first match
     return candidates[0]
 
+
+# ---------------------------------------------------------------------------
+# BULK AI ENRICHMENT — fill missing specs/engines/generators on existing listings
+# ---------------------------------------------------------------------------
+
+_enrich_jobs: Dict[str, dict] = {}   # in-memory progress store
+
+
+def _build_enrich_prompt(lst: "Listing") -> str:
+    """Build the Claude prompt for enriching a single listing."""
+    # Summarize what we already know
+    existing = {}
+    for f in ("make", "model", "year", "length_feet", "beam_feet", "draft_feet",
+               "boat_type", "hull_material", "hull_type", "fuel_type",
+               "engine_count", "engine_hours", "cabins", "berths", "heads",
+               "max_speed_knots", "cruising_speed_knots",
+               "fuel_capacity_gallons", "water_capacity_gallons", "condition"):
+        v = getattr(lst, f, None)
+        if v is not None:
+            existing[f] = v
+    if getattr(lst, "additional_engines", None):
+        existing["additional_engines"] = lst.additional_engines
+    if getattr(lst, "generators", None):
+        existing["generators"] = lst.generators
+    if getattr(lst, "feature_bullets", None):
+        existing["feature_bullets"] = lst.feature_bullets
+
+    # Collect all free-text fields as context
+    text_parts = []
+    if lst.title:
+        text_parts.append(f"Title: {lst.title}")
+    if lst.description:
+        text_parts.append(f"Description:\n{lst.description}")
+    if lst.features:
+        text_parts.append(f"Features:\n{lst.features}")
+    if lst.feature_bullets and isinstance(lst.feature_bullets, list):
+        text_parts.append("Bullets:\n" + "\n".join(f"- {b}" for b in lst.feature_bullets))
+    text_blob = "\n\n".join(text_parts)[:14000]
+
+    missing_fields = []
+    for f in ("beam_feet", "draft_feet", "cabins", "berths", "heads",
+              "engine_count", "engine_hours", "fuel_type",
+              "fuel_capacity_gallons", "water_capacity_gallons",
+              "max_speed_knots", "cruising_speed_knots",
+              "hull_material", "hull_type", "boat_type", "condition"):
+        if getattr(lst, f, None) is None:
+            missing_fields.append(f)
+    # Always try to extract engine/generator detail arrays if they're empty
+    if not getattr(lst, "additional_engines", None):
+        missing_fields.append("additional_engines")
+    if not getattr(lst, "generators", None):
+        missing_fields.append("generators")
+    if not getattr(lst, "feature_bullets", None):
+        missing_fields.append("feature_bullets")
+    needs_description = not lst.description or len(lst.description.strip()) < 80
+
+    prompt = f"""You are analyzing a yacht listing to fill in missing details.
+
+EXISTING STRUCTURED DATA:
+{json.dumps(existing, indent=2)}
+
+FULL LISTING TEXT:
+{text_blob}
+
+TASK: Extract fields that are currently missing/empty. Return a single JSON object containing ONLY the fields you can determine from the text. Return {{}} if nothing new can be found.
+
+Fields to extract (only if not already in existing data above):
+{chr(10).join(f"- {f}" for f in missing_fields)}
+
+Field definitions:
+- beam_feet, draft_feet: numbers in feet
+- cabins, berths, heads, engine_count: integers
+- engine_hours: number (total hours on primary engine)
+- fuel_type: one of "Diesel" | "Gasoline" | "Electric" | "Hybrid" | null
+- fuel_capacity_gallons, water_capacity_gallons: numbers
+- max_speed_knots, cruising_speed_knots: numbers
+- hull_material: one of "Fiberglass" | "Aluminum" | "Steel" | "Wood" | "Composite" | "Carbon Fiber" | "Ferro-Cement" | null
+- hull_type: one of "Monohull" | "Catamaran" | "Trimaran" | "Planing" | "Displacement" | "Semi-Displacement" | null
+- boat_type: one of "Motor Yacht" | "Sailing Yacht" | "Catamaran" | "Center Console" | "Sport Fisher" | "Trawler" | "Express Cruiser" | "Mega Yacht" | "Pontoon" | "Bowrider" | "Cuddy Cabin" | "Walkaround" | "Convertible" | "Pilothouse" | null
+- condition: "new" or "used" (infer from year, wording, etc.)
+- additional_engines: array of engine objects, one per physical engine. Each: {{"make": str|null, "model": str|null, "type": str|null, "horsepower": number|null, "hours": number|null, "notes": str|null}}. Empty array [] only if zero engines mentioned.
+- generators: array of generator objects. Each: {{"brand": str|null, "model": str|null, "kw": number|null, "hours": number|null, "notes": str|null}}. Empty array [] if none.
+- feature_bullets: array of up to 8 short strings (max 80 chars each) summarizing top features."""
+
+    if needs_description:
+        prompt += """
+- description: a clean, professional description written in short paragraphs (2-3 sentences each). Cover: what the vessel is → key specs/features → condition/history. Be factual and direct — no marketing language. Do NOT repeat data already in the structured fields above."""
+
+    prompt += "\n\nReturn ONLY a raw JSON object. No markdown, no explanation."
+    return prompt
+
+
+def _apply_enrich_result(lst: "Listing", result: dict) -> bool:
+    """Apply AI-enriched fields to a Listing. Returns True if anything changed."""
+    changed = False
+
+    str_fields = ("boat_type", "hull_material", "hull_type", "fuel_type", "condition")
+    float_fields = ("beam_feet", "draft_feet", "engine_hours",
+                    "max_speed_knots", "cruising_speed_knots",
+                    "fuel_capacity_gallons", "water_capacity_gallons")
+    int_fields = ("cabins", "berths", "heads", "engine_count")
+
+    for f in str_fields:
+        if result.get(f) and not getattr(lst, f, None):
+            setattr(lst, f, str(result[f])[:200])
+            changed = True
+
+    for f in float_fields:
+        if result.get(f) is not None and getattr(lst, f, None) is None:
+            try:
+                setattr(lst, f, float(result[f]))
+                changed = True
+            except (TypeError, ValueError):
+                pass
+
+    for f in int_fields:
+        if result.get(f) is not None and getattr(lst, f, None) is None:
+            try:
+                setattr(lst, f, int(result[f]))
+                changed = True
+            except (TypeError, ValueError):
+                pass
+
+    # JSON arrays — only replace if currently empty
+    if result.get("additional_engines") and not getattr(lst, "additional_engines", None):
+        lst.additional_engines = result["additional_engines"]
+        changed = True
+    if result.get("generators") and not getattr(lst, "generators", None):
+        lst.generators = result["generators"]
+        changed = True
+    if result.get("feature_bullets") and not getattr(lst, "feature_bullets", None):
+        if isinstance(result["feature_bullets"], list):
+            lst.feature_bullets = result["feature_bullets"]
+            changed = True
+
+    # Description — only set if currently empty/short
+    if result.get("description"):
+        existing_desc = (lst.description or "").strip()
+        if len(existing_desc) < 80:
+            lst.description = result["description"]
+            changed = True
+
+    return changed
+
+
+class BulkEnrichRequest(BaseModel):
+    dealer_id: Optional[int] = None
+    source: Optional[str] = "scraped"
+    limit: int = 200
+
+
+@router.post("/scraper/listings/bulk-ai-enrich")
+def start_bulk_ai_enrich(
+    req: BulkEnrichRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Start a background job to AI-enrich missing specs on existing listings."""
+    _require_admin(current_user)
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=422, detail="ANTHROPIC_API_KEY not configured")
+
+    job_id = _dt.utcnow().strftime("%Y%m%d%H%M%S")
+    _enrich_jobs[job_id] = {
+        "status": "running", "total": 0, "done": 0,
+        "updated": 0, "errors": 0, "log": [],
+    }
+
+    def _run():
+        from app.db.session import SessionLocal
+        import anthropic as _anthropic
+        _db = SessionLocal()
+        try:
+            q = _db.query(Listing).filter(Listing.deleted_at.is_(None))
+            if req.source:
+                q = q.filter(Listing.source == req.source)
+            if req.dealer_id:
+                q = q.filter(Listing.user_id == req.dealer_id)
+            listings = q.order_by(Listing.id.desc()).limit(req.limit).all()
+            _enrich_jobs[job_id]["total"] = len(listings)
+
+            client = _anthropic.Anthropic(api_key=api_key)
+
+            for lst in listings:
+                try:
+                    prompt = _build_enrich_prompt(lst)
+                    message = client.messages.create(
+                        model="claude-haiku-4-5",
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    raw_text = re.sub(r"```json\s*|\s*```", "", message.content[0].text).strip()
+                    m = re.search(r'\{[\s\S]*\}', raw_text)
+                    result = json.loads(m.group(0)) if m else {}
+                    if isinstance(result, dict) and result:
+                        changed = _apply_enrich_result(lst, result)
+                        if changed:
+                            _db.commit()
+                            _enrich_jobs[job_id]["updated"] += 1
+                            _enrich_jobs[job_id]["log"].append(
+                                f"✓ #{lst.id} {(lst.title or '').strip()[:60]}"
+                            )
+                        else:
+                            _enrich_jobs[job_id]["log"].append(
+                                f"— #{lst.id} {(lst.title or '').strip()[:60]} (no new fields)"
+                            )
+                    else:
+                        _enrich_jobs[job_id]["log"].append(
+                            f"— #{lst.id} {(lst.title or '').strip()[:60]} (empty response)"
+                        )
+                except Exception as exc:
+                    try:
+                        _db.rollback()
+                    except Exception:
+                        pass
+                    _enrich_jobs[job_id]["errors"] += 1
+                    _enrich_jobs[job_id]["log"].append(
+                        f"✗ #{lst.id}: {str(exc)[:120]}"
+                    )
+                finally:
+                    _enrich_jobs[job_id]["done"] += 1
+        except Exception as outer:
+            _enrich_jobs[job_id]["log"].append(f"Fatal: {outer}")
+        finally:
+            try:
+                _db.close()
+            except Exception:
+                pass
+            _enrich_jobs[job_id]["status"] = "done"
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"job_id": job_id}
+
+
+@router.get("/scraper/listings/bulk-ai-enrich/{job_id}")
+def get_bulk_enrich_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    status = _enrich_jobs.get(job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return status
+
