@@ -661,12 +661,16 @@ interface EnrichJob {
   log: string[];
 }
 
+const ENRICH_JOB_STORAGE_KEY = 'enrich_job_id';
+
 function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]; apiUrl: (path: string) => string; authHeaders: () => Record<string, string> }) {
   const [source, setSource] = useState<string>('scraped');
   const [dealerId, setDealerId] = useState<string>('');
   const [limit, setLimit] = useState<number>(200);
+  const [onlyIncomplete, setOnlyIncomplete] = useState(true);
   const [running, setRunning] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [savedJobId, setSavedJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState<EnrichJob | null>(null);
   const [error, setError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -678,9 +682,65 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
     }
   };
 
+  const beginPolling = (jid: string) => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      try {
+        const r2 = await fetch(apiUrl(`/scraper/listings/bulk-ai-enrich/${jid}`), { headers: authHeaders() });
+        if (!r2.ok) return;
+        const data: EnrichJob = await r2.json();
+        setProgress(data);
+        if (data.status === 'done') {
+          stopPolling();
+          setRunning(false);
+          localStorage.removeItem(ENRICH_JOB_STORAGE_KEY);
+        }
+      } catch { /* ignore poll errors */ }
+    }, 2500);
+  };
+
+  // On mount: check localStorage for a job left in progress
+  useEffect(() => {
+    const saved = localStorage.getItem(ENRICH_JOB_STORAGE_KEY);
+    if (saved) setSavedJobId(saved);
+    return () => stopPolling();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const reconnect = async () => {
+    if (!savedJobId) return;
+    setError('');
+    setRunning(true);
+    try {
+      const r = await fetch(apiUrl(`/scraper/listings/bulk-ai-enrich/${savedJobId}`), { headers: authHeaders() });
+      if (!r.ok) throw new Error('Job not found — the backend may have restarted.');
+      const data: EnrichJob = await r.json();
+      setJobId(savedJobId);
+      setSavedJobId(null);
+      setProgress(data);
+      if (data.status === 'running') {
+        beginPolling(savedJobId);
+      } else {
+        setRunning(false);
+        localStorage.removeItem(ENRICH_JOB_STORAGE_KEY);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      localStorage.removeItem(ENRICH_JOB_STORAGE_KEY);
+      setSavedJobId(null);
+      setRunning(false);
+    }
+  };
+
+  const dismissSaved = () => {
+    localStorage.removeItem(ENRICH_JOB_STORAGE_KEY);
+    setSavedJobId(null);
+  };
+
   const startEnrich = async () => {
     setError('');
     setProgress(null);
+    setSavedJobId(null);
     setRunning(true);
     try {
       const res = await fetch(apiUrl('/scraper/listings/bulk-ai-enrich'), {
@@ -690,6 +750,7 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
           source: source || null,
           dealer_id: dealerId ? parseInt(dealerId) : null,
           limit,
+          only_incomplete: onlyIncomplete,
         }),
       });
       if (!res.ok) {
@@ -697,20 +758,9 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
         throw new Error(d.detail || `HTTP ${res.status}`);
       }
       const { job_id } = await res.json();
+      localStorage.setItem(ENRICH_JOB_STORAGE_KEY, job_id);
       setJobId(job_id);
-      // start polling
-      pollRef.current = setInterval(async () => {
-        try {
-          const r2 = await fetch(apiUrl(`/scraper/listings/bulk-ai-enrich/${job_id}`), { headers: authHeaders() });
-          if (!r2.ok) return;
-          const data: EnrichJob = await r2.json();
-          setProgress(data);
-          if (data.status === 'done') {
-            stopPolling();
-            setRunning(false);
-          }
-        } catch { /* ignore poll errors */ }
-      }, 2500);
+      beginPolling(job_id);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
       setRunning(false);
@@ -727,6 +777,23 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
       <p className="text-sm text-gray-600 mb-6">
         Run Claude AI over existing listings to fill in missing specs, engine details, generators, and feature bullets extracted from the description and features text. Only empty fields are updated — existing data is never overwritten.
       </p>
+
+      {/* Reconnect banner */}
+      {savedJobId && !running && (
+        <div className="flex items-center gap-3 p-4 mb-5 bg-yellow-50 border border-yellow-300 rounded-xl text-sm">
+          <span className="text-yellow-800 flex-1">
+            A job (<code className="font-mono">{savedJobId}</code>) was started in a previous session and may still be running on the server.
+          </span>
+          <button onClick={reconnect}
+            className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg text-xs font-medium hover:bg-yellow-700 transition-colors whitespace-nowrap">
+            Reconnect
+          </button>
+          <button onClick={dismissSaved}
+            className="px-3 py-1.5 bg-white border border-yellow-300 text-yellow-700 rounded-lg text-xs font-medium hover:bg-yellow-50 transition-colors whitespace-nowrap">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 space-y-4">
         <div className="grid grid-cols-3 gap-4">
@@ -752,6 +819,13 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
           </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" checked={onlyIncomplete} onChange={e => setOnlyIncomplete(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+          Skip listings that already have engines + a real description
+          <span className="text-xs text-gray-400">(recommended — avoids re-spending tokens)</span>
+        </label>
 
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>

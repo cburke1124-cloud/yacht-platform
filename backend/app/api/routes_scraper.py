@@ -2068,6 +2068,23 @@ class BulkEnrichRequest(BaseModel):
     dealer_id: Optional[int] = None
     source: Optional[str] = "scraped"
     limit: int = 200
+    only_incomplete: bool = True  # skip listings that already have additional_engines + a real description
+
+
+@router.get("/scraper/listings/bulk-ai-enrich")
+def list_bulk_enrich_jobs(current_user: User = Depends(get_current_user)):
+    """List all in-memory enrich jobs (clears on backend restart)."""
+    _require_admin(current_user)
+    return {
+        jid: {
+            "status": v["status"],
+            "total": v["total"],
+            "done": v["done"],
+            "updated": v["updated"],
+            "errors": v["errors"],
+        }
+        for jid, v in _enrich_jobs.items()
+    }
 
 
 @router.post("/scraper/listings/bulk-ai-enrich")
@@ -2098,6 +2115,15 @@ def start_bulk_ai_enrich(
                 q = q.filter(Listing.source == req.source)
             if req.dealer_id:
                 q = q.filter(Listing.user_id == req.dealer_id)
+            if req.only_incomplete:
+                from sqlalchemy import or_, func as _func
+                q = q.filter(
+                    or_(
+                        Listing.additional_engines.is_(None),
+                        Listing.description.is_(None),
+                        _func.length(Listing.description) < 80,
+                    )
+                )
             listings = q.order_by(Listing.id.desc()).limit(req.limit).all()
             _enrich_jobs[job_id]["total"] = len(listings)
 
