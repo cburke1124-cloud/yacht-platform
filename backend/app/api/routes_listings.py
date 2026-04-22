@@ -1805,7 +1805,24 @@ def reorder_listing_media(
             obj.display_order = att.get("display_order", idx)
             obj.is_primary = bool(att.get("is_primary", False))
     db.commit()
-    return {"success": True, "updated": len(attachments)}
+
+    if att_by_id:
+        return {"success": True, "updated": len(attachments)}
+
+    # Legacy fallback: reorder ListingImage rows when no attachments exist
+    legacy_images = (
+        db.query(ListingImage)
+        .filter(ListingImage.listing_id == listing_id, ListingImage.id.in_(ids))
+        .all()
+    )
+    img_by_id = {i.id: i for i in legacy_images}
+    for idx, att_data in enumerate(payload.attachments):
+        obj = img_by_id.get(att_data["id"])
+        if obj:
+            obj.display_order = att_data.get("display_order", idx)
+            obj.is_primary = bool(att_data.get("is_primary", False))
+    db.commit()
+    return {"success": True, "updated": len(legacy_images)}
 
 
 # --- Set primary image (used by admin ListingEditor) ---
@@ -1830,7 +1847,7 @@ def set_primary_image(
     ).all()
     if attachments:
         for att in attachments:
-            att.is_primary = att.id == image_id
+            att.is_primary = att.media_id == image_id  # image_id is MediaFile.id
         db.commit()
         return {"success": True}
 
@@ -1843,3 +1860,73 @@ def set_primary_image(
         img.is_primary = img.id == image_id
     db.commit()
     return {"success": True}
+
+
+# --- Delete a single image from a listing ---
+
+@router.delete("/{listing_id}/images/{image_id}")
+def delete_listing_image(
+    listing_id: int,
+    image_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Remove a single image from a listing.
+    Works for both the new MediaFile/ListingMediaAttachment system (image_id = MediaFile.id)
+    and the legacy ListingImage system (image_id = ListingImage.id).
+    """
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        raise AuthorizationException("Not authorized to edit this listing")
+
+    # Try new system: find attachment by media_id (MediaFile.id)
+    att = (
+        db.query(ListingMediaAttachment)
+        .filter(
+            ListingMediaAttachment.listing_id == listing_id,
+            ListingMediaAttachment.media_id == image_id,
+        )
+        .first()
+    )
+    if att:
+        was_primary = att.is_primary
+        db.delete(att)
+        db.flush()
+        if was_primary:
+            next_att = (
+                db.query(ListingMediaAttachment)
+                .filter(ListingMediaAttachment.listing_id == listing_id)
+                .order_by(ListingMediaAttachment.display_order)
+                .first()
+            )
+            if next_att:
+                next_att.is_primary = True
+        db.commit()
+        return {"success": True}
+
+    # Try legacy ListingImage rows
+    img = (
+        db.query(ListingImage)
+        .filter(ListingImage.listing_id == listing_id, ListingImage.id == image_id)
+        .first()
+    )
+    if img:
+        was_primary = img.is_primary
+        db.delete(img)
+        db.flush()
+        if was_primary:
+            next_img = (
+                db.query(ListingImage)
+                .filter(ListingImage.listing_id == listing_id)
+                .order_by(ListingImage.display_order)
+                .first()
+            )
+            if next_img:
+                next_img.is_primary = True
+        db.commit()
+        return {"success": True}
+
+    raise ResourceNotFoundException("Image", image_id)

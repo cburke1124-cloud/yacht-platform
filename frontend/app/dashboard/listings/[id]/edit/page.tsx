@@ -39,7 +39,7 @@ export default function EditListingPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setImages(data.attachments || []);
+        setImages(data.media || []);
       } else {
         setError('Failed to load images');
       }

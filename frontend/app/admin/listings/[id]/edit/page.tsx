@@ -220,15 +220,9 @@ export default function AdminListingEditPage() {
 
   async function deleteImage(mediaId: number) {
     if (!confirm('Remove this image from the listing?')) return;
-    if (!usingNewMediaSystem) {
-      showToast(false, 'Cannot remove legacy scraped images directly. Upload new images first, then remove.');
-      return;
-    }
-    const remainingIds = mediaItems.filter((m: any) => m.id !== mediaId).map((m: any) => m.id);
-    const r = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
-      method: 'POST',
-      headers: jsonHeaders(),
-      body: JSON.stringify({ media_ids: remainingIds }),
+    const r = await fetch(apiUrl(`/listings/${listingId}/images/${mediaId}`), {
+      method: 'DELETE',
+      headers: authHeaders(),
     });
     if (r.ok) {
       await refreshMedia();
@@ -239,18 +233,9 @@ export default function AdminListingEditPage() {
   }
 
   async function setPrimary(mediaId: number) {
-    if (!usingNewMediaSystem) {
-      showToast(false, 'Cannot reorder legacy scraped images. Upload new images first.');
-      return;
-    }
-    const reordered = [
-      ...mediaItems.filter((m: any) => m.id === mediaId),
-      ...mediaItems.filter((m: any) => m.id !== mediaId),
-    ].map((m: any) => m.id);
-    const r = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+    const r = await fetch(apiUrl(`/listings/${listingId}/images/${mediaId}/set-primary`), {
       method: 'POST',
-      headers: jsonHeaders(),
-      body: JSON.stringify({ media_ids: reordered }),
+      headers: authHeaders(),
     });
     if (r.ok) {
       await refreshMedia();
@@ -533,18 +518,16 @@ export default function AdminListingEditPage() {
                         {img.is_primary && (
                           <span className="absolute top-1 left-1 bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">Primary</span>
                         )}
-                        {usingNewMediaSystem && (
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            {!img.is_primary && (
-                              <button onClick={() => setPrimary(img.id)} title="Set as primary" className="p-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
-                                <Star size={13} />
-                              </button>
-                            )}
-                            <button onClick={() => deleteImage(img.id)} title="Remove" className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                              <Trash2 size={13} />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          {!img.is_primary && (
+                            <button onClick={() => setPrimary(img.id)} title="Set as primary" className="p-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+                              <Star size={13} />
                             </button>
-                          </div>
-                        )}
+                          )}
+                          <button onClick={() => deleteImage(img.id)} title="Remove" className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
