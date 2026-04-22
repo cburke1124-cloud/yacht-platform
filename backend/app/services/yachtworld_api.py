@@ -151,6 +151,19 @@ def _map_yw_record(rec: dict) -> dict:
     city    = str(loc_node.get("BoatCityName")    or loc_node.get("city")    or g("BoatCityNameNoCaseAlnumOnly") or "").strip() or None
     state   = str(loc_node.get("BoatStateCode")   or loc_node.get("state")   or "").strip() or None
     country = str(loc_node.get("BoatCountryID")   or loc_node.get("country") or "").strip() or None
+    zip_code= str(loc_node.get("BoatZipCode")     or loc_node.get("PostalCode") or loc_node.get("zip") or g("BoatZipCode", "PostalCode", "zip_code") or "").strip() or None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    try:
+        v = loc_node.get("Latitude") or loc_node.get("lat") or g("Latitude", "lat")
+        latitude = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        pass
+    try:
+        v = loc_node.get("Longitude") or loc_node.get("lng") or loc_node.get("lon") or g("Longitude", "lng", "lon")
+        longitude = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        pass
 
     # -- Boat type ---------------------------------------------------------------
     cat_code = str(g("BoatCategoryCode", "type", "boatType", "boat_type", "category") or "").strip()
@@ -227,6 +240,14 @@ def _map_yw_record(rec: dict) -> dict:
             engine_hours = float(hrs_raw) if hrs_raw else None
         except (TypeError, ValueError):
             pass
+
+    # -- Previous owners ------------------------------------------------------
+    previous_owners: Optional[int] = None
+    try:
+        v = g("PreviousOwners", "NumberOfOwners", "previous_owners", "numOwners")
+        previous_owners = int(v) if v is not None else None
+    except (TypeError, ValueError):
+        pass
 
     # -- Draft ----------------------------------------------------------------
     draft_node = _parse_nested(g("Draft", "draft"))
@@ -420,6 +441,9 @@ def _map_yw_record(rec: dict) -> dict:
         "city":                   city,
         "state":                  state,
         "country":                country,
+        "zip_code":               zip_code,
+        "latitude":               latitude,
+        "longitude":              longitude,
         "description":            description,
         "images":                 images,
         "fuel_type":              fuel_type,
@@ -435,6 +459,7 @@ def _map_yw_record(rec: dict) -> dict:
         "additional_engines":     additional_engines,
         "generators":             generators,
         "feature_bullets":        feature_bullets,
+        "previous_owners":        previous_owners,
         "is_sold":                is_sold,
     }
 
@@ -637,6 +662,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
             for rec in records:
                 raw = _map_yw_record(rec)
                 external_id = raw.pop("_yw_id", "")
+                raw["_yw_ext_id"] = external_id  # keep for _apply_json_fields
 
                 source_url = f"{base_url}?id={external_id}" if external_id else None
                 if not source_url:
@@ -659,11 +685,25 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                     )
 
                     def _apply_json_fields(lst):
-                        """Apply JSON fields not handled by _apply_scraped_data."""
+                        """Apply fields not handled by _apply_scraped_data."""
                         if raw.get("additional_engines"):
                             lst.additional_engines = raw["additional_engines"]
                         if raw.get("generators"):
                             lst.generators = raw["generators"]
+                        # Scalar fields _apply_scraped_data doesn't cover
+                        if raw.get("condition"):
+                            lst.condition = raw["condition"]
+                        if raw.get("zip_code"):
+                            lst.zip_code = raw["zip_code"]
+                        if raw.get("latitude") is not None:
+                            lst.latitude = raw["latitude"]
+                        if raw.get("longitude") is not None:
+                            lst.longitude = raw["longitude"]
+                        if raw.get("previous_owners") is not None:
+                            lst.previous_owners = raw["previous_owners"]
+                        # Store DocumentID in external_id for deduplication / reference
+                        if raw.get("_yw_ext_id"):
+                            lst.external_id = raw["_yw_ext_id"]
 
                     if existing:
                         _apply_scraped_data(existing, raw, job)
@@ -686,7 +726,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                             source="scraped",
                             source_url=source_url,
                             status="awaiting_review" if not is_sold else "sold",
-                            condition="used",
+                            condition=raw.get("condition") or "used",
                         )
                         try:
                             listing.bin = _generate_yw_bin(db)
