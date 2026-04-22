@@ -1806,3 +1806,40 @@ def reorder_listing_media(
             obj.is_primary = bool(att.get("is_primary", False))
     db.commit()
     return {"success": True, "updated": len(attachments)}
+
+
+# --- Set primary image (used by admin ListingEditor) ---
+
+@router.post("/{listing_id}/images/{image_id}/set-primary")
+def set_primary_image(
+    listing_id: int,
+    image_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Set a single image as primary, clearing is_primary on all others."""
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+    if listing.user_id != current_user.id and current_user.user_type != "admin":
+        raise AuthorizationException("Not authorized to edit this listing")
+
+    # Try new media attachment system first
+    attachments = db.query(ListingMediaAttachment).filter(
+        ListingMediaAttachment.listing_id == listing_id
+    ).all()
+    if attachments:
+        for att in attachments:
+            att.is_primary = att.id == image_id
+        db.commit()
+        return {"success": True}
+
+    # Fall back to legacy ListingImage rows
+    images = db.query(ListingImage).filter(ListingImage.listing_id == listing_id).all()
+    matched = any(img.id == image_id for img in images)
+    if not matched:
+        raise ResourceNotFoundException("Image", image_id)
+    for img in images:
+        img.is_primary = img.id == image_id
+    db.commit()
+    return {"success": True}

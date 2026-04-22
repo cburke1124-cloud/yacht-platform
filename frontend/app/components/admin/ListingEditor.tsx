@@ -180,9 +180,13 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
             is_primary: img.id === imageId
           }))
         });
+      } else {
+        const err = await response.json().catch(() => ({}));
+        alert(`Failed to set primary image: ${err.detail || response.status}`);
       }
     } catch (error) {
       console.error('Set primary error:', error);
+      alert('Failed to set primary image — network error');
     }
   };
 

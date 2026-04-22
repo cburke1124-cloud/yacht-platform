@@ -236,9 +236,9 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
 
         <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-        {/* ── Manufacturer ── */}
-        <select value={make} onChange={(e) => setMake(e.target.value)} className={SEL} style={{ minWidth: 140 }}>
-          <option value="">Manufacturer</option>
+        {/* ── Make ── */}
+        <select value={make} onChange={(e) => setMake(e.target.value)} className={SEL} style={{ minWidth: 110 }}>
+          <option value="">Make</option>
           {makes.length === 0
             ? <option disabled>Loading…</option>
             : makes.map((m) => <option key={m} value={m}>{m}</option>)
