@@ -83,7 +83,7 @@ function DualRangeSlider({ min, max, low, high, onLow, onHigh, label, step = 1 }
   const HANDLE = 14;
 
   return (
-    <div className="flex flex-col justify-center w-full">
+    <div className="flex flex-col justify-center w-full" style={{ minWidth: 0 }}>
       <div
         className="text-center"
         style={{ fontSize: 11, color: '#10214F', fontFamily: 'Poppins, sans-serif', marginBottom: 4, fontWeight: 600, letterSpacing: '0.01em' }}
@@ -195,90 +195,92 @@ export default function SearchBar({ onSearch, squareTop }: SearchBarProps) {
   return (
     <form onSubmit={handleSearch} className="w-full">
       <div
-        className="flex flex-col bg-white px-4 pt-3 pb-3"
+        className="flex items-center bg-white px-3 py-2 gap-2"
         style={{
+          minHeight: 56,
           borderRadius: squareTop ? '0 0 12px 12px' : 12,
           border: '1px solid rgba(0,0,0,0.12)',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           ...(squareTop ? { borderTop: 'none' } : {}),
-          gap: 8,
         }}
       >
-        {/* ── Row 1: dropdowns + action buttons ── */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <select value={condition} onChange={(e) => setCondition(e.target.value)} className={SEL}>
-            <option value="">Condition</option>
-            <option value="new">New</option>
-            <option value="used">Used</option>
-          </select>
+        {/* ── Condition ── */}
+        <select value={condition} onChange={(e) => setCondition(e.target.value)} className={SEL} style={{ minWidth: 90, flexShrink: 0 }}>
+          <option value="">Condition</option>
+          <option value="new">New</option>
+          <option value="used">Used</option>
+        </select>
 
-          <select value={propulsion} onChange={(e) => setPropulsion(e.target.value)} className={SEL}>
-            <option value="">Power / Sail</option>
-            <option value="power">Power</option>
-            <option value="sail">Sail</option>
-          </select>
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-          <select value={boatType} onChange={(e) => setBoatType(e.target.value)} className={SEL}>
-            <option value="">Type</option>
-            {classOptions.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+        {/* ── Power / Sail ── */}
+        <select value={propulsion} onChange={(e) => setPropulsion(e.target.value)} className={SEL} style={{ minWidth: 100, flexShrink: 0 }}>
+          <option value="">Power / Sail</option>
+          <option value="power">Power</option>
+          <option value="sail">Sail</option>
+        </select>
 
-          <select value={make} onChange={(e) => setMake(e.target.value)} className={SEL}>
-            <option value="">Make</option>
-            {makes.length === 0
-              ? <option disabled>Loading…</option>
-              : makes.map((m) => <option key={m} value={m}>{m}</option>)
-            }
-          </select>
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-          {/* push buttons to the right */}
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="submit"
-              className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
-            >
-              <Search size={15} />
-              Search
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/listings')}
-              className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200"
-            >
-              <SlidersHorizontal size={13} />
-              Advanced
-            </button>
-          </div>
+        {/* ── Type ── */}
+        <select value={boatType} onChange={(e) => setBoatType(e.target.value)} className={SEL} style={{ minWidth: 110, flexShrink: 0 }}>
+          <option value="">Type</option>
+          {classOptions.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
+
+        {/* ── Make ── */}
+        <select value={make} onChange={(e) => setMake(e.target.value)} className={SEL} style={{ minWidth: 90, flexShrink: 0 }}>
+          <option value="">Make</option>
+          {makes.length === 0
+            ? <option disabled>Loading…</option>
+            : makes.map((m) => <option key={m} value={m}>{m}</option>)
+          }
+        </select>
+
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
+
+        {/* ── Price Range Slider — grows to fill available space ── */}
+        <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+          <PriceRangeSlider
+            min={rangeMin} max={rangeMax}
+            low={lowVal}   high={highVal}
+            onLow={setLowVal} onHigh={setHighVal}
+          />
         </div>
 
-        {/* ── Row 2: range sliders ── */}
-        <div className="flex items-center gap-4 border-t border-gray-100 pt-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-xs text-gray-400 shrink-0 font-medium">Price</span>
-            <div className="flex-1 min-w-0">
-              <PriceRangeSlider
-                min={rangeMin} max={rangeMax}
-                low={lowVal}   high={highVal}
-                onLow={setLowVal} onHigh={setHighVal}
-              />
-            </div>
-          </div>
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
 
-          <div className="w-px h-6 bg-gray-200 shrink-0 hidden sm:block" />
-
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-xs text-gray-400 shrink-0 font-medium">Length</span>
-            <div className="flex-1 min-w-0">
-              <LengthRangeSlider
-                min={lenMin} max={lenMax}
-                low={lowLen} high={highLen}
-                onLow={setLowLen} onHigh={setHighLen}
-              />
-            </div>
-          </div>
+        {/* ── Length Range Slider — grows to fill available space ── */}
+        <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+          <LengthRangeSlider
+            min={lenMin} max={lenMax}
+            low={lowLen} high={highLen}
+            onLow={setLowLen} onHigh={setHighLen}
+          />
         </div>
+
+        <span className="hidden sm:block text-gray-200 select-none">|</span>
+
+        {/* ── Action buttons ── */}
+        <button
+          type="submit"
+          className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold flex items-center gap-1.5 hover:opacity-90 transition shrink-0"
+        >
+          <Search size={15} />
+          Search
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push('/listings')}
+          className="h-10 px-3 rounded-lg text-xs font-medium text-gray-500 hover:text-primary hover:bg-gray-50 flex items-center gap-1 transition shrink-0 whitespace-nowrap border border-gray-200"
+        >
+          <SlidersHorizontal size={13} />
+          Advanced
+        </button>
 
       </div>
     </form>
