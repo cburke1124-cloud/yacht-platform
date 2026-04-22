@@ -228,40 +228,214 @@ def _map_yw_record(rec: dict) -> dict:
         except (TypeError, ValueError):
             pass
 
-    # -- Cabins / hull --------------------------------------------------------
+    # -- Draft ----------------------------------------------------------------
+    draft_node = _parse_nested(g("Draft", "draft"))
+    if draft_node:
+        dft = draft_node.get("Feet") or draft_node.get("ft") or draft_node.get("feet")
+        dm  = draft_node.get("Meters") or draft_node.get("m")
+        if dft:
+            draft_feet = _yw_to_feet(dft, "feet")
+        elif dm:
+            draft_feet = _yw_to_feet(dm, "m")
+
+    # -- Cabins / berths / heads / hull ---------------------------------------
     cabins_raw = g("Cabins", "cabins", "Staterooms", "staterooms")
     try:
         cabins = int(cabins_raw) if cabins_raw is not None else None
     except (TypeError, ValueError):
         cabins = None
 
+    berths_raw = g("Berths", "berths", "NumberOfBerths", "SleepingCapacity", "sleeping_capacity")
+    try:
+        berths = int(berths_raw) if berths_raw is not None else None
+    except (TypeError, ValueError):
+        berths = None
+
+    heads_raw = g("Heads", "heads", "NumberOfHeads", "Bathrooms", "bathrooms")
+    try:
+        heads = int(heads_raw) if heads_raw is not None else None
+    except (TypeError, ValueError):
+        heads = None
+
     hull_material = str(g("HullMaterial", "hullMaterial", "hull_material", "hull") or "").strip() or None
+    hull_type     = str(g("HullType", "hullType", "hull_type", "DesignerOrHullType") or "").strip() or None
     fuel_type     = str(g("FuelType", "fuelType", "fuel_type", "fuel") or "").strip() or None
 
+    # -- Speeds ---------------------------------------------------------------
+    max_speed: Optional[float] = None
+    cruise_speed: Optional[float] = None
+    try:
+        v = g("MaxSpeed", "maxSpeed", "max_speed", "TopSpeed")
+        max_speed = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        pass
+    try:
+        v = g("CruisingSpeed", "cruisingSpeed", "cruising_speed", "CruiseSpeed")
+        cruise_speed = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        pass
+
+    # -- Fuel / water capacity ------------------------------------------------
+    fuel_cap: Optional[float] = None
+    water_cap: Optional[float] = None
+    fc_node = _parse_nested(g("FuelCapacity", "fuelCapacity", "fuel_capacity"))
+    if fc_node:
+        gal = fc_node.get("Gallons") or fc_node.get("gallons") or fc_node.get("gal")
+        lit = fc_node.get("Liters") or fc_node.get("liters") or fc_node.get("ltr")
+        if gal:
+            try: fuel_cap = float(gal)
+            except (TypeError, ValueError): pass
+        elif lit:
+            try: fuel_cap = round(float(lit) * 0.264172, 1)
+            except (TypeError, ValueError): pass
+    if fuel_cap is None:
+        try:
+            v = g("FuelCapacityGallons", "fuel_capacity_gallons")
+            fuel_cap = float(v) if v is not None else None
+        except (TypeError, ValueError):
+            pass
+
+    wc_node = _parse_nested(g("WaterCapacity", "waterCapacity", "water_capacity"))
+    if wc_node:
+        gal = wc_node.get("Gallons") or wc_node.get("gallons") or wc_node.get("gal")
+        lit = wc_node.get("Liters") or wc_node.get("liters") or wc_node.get("ltr")
+        if gal:
+            try: water_cap = float(gal)
+            except (TypeError, ValueError): pass
+        elif lit:
+            try: water_cap = round(float(lit) * 0.264172, 1)
+            except (TypeError, ValueError): pass
+    if water_cap is None:
+        try:
+            v = g("WaterCapacityGallons", "water_capacity_gallons")
+            water_cap = float(v) if v is not None else None
+        except (TypeError, ValueError):
+            pass
+
+    # -- Detailed engines (additional_engines JSON) ---------------------------
+    additional_engines: list = []
+    if isinstance(engines_raw, list):
+        for eng in engines_raw:
+            if not isinstance(eng, dict):
+                continue
+            def _ef(*keys):
+                for k in keys:
+                    v = eng.get(k)
+                    if v is not None and v != "":
+                        return v
+                return None
+            entry: dict = {}
+            if _ef("Make", "make"):         entry["make"]         = str(_ef("Make", "make"))
+            if _ef("Model", "model"):       entry["model"]        = str(_ef("Model", "model"))
+            if _ef("Year", "year"):
+                try: entry["year"] = int(_ef("Year", "year"))
+                except (TypeError, ValueError): pass
+            for hp_key in ("HorsePower", "horsePower", "HP", "hp", "TotalHP", "totalHP"):
+                if _ef(hp_key):
+                    try: entry["horsepower"] = float(_ef(hp_key)); break
+                    except (TypeError, ValueError): pass
+            for hr_key in ("Hours", "hours", "EngineHours", "engineHours"):
+                if _ef(hr_key):
+                    try: entry["hours"] = float(_ef(hr_key)); break
+                    except (TypeError, ValueError): pass
+            if _ef("Fuel", "fuel", "FuelType", "fuelType"):
+                entry["fuel"] = str(_ef("Fuel", "fuel", "FuelType", "fuelType"))
+            if _ef("Type", "type", "EngineType", "engineType"):
+                entry["type"] = str(_ef("Type", "type", "EngineType", "engineType"))
+            if _ef("Drive", "drive", "DriveType", "driveType"):
+                entry["drive"] = str(_ef("Drive", "drive", "DriveType", "driveType"))
+            if _ef("StrokesNumber", "strokes"):
+                try: entry["strokes"] = int(_ef("StrokesNumber", "strokes"))
+                except (TypeError, ValueError): pass
+            if entry:
+                additional_engines.append(entry)
+
+    # -- Generators -----------------------------------------------------------
+    generators: list = []
+    gens_raw = g("Generators", "generators", "Generator", "generator") or []
+    if isinstance(gens_raw, dict):
+        gens_raw = [gens_raw]
+    if isinstance(gens_raw, list):
+        for gen in gens_raw:
+            if not isinstance(gen, dict):
+                continue
+            def _gf(*keys):
+                for k in keys:
+                    v = gen.get(k)
+                    if v is not None and v != "":
+                        return v
+                return None
+            entry = {}
+            if _gf("Make", "make"):   entry["make"]  = str(_gf("Make", "make"))
+            if _gf("Model", "model"): entry["model"] = str(_gf("Model", "model"))
+            if _gf("Year", "year"):
+                try: entry["year"] = int(_gf("Year", "year"))
+                except (TypeError, ValueError): pass
+            for kw_key in ("Kilowatts", "kilowatts", "KW", "kw", "Watts", "watts"):
+                if _gf(kw_key):
+                    try: entry["kilowatts"] = float(_gf(kw_key)); break
+                    except (TypeError, ValueError): pass
+            for hr_key in ("Hours", "hours", "GeneratorHours"):
+                if _gf(hr_key):
+                    try: entry["hours"] = float(_gf(hr_key)); break
+                    except (TypeError, ValueError): pass
+            if entry:
+                generators.append(entry)
+
+    # -- Features / amenities -------------------------------------------------
+    feature_bullets: list = []
+    feats_raw = g("Features", "features", "Amenities", "amenities", "Equipment", "equipment") or []
+    if isinstance(feats_raw, list):
+        for f_item in feats_raw:
+            if isinstance(f_item, str) and f_item.strip():
+                feature_bullets.append(f_item.strip())
+            elif isinstance(f_item, dict):
+                label = (f_item.get("Feature") or f_item.get("Name") or
+                         f_item.get("name") or f_item.get("label") or
+                         f_item.get("value") or "")
+                if label:
+                    feature_bullets.append(str(label).strip())
+
+    # -- Description (try several common field names) -------------------------
+    description = str(
+        g("Description", "HtmlDescription", "BoatDescription",
+          "description", "comments", "Comments", "Remarks", "remarks") or ""
+    ).strip() or None
+
     return {
-        "_yw_id":       external_id,
-        "title":        title,
-        "make":         make,
-        "model":        model,
-        "year":         year,
-        "price":        price,
-        "currency":     currency,
-        "condition":    condition,
-        "length_feet":  length_feet,
-        "beam_feet":    beam_feet,
-        "draft_feet":   draft_feet,
-        "boat_type":    boat_type,
-        "hull_material":hull_material,
-        "city":         city,
-        "state":        state,
-        "country":      country,
-        "description":  description,
-        "images":       images,
-        "fuel_type":    fuel_type,
-        "cabins":       cabins,
-        "engine_count": engine_count,
-        "engine_hours": engine_hours,
-        "is_sold":      is_sold,
+        "_yw_id":                 external_id,
+        "title":                  title,
+        "make":                   make,
+        "model":                  model,
+        "year":                   year,
+        "price":                  price,
+        "currency":               currency,
+        "condition":              condition,
+        "length_feet":            length_feet,
+        "beam_feet":              beam_feet,
+        "draft_feet":             draft_feet,
+        "boat_type":              boat_type,
+        "hull_material":          hull_material,
+        "hull_type":              hull_type,
+        "city":                   city,
+        "state":                  state,
+        "country":                country,
+        "description":            description,
+        "images":                 images,
+        "fuel_type":              fuel_type,
+        "cabins":                 cabins,
+        "berths":                 berths,
+        "heads":                  heads,
+        "engine_count":           engine_count,
+        "engine_hours":           engine_hours,
+        "max_speed_knots":        max_speed,
+        "cruising_speed_knots":   cruise_speed,
+        "fuel_capacity_gallons":  fuel_cap,
+        "water_capacity_gallons": water_cap,
+        "additional_engines":     additional_engines,
+        "generators":             generators,
+        "feature_bullets":        feature_bullets,
+        "is_sold":                is_sold,
     }
 
 
@@ -484,8 +658,16 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                         .first()
                     )
 
+                    def _apply_json_fields(lst):
+                        """Apply JSON fields not handled by _apply_scraped_data."""
+                        if raw.get("additional_engines"):
+                            lst.additional_engines = raw["additional_engines"]
+                        if raw.get("generators"):
+                            lst.generators = raw["generators"]
+
                     if existing:
                         _apply_scraped_data(existing, raw, job)
+                        _apply_json_fields(existing)
                         if is_sold:
                             existing.status = "sold"
                         elif existing.status not in ("draft", "awaiting_review"):
@@ -511,6 +693,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                         except Exception:
                             pass
                         _apply_scraped_data(listing, raw, job)
+                        _apply_json_fields(listing)
                         db.add(listing)
                         db.flush()
                         for img_url in raw.get("images", []):
