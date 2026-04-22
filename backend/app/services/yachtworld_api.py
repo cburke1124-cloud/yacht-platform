@@ -553,7 +553,29 @@ def _map_yw_record(rec: dict) -> dict:
         import html as _html
         description = _html.unescape(description).strip() or None
 
+    # 4. Last-resort: scan every string value in the record (top-level and one
+    #    level deep) and pick the longest one that looks like a description.
+    if not description:
+        _best = ""
+        def _scan_val(v):
+            nonlocal _best
+            if isinstance(v, str) and len(v) > len(_best) and len(v) > 80:
+                _best = v
+        for _v in rec.values():
+            _scan_val(_v)
+            if isinstance(_v, dict):
+                for _vv in _v.values():
+                    _scan_val(_vv)
+        if _best:
+            if "<" in _best:
+                import re as _re2, html as _html2
+                _best = _re2.sub(r"<br\s*/?>", "\n", _best, flags=_re2.IGNORECASE)
+                _best = _re2.sub(r"</p>", "\n\n", _best, flags=_re2.IGNORECASE)
+                _best = _re2.sub(r"<[^>]+>", "", _best)
+                _best = _html2.unescape(_best).strip()
+            description = _best or None
 
+    return {
         "_yw_id":                 external_id,
         "title":                  title,
         "make":                   make,
