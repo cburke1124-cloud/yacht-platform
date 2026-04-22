@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface QuickEditDraft {
@@ -12,7 +13,7 @@ interface QuickEditDraft {
 
 export default function AdminListingsTab() {
   const router = useRouter();
-  const [listings, setListings] = useState<any[]>([]);
+  const [allListings, setAllListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [quickEdits, setQuickEdits] = useState<Record<number, QuickEditDraft>>({});
@@ -21,44 +22,74 @@ export default function AdminListingsTab() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [brokerFilter, setBrokerFilter] = useState('');
+  const [sortField, setSortField] = useState<'title' | 'price' | 'status' | 'views' | 'created_at'>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const PAGE_SIZE = 25;
 
+  // Fetch once on mount — tab/broker changes filter client-side
   useEffect(() => {
     fetchListings();
-    setPage(0); // reset page when filter changes
-  }, [filter]);
+  }, []);
+
+  // Reset page when filter or broker changes
+  useEffect(() => {
+    setPage(0);
+  }, [filter, brokerFilter]);
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+    setPage(0);
+  };
 
   // Derived broker options from loaded listings
   const brokerOptions = [...new Set(
-    listings.map((l: any) => l.company_name).filter(Boolean)
+    allListings.map((l: any) => l.company_name).filter(Boolean)
   )].sort() as string[];
 
-  // Apply both status + broker filters
-  const filteredListings = listings.filter((l: any) =>
-    (filter === 'all' || l.status === filter) &&
-    (!brokerFilter || l.company_name === brokerFilter)
-  );
+  // Apply status + broker filters, then sort — all client-side
+  const filteredListings = useMemo(() => {
+    const filtered = allListings.filter((l: any) =>
+      (filter === 'all' || l.status === filter) &&
+      (!brokerFilter || l.company_name === brokerFilter)
+    );
+    return [...filtered].sort((a, b) => {
+      let av: any = a[sortField] ?? '';
+      let bv: any = b[sortField] ?? '';
+      if (sortField === 'price' || sortField === 'views') {
+        av = Number(av) || 0;
+        bv = Number(bv) || 0;
+      } else {
+        av = String(av).toLowerCase();
+        bv = String(bv).toLowerCase();
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [allListings, filter, brokerFilter, sortField, sortDir]);
 
   const fetchListings = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
 
-      // Single fast raw-SQL admin endpoint — returns all statuses in one query,
-      // no ORM joins, no N+1 image loads. Orders newest first.
-      const params = new URLSearchParams();
-      if (filter !== 'all') params.set('status', filter);
+      // Fetch all listings once — filtering/sorting is done client-side for instant tab switching.
       const response = await fetch(
-        apiUrl(`/listings/admin-list${params.size ? '?' + params.toString() : ''}`),
+        apiUrl('/listings/admin-list'),
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
       if (response.ok) {
         setFetchError(null);
-        const allListings = await response.json();
-        setListings(allListings);
+        const data = await response.json();
+        setAllListings(data);
         setQuickEdits(
-          allListings.reduce((acc: Record<number, QuickEditDraft>, listing: any) => {
+          data.reduce((acc: Record<number, QuickEditDraft>, listing: any) => {
             acc[listing.id] = {
               title: listing.title || '',
               price: listing.price != null ? String(listing.price) : '',
@@ -97,7 +128,7 @@ export default function AdminListingsTab() {
       });
 
       if (response.ok) {
-        setListings(listings.filter(l => l.id !== id));
+        setAllListings(prev => prev.filter(l => l.id !== id));
         alert('Listing deleted successfully');
       }
     } catch (error) {
@@ -176,7 +207,7 @@ export default function AdminListingsTab() {
       });
 
       if (response.ok) {
-        setListings(prev => prev.map((listing) =>
+        setAllListings(prev => prev.map((listing) =>
           listing.id === id
             ? {
                 ...listing,
@@ -262,14 +293,14 @@ export default function AdminListingsTab() {
         {['all', 'active', 'draft', 'awaiting_review', 'archived', 'sold'].map((status) => (
           <button
             key={status}
-            onClick={() => { setFilter(status); setPage(0); }}
+            onClick={() => setFilter(status)}
             className={`px-4 py-2 rounded-lg capitalize ${
               filter === status
                       ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            {status === 'awaiting_review' ? 'Awaiting Approval' : status} ({listings.filter((l: any) => (status === 'all' || l.status === status) && (!brokerFilter || l.company_name === brokerFilter)).length})
+            {status === 'awaiting_review' ? 'Awaiting Approval' : status} ({allListings.filter((l: any) => (status === 'all' || l.status === status) && (!brokerFilter || l.company_name === brokerFilter)).length})
           </button>
         ))}
       </div>
@@ -279,21 +310,34 @@ export default function AdminListingsTab() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Listing
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Price
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Featured
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                Views
-              </th>
+              {([
+                { key: 'title', label: 'Listing' },
+                { key: 'price', label: 'Price' },
+                { key: 'status', label: 'Status' },
+                { key: null, label: 'Featured' },
+                { key: 'views', label: 'Views' },
+              ] as { key: typeof sortField | null; label: string }[]).map(({ key, label }) => (
+                <th
+                  key={label}
+                  onClick={() => key && handleSort(key)}
+                  className={`px-6 py-3 text-left text-xs font-medium uppercase select-none ${
+                    key ? 'cursor-pointer hover:bg-gray-100' : ''
+                  } ${
+                    key && sortField === key ? 'text-blue-700 font-semibold' : 'text-gray-500'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {key && (
+                      sortField === key
+                        ? sortDir === 'asc'
+                          ? <ChevronUp className="w-3.5 h-3.5 text-blue-600" />
+                          : <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                        : <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
+                    )}
+                  </span>
+                </th>
+              ))}
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                 Actions
               </th>
