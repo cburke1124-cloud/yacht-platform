@@ -725,11 +725,28 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
 
   const [runningId, setRunningId] = useState<number | null>(null);
 
+  // When log panel is open and job is running, refresh the log every 5s
+  useEffect(() => {
+    if (logOpenId === null) return;
+    const jobIsRunning = jobs.find(j => j.id === logOpenId)?.status === 'running';
+    if (!jobIsRunning) return;
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(_apiUrl(`/yachtworld/jobs/${logOpenId}/log`), { headers: _authHeaders() });
+        if (r.ok) {
+          const d = await r.json();
+          setLogData(prev => ({ ...prev, [logOpenId]: d }));
+        }
+      } catch { /* ignore */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [logOpenId, jobs]);
+
   async function handleRunJob(job: YWJob) {
     if (runningId === job.id) return;
     setRunningId(job.id);
     setLogData(prev => { const n = { ...prev }; delete n[job.id]; return n; });
-    setLogOpenId(null);
+    setLogOpenId(job.id);  // auto-open log so user sees progress
     try {
       const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/run`), { method: 'POST', headers: _authHeaders() });
       if (!r.ok) throw new Error(await r.text());

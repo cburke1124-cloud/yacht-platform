@@ -359,10 +359,22 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
     api_key = job.api_key or _existing_params.get("key", "")
 
     _log("info", f"Starting sync — endpoint: {base_url}  key: {_mask_key(api_key)}  (direct, no proxy)")
+    # Flush the starting log entry so the log panel shows something immediately
+    job.last_run_log = list(run_log)
+    db.commit()
+
+    MAX_PAGES = 100  # safety cap: 100 pages × 100 rows = 10,000 listings max
+    first_page_ids: set = set()    # detect stuck pagination (API ignores offset)
 
     try:
         offset = 0
+        page_num = 0
         while True:
+            if page_num >= MAX_PAGES:
+                _log("warn", f"Reached page limit ({MAX_PAGES} pages). Stopping pagination to prevent runaway loop.")
+                break
+            page_num += 1
+
             # Start from any params already in the endpoint URL, then add/override pagination params
             params = {**_existing_params, "key": api_key, "rows": ROWS, "offset": offset}
             import time as _time
@@ -379,7 +391,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 elapsed_ms = int((_time.monotonic() - t0) * 1000)
                 resp.raise_for_status()
                 payload = resp.json()
-                _log("info", f"Page offset={offset} — HTTP {resp.status_code} in {elapsed_ms}ms")
+                _log("info", f"Page {page_num} (offset={offset}) — HTTP {resp.status_code} in {elapsed_ms}ms")
             except Exception as exc:
                 elapsed_ms = int((_time.monotonic() - t0) * 1000)
                 err_msg = str(exc)
@@ -387,7 +399,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 logger.error(f"[YWJob {job_id}] API fetch error at offset={offset}: {exc}")
                 job.status = "failed"
                 job.last_error = err_msg
-                job.last_run_log = run_log
+                job.last_run_log = list(run_log)
                 job.completed_at = datetime.utcnow()
                 db.commit()
                 return {"success": False, "error": err_msg}
@@ -400,6 +412,16 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
             )
             if not isinstance(records, list) or not records:
                 _log("info", f"No more records at offset={offset} — pagination complete")
+                break
+
+            # Detect stuck pagination: if page 2+ has the same IDs as page 1, the API
+            # is ignoring offset and we would loop forever.
+            page_ids = {str(rec.get("DocumentID") or rec.get("id") or rec.get("listingId") or "") for rec in records}
+            page_ids.discard("")
+            if page_num == 1:
+                first_page_ids = page_ids
+            elif page_ids and page_ids == first_page_ids:
+                _log("warn", f"Page {page_num} returned identical IDs to page 1 — API does not support offset pagination. Stopping.")
                 break
 
             _log("info", f"Processing {len(records)} records from offset={offset}")
@@ -506,6 +528,10 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                         run_log.append({"url": source_url, "outcome": "created",
                                         "listing_id": listing.id, "title": listing.title})
                 db.commit()
+
+            # Flush progress log to DB after each page so the UI can display it
+            job.last_run_log = list(run_log)
+            db.commit()
 
             if len(records) < ROWS:
                 break
