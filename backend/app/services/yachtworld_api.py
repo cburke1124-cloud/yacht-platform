@@ -215,15 +215,21 @@ def _map_yw_record(rec: dict) -> dict:
 
     make = str(g("MakeString", "MakeStringExact", "make", "manufacturer") or "").strip() or None
     model = str(g("Model", "ModelExact", "model") or "").strip() or None
-    boat_name = str(g("BoatName", "name", "title", "listing_title") or "").strip() or None
+    # BoatName is a vessel custom name (e.g. "Sir Banyan") — NOT a listing title.
+    # Keep it for last-resort fallback only.
+    boat_name = str(g("BoatName", "listing_title") or "").strip() or None
 
     # -- Title ----------------------------------------------------------------
-    # Prefer BoatName if it looks like a real title; otherwise synthesize
-    title = boat_name or None
-    if not title and make and model:
+    # Always synthesize from year + make + model. BoatName is only used when
+    # all three are missing (e.g. a listing with no make/model fields at all).
+    if make and model:
         title = f"{year or ''} {make} {model}".strip()
-    elif not title and make:
+    elif make:
         title = f"{year or ''} {make}".strip()
+    elif model:
+        title = f"{year or ''} {model}".strip()
+    else:
+        title = boat_name or None  # absolute last resort
 
     # -- Price / Currency -----------------------------------------------------
     price, currency = _parse_price_string(g("Price", "OriginalPrice", "price"))
@@ -309,9 +315,6 @@ def _map_yw_record(rec: dict) -> dict:
             beam_feet = _yw_to_feet(bm, "m")
 
     draft_feet: Optional[float] = None
-
-    # -- Description ----------------------------------------------------------
-    description = str(g("Description", "description", "comments") or "").strip() or None
 
     # -- Images ---------------------------------------------------------------
     images: list[str] = []
@@ -520,12 +523,23 @@ def _map_yw_record(rec: dict) -> dict:
                     feature_bullets.append(str(label).strip())
 
     # -- Description (try several common field names AND nested nodes) --------
-    # 1. Try direct top-level keys first
-    description = str(
-        g("Description", "HtmlDescription", "BoatDescription", "ListingDescription",
-          "DescriptionText", "description", "comments", "Comments",
-          "Remarks", "remarks", "body", "content", "overview", "Overview") or ""
-    ).strip() or None
+    import re as _re, html as _html
+
+    def _coerce_desc(val):
+        """Handle both string and list values (Boats Group returns lists)."""
+        if isinstance(val, list):
+            # Join all non-empty items — each item is typically one HTML paragraph
+            return " ".join(str(s) for s in val if s).strip()
+        return str(val).strip() if val else ""
+
+    # 1. Try direct top-level keys — Boats Group API uses GeneralBoatDescription
+    _raw_desc = g(
+        "GeneralBoatDescription",
+        "Description", "HtmlDescription", "BoatDescription", "ListingDescription",
+        "DescriptionText", "description", "comments", "Comments",
+        "Remarks", "remarks", "body", "content", "overview", "Overview",
+    )
+    description = _coerce_desc(_raw_desc) or None
 
     # 2. If still empty, look inside common nested containers
     if not description:
@@ -533,32 +547,30 @@ def _map_yw_record(rec: dict) -> dict:
             node = _parse_nested(rec.get(container_key))
             if node:
                 desc_val = (
+                    node.get("GeneralBoatDescription") or
                     node.get("Description") or node.get("HtmlDescription")
                     or node.get("BoatDescription") or node.get("description")
                     or node.get("comments") or node.get("Remarks")
                 )
                 if desc_val:
-                    description = str(desc_val).strip() or None
+                    description = _coerce_desc(desc_val) or None
                     break
 
-    # 3. If description contains HTML, strip tags to get plain text so it is
-    #    handled uniformly by the frontend's paragraph renderer rather than
-    #    depending on DOMPurify (which may not fire if listing.description
-    #    is set during SSR hydration).
+    # 3. Strip HTML tags to get plain text
     if description and "<" in description:
-        import re as _re
         description = _re.sub(r"<br\s*/?>", "\n", description, flags=_re.IGNORECASE)
         description = _re.sub(r"</p>", "\n\n", description, flags=_re.IGNORECASE)
         description = _re.sub(r"<[^>]+>", "", description)
-        import html as _html
         description = _html.unescape(description).strip() or None
 
-    # 4. Last-resort: scan every string value in the record (top-level and one
-    #    level deep) and pick the longest one that looks like a description.
+    # 4. Last-resort: scan every value (string OR list) in the record
     if not description:
         _best = ""
         def _scan_val(v):
             nonlocal _best
+            # Handle list — join items first
+            if isinstance(v, list):
+                v = " ".join(str(s) for s in v if s)
             if isinstance(v, str) and len(v) > len(_best) and len(v) > 80:
                 _best = v
         for _v in rec.values():
@@ -568,11 +580,10 @@ def _map_yw_record(rec: dict) -> dict:
                     _scan_val(_vv)
         if _best:
             if "<" in _best:
-                import re as _re2, html as _html2
-                _best = _re2.sub(r"<br\s*/?>", "\n", _best, flags=_re2.IGNORECASE)
-                _best = _re2.sub(r"</p>", "\n\n", _best, flags=_re2.IGNORECASE)
-                _best = _re2.sub(r"<[^>]+>", "", _best)
-                _best = _html2.unescape(_best).strip()
+                _best = _re.sub(r"<br\s*/?>", "\n", _best, flags=_re.IGNORECASE)
+                _best = _re.sub(r"</p>", "\n\n", _best, flags=_re.IGNORECASE)
+                _best = _re.sub(r"<[^>]+>", "", _best)
+                _best = _html.unescape(_best).strip()
             description = _best or None
 
     return {
