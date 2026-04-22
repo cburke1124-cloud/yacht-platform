@@ -1011,7 +1011,7 @@ function BrowseContent() {
             {/* AI search context banner — no exact make/model match */}
             {searchType === 'ai' && aiSearchContext?.no_exact_make && (
               <div
-                className="mb-6 px-5 py-4 rounded-2xl flex items-start gap-3"
+                className="relative z-10 mb-6 px-5 py-4 rounded-2xl flex items-start gap-3"
                 style={{ backgroundColor: 'rgba(1,187,220,0.06)', border: '1px solid rgba(1,187,220,0.25)' }}
               >
                 <Sparkles size={16} style={{ color: '#01BBDC', flexShrink: 0, marginTop: 2 }} />
@@ -1072,7 +1072,7 @@ function BrowseContent() {
             {/* AI info banner */}
             {searchType === 'ai' && (
               <div
-                className="flex items-start gap-3 p-4 rounded-2xl mb-5"
+                className="relative z-10 flex items-start gap-3 p-4 rounded-2xl mb-5"
                 style={{ backgroundColor: 'rgba(1,187,220,0.06)', border: '1px solid rgba(1,187,220,0.2)' }}
               >
                 <Sparkles size={16} style={{ color: '#01BBDC', flexShrink: 0, marginTop: 2 }} />
