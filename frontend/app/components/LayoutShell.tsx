@@ -11,7 +11,7 @@ type LayoutShellProps = {
 
 export default function LayoutShell({ navbar, footer, children }: LayoutShellProps) {
   const pathname = usePathname();
-  const hideChrome = pathname === '/';
+  const hideChrome = false; // homepage is now the full site — always show nav/footer
 
   return (
     <>
