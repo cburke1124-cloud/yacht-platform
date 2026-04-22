@@ -814,10 +814,30 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
             # Diagnostic: log all top-level keys from the first record of the first
             # page so we can verify which fields the API is actually returning.
             if page_num == 1 and records:
-                _first_keys = sorted(records[0].keys())
-                _desc_val = records[0].get("Description") or records[0].get("HtmlDescription") or records[0].get("BoatDescription") or records[0].get("description")
+                _first_rec = records[0]
+                _first_keys = sorted(_first_rec.keys())
+                # Check every known description key variant
+                _desc_candidates = {
+                    k: _first_rec[k] for k in _first_rec
+                    if any(s in k.lower() for s in ("desc", "comment", "remark", "body", "content", "overview", "note", "text"))
+                }
                 _log("info", f"API record keys (first record): {_first_keys}")
-                _log("info", f"Description field preview: {str(_desc_val or '(empty)')[:200]}")
+                _log("info", f"Description-like keys in first record: {list(_desc_candidates.keys())}")
+                if _desc_candidates:
+                    for _dk, _dv in list(_desc_candidates.items())[:5]:
+                        _log("info", f"  [{_dk}] = {str(_dv)[:300]}")
+                else:
+                    _log("warn", "No description-like keys found in first record — dumping all string values > 80 chars:")
+                    for _k, _v in list(_first_rec.items())[:40]:
+                        if isinstance(_v, str) and len(_v) > 80:
+                            _log("info", f"  [{_k}] = {_v[:300]}")
+                        elif isinstance(_v, dict):
+                            for _sk, _sv in list(_v.items())[:10]:
+                                if isinstance(_sv, str) and len(_sv) > 80:
+                                    _log("info", f"  [{_k}.{_sk}] = {_sv[:300]}")
+                # Also log the first record's mapped output so we can see what _map_yw_record extracted
+                _mapped_sample = _map_yw_record(_first_rec)
+                _log("info", f"After mapping — description={repr(_mapped_sample.get('description', '__MISSING__'))[:200]}")
 
             for rec in records:
                 raw = _map_yw_record(rec)

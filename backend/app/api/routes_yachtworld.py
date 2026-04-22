@@ -282,3 +282,73 @@ def get_yw_job_log(
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "log": job.last_run_log or [],
     }
+
+
+@router.get("/yachtworld/jobs/{job_id}/raw-sample")
+def get_yw_raw_sample(
+    job_id: int,
+    rows: int = 1,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Fetch raw records directly from the Boats Group API (rows=1 by default)
+    and return them as-is so we can see the real field names.
+    This is a debug/diagnostic endpoint — it does NOT modify any data.
+    """
+    import warnings
+    import requests as _requests
+    from urllib.parse import urlsplit, parse_qs, urlencode, urlunsplit
+
+    _require_admin(current_user)
+    job = db.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Feed job not found")
+
+    _raw_endpoint = (job.api_endpoint or "").rstrip("/")
+    if not _raw_endpoint:
+        raise HTTPException(status_code=422, detail="Job has no API endpoint configured")
+
+    _split = urlsplit(_raw_endpoint)
+    _existing_params = {k: v[0] for k, v in parse_qs(_split.query).items()}
+    base_url = urlunsplit((_split.scheme, _split.netloc, _split.path, "", ""))
+    api_key = job.api_key or _existing_params.get("key", "")
+
+    params = {**_existing_params, "key": api_key, "rows": max(1, min(rows, 5)), "offset": 0}
+    req_headers = {"Accept": "application/vnd.dmm-v1+json", "User-Agent": "YachtVersal/1.0"}
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            resp = _requests.get(base_url, params=params, headers=req_headers,
+                                 timeout=30, verify=False)
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"API fetch failed: {exc}")
+
+    from app.services.yachtworld_api import _yw_get
+    records = (
+        _yw_get(payload, "search", "records")
+        or _yw_get(payload, "results")
+        or _yw_get(payload, "listings")
+        or (payload if isinstance(payload, list) else [])
+    )
+
+    # Return the full payload wrapper structure (truncated) + individual records
+    def _truncate(obj, max_str=500):
+        """Recursively truncate long strings so the response stays readable."""
+        if isinstance(obj, str):
+            return obj[:max_str] + ("…" if len(obj) > max_str else "")
+        if isinstance(obj, dict):
+            return {k: _truncate(v, max_str) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_truncate(i, max_str) for i in obj[:20]]
+        return obj
+
+    return {
+        "endpoint": base_url,
+        "payload_top_level_keys": list(payload.keys()) if isinstance(payload, dict) else "(array)",
+        "record_count_returned": len(records) if isinstance(records, list) else 0,
+        "records": _truncate(records[:rows]),
+    }

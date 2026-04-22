@@ -945,6 +945,23 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
   }
 
   const [runningId, setRunningId] = useState<number | null>(null);
+  const [rawSampleId, setRawSampleId] = useState<number | null>(null);
+  const [rawSampleLoading, setRawSampleLoading] = useState<number | null>(null);
+  const [rawSampleData, setRawSampleData] = useState<Record<number, unknown>>({});
+
+  async function handleRawSample(job: YWJob) {
+    if (rawSampleId === job.id) { setRawSampleId(null); return; }
+    setRawSampleId(job.id);
+    if (rawSampleData[job.id]) return;
+    setRawSampleLoading(job.id);
+    try {
+      const r = await fetch(_apiUrl(`/yachtworld/jobs/${job.id}/raw-sample`), { headers: _authHeaders() });
+      if (!r.ok) throw new Error(await r.text());
+      setRawSampleData(prev => ({ ...prev, [job.id]: await r.json() }));
+    } catch (e: unknown) {
+      setRawSampleData(prev => ({ ...prev, [job.id]: { error: e instanceof Error ? e.message : 'Failed' } }));
+    } finally { setRawSampleLoading(null); }
+  }
 
   // When log panel is open and job is running, refresh the log every 5s
   useEffect(() => {
@@ -1229,10 +1246,31 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                     </button>
                     <button onClick={() => handleStartEdit(job)} title="Edit"
                       className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">Edit</button>
+                    <button onClick={() => handleRawSample(job)} title="Fetch 1 raw record from the API to inspect field names"
+                      className={`px-3 py-1.5 text-xs rounded-lg font-medium ${rawSampleId === job.id ? 'bg-purple-800 text-white' : 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100'}`}>
+                      {rawSampleLoading === job.id ? '…' : 'Raw'}
+                    </button>
                     <button onClick={() => handleDeleteJob(job)} title="Delete"
                       className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium">Delete</button>
                   </div>
                 </div>
+
+                {/* Raw sample panel */}
+                {rawSampleId === job.id && (
+                  <div className="mt-3 pt-3 border-t border-purple-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-semibold text-purple-800">Raw API record (field names &amp; values)</span>
+                      <button onClick={() => { setRawSampleData(prev => { const n = { ...prev }; delete n[job.id]; return n; }); handleRawSample(job); }}
+                        className="ml-auto text-xs text-purple-600 hover:underline">Refresh</button>
+                      <button onClick={() => setRawSampleId(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                    {rawSampleLoading === job.id ? (
+                      <p className="text-xs text-gray-400">Fetching…</p>
+                    ) : rawSampleData[job.id] ? (
+                      <pre className="bg-gray-900 text-green-300 text-xs rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all">{JSON.stringify(rawSampleData[job.id], null, 2)}</pre>
+                    ) : null}
+                  </div>
+                )}
 
                 {/* Log panel */}
                 {logOpenId === job.id && (
