@@ -668,6 +668,7 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
   const [dealerId, setDealerId] = useState<string>('');
   const [limit, setLimit] = useState<number>(200);
   const [onlyIncomplete, setOnlyIncomplete] = useState(true);
+  const [rewriteDescriptions, setRewriteDescriptions] = useState(false);
   const [running, setRunning] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [savedJobId, setSavedJobId] = useState<string | null>(null);
@@ -750,7 +751,8 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
           source: source || null,
           dealer_id: dealerId ? parseInt(dealerId) : null,
           limit,
-          only_incomplete: onlyIncomplete,
+          only_incomplete: rewriteDescriptions ? false : onlyIncomplete,
+          rewrite_descriptions: rewriteDescriptions,
         }),
       });
       if (!res.ok) {
@@ -775,7 +777,7 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
   return (
     <div className="p-6 max-w-3xl">
       <p className="text-sm text-gray-600 mb-6">
-        Run Claude AI over existing listings to fill in missing specs, engine details, generators, and feature bullets extracted from the description and features text. Only empty fields are updated — existing data is never overwritten.
+        Run Claude AI over existing listings to fill in missing specs, engine details, generators, and feature bullets. Use <strong>Rewrite existing descriptions</strong> to replace wordy or marketing-heavy copy with clean, professional text. Only empty fields are updated in standard mode — existing data is never overwritten unless you opt in.
       </p>
 
       {/* Reconnect banner */}
@@ -822,9 +824,21 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
 
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
           <input type="checkbox" checked={onlyIncomplete} onChange={e => setOnlyIncomplete(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
-          Skip listings that already have engines + a real description
-          <span className="text-xs text-gray-400">(recommended — avoids re-spending tokens)</span>
+            disabled={rewriteDescriptions}
+            className="w-4 h-4 rounded border-gray-300 text-emerald-600 disabled:opacity-40" />
+          <span className={rewriteDescriptions ? 'opacity-40' : ''}>
+            Skip listings that already have engines + a real description
+            <span className="text-xs text-gray-400 ml-1">(recommended — avoids re-spending tokens)</span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" checked={rewriteDescriptions} onChange={e => setRewriteDescriptions(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-orange-600 mt-0.5" />
+          <span>
+            Rewrite existing descriptions
+            <span className="text-xs text-gray-500 block mt-0.5">Overwrites all descriptions longer than 80 chars with a clean, professional AI-written version. Only run this on listings with wordy or marketing-heavy copy. <span className="text-orange-600 font-medium">Cannot be undone.</span></span>
+          </span>
         </label>
 
         {error && (

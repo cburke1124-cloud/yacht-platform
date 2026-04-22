@@ -1927,7 +1927,7 @@ def _find_boat_specs(db: Session, make: str, model: str, year: Optional[int] = N
 _enrich_jobs: Dict[str, dict] = {}   # in-memory progress store
 
 
-def _build_enrich_prompt(lst: "Listing") -> str:
+def _build_enrich_prompt(lst: "Listing", rewrite_desc: bool = False) -> str:
     """Build the Claude prompt for enriching a single listing."""
     # Summarize what we already know
     existing = {}
@@ -1973,7 +1973,7 @@ def _build_enrich_prompt(lst: "Listing") -> str:
         missing_fields.append("generators")
     if not getattr(lst, "feature_bullets", None):
         missing_fields.append("feature_bullets")
-    needs_description = not lst.description or len(lst.description.strip()) < 80
+    needs_description = rewrite_desc or not lst.description or len(lst.description.strip()) < 80
 
     prompt = f"""You are analyzing a yacht listing to fill in missing details.
 
@@ -2004,14 +2004,18 @@ Field definitions:
 - feature_bullets: array of up to 8 short strings (max 80 chars each) summarizing top features."""
 
     if needs_description:
-        prompt += """
+        if rewrite_desc and lst.description and len(lst.description.strip()) >= 80:
+            prompt += """
+- description: REWRITE the existing description (shown above in the listing text) in a clean, professional style. Use short paragraphs of 2-3 sentences each. Structure: what the vessel is → key specs and standout features → condition and history. Be factual and direct — no marketing language, no superlatives, no promotional phrases like 'don't miss out' or 'priced to sell'. Do NOT repeat data that is already captured in the structured fields above."""
+        else:
+            prompt += """
 - description: a clean, professional description written in short paragraphs (2-3 sentences each). Cover: what the vessel is → key specs/features → condition/history. Be factual and direct — no marketing language. Do NOT repeat data already in the structured fields above."""
 
     prompt += "\n\nReturn ONLY a raw JSON object. No markdown, no explanation."
     return prompt
 
 
-def _apply_enrich_result(lst: "Listing", result: dict) -> bool:
+def _apply_enrich_result(lst: "Listing", result: dict, force_description: bool = False) -> bool:
     """Apply AI-enriched fields to a Listing. Returns True if anything changed."""
     changed = False
 
@@ -2054,10 +2058,10 @@ def _apply_enrich_result(lst: "Listing", result: dict) -> bool:
             lst.feature_bullets = result["feature_bullets"]
             changed = True
 
-    # Description — only set if currently empty/short
+    # Description — set if empty/short, or when force_description=True (rewrite mode)
     if result.get("description"):
         existing_desc = (lst.description or "").strip()
-        if len(existing_desc) < 80:
+        if force_description or len(existing_desc) < 80:
             lst.description = result["description"]
             changed = True
 
@@ -2069,6 +2073,7 @@ class BulkEnrichRequest(BaseModel):
     source: Optional[str] = "scraped"
     limit: int = 200
     only_incomplete: bool = True  # skip listings that already have additional_engines + a real description
+    rewrite_descriptions: bool = False  # overwrite existing descriptions with a cleaner AI-written version
 
 
 @router.get("/scraper/listings/bulk-ai-enrich")
@@ -2115,7 +2120,13 @@ def start_bulk_ai_enrich(
                 q = q.filter(Listing.source == req.source)
             if req.dealer_id:
                 q = q.filter(Listing.user_id == req.dealer_id)
-            if req.only_incomplete:
+            if req.rewrite_descriptions:
+                # In rewrite mode, process all listings that have enough text to rewrite
+                from sqlalchemy import func as _func
+                q = q.filter(
+                    _func.length(Listing.description) >= 80
+                )
+            elif req.only_incomplete:
                 from sqlalchemy import or_, func as _func
                 q = q.filter(
                     or_(
@@ -2131,7 +2142,7 @@ def start_bulk_ai_enrich(
 
             for lst in listings:
                 try:
-                    prompt = _build_enrich_prompt(lst)
+                    prompt = _build_enrich_prompt(lst, rewrite_desc=req.rewrite_descriptions)
                     message = client.messages.create(
                         model="claude-haiku-4-5",
                         max_tokens=2048,
@@ -2141,7 +2152,7 @@ def start_bulk_ai_enrich(
                     m = re.search(r'\{[\s\S]*\}', raw_text)
                     result = json.loads(m.group(0)) if m else {}
                     if isinstance(result, dict) and result:
-                        changed = _apply_enrich_result(lst, result)
+                        changed = _apply_enrich_result(lst, result, force_description=req.rewrite_descriptions)
                         if changed:
                             _db.commit()
                             _enrich_jobs[job_id]["updated"] += 1
