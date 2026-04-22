@@ -2015,6 +2015,16 @@ Field definitions:
     return prompt
 
 
+_LENGTH_PREFIX_RE = re.compile(
+    r"^\s*\d+(?:\.\d+)?\s*(?:ft\.?|'|′|foot|feet|-foot|-feet)\s*['\-–—·•]?\s*",
+    re.IGNORECASE,
+)
+
+def _strip_length_from_title(title: str) -> str:
+    """Remove a leading length prefix (e.g. '54\' ', '54ft ', '54-foot ') from a title."""
+    return _LENGTH_PREFIX_RE.sub("", title).strip(" -–—·•'").strip()
+
+
 def _apply_enrich_result(lst: "Listing", result: dict, force_description: bool = False) -> bool:
     """Apply AI-enriched fields to a Listing. Returns True if anything changed."""
     changed = False
@@ -2063,6 +2073,13 @@ def _apply_enrich_result(lst: "Listing", result: dict, force_description: bool =
         existing_desc = (lst.description or "").strip()
         if force_description or len(existing_desc) < 80:
             lst.description = result["description"]
+            changed = True
+
+    # Title — strip leading length prefix in rewrite mode (e.g. "54' Azimut..." → "Azimut...")
+    if force_description and lst.title:
+        stripped = _strip_length_from_title(lst.title)
+        if stripped and stripped != lst.title:
+            lst.title = stripped
             changed = True
 
     return changed
