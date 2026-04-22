@@ -25,7 +25,7 @@ import requests
 
 from app.db.session import SessionLocal
 from app.models.listing import Listing, ListingImage
-from app.models.misc import ScrapedListing, YachtworldSyncJob
+from app.models.misc import YachtworldSyncJob
 from app.services.scraper import _apply_scraped_data
 
 logger = logging.getLogger(__name__)
@@ -474,91 +474,50 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 is_sold = bool(raw.get("is_sold"))
 
                 try:
-                    existing_scraped = (
-                        db.query(ScrapedListing)
+                    existing = (
+                        db.query(Listing)
                         .filter(
-                            ScrapedListing.job_id == job_id,
-                            ScrapedListing.source_url == source_url,
+                            Listing.user_id == job.dealer_id,
+                            Listing.source_url == source_url,
+                            Listing.deleted_at.is_(None),
                         )
                         .first()
                     )
 
-                    if existing_scraped and existing_scraped.listing_id:
-                        listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
-                        if listing:
-                            _apply_scraped_data(listing, raw, job)
-                            if is_sold:
-                                listing.status = "sold"
-                            elif listing.status not in ("draft", "awaiting_review"):
-                                listing.status = "active"
-                            if raw.get("images"):
-                                db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
-                                for img_url in raw["images"]:
-                                    db.add(ListingImage(listing_id=listing.id, url=img_url))
-                            existing_scraped.last_seen = datetime.utcnow()
-                            existing_scraped.still_active = True
-                            stats["updated"] += 1
-                            run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
-                                            "listing_id": listing.id, "title": listing.title})
+                    if existing:
+                        _apply_scraped_data(existing, raw, job)
+                        if is_sold:
+                            existing.status = "sold"
+                        elif existing.status not in ("draft", "awaiting_review"):
+                            existing.status = "active"
+                        if raw.get("images"):
+                            db.query(ListingImage).filter(ListingImage.listing_id == existing.id).delete()
+                            for img_url in raw["images"]:
+                                db.add(ListingImage(listing_id=existing.id, url=img_url))
+                        stats["updated"] += 1
+                        run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
+                                        "listing_id": existing.id, "title": existing.title})
                     else:
-                        orphan = (
-                            db.query(Listing)
-                            .filter(
-                                Listing.user_id == job.dealer_id,
-                                Listing.source_url == source_url,
-                                Listing.deleted_at.is_(None),
-                            )
-                            .first()
+                        listing = Listing(
+                            user_id=job.dealer_id,
+                            assigned_salesman_id=job.salesman_id,
+                            source="scraped",
+                            source_url=source_url,
+                            status="awaiting_review" if not is_sold else "sold",
+                            condition="used",
                         )
-                        if orphan:
-                            _apply_scraped_data(orphan, raw, job)
-                            if is_sold:
-                                orphan.status = "sold"
-                            elif orphan.status not in ("draft", "awaiting_review"):
-                                orphan.status = "active"
-                            if existing_scraped:
-                                existing_scraped.listing_id = orphan.id
-                                existing_scraped.last_seen = datetime.utcnow()
-                                existing_scraped.still_active = True
-                            else:
-                                db.add(ScrapedListing(
-                                    job_id=job_id,
-                                    listing_id=orphan.id,
-                                    source_url=source_url,
-                                    last_seen=datetime.utcnow(),
-                                    still_active=True,
-                                ))
-                            stats["updated"] += 1
-                            run_log.append({"url": source_url, "outcome": "updated",
-                                            "listing_id": orphan.id, "title": orphan.title})
-                        else:
-                            listing = Listing(
-                                user_id=job.dealer_id,
-                                assigned_salesman_id=job.salesman_id,
-                                source="scraped",
-                                source_url=source_url,
-                                status="awaiting_review" if not is_sold else "sold",
-                                condition="used",
-                            )
-                            try:
-                                listing.bin = _generate_yw_bin(db)
-                            except Exception:
-                                pass
-                            _apply_scraped_data(listing, raw, job)
-                            db.add(listing)
-                            db.flush()
-                            for img_url in raw.get("images", []):
-                                db.add(ListingImage(listing_id=listing.id, url=img_url))
-                            db.add(ScrapedListing(
-                                job_id=job_id,
-                                listing_id=listing.id,
-                                source_url=source_url,
-                                last_seen=datetime.utcnow(),
-                                still_active=True,
-                            ))
-                            stats["created"] += 1
-                            run_log.append({"url": source_url, "outcome": "created",
-                                            "listing_id": listing.id, "title": listing.title})
+                        try:
+                            listing.bin = _generate_yw_bin(db)
+                        except Exception:
+                            pass
+                        _apply_scraped_data(listing, raw, job)
+                        db.add(listing)
+                        db.flush()
+                        for img_url in raw.get("images", []):
+                            db.add(ListingImage(listing_id=listing.id, url=img_url))
+                        stats["created"] += 1
+                        run_log.append({"url": source_url, "outcome": "created",
+                                        "listing_id": listing.id, "title": listing.title})
                     db.commit()
                 except Exception as rec_exc:
                     # Roll back this record's changes and continue with the next one.
@@ -581,22 +540,24 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 break
             offset += ROWS
 
-        # Archive listings from previous runs no longer in the feed
-        previously_active = (
-            db.query(ScrapedListing)
-            .filter(ScrapedListing.job_id == job_id, ScrapedListing.still_active == True)
+        # Archive listings from previous runs no longer in the feed:
+        # find all active listings for this dealer whose source_url comes from this endpoint
+        prev_active = (
+            db.query(Listing)
+            .filter(
+                Listing.user_id == job.dealer_id,
+                Listing.source == "scraped",
+                Listing.source_url.like(f"{base_url}%"),
+                Listing.status == "active",
+                Listing.deleted_at.is_(None),
+            )
             .all()
         )
-        for scraped_record in previously_active:
-            if scraped_record.source_url not in seen_source_urls:
-                scraped_record.still_active = False
-                if scraped_record.listing_id:
-                    listing = db.query(Listing).filter(Listing.id == scraped_record.listing_id).first()
-                    if listing and listing.status == "active":
-                        listing.status = "archived"
-                        stats["archived"] += 1
-                        run_log.append({"url": scraped_record.source_url, "outcome": "archived",
-                                        "listing_id": scraped_record.listing_id})
+        for lst in prev_active:
+            if lst.source_url not in seen_source_urls:
+                lst.status = "archived"
+                stats["archived"] += 1
+                run_log.append({"url": lst.source_url, "outcome": "archived", "listing_id": lst.id})
 
         summary = f"Sync complete — found={stats['found']} created={stats['created']} updated={stats['updated']} archived={stats['archived']} errors={stats['errors']}"
         _log("info", summary)
