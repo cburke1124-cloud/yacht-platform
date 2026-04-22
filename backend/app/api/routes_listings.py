@@ -881,7 +881,7 @@ def get_listings(
                 "featured": l.featured or False,
                 "images": (
                     media_map.get(l.id, [])
-                    or [{"url": img.url} for img in l.images[:1]]
+                    or [{"url": img.url} for img in sorted(l.images, key=lambda i: (not i.is_primary, i.display_order or 0))[:1]]
                 ),
                 "dealer": dealer_payload(l),
             }
@@ -1254,7 +1254,7 @@ def get_recently_deleted(
             ),
             "images": (
                 media_map.get(l.id, [])
-                or [{"url": img.url} for img in l.images[:1]]
+                or [{"url": img.url} for img in sorted(l.images, key=lambda i: (not i.is_primary, i.display_order or 0))[:1]]
             ),
         }
         for l in listings
