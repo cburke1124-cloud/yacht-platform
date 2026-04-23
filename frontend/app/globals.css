@@ -32,12 +32,7 @@
   --foreground: #2E2E2E;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #2E2E2E;
-    --foreground: #FFFFFF;
-  }
-}
+/* Dark mode intentionally not overridden — site uses a fixed light theme */
 
 @layer base {
   body {

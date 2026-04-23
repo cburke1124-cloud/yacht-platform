@@ -1214,7 +1214,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   }
 
   // ── Input class ────────────────────────────────────────────────────────────
-  const inp = 'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent transition';
+  const inp = 'w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#01BBDC] focus:border-transparent transition';
   const lbl = 'block text-sm font-medium mb-1.5' as const;
 
   if (accessChecking || initializing) {
