@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -149,6 +149,7 @@ export default function ListingDetailPage() {
   // gallery lightbox
   const [lightbox,     setLightbox]     = useState<number | null>(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
+  const thumbStripRef = useRef<HTMLDivElement>(null);
 
   // actions
   const [saved,        setSaved]        = useState(false);
@@ -378,7 +379,23 @@ export default function ListingDetailPage() {
     : [];
 
   useEffect(() => {
-    if (lightbox !== null) setLightboxZoom(1);
+    if (lightbox !== null) {
+      setLightboxZoom(1);
+      // Scroll active thumbnail into view
+      const strip = thumbStripRef.current;
+      if (strip && lightbox !== null) {
+        const thumb = strip.children[lightbox] as HTMLElement | undefined;
+        if (thumb) {
+          const stripLeft = strip.scrollLeft;
+          const stripRight = stripLeft + strip.clientWidth;
+          const thumbLeft = thumb.offsetLeft;
+          const thumbRight = thumbLeft + thumb.offsetWidth;
+          if (thumbLeft < stripLeft || thumbRight > stripRight) {
+            strip.scrollTo({ left: thumbLeft - strip.clientWidth / 2 + thumb.offsetWidth / 2, behavior: 'smooth' });
+          }
+        }
+      }
+    }
   }, [lightbox]);
 
   useEffect(() => {
@@ -478,22 +495,42 @@ export default function ListingDetailPage() {
           <div className="absolute z-10 bottom-6 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm text-white text-sm">
             {(lightbox ?? 0) + 1} / {imageLightboxItems.length}
           </div>
-          <div className="absolute z-10 left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl overflow-x-auto">
-            <div className="flex gap-2 justify-center">
-              {imageLightboxItems.map((item, idx) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={e => { e.stopPropagation(); setLightbox(idx); }}
-                  className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition ${idx === lightbox ? 'border-[#01BBDC]' : 'border-white/20'}`}>
-                  <img
-                    src={mediaUrl(item.thumbnail_url || item.url)}
-                    alt={item.alt_text || item.caption || `${listing.title} thumbnail ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
+          {/* Thumbnail strip with scroll arrows */}
+          <div className="absolute z-10 left-1/2 -translate-x-1/2 bottom-20 w-[90vw] max-w-5xl flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              aria-label="Scroll thumbnails left"
+              onClick={e => { e.stopPropagation(); thumbStripRef.current?.scrollBy({ left: -320, behavior: 'smooth' }); }}
+              className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/25 transition"
+            >
+              <ChevronLeft size={18} className="text-white" />
+            </button>
+            <div ref={thumbStripRef} className="flex-1 overflow-x-hidden">
+              <div className="flex gap-2">
+                {imageLightboxItems.map((item, idx) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setLightbox(idx); }}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition ${idx === lightbox ? 'border-[#01BBDC]' : 'border-white/20'}`}
+                  >
+                    <img
+                      src={mediaUrl(item.thumbnail_url || item.url)}
+                      alt={item.alt_text || item.caption || `${listing.title} thumbnail ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
+            <button
+              type="button"
+              aria-label="Scroll thumbnails right"
+              onClick={e => { e.stopPropagation(); thumbStripRef.current?.scrollBy({ left: 320, behavior: 'smooth' }); }}
+              className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/25 transition"
+            >
+              <ChevronRight size={18} className="text-white" />
+            </button>
           </div>
         </div>
       )}
