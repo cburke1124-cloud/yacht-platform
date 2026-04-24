@@ -967,12 +967,16 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
             _log("warn", f"Reached page cap ({MAX_PAGES}).  Stopping to prevent runaway loop.")
             break
 
-        params = {**_existing_params, "key": api_key, "limit": 100, "page": page}
+        params = {**_existing_params, "limit": 100, "page": page}
         try:
             resp = requests.get(
                 base_url,
                 params=params,
-                headers={"User-Agent": "YachtVersal/1.0", "Accept": "application/json"},
+                headers={
+                    "User-Agent": "YachtVersal/1.0",
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                },
                 timeout=60,
                 verify=False,
             )
