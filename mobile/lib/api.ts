@@ -164,20 +164,38 @@ export const dealerApi = {
     return data;
   },
 
-  createListing: async (payload: FormData): Promise<Listing> => {
-    const { data } = await api.post<Listing>('/listings', payload, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  createListing: async (payload: Record<string, unknown>): Promise<Listing> => {
+    const { data } = await api.post<Listing>('/listings', payload);
     return data;
   },
 
-  updateListing: async (id: number, payload: Partial<Listing>): Promise<Listing> => {
-    const { data } = await api.patch<Listing>(`/listings/${id}`, payload);
+  updateListing: async (id: number, payload: Record<string, unknown>): Promise<Listing> => {
+    const { data } = await api.put<Listing>(`/listings/${id}`, payload);
     return data;
+  },
+
+  attachMedia: async (listingId: number, mediaIds: number[]): Promise<void> => {
+    await api.post(`/listings/${listingId}/media/attach`, { media_ids: mediaIds });
   },
 
   deleteListing: async (id: number): Promise<void> => {
     await api.delete(`/listings/${id}`);
+  },
+};
+
+// ─── Media ───────────────────────────────────────────────────────────────────
+export const mediaApi = {
+  uploadPhoto: async (uri: string, listingId?: number): Promise<{ id: number; url: string }> => {
+    const filename = uri.split('/').pop() ?? 'photo.jpg';
+    const form = new FormData();
+    form.append('file', { uri, name: filename, type: 'image/jpeg' } as any);
+    if (listingId != null) form.append('listing_id', String(listingId));
+    const { data } = await api.post<{ id: number; url: string }>(
+      '/media/upload',
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
   },
 };
 

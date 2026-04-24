@@ -123,7 +123,7 @@ export default function ManageScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }}>
         <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 24, color: Colors.primary }}>My Listings</Text>
         <TouchableOpacity
-          onPress={() => Alert.alert('Coming soon', 'Listing creation form is in progress.')}
+          onPress={() => router.push('/listing-editor/new')}
           style={{ backgroundColor: Colors.accent, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
         >
           <Ionicons name="add" size={18} color={Colors.white} />
@@ -171,7 +171,7 @@ export default function ManageScreen() {
           renderItem={({ item }) => (
             <ManageListingCard
               listing={item}
-              onEdit={() => Alert.alert('Coming soon')}
+              onEdit={() => router.push(`/listing-editor/${item.id}`)}
               onDelete={() => handleDelete(item.id, item.title)}
             />
           )}

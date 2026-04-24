@@ -84,6 +84,10 @@ export default function RootLayout() {
                 name="conversation/[id]"
                 options={{ presentation: 'card', animation: 'slide_from_right' }}
               />
+              <Stack.Screen
+                name="listing-editor/[id]"
+                options={{ presentation: 'card', animation: 'slide_from_right' }}
+              />
             </Stack>
           </QueryClientProvider>
         </KeyboardProvider>
