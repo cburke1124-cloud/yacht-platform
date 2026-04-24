@@ -427,6 +427,27 @@ def remove_saved_listing(
     return {"success": True}
 
 
+@router.delete("/saved-listings/by-listing/{listing_id}")
+def remove_saved_listing_by_listing_id(
+    listing_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a saved listing by listing ID (idempotent)."""
+    from app.models.listing import SavedListing
+
+    saved = db.query(SavedListing).filter(
+        SavedListing.listing_id == listing_id,
+        SavedListing.user_id == current_user.id
+    ).first()
+
+    if saved:
+        db.delete(saved)
+        db.commit()
+
+    return {"success": True}
+
+
 @router.get("/price-alerts")
 def get_price_alerts(
     current_user: User = Depends(get_current_user),

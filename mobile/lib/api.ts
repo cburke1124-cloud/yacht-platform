@@ -90,26 +90,26 @@ export const listingsApi = {
   },
 
   getFeatured: async (): Promise<Listing[]> => {
-    const { data } = await api.get<Listing[]>('/listings/featured');
+    const { data } = await api.get<Listing[]>('/featured-listings');
     return data;
   },
 
   getSaved: async (): Promise<Listing[]> => {
-    const { data } = await api.get<Listing[]>('/listings/saved');
-    return data;
+    const { data } = await api.get<any[]>('/saved-listings');
+    return data.filter((s) => s.listing).map((s) => s.listing);
   },
 
   saveListing: async (id: number): Promise<void> => {
-    await api.post(`/listings/${id}/save`);
+    await api.post('/saved-listings', { listing_id: id });
   },
 
   unsaveListing: async (id: number): Promise<void> => {
-    await api.delete(`/listings/${id}/save`);
+    await api.delete(`/saved-listings/by-listing/${id}`);
   },
 
   getSavedIds: async (): Promise<number[]> => {
-    const { data } = await api.get<number[]>('/listings/saved/ids');
-    return data;
+    const { data } = await api.get<any[]>('/saved-listings');
+    return data.map((s) => s.listing_id);
   },
 
   submitInquiry: async (payload: InquiryPayload): Promise<void> => {
@@ -150,7 +150,7 @@ export const messagesApi = {
   },
 
   getUnreadCount: async (): Promise<number> => {
-    const { data } = await api.get<{ count: number }>('/messages/unread-count');
+    const { data } = await api.get<{ count: number }>('/notifications/count');
     return data.count;
   },
 };
@@ -158,7 +158,7 @@ export const messagesApi = {
 // ─── Dealer ──────────────────────────────────────────────────────────────────
 export const dealerApi = {
   getMyListings: async (page = 1, status?: string): Promise<ListingsPage> => {
-    const { data } = await api.get<ListingsPage>('/listings/my', {
+    const { data } = await api.get<ListingsPage>('/listings/my-listings', {
       params: { page, per_page: 20, status },
     });
     return data;

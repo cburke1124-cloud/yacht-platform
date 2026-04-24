@@ -1,5 +1,5 @@
 export const Config = {
-  API_BASE_URL: process.env.EXPO_PUBLIC_API_URL ?? 'https://yacht-platform.onrender.com',
+  API_BASE_URL: process.env.EXPO_PUBLIC_API_URL ?? 'https://yacht-platform.onrender.com/api',
   APP_NAME: 'YachtVersal',
   SUPPORT_EMAIL: 'support@yachtversal.com',
   TERMS_URL: 'https://yachtversal.com/terms',

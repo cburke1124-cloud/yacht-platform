@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -63,6 +63,12 @@ export default function RootLayout() {
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
+  // On web, font loading can stall — render after 2s regardless
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setTimedOut(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -70,7 +76,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded && !timedOut) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
