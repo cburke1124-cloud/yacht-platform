@@ -1143,13 +1143,13 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                 {form.feed_type === 'iyba' ? 'IYBA API Endpoint URL *' : 'API Endpoint URL *'}
               </label>
               <input type="url" value={form.api_endpoint} onChange={e => setForm(f => ({ ...f, api_endpoint: e.target.value }))}
-                placeholder={form.feed_type === 'iyba' ? 'https://api.yachtbroker.org/vessel' : 'https://www.yachtworld.com/api/inventory/search'}
+                placeholder={form.feed_type === 'iyba' ? 'https://api.yachtbroker.org/vessel?id=MEMBER_ID' : 'https://www.yachtworld.com/api/inventory/search'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
               {form.feed_type === 'boats_group' && (
                 <p className="text-xs text-gray-400 mt-1">The Boats Group REST API search endpoint. Provided by Terraglio / your Boats Group rep.</p>
               )}
               {form.feed_type === 'iyba' && (
-                <p className="text-xs text-gray-400 mt-1">IYBA / YachtBroker.org vessel API. Use https://api.yachtbroker.org/vessel (optionally append ?id=MEMBER_ID to filter by brokerage).</p>
+                <p className="text-xs text-gray-400 mt-1">IYBA / YachtBroker.org vessel API. Endpoint must include the broker's member ID: <span className="font-mono">https://api.yachtbroker.org/vessel?id=MEMBER_ID</span></p>
               )}
             </div>
             {(form.feed_type === 'boats_group' || form.feed_type === 'iyba') && (
