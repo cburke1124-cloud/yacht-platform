@@ -926,7 +926,10 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
         log_fn = logger.error if level == "error" else (logger.warning if level == "warn" else logger.info)
         log_fn(f"[IYBAJob {job_id}] {msg}")
 
-    _log("info", f"Fetching IYBA XML feed: {feed_url}")
+    proxy_url = os.getenv("SCRAPER_PROXY_URL", "").strip()
+    proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+
+    _log("info", f"Fetching IYBA XML feed: {feed_url}" + (f" via {_mask_proxy(proxy_url)}" if proxy_url else " (direct)"))
 
     try:
         resp = requests.get(
@@ -934,6 +937,7 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
             headers={"User-Agent": "YachtVersal/1.0"},
             timeout=60,
             verify=False,
+            proxies=proxies,
         )
         resp.raise_for_status()
     except Exception as exc:
