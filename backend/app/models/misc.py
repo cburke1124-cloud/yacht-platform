@@ -537,10 +537,12 @@ class WebhookLog(Base):
     retry_count = Column(Integer, default=0)
 
 class YachtworldSyncJob(Base):
-    """Standalone YachtWorld / Boats Group REST API feed job.
+    """Standalone feed job supporting multiple feed types.
+
+    feed_type='boats_group': Boats Group / YachtWorld REST API (JSON, requires api_key)
+    feed_type='iyba':        IYBA XML feed (publicly accessible XML URL, no api_key needed)
 
     Runs completely independently of the HTML scraper system.
-    All requests MUST go through the proxy (enforced in the service layer).
     """
     __tablename__ = "yachtworld_sync_jobs"
 
@@ -550,8 +552,9 @@ class YachtworldSyncJob(Base):
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     site_name = Column(String)                      # friendly label e.g. "Terraglio Fleet"
-    api_endpoint = Column(String, nullable=False)   # Boats Group REST API search URL
-    api_key = Column(String, nullable=False)        # API key (stored as-is; no client-side exposure)
+    api_endpoint = Column(String, nullable=False)   # feed URL (REST API or IYBA XML URL)
+    api_key = Column(String, nullable=True)         # API key — required for boats_group, empty for iyba
+    feed_type = Column(String, default="boats_group")  # boats_group | iyba
 
     # State
     enabled = Column(Boolean, default=True)

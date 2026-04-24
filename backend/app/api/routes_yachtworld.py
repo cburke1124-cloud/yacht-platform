@@ -54,7 +54,8 @@ class CreateYWJobRequest(BaseModel):
     salesman_id: Optional[int] = None
     site_name: Optional[str] = None
     api_endpoint: str
-    api_key: str
+    api_key: Optional[str] = None           # required for boats_group, optional for iyba
+    feed_type: Optional[str] = "boats_group"  # boats_group | iyba
     schedule_hours: Optional[int] = 24
     notes: Optional[str] = None
     enabled: Optional[bool] = True
@@ -66,6 +67,7 @@ class UpdateYWJobRequest(BaseModel):
     site_name: Optional[str] = None
     api_endpoint: Optional[str] = None
     api_key: Optional[str] = None          # blank string = no change
+    feed_type: Optional[str] = None        # boats_group | iyba
     schedule_hours: Optional[int] = None
     notes: Optional[str] = None
     enabled: Optional[bool] = None
@@ -98,6 +100,7 @@ def _job_to_dict(job: YachtworldSyncJob) -> dict:
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "last_run_log": job.last_run_log,
+        "feed_type": job.feed_type or "boats_group",
         "created_at": job.created_at.isoformat() if job.created_at else None,
     }
 
@@ -123,13 +126,19 @@ def create_yw_job(
     current_user: User = Depends(get_current_user),
 ):
     _require_admin(current_user)
+    feed_type = (body.feed_type or "boats_group").lower()
+    if feed_type not in ("boats_group", "iyba"):
+        raise HTTPException(status_code=422, detail="feed_type must be 'boats_group' or 'iyba'")
+    if feed_type == "boats_group" and not (body.api_key or "").strip():
+        raise HTTPException(status_code=422, detail="api_key is required for Boats Group feeds")
     job = YachtworldSyncJob(
         dealer_id=body.dealer_id,
         salesman_id=body.salesman_id,
         created_by_id=current_user.id,
         site_name=body.site_name or body.api_endpoint,
         api_endpoint=body.api_endpoint.strip(),
-        api_key=body.api_key.strip(),
+        api_key=(body.api_key or "").strip() or None,
+        feed_type=feed_type,
         schedule_hours=body.schedule_hours or 24,
         notes=body.notes,
         enabled=body.enabled if body.enabled is not None else True,
@@ -175,6 +184,11 @@ def update_yw_job(
         job.api_endpoint = body.api_endpoint.strip()
     if body.api_key is not None and body.api_key.strip():
         job.api_key = body.api_key.strip()
+    if body.feed_type is not None:
+        ft = body.feed_type.lower()
+        if ft not in ("boats_group", "iyba"):
+            raise HTTPException(status_code=422, detail="feed_type must be 'boats_group' or 'iyba'")
+        job.feed_type = ft
     if body.schedule_hours is not None:
         job.schedule_hours = body.schedule_hours
     if body.notes is not None:

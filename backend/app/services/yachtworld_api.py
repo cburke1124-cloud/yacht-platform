@@ -694,26 +694,371 @@ def _save_failure(db, job, job_id: int, err_msg: str, run_log: list) -> None:
 
 
 # ---------------------------------------------------------------------------
+# IYBA XML Feed helpers
+# ---------------------------------------------------------------------------
+
+def _iyba_text(elem, *tags) -> str:
+    """
+    Return the stripped text of the first matching child element,
+    trying each tag in order.  Returns '' if none found.
+    Handles both direct children and nested paths like 'Location/City'.
+    """
+    for tag in tags:
+        parts = tag.split("/")
+        node = elem
+        for part in parts:
+            if node is None:
+                break
+            node = node.find(part)
+        if node is not None and node.text:
+            return node.text.strip()
+    return ""
+
+
+def _iyba_float(elem, *tags) -> Optional[float]:
+    raw = _iyba_text(elem, *tags)
+    if not raw:
+        return None
+    # Strip currency symbols, commas, units like 'ft', 'm', etc.
+    cleaned = raw.replace(",", "").split()[0] if raw else ""
+    try:
+        return float(cleaned)
+    except (TypeError, ValueError):
+        return None
+
+
+def _iyba_int(elem, *tags) -> Optional[int]:
+    v = _iyba_float(elem, *tags)
+    return int(v) if v is not None else None
+
+
+def _map_iyba_record(listing_elem) -> dict:
+    """
+    Map a single <Listing> element from an IYBA v3 XML feed to our internal
+    normalised data dict (same shape as _map_yw_record output).
+
+    IYBA XML field names vary slightly between brokerages; we try multiple
+    common variants for each field.
+    """
+    g = _iyba_text  # shorthand
+
+    # -- Identity -------------------------------------------------------------
+    external_id = (
+        g(listing_elem, "MlsNumber", "MLS_Number", "ListingID", "listing_id", "ID")
+    )
+
+    # -- Year / Make / Model --------------------------------------------------
+    year_raw = g(listing_elem, "Year", "ModelYear", "model_year")
+    try:
+        year = int(year_raw) if year_raw else None
+    except (TypeError, ValueError):
+        year = None
+
+    make  = g(listing_elem, "Make", "Manufacturer", "MakeString") or None
+    model = g(listing_elem, "Model", "ModelName") or None
+
+    if make and model:
+        title = f"{year or ''} {make} {model}".strip()
+    elif make:
+        title = f"{year or ''} {make}".strip()
+    elif model:
+        title = f"{year or ''} {model}".strip()
+    else:
+        title = g(listing_elem, "BoatName", "VesselName", "Title") or None
+
+    # -- Price ----------------------------------------------------------------
+    price_raw = g(listing_elem, "Price", "AskingPrice", "ListingPrice")
+    currency  = g(listing_elem, "Currency", "CurrencyCode") or "USD"
+    price: Optional[float] = None
+    try:
+        price = float(str(price_raw).replace(",", "").strip()) if price_raw else None
+    except (TypeError, ValueError):
+        pass
+
+    # -- Status ---------------------------------------------------------------
+    status_raw = g(listing_elem, "Status", "SalesStatus", "ListingStatus").lower()
+    is_sold = "sold" in status_raw or "under contract" in status_raw or "pending" in status_raw
+    condition_raw = g(listing_elem, "Condition", "BoatCondition", "SaleClassCode").lower()
+    condition = "new" if condition_raw in ("new", "n") else "used"
+
+    # -- Location -------------------------------------------------------------
+    city    = g(listing_elem, "Location/City", "City",  "BoatCity") or None
+    state   = g(listing_elem, "Location/State", "State", "BoatState", "StateCode") or None
+    country = g(listing_elem, "Location/Country", "Country", "BoatCountry") or None
+    zip_code = g(listing_elem, "Location/Zip", "Location/PostalCode", "Zip", "PostalCode", "ZipCode") or None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    try:
+        v = g(listing_elem, "Location/Latitude", "Latitude")
+        latitude = float(v) if v else None
+    except (TypeError, ValueError):
+        pass
+    try:
+        v = g(listing_elem, "Location/Longitude", "Longitude")
+        longitude = float(v) if v else None
+    except (TypeError, ValueError):
+        pass
+
+    # Geocode if location is still incomplete
+    if not (city and state and country):
+        geo: dict = {}
+        if zip_code:
+            geo = _geocode_zip(zip_code)
+        if not geo and latitude is not None and longitude is not None:
+            geo = _geocode_latlon(latitude, longitude)
+        if geo:
+            city    = city    or geo.get("city")
+            state   = state   or geo.get("state")
+            country = country or geo.get("country")
+
+    # -- Boat type ------------------------------------------------------------
+    boat_type = g(listing_elem, "BoatType", "Category", "Type", "VesselType") or None
+
+    # -- Dimensions -----------------------------------------------------------
+    length_feet  = _iyba_float(listing_elem, "LengthFeet", "LenghtFeet", "Length", "LOA")
+    if length_feet is None:
+        # Some feeds give length in meters
+        len_m = _iyba_float(listing_elem, "LengthMeters", "LengthM")
+        if len_m:
+            length_feet = round(len_m * 3.28084, 2)
+    beam_feet  = _iyba_float(listing_elem, "BeamFeet", "Beam")
+    if beam_feet is None:
+        bm = _iyba_float(listing_elem, "BeamMeters")
+        if bm:
+            beam_feet = round(bm * 3.28084, 2)
+    draft_feet = _iyba_float(listing_elem, "DraftFeet", "Draft")
+    if draft_feet is None:
+        dm = _iyba_float(listing_elem, "DraftMeters")
+        if dm:
+            draft_feet = round(dm * 3.28084, 2)
+
+    # -- Engine / technical ---------------------------------------------------
+    engine_hours  = _iyba_float(listing_elem, "EngineHours", "Hours", "TotalEngineHours")
+    engine_count  = _iyba_int(listing_elem,   "NumberOfEngines", "EngineCount", "Engines")
+    hull_material = g(listing_elem, "HullMaterial", "Hull", "HullType") or None
+    hull_type     = g(listing_elem, "DesignerOrHullType", "HullDesign") or None
+    fuel_type     = g(listing_elem, "FuelType", "Fuel") or None
+    cabins        = _iyba_int(listing_elem, "Cabins", "Staterooms", "Cabins")
+    heads         = _iyba_int(listing_elem, "Heads", "Bathrooms")
+    berths        = _iyba_int(listing_elem, "Berths", "Sleeping")
+
+    # -- Description ----------------------------------------------------------
+    description = (
+        g(listing_elem, "Description", "Comments", "Remarks", "Overview", "Notes")
+        or None
+    )
+
+    # -- Images ---------------------------------------------------------------
+    images: list[str] = []
+    # <Photos><Photo>url</Photo></Photos>
+    photos_node = listing_elem.find("Photos")
+    if photos_node is not None:
+        for photo in photos_node.findall("Photo"):
+            url = (photo.text or "").strip()
+            if url.startswith("http"):
+                images.append(url)
+    # Fallback: <Images><Image><Url>url</Url></Image></Images>
+    if not images:
+        images_node = listing_elem.find("Images")
+        if images_node is not None:
+            for img in images_node:
+                url = (
+                    (img.find("Url") or img.find("URL") or img.find("Uri") or img).text or ""
+                ).strip()
+                if url.startswith("http"):
+                    images.append(url)
+    # Some feeds put a single <PhotoUrl> or <PrimaryPhoto>
+    if not images:
+        for tag in ("PhotoUrl", "PrimaryPhoto", "MainPhoto", "ImageUrl"):
+            v = g(listing_elem, tag)
+            if v and v.startswith("http"):
+                images.append(v)
+                break
+
+    return {
+        "_yw_id":                 external_id,
+        "title":                  title,
+        "year":                   year,
+        "make":                   make,
+        "model":                  model,
+        "price":                  price,
+        "currency":               currency,
+        "condition":              condition,
+        "boat_type":              boat_type,
+        "length_feet":            length_feet,
+        "beam_feet":              beam_feet,
+        "draft_feet":             draft_feet,
+        "hull_material":          hull_material,
+        "hull_type":              hull_type,
+        "city":                   city,
+        "state":                  state,
+        "country":                country,
+        "zip_code":               zip_code,
+        "latitude":               latitude,
+        "longitude":              longitude,
+        "description":            description,
+        "images":                 images,
+        "fuel_type":              fuel_type,
+        "cabins":                 cabins,
+        "berths":                 berths,
+        "heads":                  heads,
+        "engine_count":           engine_count,
+        "engine_hours":           engine_hours,
+        "is_sold":                is_sold,
+    }
+
+
+def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) -> None:
+    """
+    Fetch and process an IYBA XML feed URL.  Modifies run_log, stats, and
+    seen_source_urls in-place.  Raises on unrecoverable errors.
+
+    The feed URL is stored in job.api_endpoint.  No API key is required.
+    """
+    import xml.etree.ElementTree as ET
+
+    job_id = job.id
+    feed_url = (job.api_endpoint or "").strip()
+
+    def _log(level: str, msg: str):
+        entry = {"t": _ts(), "level": level, "msg": msg}
+        run_log.append(entry)
+        log_fn = logger.error if level == "error" else (logger.warning if level == "warn" else logger.info)
+        log_fn(f"[IYBAJob {job_id}] {msg}")
+
+    _log("info", f"Fetching IYBA XML feed: {feed_url}")
+
+    try:
+        resp = requests.get(
+            feed_url,
+            headers={"User-Agent": "YachtVersal/1.0"},
+            timeout=60,
+            verify=False,
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        raise RuntimeError(f"IYBA feed fetch failed: {exc}") from exc
+
+    _log("info", f"Downloaded {len(resp.content):,} bytes — parsing XML…")
+
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as exc:
+        raise RuntimeError(f"IYBA XML parse error: {exc}") from exc
+
+    # Support both <YachtListing><Listing> and <Listings><Listing> roots
+    listing_elems = root.findall(".//Listing")
+    if not listing_elems:
+        listing_elems = list(root)
+
+    _log("info", f"Found {len(listing_elems)} listing elements in feed")
+
+    for elem in listing_elems:
+        raw = _map_iyba_record(elem)
+        external_id = raw.pop("_yw_id", "")
+        raw["_yw_ext_id"] = external_id
+
+        source_url = f"{feed_url}#id={external_id}" if external_id else None
+        if not source_url:
+            stats["errors"] += 1
+            _log("error", f"No listing ID found in element — skipping")
+            continue
+
+        seen_source_urls.add(source_url)
+        is_sold = bool(raw.get("is_sold"))
+
+        try:
+            existing = (
+                db.query(Listing)
+                .filter(
+                    Listing.user_id == job.dealer_id,
+                    Listing.source_url == source_url,
+                    Listing.deleted_at.is_(None),
+                )
+                .first()
+            )
+
+            def _apply_json_fields(lst):
+                if raw.get("condition"):
+                    lst.condition = raw["condition"]
+                if raw.get("zip_code"):
+                    lst.zip_code = raw["zip_code"]
+                if raw.get("latitude") is not None:
+                    lst.latitude = raw["latitude"]
+                if raw.get("longitude") is not None:
+                    lst.longitude = raw["longitude"]
+                if raw.get("_yw_ext_id"):
+                    lst.external_id = raw["_yw_ext_id"]
+
+            if existing:
+                _apply_scraped_data(existing, raw, job)
+                _apply_json_fields(existing)
+                if is_sold:
+                    existing.status = "sold"
+                elif existing.status not in ("draft", "awaiting_review"):
+                    existing.status = "active"
+                if raw.get("images"):
+                    db.query(ListingImage).filter(ListingImage.listing_id == existing.id).delete()
+                    for img_url in raw["images"]:
+                        db.add(ListingImage(listing_id=existing.id, url=img_url))
+                stats["updated"] += 1
+                run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
+                                "listing_id": existing.id, "title": existing.title})
+            else:
+                listing = Listing(
+                    user_id=job.dealer_id,
+                    assigned_salesman_id=job.salesman_id,
+                    source="scraped",
+                    source_url=source_url,
+                    status="awaiting_review" if not is_sold else "sold",
+                    condition=raw.get("condition") or "used",
+                )
+                try:
+                    listing.bin = _generate_yw_bin(db)
+                except Exception:
+                    pass
+                _apply_scraped_data(listing, raw, job)
+                _apply_json_fields(listing)
+                db.add(listing)
+                db.flush()
+                for img_url in raw.get("images", []):
+                    db.add(ListingImage(listing_id=listing.id, url=img_url))
+                stats["created"] += 1
+                run_log.append({"url": source_url, "outcome": "created",
+                                "listing_id": listing.id, "title": listing.title})
+            db.commit()
+        except Exception as rec_exc:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            stats["errors"] += 1
+            _log("error", f"Failed to save record {source_url}: {rec_exc}")
+
+        stats["found"] += 1
+        job.listings_found = stats["found"]
+        db.commit()
+
+    # Flush progress
+    job.last_run_log = list(run_log)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
 # Main sync function
 # ---------------------------------------------------------------------------
 
 def sync_yachtworld_job(job_id: int, db) -> Dict:
     """
-    Sync a YachtworldSyncJob against the Boats Group / YachtWorld REST API.
+    Sync a YachtworldSyncJob.  Dispatches to the appropriate handler based on
+    job.feed_type:
 
-    PROXY REQUIREMENT: SCRAPER_PROXY_URL env var MUST be set.
-    All HTTP requests will be routed through the proxy. If the variable is
-    not configured this function raises ValueError immediately — YachtWorld
-    API calls must never bypass the proxy.
+      'boats_group' (default) — Boats Group / YachtWorld REST API (JSON, paginated)
+      'iyba'                  — IYBA XML feed URL (no API key required)
 
-    Pagination: rows=100, offset incremented until records list is empty.
     Listing upsert uses the same ScrapedListing / Listing mechanism as the
     HTML scraper for consistency and archive detection.
     """
-    # The Boats Group REST API uses key-based auth and does not need a proxy.
-    # Using a proxy (e.g. ScraperAPI) causes 403s because their IP ranges are
-    # blocked by the API. We make direct HTTPS calls with verify=False to
-    # handle intermediate cert issues in some hosting environments.
     proxies = None
 
     job: Optional[YachtworldSyncJob] = (
@@ -738,6 +1083,67 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
         log_fn = logger.error if level == "error" else (logger.warning if level == "warn" else logger.info)
         log_fn(f"[YWJob {job_id}] {msg}")
 
+    feed_type = (job.feed_type or "boats_group").lower()
+
+    # -----------------------------------------------------------------------
+    # IYBA XML feed path
+    # -----------------------------------------------------------------------
+    if feed_type == "iyba":
+        _log("info", f"Feed type: IYBA XML — endpoint: {job.api_endpoint}")
+        job.last_run_log = list(run_log)
+        db.commit()
+        try:
+            _sync_iyba_feed(job, db, run_log, stats, seen_source_urls)
+
+            # Archive listings from this feed that are no longer present
+            feed_url = (job.api_endpoint or "").strip()
+            prev_active = (
+                db.query(Listing)
+                .filter(
+                    Listing.user_id == job.dealer_id,
+                    Listing.source == "scraped",
+                    Listing.source_url.like(f"{feed_url}%"),
+                    Listing.status == "active",
+                    Listing.deleted_at.is_(None),
+                )
+                .all()
+            )
+            for lst in prev_active:
+                if lst.source_url not in seen_source_urls:
+                    lst.status = "archived"
+                    stats["archived"] += 1
+                    run_log.append({"url": lst.source_url, "outcome": "archived", "listing_id": lst.id})
+
+            summary = (f"IYBA sync complete — found={stats['found']} "
+                       f"created={stats['created']} updated={stats['updated']} "
+                       f"archived={stats['archived']} errors={stats['errors']}")
+            _log("info", summary)
+            job.status = "completed"
+            job.completed_at = datetime.utcnow()
+            job.last_run_at = datetime.utcnow()
+            job.listings_found = stats["found"]
+            job.listings_created = stats["created"]
+            job.listings_updated = stats["updated"]
+            job.listings_removed = stats["archived"]
+            job.total_runs = (job.total_runs or 0) + 1
+            job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
+            job.last_run_log = run_log
+            db.commit()
+            logger.info(f"[YWJob {job_id}] {summary}")
+            return {"success": True, "job_id": job_id, **stats}
+        except Exception as exc:
+            err_msg = str(exc)
+            logger.error(f"[YWJob {job_id}] IYBA sync failed: {exc}")
+            try:
+                _log("error", f"Unexpected error: {err_msg}")
+            except Exception:
+                pass
+            _save_failure(db, job, job_id, err_msg, run_log)
+            return {"success": False, "error": err_msg}
+
+    # -----------------------------------------------------------------------
+    # Boats Group / YachtWorld REST API path (default)
+    # -----------------------------------------------------------------------
     ROWS = 100
     req_headers = {
         "Accept": "application/vnd.dmm-v1+json",
