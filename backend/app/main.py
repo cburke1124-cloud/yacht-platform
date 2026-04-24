@@ -75,6 +75,8 @@ def _resolve_cors_origins() -> list[str]:
     defaults = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
         "https://yacht-platform.vercel.app",
         "https://yachtversal.com",
         "https://www.yachtversal.com",

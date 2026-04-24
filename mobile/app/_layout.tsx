@@ -1,9 +1,15 @@
 import { useEffect } from 'react';
+import { Platform, StyleSheet } from 'react-native';
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+
+// NativeWind web requires class-based dark mode
+if (Platform.OS === 'web') {
+  (StyleSheet as any).setFlag?.('darkMode', 'class');
+}
 import {
   useFonts,
   Poppins_400Regular,

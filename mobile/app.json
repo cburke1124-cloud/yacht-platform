@@ -20,7 +20,9 @@
         "NSPhotoLibraryUsageDescription": "Allow YachtVersal to access your photos to upload listing images.",
         "NSCameraUsageDescription": "Allow YachtVersal to use your camera to take listing photos.",
         "NSLocationWhenInUseUsageDescription": "Allow YachtVersal to use your location to find nearby listings.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -59,9 +61,13 @@
           "imageWidth": 200
         }
       ],
-      "react-native-keyboard-controller"
+      "expo-asset"
     ],
     "scheme": "yachtversal",
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "experiments": {
       "typedRoutes": true
     },
