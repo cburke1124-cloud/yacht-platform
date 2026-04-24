@@ -927,21 +927,101 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
         log_fn(f"[IYBAJob {job_id}] {msg}")
 
     proxy_url = os.getenv("SCRAPER_PROXY_URL", "").strip()
-    proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
 
-    _log("info", f"Fetching IYBA XML feed: {feed_url}" + (f" via {_mask_proxy(proxy_url)}" if proxy_url else " (direct)"))
+    # IYBA feeds are member-authenticated XML feeds intended for direct access.
+    # Routing through a scraping proxy (e.g. ScraperAPI) causes the request to
+    # originate from datacenter IPs that IYBA blocks with 403.
+    #
+    # Strategy:
+    #   1. Try direct (no proxy).  This is correct for IYBA feeds.  Retry up to
+    #      3 times on connection-level errors (DNS flap / temporary failure).
+    #   2. Only if ALL direct attempts fail with a connection error AND a proxy
+    #      is configured, fall back to ScraperAPI's direct API endpoint.
+    #      ScraperAPI API-endpoint mode is different from the CONNECT tunnel
+    #      and may succeed where the tunnel fails.
+    #   3. If the response is an HTTP error (4xx/5xx) from either path, surface
+    #      it immediately without retrying — retrying HTTP errors wastes time.
 
-    try:
-        resp = requests.get(
-            feed_url,
-            headers={"User-Agent": "YachtVersal/1.0"},
-            timeout=60,
-            verify=False,
-            proxies=proxies,
-        )
-        resp.raise_for_status()
-    except Exception as exc:
-        raise RuntimeError(f"IYBA feed fetch failed: {exc}") from exc
+    _log("info", f"Fetching IYBA XML feed: {feed_url} (direct)")
+
+    resp = None
+    last_conn_exc: Optional[Exception] = None
+
+    for attempt in range(1, 4):  # up to 3 direct attempts
+        try:
+            resp = requests.get(
+                feed_url,
+                headers={"User-Agent": "YachtVersal/1.0"},
+                timeout=45,
+                verify=False,
+            )
+            resp.raise_for_status()
+            last_conn_exc = None
+            break  # success
+        except requests.exceptions.HTTPError as http_exc:
+            # HTTP error (4xx/5xx) from the target — do not retry
+            raise RuntimeError(f"IYBA feed fetch failed: {http_exc}") from http_exc
+        except Exception as conn_exc:
+            last_conn_exc = conn_exc
+            if attempt < 3:
+                _log("warn", f"Direct attempt {attempt} failed ({conn_exc}) — retrying…")
+                time.sleep(3)
+
+    if last_conn_exc is not None:
+        # All direct attempts failed at the connection level.  Try ScraperAPI
+        # API-endpoint mode (only available when SCRAPER_PROXY_URL includes a
+        # ScraperAPI hostname).
+        if proxy_url:
+            from urllib.parse import urlparse as _uparse, quote as _q
+            _pp = _uparse(proxy_url)
+            if "scraperapi.com" in (_pp.hostname or ""):
+                api_key = _pp.password or ""
+                if api_key:
+                    sa_url = (
+                        f"https://api.scraperapi.com"
+                        f"?api_key={api_key}"
+                        f"&url={_q(feed_url, safe='')}"
+                        f"&keep_headers=true"
+                    )
+                    _log("warn", f"Direct failed ({last_conn_exc}); retrying via ScraperAPI API endpoint…")
+                    try:
+                        resp = requests.get(
+                            sa_url,
+                            headers={"User-Agent": "YachtVersal/1.0"},
+                            timeout=60,
+                        )
+                        resp.raise_for_status()
+                    except Exception as proxy_exc:
+                        raise RuntimeError(
+                            f"IYBA feed unreachable (direct: {last_conn_exc}; "
+                            f"ScraperAPI: {proxy_exc}). "
+                            f"Ensure the feed URL is valid and that your server "
+                            f"or the proxy can reach feeds.iyba.org."
+                        ) from proxy_exc
+                else:
+                    raise RuntimeError(
+                        f"IYBA feed fetch failed (all direct attempts): {last_conn_exc}"
+                    ) from last_conn_exc
+            else:
+                # Generic proxy fallback
+                _log("warn", f"Direct failed ({last_conn_exc}); retrying via proxy…")
+                try:
+                    resp = requests.get(
+                        feed_url,
+                        headers={"User-Agent": "YachtVersal/1.0"},
+                        timeout=60,
+                        verify=False,
+                        proxies={"http": proxy_url, "https": proxy_url},
+                    )
+                    resp.raise_for_status()
+                except Exception as proxy_exc:
+                    raise RuntimeError(
+                        f"IYBA feed unreachable (direct: {last_conn_exc}; proxy: {proxy_exc})."
+                    ) from proxy_exc
+        else:
+            raise RuntimeError(
+                f"IYBA feed fetch failed: {last_conn_exc}"
+            ) from last_conn_exc
 
     _log("info", f"Downloaded {len(resp.content):,} bytes — parsing XML…")
 
