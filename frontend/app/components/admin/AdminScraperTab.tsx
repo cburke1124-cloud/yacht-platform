@@ -1130,32 +1130,35 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
               <select value={form.feed_type} onChange={e => setForm(f => ({ ...f, feed_type: e.target.value as 'boats_group' | 'iyba' }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                 <option value="boats_group">Boats Group / YachtWorld REST API</option>
-                <option value="iyba">IYBA XML Feed</option>
+                <option value="iyba">IYBA / YachtBroker.org JSON Feed</option>
               </select>
               <p className="text-xs text-gray-400 mt-1">
                 {form.feed_type === 'iyba'
-                  ? 'Fetches listings from an IYBA-format XML feed URL. No API key required.'
+                  ? 'Fetches listings from the IYBA / YachtBroker.org JSON API (api.yachtbroker.org). Requires an API key.'
                   : 'Fetches listings from the Boats Group / YachtWorld REST API. Requires an API key.'}
               </p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                {form.feed_type === 'iyba' ? 'IYBA Feed URL *' : 'API Endpoint URL *'}
+                {form.feed_type === 'iyba' ? 'IYBA API Endpoint URL *' : 'API Endpoint URL *'}
               </label>
               <input type="url" value={form.api_endpoint} onChange={e => setForm(f => ({ ...f, api_endpoint: e.target.value }))}
-                placeholder={form.feed_type === 'iyba' ? 'https://feeds.iyba.org/member/12345/listings.xml' : 'https://www.yachtworld.com/api/inventory/search'}
+                placeholder={form.feed_type === 'iyba' ? 'https://api.yachtbroker.org/vessel' : 'https://www.yachtworld.com/api/inventory/search'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-              {form.feed_type !== 'iyba' && (
+              {form.feed_type === 'boats_group' && (
                 <p className="text-xs text-gray-400 mt-1">The Boats Group REST API search endpoint. Provided by Terraglio / your Boats Group rep.</p>
               )}
+              {form.feed_type === 'iyba' && (
+                <p className="text-xs text-gray-400 mt-1">IYBA / YachtBroker.org vessel API. Use https://api.yachtbroker.org/vessel (optionally append ?id=MEMBER_ID to filter by brokerage).</p>
+              )}
             </div>
-            {form.feed_type === 'boats_group' && (
+            {(form.feed_type === 'boats_group' || form.feed_type === 'iyba') && (
               <div className="md:col-span-2">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   API Key {editingJob ? <span className="text-gray-400 font-normal">(leave blank to keep existing)</span> : '*'}
                 </label>
                 <input type="password" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
-                  placeholder={editingJob?.api_key_set ? '••••••••••••••••' : 'Boats Group / YachtWorld API key'}
+                  placeholder={editingJob?.api_key_set ? '••••••••••••••••' : (form.feed_type === 'iyba' ? 'IYBA / YachtBroker.org API token' : 'Boats Group / YachtWorld API key')}
                   autoComplete="off"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 font-mono" />
                 {editingJob?.api_key_set && !form.api_key && (
@@ -1224,7 +1227,7 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900">{job.site_name || job.api_endpoint}</span>
                       {isIyba
-                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">IYBA XML Feed</span>
+                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">IYBA JSON Feed</span>
                         : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">YW API Feed</span>
                       }
                       <StatusBadge status={job.status} />
