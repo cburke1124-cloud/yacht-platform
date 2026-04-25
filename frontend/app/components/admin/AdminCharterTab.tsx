@@ -88,8 +88,9 @@ function CharterModal({ initial, onSave, onClose }: {
   const lbl = 'block text-xs font-medium text-gray-600 mb-1';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 overflow-y-auto py-8">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40" onClick={onClose}>
+      <div className="flex min-h-full items-start justify-center px-4 py-8">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-semibold text-[#10214F]">{initial ? 'Edit Charter Listing' : 'New Charter Listing'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
@@ -237,6 +238,7 @@ function CharterModal({ initial, onSave, onClose }: {
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );
