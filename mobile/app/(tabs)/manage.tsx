@@ -50,10 +50,10 @@ function ManageListingCard({ listing, onEdit, onDelete }: { listing: Listing; on
           {listing.title}
         </Text>
         <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: Colors.primary, marginTop: 4 }}>
-          ${listing.price.toLocaleString()}
+          {listing.price != null ? `$${listing.price.toLocaleString()}` : 'Price on request'}
         </Text>
         <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: Colors.muted, marginTop: 2 }}>
-          {listing.year} · {listing.length_ft}ft · {listing.location}
+          {listing.year ?? '—'} · {listing.length_ft != null ? `${listing.length_ft}ft` : '—'} · {listing.location ?? '—'}
         </Text>
 
         {/* Actions */}

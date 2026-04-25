@@ -116,26 +116,26 @@ export default function ListingCard({ listing, onPress, compact = false }: Listi
         <Text
           style={{ fontFamily: 'Poppins_700Bold', fontSize: compact ? 16 : 18, color: Colors.primary, marginTop: 4 }}
         >
-          ${listing.price.toLocaleString()}
+          {listing.price != null ? `$${listing.price.toLocaleString()}` : 'Price on request'}
         </Text>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <Ionicons name="calendar-outline" size={12} color={Colors.muted} />
             <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: Colors.muted }}>
-              {listing.year}
+              {listing.year ?? '—'}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <Ionicons name="resize-outline" size={12} color={Colors.muted} />
             <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: Colors.muted }}>
-              {listing.length_ft} ft
+              {listing.length_ft != null ? `${listing.length_ft} ft` : '—'}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 }}>
             <Ionicons name="location-outline" size={12} color={Colors.muted} />
             <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: Colors.muted }} numberOfLines={1}>
-              {listing.location}
+              {listing.location ?? '—'}
             </Text>
           </View>
         </View>
