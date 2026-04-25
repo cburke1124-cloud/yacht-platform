@@ -71,10 +71,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded || timedOut) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, timedOut]);
 
   if (!fontsLoaded && !timedOut) return null;
 

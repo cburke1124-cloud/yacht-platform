@@ -95,15 +95,14 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {isDealer && (
-        <Tabs.Screen
-          name="manage"
-          options={{
-            title: 'My Listings',
-            tabBarIcon: ({ color, size }) => <Ionicons name="briefcase-outline" size={size} color={color} />,
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="manage"
+        options={{
+          title: 'My Listings',
+          href: isDealer ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="briefcase-outline" size={size} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
@@ -111,13 +110,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
-      {/* Hide manage tab for buyers */}
-      {!isDealer && (
-        <Tabs.Screen
-          name="manage"
-          options={{ href: null }}
-        />
-      )}
     </Tabs>
   );
 }
