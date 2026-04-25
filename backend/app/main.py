@@ -61,6 +61,7 @@ from app.api.routes_sms_inbound import router as sms_inbound_router
 from app.api.routes_inquiries import router as inquiries_router
 from app.api.routes_contact import router as contact_router
 from app.api.routes_preview import router as preview_router
+from app.api.routes_charter import router as charter_router
 
 setup_logging()
 
@@ -251,6 +252,7 @@ app.include_router(inquiries_router, prefix="/api", tags=["inquiries"])
 app.include_router(contact_router, prefix="/api", tags=["contact"])
 app.include_router(catalog_router, prefix="/api/catalog", tags=["catalog"])
 app.include_router(preview_router, prefix="/api/preview/listings", tags=["preview"])
+app.include_router(charter_router, prefix="/api/charter", tags=["charter"])
 
 
 # AntiScrapingMiddleware runs inside CORS so blocked responses still get CORS headers
