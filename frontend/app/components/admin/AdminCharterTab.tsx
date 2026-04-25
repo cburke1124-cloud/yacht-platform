@@ -24,6 +24,7 @@ interface CharterListing {
   max_guests?: number;
   crew_included: boolean;
   day_rate?: number;
+  half_day_rate?: number;
   week_rate?: number;
   currency: string;
   charter_company_name?: string;
