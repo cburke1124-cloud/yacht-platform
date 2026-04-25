@@ -10,13 +10,14 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { Colors } from '@/constants/colors';
 
 export default function LoginScreen() {
   const { signIn } = useAuthStore();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -148,6 +149,19 @@ export default function LoginScreen() {
               </Link>
             </View>
           </View>
+
+          {/* Guest browse */}
+          <TouchableOpacity
+            onPress={() => router.replace('/(tabs)')}
+            style={{ alignItems: 'center', marginTop: 24, paddingVertical: 8 }}
+          >
+            <Text style={{ color: 'rgba(255,255,255,0.65)', fontFamily: 'Poppins_400Regular', fontSize: 14 }}>
+              Browse yachts without an account
+            </Text>
+            <Text style={{ color: Colors.white, fontFamily: 'Poppins_600SemiBold', fontSize: 14, marginTop: 2 }}>
+              Continue as Guest →
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

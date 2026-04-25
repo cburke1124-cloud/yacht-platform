@@ -9,12 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { Colors } from '@/constants/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { Config } from '@/constants/config';
 
 type Role = 'buyer' | 'dealer';
 type Step = 1 | 2;
@@ -30,6 +32,7 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [agreedTerms, setAgreedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleNext = () => {
@@ -47,6 +50,10 @@ export default function RegisterScreen() {
     }
     if (password.length < 8) {
       Alert.alert('Weak Password', 'Password must be at least 8 characters.');
+      return;
+    }
+    if (!agreedTerms) {
+      Alert.alert('Terms Required', 'Please agree to the Terms of Service and Privacy Policy to continue.');
       return;
     }
     setLoading(true);
@@ -185,17 +192,53 @@ export default function RegisterScreen() {
               <Text style={labelStyle}>Confirm password</Text>
               <TextInput value={confirm} onChangeText={setConfirm} style={inputStyle} placeholder="••••••••" secureTextEntry placeholderTextColor={Colors.mutedLight} />
 
+              {/* Terms checkbox */}
+              <TouchableOpacity
+                onPress={() => setAgreedTerms(v => !v)}
+                style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 8, marginBottom: 4 }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    borderWidth: 2,
+                    borderColor: agreedTerms ? Colors.accent : Colors.border,
+                    backgroundColor: agreedTerms ? Colors.accent : Colors.white,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  {agreedTerms && <Ionicons name="checkmark" size={14} color={Colors.white} />}
+                </View>
+                <Text style={{ flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 12, color: Colors.muted, lineHeight: 18 }}>
+                  I agree to the{' '}
+                  <Text
+                    onPress={() => Linking.openURL(Config.TERMS_URL)}
+                    style={{ color: Colors.accent, fontFamily: 'Poppins_500Medium' }}
+                  >
+                    Terms of Service
+                  </Text>
+                  {' '}and{' '}
+                  <Text
+                    onPress={() => Linking.openURL(Config.PRIVACY_URL)}
+                    style={{ color: Colors.accent, fontFamily: 'Poppins_500Medium' }}
+                  >
+                    Privacy Policy
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handleRegister}
-                disabled={loading}
-                style={{ ...btnStyle, opacity: loading ? 0.7 : 1 }}
+                disabled={loading || !agreedTerms}
+                style={{ ...btnStyle, opacity: (loading || !agreedTerms) ? 0.5 : 1 }}
               >
                 {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={btnTextStyle}>Create Account</Text>}
               </TouchableOpacity>
-
-              <Text style={{ color: Colors.mutedLight, fontFamily: 'Poppins_400Regular', fontSize: 11, textAlign: 'center', marginTop: 14, lineHeight: 16 }}>
-                By creating an account you agree to our Terms of Service and Privacy Policy.
-              </Text>
             </View>
           )}
         </ScrollView>

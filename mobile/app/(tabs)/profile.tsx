@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { Colors } from '@/constants/colors';
+import GuestPrompt from '@/components/GuestPrompt';
 
 function ProfileRow({
   icon,
@@ -80,7 +81,22 @@ function ProfileRow({
 }
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuthStore();
+  const { user, signOut, isAuthenticated } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12 }}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 24, color: Colors.primary }}>Profile</Text>
+        </View>
+        <GuestPrompt
+          icon="person-circle-outline"
+          title="Your profile"
+          message="Sign in or create a free account to manage your profile, saved searches, and communication preferences."
+        />
+      </SafeAreaView>
+    );
+  }
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [

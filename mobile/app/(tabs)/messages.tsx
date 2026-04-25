@@ -7,6 +7,8 @@ import { useRouter } from 'expo-router';
 import { messagesApi } from '@/lib/api';
 import { QueryKeys } from '@/lib/queryKeys';
 import { Colors } from '@/constants/colors';
+import { useAuthStore } from '@/store/authStore';
+import GuestPrompt from '@/components/GuestPrompt';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { Conversation } from '@/types';
@@ -112,11 +114,13 @@ function ConversationRow({ item, onPress }: { item: Conversation; onPress: () =>
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: QueryKeys.conversations,
     queryFn: messagesApi.getConversations,
     refetchInterval: 15_000,
+    enabled: isAuthenticated,
   });
 
   return (
@@ -127,7 +131,13 @@ export default function MessagesScreen() {
         </Text>
       </View>
 
-      {isLoading ? (
+      {!isAuthenticated ? (
+        <GuestPrompt
+          icon="chatbubbles-outline"
+          title="Your messages live here"
+          message="Sign in to view conversations with dealers and manage your inquiries."
+        />
+      ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={Colors.accent} />
         </View>

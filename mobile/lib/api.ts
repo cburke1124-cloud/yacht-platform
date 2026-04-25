@@ -34,12 +34,7 @@ api.interceptors.response.use(
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const authApi = {
   login: async (email: string, password: string): Promise<AuthTokens> => {
-    const form = new FormData();
-    form.append('username', email);
-    form.append('password', password);
-    const { data } = await api.post<AuthTokens>('/auth/token', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await api.post<AuthTokens>('/auth/login', { email, password });
     return data;
   },
 

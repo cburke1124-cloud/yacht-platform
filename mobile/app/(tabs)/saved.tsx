@@ -9,6 +9,7 @@ import { QueryKeys } from '@/lib/queryKeys';
 import { Colors } from '@/constants/colors';
 import ListingCard from '@/components/ListingCard';
 import { useAuthStore } from '@/store/authStore';
+import GuestPrompt from '@/components/GuestPrompt';
 
 export default function SavedScreen() {
   const router = useRouter();
@@ -34,7 +35,13 @@ export default function SavedScreen() {
         )}
       </View>
 
-      {isLoading ? (
+      {!isAuthenticated ? (
+        <GuestPrompt
+          icon="heart-outline"
+          title="Save your favourite yachts"
+          message="Sign in or create a free account to save listings and come back to them anytime."
+        />
+      ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={Colors.accent} />
         </View>

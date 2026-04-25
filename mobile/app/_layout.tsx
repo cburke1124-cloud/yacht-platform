@@ -46,7 +46,11 @@ function AuthGate() {
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (!isAuthenticated && !inAuthGroup) {
+    // Routes that strictly require authentication
+    const inStrictProtectedRoute =
+      segments[0] === 'conversation' || segments[0] === 'listing-editor';
+
+    if (!isAuthenticated && !inAuthGroup && inStrictProtectedRoute) {
       router.replace('/(auth)/login');
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
