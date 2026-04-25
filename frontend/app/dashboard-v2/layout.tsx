@@ -61,6 +61,20 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
     }).catch(() => {});
   }, []);
 
+  const PAGE_TITLES: Record<string, string> = {
+    '/dashboard-v2': 'Overview',
+    '/dashboard-v2/listings': 'Listings',
+    '/dashboard-v2/inquiries': 'Inquiries',
+    '/dashboard-v2/team': 'Team',
+    '/dashboard-v2/analytics': 'Analytics',
+    '/dashboard-v2/media': 'Media',
+    '/dashboard-v2/featured': 'Featured',
+    '/dashboard-v2/billing': 'Billing',
+    '/dashboard-v2/api-keys': 'API Keys',
+    '/dashboard-v2/settings': 'Settings',
+  };
+  const pageTitle = PAGE_TITLES[pathname] ?? 'Dashboard';
+
   const navItems = NAV.map(item => ({
     ...item,
     badge: item.href === '/dashboard-v2/inquiries' && unreadCount > 0 ? unreadCount : null,
@@ -173,7 +187,8 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col bg-[#10214F] transition-all duration-200 ${collapsed ? 'w-[64px]' : 'w-[220px]'} flex-shrink-0`}
+        className={`hidden lg:flex flex-col bg-[#0d1a40] transition-all duration-200 ${collapsed ? 'w-[64px]' : 'w-[220px]'} flex-shrink-0`}
+        style={{ background: 'linear-gradient(180deg, #0d1a40 0%, #10214F 100%)' }}
       >
         <SidebarContent />
       </aside>
@@ -182,7 +197,9 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
           <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <aside className="relative z-50 flex flex-col bg-[#10214F] w-[220px]">
+          <aside className="relative z-50 flex flex-col w-[220px]"
+            style={{ background: 'linear-gradient(180deg, #0d1a40 0%, #10214F 100%)' }}
+          >
             <SidebarContent />
           </aside>
         </div>
@@ -191,27 +208,28 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
-        <header className="bg-white border-b border-gray-200 h-14 flex items-center gap-3 px-4 flex-shrink-0">
+        <header className="bg-white/80 backdrop-blur-sm border-b border-gray-100 h-14 flex items-center gap-3 px-5 flex-shrink-0">
           <button
             onClick={() => setMobileOpen(true)}
             className="lg:hidden text-gray-500 hover:text-gray-800 p-1"
           >
             <Menu size={20} />
           </button>
+          <p className="hidden lg:block text-sm font-semibold text-gray-800">{pageTitle}</p>
           <div className="flex-1" />
           <Link
             href="/dashboard"
-            className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors border border-gray-200 rounded-lg px-2.5 py-1.5 hover:border-gray-300"
           >
-            <Globe size={13} /> Classic dashboard
+            <Globe size={12} /> Classic view
           </Link>
           <button className="relative text-gray-500 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <Bell size={18} />
+            <Bell size={17} />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-[#C9A84C] rounded-full" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#C9A84C] rounded-full" />
             )}
           </button>
-          <div className="w-8 h-8 rounded-full bg-[#10214F] flex items-center justify-center text-white text-xs font-bold">
+          <div className="w-8 h-8 rounded-full bg-[#10214F] flex items-center justify-center text-white text-xs font-bold ring-2 ring-[#10214F]/10">
             {initials}
           </div>
         </header>
