@@ -66,7 +66,7 @@ export default function FoundingBrokerPage() {
             alt=""
             width={900}
             height={900}
-            className="opacity-20"
+            className=""
           />
         </div>
         <div className="relative max-w-6xl mx-auto px-6 py-20 text-center">
