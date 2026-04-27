@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, Loader2, Anchor } from 'lucide-react';
+import Image from 'next/image';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function FoundingBrokerPage() {
@@ -71,12 +72,17 @@ export default function FoundingBrokerPage() {
       </div>
 
       {/* Form */}
-      <div className="relative max-w-2xl mx-auto px-6 py-16">
-        {/* Faded background icon */}
-        <Anchor
-          className="absolute inset-0 m-auto w-[420px] h-[420px] text-[#01BBDC] opacity-[0.04] pointer-events-none select-none"
-          aria-hidden="true"
-        />
+      <div className="relative max-w-2xl mx-auto px-6 py-16 overflow-hidden">
+        {/* Faded background logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none" aria-hidden="true">
+          <Image
+            src="/logo/logo-icon.png"
+            alt=""
+            width={480}
+            height={480}
+            className="opacity-[0.07]"
+          />
+        </div>
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-[#10214F] mb-3">Sign Up Now</h2>
           <p className="text-gray-500">
