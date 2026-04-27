@@ -3,15 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, Loader2, Star, Users, TrendingUp, Globe } from 'lucide-react';
+import { AlertCircle, Loader2, Anchor } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
-
-const PERKS = [
-  { icon: Star, title: 'Free Subscription', desc: 'Full platform access at no cost as a founding member.' },
-  { icon: Users, title: 'Priority Onboarding', desc: 'A dedicated representative to get your listings live fast.' },
-  { icon: TrendingUp, title: 'Early Adopter Benefits', desc: 'Lock in exclusive rates and features before public launch.' },
-  { icon: Globe, title: 'Global Buyer Reach', desc: 'Connect with high-net-worth buyers searching worldwide.' },
-];
 
 export default function FoundingBrokerPage() {
   const router = useRouter();
@@ -77,23 +70,13 @@ export default function FoundingBrokerPage() {
         </div>
       </div>
 
-      {/* Perks */}
-      <div className="bg-[#F5F7FA] border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {PERKS.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="flex flex-col items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#01BBDC]/10 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-[#01BBDC]" />
-              </div>
-              <h3 className="font-bold text-[#10214F] text-lg">{title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Form */}
-      <div className="max-w-2xl mx-auto px-6 py-16">
+      <div className="relative max-w-2xl mx-auto px-6 py-16">
+        {/* Faded background icon */}
+        <Anchor
+          className="absolute inset-0 m-auto w-[420px] h-[420px] text-[#01BBDC] opacity-[0.04] pointer-events-none select-none"
+          aria-hidden="true"
+        />
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-[#10214F] mb-3">Sign Up Now</h2>
           <p className="text-gray-500">
