@@ -2206,7 +2206,11 @@ except Exception as e:
                     or _hdg.parent
                 )
                 if _ancestor:
-                    for _sib in list(_ancestor.find_all_next_siblings()):
+                    try:
+                        _next_sibs = list(_ancestor.find_all_next_siblings())
+                    except TypeError:
+                        _next_sibs = []
+                    for _sib in _next_sibs:
                         try:
                             _sib.decompose()
                         except Exception:
