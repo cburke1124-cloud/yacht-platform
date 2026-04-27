@@ -23,6 +23,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "info@yachtversal.com")
+FOUNDING_BROKER_EMAIL = "admin@yachtversal.com"
 
 
 class ContactRequest(BaseModel):
@@ -32,6 +33,16 @@ class ContactRequest(BaseModel):
     phone: Optional[str] = None
     subject: str
     message: str
+
+
+class FoundingBrokerRequest(BaseModel):
+    name: str
+    email: EmailStr
+    company_name: str
+    website: Optional[str] = None
+    phone: Optional[str] = None
+    years_experience: Optional[str] = None
+    message: Optional[str] = None
 
 
 @router.post("/contact")
@@ -165,3 +176,58 @@ async def submit_contact_form(request: Request, data: ContactRequest, db: Sessio
         logger.warning(f"Contact form: failed to send confirmation email: {e}")
 
     return {"success": True, "message": "Your message has been sent. We'll be in touch soon!"}
+
+
+@router.post("/founding-broker")
+@limiter.limit("10/hour")
+async def submit_founding_broker_form(request: Request, data: FoundingBrokerRequest):
+    """
+    Receive a Founding Broker Program signup.
+    Sends notification email to admin@yachtversal.com.
+    """
+    website_line = f"<p><strong>Website:</strong> <a href='{data.website}'>{data.website}</a></p>" if data.website else ""
+    phone_line = f"<p><strong>Phone:</strong> {data.phone}</p>" if data.phone else ""
+    exp_line = f"<p><strong>Years of Experience:</strong> {data.years_experience}</p>" if data.years_experience else ""
+    msg_line = f"""
+        <hr style="border-color: #e5e7eb; margin: 20px 0;" />
+        <h3 style="color: #10214F; margin: 0 0 8px;">Additional Notes</h3>
+        <p style="white-space: pre-wrap; color: #374151;">{data.message}</p>
+    """ if data.message else ""
+
+    admin_html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px;">
+        <div style="background: #10214F; padding: 28px 32px; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 22px; letter-spacing: 0.5px;">YachtVersal</h1>
+            <p style="color: #01BBDC; margin: 6px 0 0; font-size: 14px;">Founding Broker Program — New Signup</p>
+        </div>
+        <div style="padding: 32px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <h2 style="color: #10214F; margin: 0 0 20px;">New Founding Broker Application</h2>
+            <p><strong>Name:</strong> {data.name}</p>
+            <p><strong>Email:</strong> <a href="mailto:{data.email}" style="color: #01BBDC;">{data.email}</a></p>
+            <p><strong>Company:</strong> {data.company_name}</p>
+            {website_line}
+            {phone_line}
+            {exp_line}
+            {msg_line}
+            <hr style="border-color: #e5e7eb; margin: 24px 0;" />
+            <p style="color: #6b7280; font-size: 12px;">
+                Submitted via the YachtVersal Founding Broker landing page.
+                Reply directly to this email to reach {data.name}.
+            </p>
+        </div>
+    </div>
+    """
+
+    try:
+        from app.services.email_service import email_service
+        email_service.send_email(
+            to_email=FOUNDING_BROKER_EMAIL,
+            subject=f"[Founding Broker] New Signup — {data.name} ({data.company_name})",
+            html_content=admin_html,
+            reply_to=str(data.email),
+        )
+    except Exception as e:
+        logger.error(f"Founding broker form: failed to send admin notification: {e}")
+        # Still return success — don't block the user
+
+    return {"success": True}
