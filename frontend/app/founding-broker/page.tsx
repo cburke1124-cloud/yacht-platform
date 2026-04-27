@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Anchor, CheckCircle, AlertCircle, Loader2, Star, Users, TrendingUp, Globe } from 'lucide-react';
+import { AlertCircle, Loader2, Star, Users, TrendingUp, Globe } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 const PERKS = [
@@ -66,10 +66,6 @@ export default function FoundingBrokerPage() {
       {/* Hero */}
       <div className="bg-[#10214F] text-white">
         <div className="max-w-6xl mx-auto px-6 py-20 text-center">
-          <div className="inline-flex items-center gap-2 bg-[#01BBDC]/20 border border-[#01BBDC]/40 text-[#01BBDC] text-sm font-semibold px-4 py-1.5 rounded-full mb-6">
-            <Anchor size={14} />
-            Limited Spots Available
-          </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
             Join the YachtVersal
             <br />
@@ -99,7 +95,7 @@ export default function FoundingBrokerPage() {
       {/* Form */}
       <div className="max-w-2xl mx-auto px-6 py-16">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-[#10214F] mb-3">Apply Now</h2>
+          <h2 className="text-3xl font-bold text-[#10214F] mb-3">Sign Up Now</h2>
           <p className="text-gray-500">
             Fill out the form below and a YachtVersal representative will be in touch to get you started.
           </p>
@@ -181,7 +177,7 @@ export default function FoundingBrokerPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-[#10214F] mb-1.5">
-                Years in Yacht Brokerage
+                Number of Listings
               </label>
               <select
                 value={yearsExperience}
@@ -189,11 +185,11 @@ export default function FoundingBrokerPage() {
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#01BBDC] transition-colors text-[#2E2E2E] bg-white"
               >
                 <option value="">Select...</option>
-                <option value="Less than 1 year">Less than 1 year</option>
-                <option value="1–3 years">1–3 years</option>
-                <option value="3–5 years">3–5 years</option>
-                <option value="5–10 years">5–10 years</option>
-                <option value="10+ years">10+ years</option>
+                <option value="1–5 listings">1–5</option>
+                <option value="6–15 listings">6–15</option>
+                <option value="16–30 listings">16–30</option>
+                <option value="31–50 listings">31–50</option>
+                <option value="50+ listings">50+</option>
               </select>
             </div>
           </div>
