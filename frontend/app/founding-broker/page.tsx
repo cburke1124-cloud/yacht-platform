@@ -64,8 +64,8 @@ export default function FoundingBrokerPage() {
           <Image
             src="/logo/footer-watermark.png"
             alt=""
-            width={675}
-            height={675}
+            width={574}
+            height={574}
             className=""
           />
         </div>
