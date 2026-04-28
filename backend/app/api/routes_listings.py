@@ -1914,6 +1914,7 @@ def delete_listing_image(
         .first()
     )
     if img:
+        deleted_url = img.url
         was_primary = img.is_primary
         db.delete(img)
         db.flush()
@@ -1926,6 +1927,14 @@ def delete_listing_image(
             )
             if next_img:
                 next_img.is_primary = True
+        # Persist the deleted URL so the scraper "Apply to Listing" flow won't restore it.
+        if deleted_url:
+            specs = dict(listing.additional_specs or {})
+            excluded: list = list(specs.get("_deleted_image_urls") or [])
+            if deleted_url not in excluded:
+                excluded.append(deleted_url)
+            specs["_deleted_image_urls"] = excluded
+            listing.additional_specs = specs
         db.commit()
         return {"success": True}
 

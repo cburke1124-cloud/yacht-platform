@@ -1657,9 +1657,13 @@ def apply_raw_page(
         )
         if listing:
             _apply_scraped_data(listing, raw, job_like)
-            # Sync images: replace existing set with the curated list from merged_data
+            # Sync images: replace existing set with the curated list from merged_data.
+            # Respect any images the admin has explicitly deleted via the Full Edit page —
+            # these are tracked in listing.additional_specs["_deleted_image_urls"].
+            excluded_urls = set((listing.additional_specs or {}).get("_deleted_image_urls") or [])
+            scraped_imgs = [u for u in (raw.get("images") or []) if u not in excluded_urls]
             db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
-            for img_url in (raw.get("images") or []):
+            for img_url in scraped_imgs:
                 db.add(ListingImage(listing_id=listing.id, url=img_url))
             db.commit()
             db.refresh(listing)
