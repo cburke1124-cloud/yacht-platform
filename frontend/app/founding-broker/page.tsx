@@ -84,6 +84,7 @@ export default function FoundingBrokerPage() {
       {/* Form */}
       <div className="relative max-w-2xl mx-auto px-6 py-16 overflow-hidden">
         <div className="text-center mb-10">
+          <p className="inline-block text-sm font-bold uppercase tracking-widest text-white bg-[#01BBDC] px-4 py-1.5 rounded-full mb-4">Free Listings for Life</p>
           <h2 className="text-3xl font-bold text-[#10214F] mb-3">Sign Up Now</h2>
           <p className="text-gray-500">
             Fill out the form below and a YachtVersal representative will be in touch to get you started.
