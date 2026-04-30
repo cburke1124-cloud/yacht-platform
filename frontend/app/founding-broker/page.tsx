@@ -76,7 +76,7 @@ export default function FoundingBrokerPage() {
             <span className="text-[#01BBDC]">Founding Broker Program</span>
           </h1>
           <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-            Be among the first brokers on the platform. Get free access, priority support, and a head start reaching thousands of motivated buyers.
+            Be among the first brokers on the platform. Get free access for life, priority support, and a head start reaching thousands of motivated buyers.
           </p>
         </div>
       </div>
