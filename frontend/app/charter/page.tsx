@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Search, Anchor, Calendar, Users, Ruler,
+  Search, Anchor, Bed, Users, Ruler,
   ChevronLeft, ChevronRight, ChevronDown, X,
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
@@ -22,11 +22,13 @@ interface CharterListing {
   home_port_city?: string;
   home_port_state?: string;
   home_port_country?: string;
+  operating_regions?: string;
   day_rate?: number;
   week_rate?: number;
   currency: string;
   min_charter_days?: number;
   max_guests?: number;
+  cabins?: number;
   crew_included: boolean;
   images?: Array<{ url: string } | string>;
   status: string;
@@ -134,12 +136,12 @@ function CharterCard({ charter }: { charter: CharterListing }) {
       <div className="p-4">
         <h3 className="font-semibold text-gray-900 text-base truncate group-hover:text-[#01BBDC] transition-colors">{charter.title}</h3>
         <p className="text-sm text-gray-500 mt-0.5 truncate">
-          {[charter.home_port_city, charter.home_port_state, charter.home_port_country].filter(Boolean).join(', ') || charter.home_port || 'Location TBD'}
+          {[charter.home_port_city, charter.home_port_state, charter.home_port_country].filter(Boolean).join(', ') || charter.home_port || charter.operating_regions || 'Location TBD'}
         </p>
-        <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-          {charter.length_feet && <span className="flex items-center gap-1"><Ruler className="w-3.5 h-3.5" />{charter.length_feet}ft</span>}
+        <div className="flex items-center gap-3 mt-3 text-sm text-gray-500 flex-wrap">
           {charter.max_guests && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{charter.max_guests} guests</span>}
-          {charter.min_charter_days && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{charter.min_charter_days}d min</span>}
+          {charter.cabins && <span className="flex items-center gap-1"><Bed className="w-3.5 h-3.5" />{charter.cabins} cabins</span>}
+          {charter.length_feet && <span className="flex items-center gap-1"><Ruler className="w-3.5 h-3.5" />{charter.length_feet}ft</span>}
         </div>
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
           <span className="text-[#01BBDC] font-semibold text-sm">{displayRate}</span>
@@ -165,25 +167,28 @@ export default function CharterPage() {
   const [maxGuests, setMaxGuests] = useState('');
   const [crewIncluded, setCrewIncluded] = useState('');
   const [maxDayRate, setMaxDayRate] = useState('');
+  const [duration, setDuration] = useState('');
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const fetchCharters = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page), per_page: String(PAGE_SIZE) });
-      if (search) params.set('search', search);
+      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+      if (search) params.set('q', search);
       if (boatType) params.set('boat_type', boatType);
       if (location) params.set('location', location);
       if (minLength) params.set('min_length', minLength);
       if (maxLength) params.set('max_length', maxLength);
-      if (maxGuests) params.set('max_guests', maxGuests);
+      if (maxGuests) params.set('min_guests', maxGuests);
       if (crewIncluded) params.set('crew_included', crewIncluded);
       if (maxDayRate) params.set('max_day_rate', maxDayRate);
+      const durationMaxDays: Record<string, number> = { day: 1, weekend: 3, week: 7 };
+      if (duration && durationMaxDays[duration]) params.set('max_min_days', String(durationMaxDays[duration]));
       const res = await fetch(apiUrl(`/charter?${params}`));
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setCharters(data.charters ?? data.items ?? []);
+      setCharters(data.results ?? []);
       setTotal(data.total ?? 0);
     } catch {
       setCharters([]);
@@ -191,23 +196,24 @@ export default function CharterPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, boatType, location, minLength, maxLength, maxGuests, crewIncluded, maxDayRate]);
+  }, [page, search, boatType, location, minLength, maxLength, maxGuests, crewIncluded, maxDayRate, duration]);
 
   useEffect(() => { fetchCharters(); }, [fetchCharters]);
 
   const clearFilters = () => {
     setSearch(''); setBoatType(''); setLocation('');
     setMinLength(''); setMaxLength(''); setMaxGuests('');
-    setCrewIncluded(''); setMaxDayRate(''); setPage(1);
+    setCrewIncluded(''); setMaxDayRate(''); setDuration(''); setPage(1);
   };
 
-  const hasActiveFilters = !!(search || boatType || location || minLength || maxLength || maxGuests || crewIncluded || maxDayRate);
+  const hasActiveFilters = !!(search || boatType || location || minLength || maxLength || maxGuests || crewIncluded || maxDayRate || duration);
 
   const pills: { label: string; clear: () => void }[] = [];
   if (search)       pills.push({ label: `"${search}"`,                      clear: () => setSearch('') });
   if (boatType)     pills.push({ label: boatType,                           clear: () => setBoatType('') });
   if (location)     pills.push({ label: `📍 ${location}`,                   clear: () => setLocation('') });
-  if (maxGuests)    pills.push({ label: `≤${maxGuests} guests`,             clear: () => setMaxGuests('') });
+  if (maxGuests)    pills.push({ label: `${maxGuests}+ guests`,              clear: () => setMaxGuests('') });
+  if (duration)     pills.push({ label: ({ day: 'Day Charter', weekend: 'Weekend', week: 'Full Week' } as Record<string, string>)[duration] ?? duration, clear: () => setDuration('') });
   if (crewIncluded) pills.push({ label: crewIncluded === 'true' ? 'Crew included' : 'Bareboat', clear: () => setCrewIncluded('') });
   if (minLength || maxLength) pills.push({ label: `${minLength || '0'}–${maxLength || '∞'} ft`, clear: () => { setMinLength(''); setMaxLength(''); } });
   if (maxDayRate)   pills.push({ label: `≤$${Number(maxDayRate).toLocaleString()}/day`,         clear: () => setMaxDayRate('') });
@@ -223,7 +229,7 @@ export default function CharterPage() {
             <span className="text-[#C9A84C] uppercase tracking-widest text-sm font-medium" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter</span>
           </div>
           <h1 className="text-4xl font-bold mb-3" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Yacht Charter</h1>
-          <p className="text-blue-200 text-lg max-w-xl mx-auto">Find your perfect charter vessel — from day trips to extended voyages worldwide.</p>
+          <p className="text-blue-200 text-lg max-w-xl mx-auto">Crewed luxury, bareboat freedom, day escapes — discover charter yachts worldwide.</p>
           <div className="mt-8 max-w-xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -284,10 +290,29 @@ export default function CharterPage() {
               </div>
             </FilterDropdown>
 
-            <FilterDropdown label="Guests" active={!!maxGuests}>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Max guests</label>
-              <input type="number" placeholder="e.g. 12" min={1} value={maxGuests} onChange={e => { setMaxGuests(e.target.value); setPage(1); }}
+            <FilterDropdown label="Group Size" active={!!maxGuests}>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Guests in your group</label>
+              <input type="number" placeholder="e.g. 8" min={1} value={maxGuests} onChange={e => { setMaxGuests(e.target.value); setPage(1); }}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+              <p className="text-xs text-gray-400 mt-1.5">Shows vessels that fit your group</p>
+            </FilterDropdown>
+
+            <FilterDropdown label="Duration" active={!!duration}>
+              <div className="flex flex-col gap-1">
+                {[
+                  { label: 'Any', value: '' },
+                  { label: 'Day Charter', value: 'day', sub: '1 day' },
+                  { label: 'Weekend Escape', value: 'weekend', sub: '2–3 days' },
+                  { label: 'Full Week', value: 'week', sub: '7 days' },
+                ].map(opt => (
+                  <button key={opt.value} onClick={() => { setDuration(opt.value); setPage(1); }}
+                    className="text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between"
+                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: duration === opt.value ? 'rgba(1,187,220,0.08)' : 'transparent', color: duration === opt.value ? '#01BBDC' : '#10214F', fontWeight: duration === opt.value ? 600 : 400 }}>
+                    <span>{opt.label}</span>
+                    {'sub' in opt && <span className="text-xs text-gray-400 ml-2">{opt.sub}</span>}
+                  </button>
+                ))}
+              </div>
             </FilterDropdown>
 
             <FilterDropdown label="Crew" active={!!crewIncluded}>

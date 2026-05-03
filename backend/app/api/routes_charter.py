@@ -1,15 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 import re
+import logging
+import os
 
 from app.db.session import get_db
 from app.models.charter import CharterListing
 from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
 
+logger = logging.getLogger(__name__)
+CHARTER_INQUIRY_EMAIL = os.getenv("CONTACT_EMAIL", "info@yachtversal.com")
+
 router = APIRouter()
+
+
+class CharterInquiryRequest(BaseModel):
+    charter_id: int
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    message: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    guests: Optional[int] = None
 
 
 def _slugify(text: str) -> str:
@@ -98,6 +115,7 @@ def list_charters(
     min_length: Optional[float] = Query(None),
     max_length: Optional[float] = Query(None),
     max_day_rate: Optional[float] = Query(None),
+    max_min_days: Optional[int] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -137,6 +155,13 @@ def list_charters(
         query = query.filter(CharterListing.length_feet <= max_length)
     if max_day_rate is not None:
         query = query.filter(CharterListing.day_rate <= max_day_rate)
+    if max_min_days is not None:
+        query = query.filter(
+            or_(
+                CharterListing.min_charter_days == None,
+                CharterListing.min_charter_days <= max_min_days,
+            )
+        )
 
     total = query.count()
     charters = query.order_by(CharterListing.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -163,6 +188,36 @@ def my_charters(
     return [_serialize(c) for c in charters]
 
 
+@router.get("/admin/all")
+def admin_list_all_charters(
+    q: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin only")
+    query = db.query(CharterListing)
+    if q:
+        q_like = f"%{q}%"
+        query = query.filter(
+            or_(
+                CharterListing.title.ilike(q_like),
+                CharterListing.vessel_name.ilike(q_like),
+                CharterListing.charter_company_name.ilike(q_like),
+            )
+        )
+    total = query.count()
+    results = query.order_by(CharterListing.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "results": [_serialize(c) for c in results],
+    }
+
+
 @router.get("/{charter_id}")
 def get_charter(charter_id: int, db: Session = Depends(get_db)):
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
@@ -172,9 +227,85 @@ def get_charter(charter_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/inquiry")
-def submit_inquiry(payload: dict, db: Session = Depends(get_db)):
-    """Accept inquiry submissions — currently a no-op stub that returns 200.
-    Hook into notification/email system as needed."""
+def submit_inquiry(data: CharterInquiryRequest, db: Session = Depends(get_db)):
+    """Forward charter inquiry to the charter company and confirm to the inquirer."""
+    charter = db.query(CharterListing).filter(CharterListing.id == data.charter_id).first()
+    vessel_name = charter.title if charter else f"Charter #{data.charter_id}"
+
+    dates_line = ""
+    if data.start_date or data.end_date:
+        dates_line = f"<p><strong>Desired Dates:</strong> {data.start_date or '—'} → {data.end_date or '—'}</p>"
+    guests_line = f"<p><strong>Guests:</strong> {data.guests}</p>" if data.guests else ""
+    phone_line = f"<p><strong>Phone:</strong> {data.phone}</p>" if data.phone else ""
+
+    inquiry_html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;">
+        <div style="background:#10214F;padding:28px 32px;border-radius:8px 8px 0 0;">
+            <h1 style="color:white;margin:0;font-size:22px;">YachtVersal</h1>
+            <p style="color:#01BBDC;margin:6px 0 0;font-size:14px;">Charter Inquiry</p>
+        </div>
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+            <h2 style="color:#10214F;margin:0 0 8px;">New Inquiry — {vessel_name}</h2>
+            <p><strong>From:</strong> {data.name}</p>
+            <p><strong>Email:</strong> <a href="mailto:{data.email}" style="color:#01BBDC;">{data.email}</a></p>
+            {phone_line}
+            {guests_line}
+            {dates_line}
+            <hr style="border-color:#e5e7eb;margin:20px 0;" />
+            <h3 style="color:#10214F;margin:0 0 8px;">Message</h3>
+            <p style="white-space:pre-wrap;color:#374151;">{data.message}</p>
+            <hr style="border-color:#e5e7eb;margin:20px 0;" />
+            <p style="color:#6b7280;font-size:12px;">Submitted via YachtVersal. Reply to this email to respond to {data.name}.</p>
+        </div>
+    </div>
+    """
+
+    confirmation_html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;">
+        <div style="background:#10214F;padding:28px 32px;border-radius:8px 8px 0 0;">
+            <h1 style="color:white;margin:0;font-size:22px;">YachtVersal</h1>
+        </div>
+        <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;">
+            <h2 style="color:#10214F;">Thanks for your inquiry, {data.name.split()[0]}!</h2>
+            <p style="color:#374151;">Your request for <strong>{vessel_name}</strong> has been received. The charter company will be in touch with you shortly.</p>
+            <p style="color:#6b7280;font-size:13px;margin-top:24px;">Questions? Reach us at <a href="mailto:{CHARTER_INQUIRY_EMAIL}" style="color:#01BBDC;">{CHARTER_INQUIRY_EMAIL}</a>.</p>
+        </div>
+    </div>
+    """
+
+    recipient = (
+        charter.charter_company_email
+        if charter and charter.charter_company_email
+        else CHARTER_INQUIRY_EMAIL
+    )
+    try:
+        from app.services.email_service import email_service
+        email_service.send_email(
+            to_email=recipient,
+            subject=f"[Charter Inquiry] {vessel_name} — {data.name}",
+            html_content=inquiry_html,
+            reply_to=str(data.email),
+        )
+        if recipient != CHARTER_INQUIRY_EMAIL:
+            email_service.send_email(
+                to_email=CHARTER_INQUIRY_EMAIL,
+                subject=f"[Charter Inquiry] {vessel_name} — {data.name}",
+                html_content=inquiry_html,
+                reply_to=str(data.email),
+            )
+    except Exception as e:
+        logger.error(f"Charter inquiry: failed to send notification: {e}")
+
+    try:
+        from app.services.email_service import email_service
+        email_service.send_email(
+            to_email=str(data.email),
+            subject=f"Charter inquiry received — {vessel_name}",
+            html_content=confirmation_html,
+        )
+    except Exception as e:
+        logger.warning(f"Charter inquiry: failed to send confirmation to {data.email}: {e}")
+
     return {"success": True}
 
 

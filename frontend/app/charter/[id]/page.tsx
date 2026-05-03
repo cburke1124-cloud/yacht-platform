@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -71,9 +71,24 @@ export default function CharterDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
   const [showInquiry, setShowInquiry] = useState(false);
-  const [inquiryForm, setInquiryForm] = useState({ name: '', email: '', phone: '', message: '', start_date: '', end_date: '' });
+  const [inquiryForm, setInquiryForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [charterStartDate, setCharterStartDate] = useState('');
+  const [charterEndDate, setCharterEndDate] = useState('');
+
+  const charterDays = useMemo(() => {
+    if (!charterStartDate || !charterEndDate) return 0;
+    const diff = new Date(charterEndDate).getTime() - new Date(charterStartDate).getTime();
+    return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)));
+  }, [charterStartDate, charterEndDate]);
+
+  const estimatedTotal = useMemo(() => {
+    if (!charterDays || !charter) return null;
+    if (charter.day_rate) return charterDays * charter.day_rate;
+    if (charter.week_rate) return Math.ceil(charterDays / 7) * charter.week_rate;
+    return null;
+  }, [charterDays, charter]);
 
   useEffect(() => {
     const fetchCharter = async () => {
@@ -101,7 +116,12 @@ export default function CharterDetailPage() {
       await fetch(apiUrl('/charter/inquiry'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ charter_id: charter?.id, ...inquiryForm }),
+        body: JSON.stringify({
+          charter_id: charter?.id,
+          ...inquiryForm,
+          start_date: charterStartDate || undefined,
+          end_date: charterEndDate || undefined,
+        }),
       });
       setSubmitted(true);
     } finally {
@@ -301,6 +321,38 @@ export default function CharterDetailPage() {
                 </p>
               )}
 
+              {/* Preferred dates — always visible */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Preferred Dates</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-400 block mb-1">Start date</label>
+                    <input
+                      type="date"
+                      value={charterStartDate}
+                      onChange={e => setCharterStartDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 block mb-1">End date</label>
+                    <input
+                      type="date"
+                      value={charterEndDate}
+                      min={charterStartDate || undefined}
+                      onChange={e => setCharterEndDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+                {estimatedTotal !== null && (
+                  <p className="text-xs text-gray-600 mt-2">
+                    Estimated total: <span className="font-semibold text-gray-900">{charter.currency === 'USD' ? '$' : charter.currency}{estimatedTotal.toLocaleString()}</span>
+                    <span className="text-gray-400"> ({charterDays} day{charterDays !== 1 ? 's' : ''})</span>
+                  </p>
+                )}
+              </div>
+
               {charter.booking_url ? (
                 <a
                   href={charter.booking_url}
@@ -326,16 +378,6 @@ export default function CharterDetailPage() {
                   <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Desired start</label>
-                      <input type="date" value={inquiryForm.start_date} onChange={e => setInquiryForm(f => ({ ...f, start_date: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">End date</label>
-                      <input type="date" value={inquiryForm.end_date} onChange={e => setInquiryForm(f => ({ ...f, end_date: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                  </div>
                   <textarea required rows={3} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
                   <button type="submit" disabled={submitting} className="w-full bg-[#C9A84C] text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-[#b8933f] transition-colors disabled:opacity-50">
                     {submitting ? 'Sending...' : 'Send Request'}
