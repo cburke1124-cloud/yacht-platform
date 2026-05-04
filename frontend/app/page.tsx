@@ -442,7 +442,18 @@ export default function HomePage() {
           }}
         >
           <AISearchBox />
-          <SearchBar showAIOption={false} />
+          {/* Full filter bar — hidden on mobile (too wide), replaced with a link */}
+          <div className="hidden sm:block">
+            <SearchBar showAIOption={false} />
+          </div>
+          <div className="sm:hidden px-4 pb-5">
+            <Link
+              href="/listings"
+              className="flex items-center justify-center w-full text-sm font-medium text-[#10214F] border border-gray-200 rounded-xl py-3 bg-white hover:bg-gray-50 transition-colors"
+            >
+              Browse with filters →
+            </Link>
+          </div>
         </div>
       </section>
 
