@@ -669,10 +669,10 @@ function BrowseContent() {
         </div>
       </div>
 
-      {/* ══════ STICKY SEARCH + FILTER BAR ══════ */}
+      {/* ══════ SEARCH + FILTER BAR ══════ */}
       <div
         ref={searchBarRef}
-        className="sticky top-0 z-40"
+        className="relative z-10"
         style={{
           backgroundColor: '#FFFFFF',
           borderBottom: '1px solid rgba(16,33,79,0.08)',
