@@ -147,7 +147,7 @@ function AISearchBox() {
       style={{
         background: '#FFFFFF',
         borderRadius: '24px 24px 0 0',
-        padding: '22px 0 18px 0',
+        padding: '22px 16px 18px 16px',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -201,7 +201,7 @@ function AISearchBox() {
 
       <form
         onSubmit={handleSearch}
-        className="flex items-center gap-3 mx-auto"
+        className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mx-auto"
         style={{ maxWidth: 799, paddingLeft: 0, paddingRight: 0 }}
         role="search"
         aria-label="Yacht search"
@@ -244,7 +244,7 @@ function AISearchBox() {
         <button
           type="submit"
           aria-label="Search for yachts"
-          className="text-white font-medium transition-opacity hover:opacity-90 whitespace-nowrap"
+          className="text-white font-medium transition-opacity hover:opacity-90 whitespace-nowrap w-full sm:w-auto"
           style={{
             backgroundColor: '#01BBDC',
             fontFamily: 'Poppins, sans-serif',
@@ -252,9 +252,11 @@ function AISearchBox() {
             lineHeight: '24px',
             fontWeight: 500,
             borderRadius: 999,
-            width: 155,
+            width: undefined,
             height: 56,
             flexShrink: 0,
+            paddingLeft: 24,
+            paddingRight: 24,
           }}
         >
           Quick Search
@@ -361,10 +363,10 @@ export default function HomePage() {
   return (
     <main className="relative bg-white">
 
-      {/* HERO */}
+      {/* HERO — hidden on mobile */}
       <section
         aria-label="Hero"
-        className="relative overflow-hidden"
+        className="relative overflow-hidden hidden md:block"
         style={{ height: 'clamp(480px, 60vh, 720px)' }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
