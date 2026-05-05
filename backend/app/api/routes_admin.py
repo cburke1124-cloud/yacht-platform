@@ -3737,3 +3737,58 @@ def update_founding_broker_signup(
         signup.notes = body.notes
     db.commit()
     return {"success": True}
+
+
+# ── Email diagnostics ─────────────────────────────────────────────────────────
+
+@router.get("/email-diagnostics")
+def email_diagnostics(current_user: User = Depends(require_admin)):
+    """
+    Returns email service configuration state and attempts a live test send
+    to the admin's own email address. Use this to confirm SendGrid is wired
+    up correctly on the production server.
+    """
+    import os
+    from app.services.email_service import email_service
+
+    raw_key = os.getenv("SENDGRID_API_KEY", "")
+    key_status = "not set"
+    if raw_key:
+        if raw_key.strip().lower() in {"your-sendgrid-api-key", "changeme", "placeholder"}:
+            key_status = "placeholder value"
+        else:
+            key_status = f"set ({len(raw_key)} chars, starts with {raw_key[:6]}...)"
+
+    config = {
+        "sendgrid_api_key": key_status,
+        "from_email": email_service.from_email,
+        "from_name": email_service.from_name,
+        "notifications_email": email_service.notifications_email,
+        "base_url": email_service.base_url,
+        "api_key_loaded_in_service": bool(email_service.api_key),
+    }
+
+    # Attempt a live test send to the calling admin's email
+    test_result: dict = {"attempted": True, "success": False, "error": None}
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        msg = Mail(
+            from_email=(email_service.from_email, email_service.from_name),
+            to_emails=current_user.email,
+            subject="[YachtVersal] Email diagnostics test",
+            html_content=(
+                "<p>This is a test email sent from the "
+                "<strong>/api/admin/email-diagnostics</strong> endpoint.</p>"
+                "<p>If you received this, SendGrid is configured correctly.</p>"
+            ),
+        )
+        sg = SendGridAPIClient(email_service.api_key)
+        response = sg.send(msg)
+        test_result["success"] = True
+        test_result["status_code"] = response.status_code
+        test_result["sent_to"] = current_user.email
+    except Exception as e:
+        test_result["error"] = str(e)
+
+    return {"config": config, "test_send": test_result}
