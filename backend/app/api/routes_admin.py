@@ -26,6 +26,7 @@ from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.partner_growth import PartnerDeal
 from app.models.partner_growth import PartnerOffer
 from app.models.misc import SiteSettings, ScraperJob, ScrapedListing
+from app.models.misc import FoundingBrokerSignup
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -3679,3 +3680,60 @@ def bulk_update_scraped_listing_status(
 
     db.commit()
     return {"success": True, "updated": updated}
+
+# ---------------------------------------------------------------------------
+# Founding Broker Signups
+# ---------------------------------------------------------------------------
+
+@router.get("/founding-broker-signups")
+def list_founding_broker_signups(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Return all founding broker signups, newest first."""
+    signups = (
+        db.query(FoundingBrokerSignup)
+        .order_by(FoundingBrokerSignup.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "email": s.email,
+            "company_name": s.company_name,
+            "website": s.website,
+            "phone": s.phone,
+            "years_experience": s.years_experience,
+            "message": s.message,
+            "status": s.status,
+            "notes": s.notes,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in signups
+    ]
+
+
+class FoundingBrokerStatusUpdate(BaseModel):
+    status: str          # new | contacted | approved | declined
+    notes: Optional[str] = None
+
+
+@router.patch("/founding-broker-signups/{signup_id}")
+def update_founding_broker_signup(
+    signup_id: int,
+    body: FoundingBrokerStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    signup = db.query(FoundingBrokerSignup).filter(FoundingBrokerSignup.id == signup_id).first()
+    if not signup:
+        raise HTTPException(status_code=404, detail="Signup not found")
+    allowed = {"new", "contacted", "approved", "declined"}
+    if body.status not in allowed:
+        raise HTTPException(status_code=400, detail=f"status must be one of {allowed}")
+    signup.status = body.status
+    if body.notes is not None:
+        signup.notes = body.notes
+    db.commit()
+    return {"success": True}

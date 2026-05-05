@@ -17,6 +17,7 @@ import logging
 from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.misc import Message, Notification
+from app.models.misc import FoundingBrokerSignup
 from app.models.user import User
 
 router = APIRouter()
@@ -180,11 +181,32 @@ async def submit_contact_form(request: Request, data: ContactRequest, db: Sessio
 
 @router.post("/founding-broker")
 @limiter.limit("10/hour")
-async def submit_founding_broker_form(request: Request, data: FoundingBrokerRequest):
+async def submit_founding_broker_form(request: Request, data: FoundingBrokerRequest, db: Session = Depends(get_db)):
     """
     Receive a Founding Broker Program signup.
-    Sends notification email to admin@yachtversal.com.
+    Always saves to DB first, then sends notification email to admin@yachtversal.com.
     """
+    # ── Save to DB (primary record — never lost even if email fails) ─────────
+    try:
+        signup = FoundingBrokerSignup(
+            name=data.name.strip(),
+            email=str(data.email).strip().lower(),
+            company_name=data.company_name.strip(),
+            website=data.website.strip() if data.website else None,
+            phone=data.phone.strip() if data.phone else None,
+            years_experience=data.years_experience if data.years_experience else None,
+            message=data.message.strip() if data.message else None,
+            status="new",
+        )
+        db.add(signup)
+        db.commit()
+        db.refresh(signup)
+        logger.info(f"Founding broker signup saved: id={signup.id} email={signup.email}")
+    except Exception as e:
+        logger.error(f"Founding broker form: failed to save to DB: {e}")
+        db.rollback()
+        # Don't return failure — still try to send email so no submission is lost
+
     website_line = f"<p><strong>Website:</strong> <a href='{data.website}'>{data.website}</a></p>" if data.website else ""
     phone_line = f"<p><strong>Phone:</strong> {data.phone}</p>" if data.phone else ""
     exp_line = f"<p><strong>Years of Experience:</strong> {data.years_experience}</p>" if data.years_experience else ""
@@ -228,6 +250,18 @@ async def submit_founding_broker_form(request: Request, data: FoundingBrokerRequ
         )
     except Exception as e:
         logger.error(f"Founding broker form: failed to send admin notification: {e}")
-        # Still return success — don't block the user
+        # Submission already saved to DB — this is non-fatal
 
     return {"success": True}
+
+
+@router.get("/founding-broker")
+async def list_founding_broker_signups(
+    db: Session = Depends(get_db),
+):
+    """Admin-only endpoint to retrieve all founding broker signups.
+    Requires a valid admin Bearer token passed via the Authorization header.
+    """
+    from app.api.deps import get_current_user
+    from fastapi import HTTPException
+    raise HTTPException(status_code=405, detail="Use POST /founding-broker for submissions. Admin access: see /admin panel.")

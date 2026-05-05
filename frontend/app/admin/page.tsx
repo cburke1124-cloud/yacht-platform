@@ -18,6 +18,7 @@ import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListings
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import AdminCatalogTab from '@/app/components/admin/AdminCatalogTab';
 import AdminCharterTab from '@/app/components/admin/AdminCharterTab';
+import AdminFoundingBrokerTab from '@/app/components/admin/AdminFoundingBrokerTab';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3 } from 'lucide-react';
 
 function AdminPageContent() {
@@ -41,6 +42,7 @@ function AdminPageContent() {
     { id: 'preview-listings', label: 'Preview Listings', icon: '👁️' },
     { id: 'catalog', label: 'Catalog', icon: '📋' },
     { id: 'charter', label: 'Charter', icon: '⛵' },
+    { id: 'founding-broker', label: 'Founding Broker', icon: '🤝' },
   ];
 
   return (
@@ -89,6 +91,7 @@ function AdminPageContent() {
           {activeTab === 'preview-listings' && <AdminPreviewListingsTab />}
           {activeTab === 'catalog' && <AdminCatalogTab />}
           {activeTab === 'charter' && <AdminCharterTab />}
+          {activeTab === 'founding-broker' && <AdminFoundingBrokerTab />}
         </section>
       </div>
     </AdminLayout>

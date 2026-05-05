@@ -579,3 +579,20 @@ class YachtworldSyncJob(Base):
     last_run_log = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class FoundingBrokerSignup(Base):
+    """Stores every Founding Broker Program form submission as a permanent record."""
+    __tablename__ = "founding_broker_signups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, index=True)
+    company_name = Column(String, nullable=False)
+    website = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    years_experience = Column(String, nullable=True)
+    message = Column(Text, nullable=True)
+    status = Column(String, default="new")   # new | contacted | approved | declined
+    notes = Column(Text, nullable=True)      # admin-only internal notes
+    created_at = Column(DateTime, default=datetime.utcnow)
