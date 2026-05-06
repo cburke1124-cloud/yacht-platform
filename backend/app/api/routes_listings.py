@@ -1386,6 +1386,12 @@ def attach_listing_media(
         raise AuthorizationException("Not authorized to update listing media")
 
     media_ids = [mid for mid in payload.media_ids if isinstance(mid, int)]
+
+    # Permanently remove legacy ListingImage rows for this listing.
+    # Once the new media system is used (media/attach called), scraped fallback
+    # images are superseded and should never reappear after attachment deletion.
+    db.query(ListingImage).filter(ListingImage.listing_id == listing_id).delete()
+
     if not media_ids:
         db.query(ListingMediaAttachment).filter(ListingMediaAttachment.listing_id == listing_id).delete()
         db.commit()

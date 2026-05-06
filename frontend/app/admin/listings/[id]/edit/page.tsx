@@ -67,7 +67,10 @@ export default function AdminListingEditPage() {
         const mData = await res.json();
         const items = mData.media || [];
         setMediaItems(items);
-        setUsingNewMediaSystem(true); // after any upload, we're definitely in new system
+        // Only mark as new system if the returned items actually have MediaFile metadata (width/height).
+        // Legacy scraped images return width=null and must not be treated as new-system records.
+        const hasNewSystemItems = items.length > 0 && items.some((i: any) => i.width !== undefined && i.width !== null);
+        setUsingNewMediaSystem(prev => prev || hasNewSystemItems);
       }
     } catch { /* silent */ }
   }
