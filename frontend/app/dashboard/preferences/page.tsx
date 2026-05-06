@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Globe, DollarSign, Ruler, Clock, Save } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { saveLocaleToStorage } from '@/app/lib/locale';
 
 type Preferences = {
   language: string;
@@ -67,6 +68,18 @@ export default function PreferencesPage() {
   ];
 
   useEffect(() => {
+    // Seed defaults from localStorage before the API fetch completes
+    const savedCurrency = localStorage.getItem('preferredCurrency');
+    const savedUnits = localStorage.getItem('preferredUnits') as 'imperial' | 'metric' | null;
+    const savedLanguage = localStorage.getItem('preferredLanguage');
+    if (savedCurrency || savedUnits || savedLanguage) {
+      setPreferences(prev => ({
+        ...prev,
+        ...(savedCurrency ? { currency: savedCurrency } : {}),
+        ...(savedUnits ? { units: savedUnits } : {}),
+        ...(savedLanguage ? { language: savedLanguage } : {}),
+      }));
+    }
     fetchPreferences();
     fetchRates();
   }, []);
@@ -115,6 +128,7 @@ export default function PreferencesPage() {
       });
 
       if (response.ok) {
+        saveLocaleToStorage(preferences.currency, preferences.units, preferences.language);
         alert('✅ Preferences saved! Reload the page to see changes.');
       } else {
         alert('Failed to save preferences');

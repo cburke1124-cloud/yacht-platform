@@ -9,6 +9,7 @@ import {
 import ListingCard from '../components/ListingCard';
 import { apiUrl } from '@/app/lib/apiRoot';
 import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
+import { detectLocaleDefaults } from '@/app/lib/locale';
 
 // ΓöÇΓöÇΓöÇ Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
@@ -404,14 +405,21 @@ function BrowseContent() {
     setPage(0);
   };
 
-  // Currency
+  // Currency — read saved preference or auto-detect from browser locale
   useEffect(() => {
     fetch(apiUrl('/currencies/rates'))
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data?.rates) setExchangeRates(data.rates); })
       .catch(() => {});
     const saved = localStorage.getItem('preferredCurrency');
-    if (saved) setCurrency(saved);
+    if (saved) {
+      setCurrency(saved);
+    } else {
+      const { currency, units } = detectLocaleDefaults();
+      setCurrency(currency);
+      localStorage.setItem('preferredCurrency', currency);
+      localStorage.setItem('preferredUnits', units);
+    }
   }, []);
 
   // Makes

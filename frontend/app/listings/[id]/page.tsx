@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
+import { detectLocaleDefaults, fmtLength, fmtCapacity, fmtWeight, fmtFuelBurn } from '@/app/lib/locale';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,7 @@ export default function ListingDetailPage() {
   const [loading,      setLoading]      = useState(true);
   const [currencies,   setCurrencies]   = useState<CurrencyRates | null>(null);
   const [displayCurrency, setDisplayCurrency] = useState('USD');
+  const [displayUnits, setDisplayUnits] = useState<'imperial' | 'metric'>('imperial');
 
   // gallery lightbox
   const [lightbox,     setLightbox]     = useState<number | null>(null);
@@ -184,6 +186,23 @@ export default function ListingDetailPage() {
     Promise.all([fetchListing(), fetchMedia(), fetchContact(), checkSaved(), loadComps(), fetchCurrencies()])
       .finally(() => setLoading(false));
   }, [id]);
+
+  // ── locale / unit preference (runs once on mount) ─────────────────────────
+
+  useEffect(() => {
+    const savedCurrency = localStorage.getItem('preferredCurrency');
+    const savedUnits = localStorage.getItem('preferredUnits') as 'imperial' | 'metric' | null;
+    if (savedCurrency || savedUnits) {
+      if (savedCurrency) setDisplayCurrency(savedCurrency);
+      if (savedUnits) setDisplayUnits(savedUnits);
+    } else {
+      const { currency, units } = detectLocaleDefaults();
+      setDisplayCurrency(currency);
+      setDisplayUnits(units);
+      localStorage.setItem('preferredCurrency', currency);
+      localStorage.setItem('preferredUnits', units);
+    }
+  }, []);
 
   async function fetchListing() {
     try { const r = await fetch(`${API_ROOT}/listings/${id}`); if (r.ok) setListing(await r.json()); } catch {}
@@ -706,7 +725,7 @@ export default function ListingDetailPage() {
             {currencies && (
               <select 
                 value={displayCurrency}
-                onChange={e => setDisplayCurrency(e.target.value)}
+                onChange={e => { setDisplayCurrency(e.target.value); localStorage.setItem('preferredCurrency', e.target.value); }}
                 className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600">
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
@@ -1034,7 +1053,7 @@ export default function ListingDetailPage() {
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                 {[
-                  { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: listing.length_feet ? `${listing.length_feet} ft` : null },
+                  { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: fmtLength(listing.length_feet, displayUnits) },
                   { icon: <Users size={20} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
                   { icon: <Bed size={20} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
                   { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
@@ -1222,9 +1241,9 @@ export default function ListingDetailPage() {
                   <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
                   Dimensions
                 </h4>
-                <SpecRow label="LOA"           value={listing.length_feet ? `${listing.length_feet} ft` : null} />
-                <SpecRow label="Beam"          value={listing.beam_feet ? `${listing.beam_feet} ft` : null} />
-                <SpecRow label="Draft"         value={listing.draft_feet ? `${listing.draft_feet} ft` : null} />
+                <SpecRow label="LOA"           value={fmtLength(listing.length_feet, displayUnits)} />
+                <SpecRow label="Beam"          value={fmtLength(listing.beam_feet, displayUnits)} />
+                <SpecRow label="Draft"         value={fmtLength(listing.draft_feet, displayUnits)} />
                 <SpecRow label="Hull Material" value={listing.hull_material} />
                 <SpecRow label="Hull Type"     value={listing.hull_type} />
               </div>
@@ -1249,15 +1268,15 @@ export default function ListingDetailPage() {
                 <SpecRow label="Max Speed"        value={listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null} />
                 <SpecRow label="Cruise Speed"      value={listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null} />
                 <SpecRow label="Fuel Type"         value={listing.fuel_type} />
-                <SpecRow label="Fuel Capacity"     value={listing.fuel_capacity_gallons ? `${fmt(listing.fuel_capacity_gallons)} gal` : null} />
-                <SpecRow label="Water Capacity"    value={listing.water_capacity_gallons ? `${fmt(listing.water_capacity_gallons)} gal` : null} />
-                <SpecRow label="Displacement"      value={listing.additional_specs?.displacement_lbs ? `${fmt(listing.additional_specs.displacement_lbs)} lbs` : null} />
-                <SpecRow label="Dry Weight"        value={listing.additional_specs?.dry_weight_lbs ? `${fmt(listing.additional_specs.dry_weight_lbs)} lbs` : null} />
-                <SpecRow label="Bridge Clearance"  value={listing.additional_specs?.bridge_clearance_feet ? `${listing.additional_specs.bridge_clearance_feet} ft` : null} />
+                <SpecRow label="Fuel Capacity"     value={fmtCapacity(listing.fuel_capacity_gallons, displayUnits)} />
+                <SpecRow label="Water Capacity"    value={fmtCapacity(listing.water_capacity_gallons, displayUnits)} />
+                <SpecRow label="Displacement"      value={fmtWeight(listing.additional_specs?.displacement_lbs, displayUnits)} />
+                <SpecRow label="Dry Weight"        value={fmtWeight(listing.additional_specs?.dry_weight_lbs, displayUnits)} />
+                <SpecRow label="Bridge Clearance"  value={fmtLength(listing.additional_specs?.bridge_clearance_feet, displayUnits)} />
                 <SpecRow label="Deadrise"          value={listing.additional_specs?.deadrise_degrees ? `${listing.additional_specs.deadrise_degrees}°` : null} />
                 <SpecRow label="Range"             value={listing.additional_specs?.cruising_range_nm ? `${fmt(listing.additional_specs.cruising_range_nm)} nm` : null} />
-                <SpecRow label="Fuel Burn"         value={listing.additional_specs?.fuel_burn_gph ? `${listing.additional_specs.fuel_burn_gph} gph` : null} />
-                <SpecRow label="Holding Tank"      value={listing.additional_specs?.holding_tank_gallons ? `${fmt(listing.additional_specs.holding_tank_gallons)} gal` : null} />
+                <SpecRow label="Fuel Burn"         value={fmtFuelBurn(listing.additional_specs?.fuel_burn_gph, displayUnits)} />
+                <SpecRow label="Holding Tank"      value={fmtCapacity(listing.additional_specs?.holding_tank_gallons, displayUnits)} />
               </div>
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
                 <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
