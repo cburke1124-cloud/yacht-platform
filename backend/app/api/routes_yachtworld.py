@@ -332,9 +332,12 @@ def get_yw_raw_sample(
     req_headers = {"Accept": "application/vnd.dmm-v1+json", "User-Agent": "YachtVersal/1.0"}
 
     try:
+        from app.services.yachtworld_api import _iyba_proxies
+        _proxies = _iyba_proxies() if job.feed_type == "iyba" else {}
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             resp = _requests.get(base_url, params=params, headers=req_headers,
+                                 proxies=_proxies or None,
                                  timeout=30, verify=False)
         resp.raise_for_status()
         payload = resp.json()

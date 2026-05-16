@@ -32,6 +32,19 @@ from app.services.scraper import _apply_scraped_data
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Outbound proxy (QuotaGuard Static — required for IYBA whitelisted IP)
+# Set QUOTAGUARD_URL in Render env vars, e.g.:
+#   http://2csstyhiyqtdth:<password>@us-east-static-02.quotaguard.com:9293
+# ---------------------------------------------------------------------------
+_QUOTAGUARD_URL: str = os.getenv("QUOTAGUARD_URL", "")
+
+def _iyba_proxies() -> dict:
+    """Return a proxies dict for requests if QUOTAGUARD_URL is set."""
+    if _QUOTAGUARD_URL:
+        return {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
+    return {}
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -968,6 +981,9 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
             break
 
         params = {**_existing_params, "key": api_key, "limit": 100, "page": page}
+        _proxies = _iyba_proxies()
+        if _proxies:
+            _log("info", f"Using proxy: {_mask_proxy(_QUOTAGUARD_URL)}")
         try:
             resp = requests.get(
                 base_url,
@@ -976,6 +992,7 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
                     "User-Agent": "YachtVersal/1.0",
                     "Accept": "application/json",
                 },
+                proxies=_proxies or None,
                 timeout=60,
                 verify=False,
             )
