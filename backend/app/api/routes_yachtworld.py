@@ -298,6 +298,42 @@ def get_yw_job_log(
     }
 
 
+@router.get("/yachtworld/debug/proxy-ip")
+def debug_proxy_ip(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Temporary diagnostic endpoint — returns the outbound IP seen by the internet.
+    Use to verify the QuotaGuard proxy is active before setting QUOTAGUARD_URL as
+    an env var in Render.  DELETE this endpoint after testing is confirmed.
+    """
+    import requests as _req
+
+    _require_admin(current_user)
+
+    from app.services.yachtworld_api import _iyba_proxies, _QUOTAGUARD_URL
+
+    proxies = _iyba_proxies()
+    try:
+        r = _req.get(
+            "https://api.ipify.org?format=json",
+            proxies=proxies or None,
+            timeout=15,
+        )
+        r.raise_for_status()
+        return {
+            "outbound_ip": r.json().get("ip"),
+            "proxy_active": bool(proxies),
+            "quotaguard_url_set": bool(_QUOTAGUARD_URL),
+        }
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "proxy_active": bool(proxies),
+            "quotaguard_url_set": bool(_QUOTAGUARD_URL),
+        }
+
+
 @router.get("/yachtworld/jobs/{job_id}/raw-sample")
 def get_yw_raw_sample(
     job_id: int,
