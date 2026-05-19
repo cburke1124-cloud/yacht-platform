@@ -38,48 +38,67 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _QUOTAGUARD_URL: str = os.getenv("QUOTAGUARD_URL", "")
 
+
+def _iyba_request(
+    url: str,
+    *,
+    params: dict | None = None,
+    timeout: int = 60,
+) -> "Any":
+    """
+    GET request for IYBA feed data, routing through QuotaGuard if configured.
+    Uses urllib3.ProxyManager directly (bypasses requests) because requests
+    does not reliably forward Proxy-Authorization into HTTPS CONNECT tunnels
+    in all urllib3 versions.
+
+    Returns a minimal response wrapper with .status_code, .json(), .raise_for_status().
+    """
+    import json as _json
+    import urllib3
+    from urllib.parse import urlparse, urlencode
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    full_url = f"{url}?{urlencode(params)}" if params else url
+    req_headers = {"User-Agent": "YachtVersal/1.0", "Accept": "application/json"}
+
+    if _QUOTAGUARD_URL:
+        parsed = urlparse(_QUOTAGUARD_URL)
+        proxy_root = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+        proxy_auth = f"{parsed.username}:{parsed.password}"
+        http: urllib3.PoolManager = urllib3.ProxyManager(
+            proxy_root,
+            proxy_headers=urllib3.make_headers(proxy_basic_auth=proxy_auth),
+            timeout=urllib3.Timeout(connect=30, read=timeout),
+            cert_reqs="CERT_NONE",
+        )
+    else:
+        http = urllib3.PoolManager(
+            timeout=urllib3.Timeout(connect=30, read=timeout),
+            cert_reqs="CERT_NONE",
+        )
+
+    raw = http.request("GET", full_url, headers=req_headers)
+
+    class _Resp:
+        status_code: int = raw.status
+        _data: bytes = raw.data
+
+        def json(self) -> Any:
+            return _json.loads(self._data.decode("utf-8"))
+
+        def raise_for_status(self) -> None:
+            if raw.status >= 400:
+                raise RuntimeError(f"HTTP {raw.status} from {url}")
+
+    return _Resp()
+
+
+# Keep _iyba_proxies for any legacy callers that still reference it.
 def _iyba_proxies() -> dict:
-    """Return a proxies dict for requests if QUOTAGUARD_URL is set."""
     if _QUOTAGUARD_URL:
         return {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
     return {}
-
-
-def _iyba_proxy_session() -> "requests.Session":
-    """
-    Return a requests.Session pre-configured for the QuotaGuard proxy.
-    Uses a custom HTTPAdapter that overrides proxy_headers() so the
-    Proxy-Authorization header is explicitly injected into the CONNECT
-    tunnel request (works around urllib3 not forwarding embedded URL
-    credentials for HTTPS CONNECT in some versions).
-    """
-    from urllib.parse import urlparse
-    from requests.adapters import HTTPAdapter
-    import base64
-
-    session = requests.Session()
-    if not _QUOTAGUARD_URL:
-        return session
-
-    parsed = urlparse(_QUOTAGUARD_URL)
-    _creds_b64 = ""
-    if parsed.username and parsed.password:
-        _creds_b64 = base64.b64encode(
-            f"{parsed.username}:{parsed.password}".encode()
-        ).decode()
-
-    class _ProxyAuthAdapter(HTTPAdapter):
-        """Injects Proxy-Authorization into every CONNECT request."""
-        def proxy_headers(self, proxy):  # noqa: ARG002
-            if _creds_b64:
-                return {"Proxy-Authorization": f"Basic {_creds_b64}"}
-            return {}
-
-    adapter = _ProxyAuthAdapter()
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    session.proxies = {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
-    return session
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1009,7 +1028,6 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
     job.last_run_log = list(run_log)
     db.commit()
 
-    _session = _iyba_proxy_session()
     if _QUOTAGUARD_URL:
         _log("info", f"Using proxy: {_mask_proxy(_QUOTAGUARD_URL)}")
 
@@ -1023,19 +1041,10 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
 
         params = {**_existing_params, "key": api_key, "limit": 100, "page": page}
         try:
-            resp = _session.get(
-                base_url,
-                params=params,
-                headers={
-                    "User-Agent": "YachtVersal/1.0",
-                    "Accept": "application/json",
-                },
-                timeout=60,
-                verify=False,
-            )
+            resp = _iyba_request(base_url, params=params, timeout=60)
             resp.raise_for_status()
             payload = resp.json()
-        except requests.exceptions.HTTPError as http_exc:
+        except RuntimeError as http_exc:
             raise RuntimeError(f"IYBA API error (page {page}): {http_exc}") from http_exc
         except Exception as exc:
             raise RuntimeError(f"IYBA API fetch failed (page {page}): {exc}") from exc

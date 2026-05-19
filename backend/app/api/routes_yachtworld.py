@@ -309,14 +309,10 @@ def debug_proxy_ip(
     """
     _require_admin(current_user)
 
-    from app.services.yachtworld_api import _iyba_proxy_session, _QUOTAGUARD_URL
+    from app.services.yachtworld_api import _iyba_request, _QUOTAGUARD_URL
 
-    sess = _iyba_proxy_session()
     try:
-        r = sess.get(
-            "https://api.ipify.org?format=json",
-            timeout=15,
-        )
+        r = _iyba_request("https://api.ipify.org", params={"format": "json"}, timeout=15)
         r.raise_for_status()
         return {
             "outbound_ip": r.json().get("ip"),
@@ -365,12 +361,14 @@ def get_yw_raw_sample(
     req_headers = {"Accept": "application/vnd.dmm-v1+json", "User-Agent": "YachtVersal/1.0"}
 
     try:
-        from app.services.yachtworld_api import _iyba_proxy_session
-        _sess = _iyba_proxy_session() if job.feed_type == "iyba" else _requests.Session()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            resp = _sess.get(base_url, params=params, headers=req_headers,
-                             timeout=30, verify=False)
+        from app.services.yachtworld_api import _iyba_request
+        if job.feed_type == "iyba":
+            resp = _iyba_request(base_url, params={**params}, timeout=30)
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                resp = _requests.get(base_url, params=params, headers=req_headers,
+                                     timeout=30, verify=False)
         resp.raise_for_status()
         payload = resp.json()
     except Exception as exc:
