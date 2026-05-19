@@ -13,6 +13,7 @@ interface Plan {
   id: string;
   name: string;
   price: number;
+  original_price?: number;
   interval: string;
   features: string[];
   popular?: boolean;
@@ -263,6 +264,15 @@ export default function BillingPage() {
         </div>
       )}
 
+      {/* Limited-time promo banner */}
+      <div className="mb-8 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white text-center shadow-lg">
+        <p className="text-sm font-semibold uppercase tracking-widest mb-1 opacity-90">Limited Time — Founding Member Offer</p>
+        <p className="text-2xl font-black mb-1">Up to 75% Off — Price Locked In For Life</p>
+        <p className="text-sm opacity-90">
+          Subscribe during our launch and your rate never increases, no matter what future pricing looks like.
+        </p>
+      </div>
+
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-[#10214F] mb-3">Choose Your Plan</h1>
@@ -355,7 +365,15 @@ export default function BillingPage() {
                 <div className="flex items-baseline gap-2">
                   <span className="text-5xl font-bold text-[#01BBDC]">${plan.price}</span>
                   <span className="text-gray-500 text-lg">/{plan.interval}</span>
+                  {plan.original_price && !plan.custom_price && (
+                    <span className="text-lg text-gray-400 line-through ml-1">${plan.original_price}</span>
+                  )}
                 </div>
+                {plan.original_price && !plan.custom_price && (
+                  <p className="text-xs font-semibold text-amber-600 mt-1">
+                    🔒 Launch price — locked in for life
+                  </p>
+                )}
                 {plan.custom_price && (
                   <p className="text-xs text-[#01BBDC] font-medium mt-1">Custom pricing applied</p>
                 )}

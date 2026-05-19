@@ -3093,10 +3093,10 @@ def update_deal_admin(
 
 # Stripe Price IDs per tier (set once, never change unless prices are archived)
 _TIER_PRICE_IDS: dict[str, str] = {
-    "private_basic": "price_1TCAZnL4JS1hgLQ47vqo1cxG",
-    "basic":         "price_1TC5gGL4JS1hgLQ4JyJFBqeW",
-    "plus":          "price_1TC5gUL4JS1hgLQ4Hz3mYvu4",
-    "pro":           "price_1TC5ggL4JS1hgLQ49EwDBFKg",
+    "private_basic": "price_1TYoBaL4JS1hgLQ4s3FURYvo",
+    "basic":         "price_1TYoCPL4JS1hgLQ4V95Xd1cr",
+    "plus":          "price_1TYoCAL4JS1hgLQ4vK6TmSml",
+    "pro":           "price_1TYoByL4JS1hgLQ4D0TdxUbB",
 }
 
 @router.get("/offers")

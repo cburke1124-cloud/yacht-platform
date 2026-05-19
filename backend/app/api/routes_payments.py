@@ -29,7 +29,8 @@ DEALER_PLANS = [
     {
         "id": "basic",
         "name": "Basic",
-        "price": 199,
+        "price": 49,
+        "original_price": 199,
         "interval": "month",
         "features": [
             "25 active listings",
@@ -42,7 +43,8 @@ DEALER_PLANS = [
     {
         "id": "plus",
         "name": "Plus",
-        "price": 299,
+        "price": 99,
+        "original_price": 299,
         "popular": True,
         "interval": "month",
         "features": [
@@ -57,7 +59,8 @@ DEALER_PLANS = [
     {
         "id": "pro",
         "name": "Pro",
-        "price": 499,
+        "price": 199,
+        "original_price": 499,
         "interval": "month",
         "features": [
             "Unlimited listings",
