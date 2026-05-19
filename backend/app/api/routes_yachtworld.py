@@ -302,29 +302,75 @@ def get_yw_job_log(
 def debug_proxy_ip(
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Temporary diagnostic endpoint — returns the outbound IP seen by the internet.
-    Use to verify the QuotaGuard proxy is active before setting QUOTAGUARD_URL as
-    an env var in Render.  DELETE this endpoint after testing is confirmed.
-    """
+    """Diagnostic endpoint — tests proxy connectivity and IYBA reachability."""
+    import urllib3
+    import socket
+    import base64
+    from urllib.parse import urlparse
+
     _require_admin(current_user)
+    from app.services.yachtworld_api import _QUOTAGUARD_URL
 
-    from app.services.yachtworld_api import _iyba_request, _QUOTAGUARD_URL
+    results: dict = {"quotaguard_url_set": bool(_QUOTAGUARD_URL)}
 
+    # Show sanitised proxy URL prefix so we can verify it's being read correctly
+    if _QUOTAGUARD_URL:
+        results["proxy_url_prefix"] = _QUOTAGUARD_URL[:35] + "..."
+    
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    # ── Test 1: raw TCP + CONNECT to verify proxy credentials ──────────────
+    tcp_result = {}
     try:
-        r = _iyba_request("https://api.ipify.org", params={"format": "json"}, timeout=15)
-        r.raise_for_status()
-        return {
-            "outbound_ip": r.json().get("ip"),
-            "proxy_active": bool(_QUOTAGUARD_URL),
-            "quotaguard_url_set": bool(_QUOTAGUARD_URL),
-        }
+        parsed = urlparse(_QUOTAGUARD_URL) if _QUOTAGUARD_URL else None
+        if parsed:
+            creds = base64.b64encode(
+                f"{parsed.username}:{parsed.password}".encode()
+            ).decode()
+            sock = socket.create_connection(
+                (parsed.hostname, parsed.port), timeout=10
+            )
+            connect_req = (
+                "CONNECT api.ipify.org:443 HTTP/1.1\r\n"
+                f"Host: api.ipify.org:443\r\n"
+                f"Proxy-Authorization: Basic {creds}\r\n\r\n"
+            )
+            sock.sendall(connect_req.encode())
+            response = sock.recv(4096).decode(errors="replace")
+            sock.close()
+            tcp_result = {"raw_response": response[:200]}
+        else:
+            tcp_result = {"skipped": "no proxy configured"}
     except Exception as exc:
-        return {
-            "error": str(exc),
-            "proxy_active": bool(_QUOTAGUARD_URL),
-            "quotaguard_url_set": bool(_QUOTAGUARD_URL),
-        }
+        tcp_result = {"error": str(exc)}
+    results["tcp_connect_test"] = tcp_result
+
+    # ── Test 2: ipify WITHOUT proxy (what IP does Render have naturally) ───
+    try:
+        http_no_proxy = urllib3.PoolManager(timeout=urllib3.Timeout(total=10), cert_reqs="CERT_NONE")
+        r = http_no_proxy.request("GET", "https://api.ipify.org?format=json")
+        results["direct_ip"] = r.data.decode()
+    except Exception as exc:
+        results["direct_ip_error"] = str(exc)
+
+    # ── Test 3: ipify WITH proxy ────────────────────────────────────────────
+    if _QUOTAGUARD_URL:
+        try:
+            parsed = urlparse(_QUOTAGUARD_URL)
+            proxy_root = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+            proxy_auth = f"{parsed.username}:{parsed.password}"
+            http_proxy = urllib3.ProxyManager(
+                proxy_root,
+                proxy_headers=urllib3.make_headers(proxy_basic_auth=proxy_auth),
+                timeout=urllib3.Timeout(total=15),
+                cert_reqs="CERT_NONE",
+            )
+            r2 = http_proxy.request("GET", "https://api.ipify.org?format=json")
+            results["proxy_ip"] = r2.data.decode()
+        except Exception as exc:
+            results["proxy_ip_error"] = str(exc)
+
+    return results
 
 
 @router.get("/yachtworld/jobs/{job_id}/raw-sample")
