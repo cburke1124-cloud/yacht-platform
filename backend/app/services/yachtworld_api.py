@@ -44,6 +44,32 @@ def _iyba_proxies() -> dict:
         return {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
     return {}
 
+
+def _iyba_proxy_session() -> "requests.Session":
+    """
+    Return a requests.Session pre-configured with QuotaGuard proxy auth.
+    Using a Session with explicit Proxy-Authorization is more reliable than
+    relying on credentials embedded in the proxy URL for HTTPS CONNECT tunnels
+    (works around a urllib3 edge-case with proxy auth on CONNECT).
+    """
+    import base64
+    from urllib.parse import urlparse
+
+    session = requests.Session()
+    if not _QUOTAGUARD_URL:
+        return session
+
+    parsed = urlparse(_QUOTAGUARD_URL)
+    session.proxies = {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
+
+    if parsed.username and parsed.password:
+        credentials = base64.b64encode(
+            f"{parsed.username}:{parsed.password}".encode()
+        ).decode()
+        session.headers["Proxy-Authorization"] = f"Basic {credentials}"
+
+    return session
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -972,6 +998,10 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
     job.last_run_log = list(run_log)
     db.commit()
 
+    _session = _iyba_proxy_session()
+    if _QUOTAGUARD_URL:
+        _log("info", f"Using proxy: {_mask_proxy(_QUOTAGUARD_URL)}")
+
     MAX_PAGES = 200  # safety cap (~200 × 100 = 20 000 listings max)
     page = 1
 
@@ -981,18 +1011,14 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
             break
 
         params = {**_existing_params, "key": api_key, "limit": 100, "page": page}
-        _proxies = _iyba_proxies()
-        if _proxies:
-            _log("info", f"Using proxy: {_mask_proxy(_QUOTAGUARD_URL)}")
         try:
-            resp = requests.get(
+            resp = _session.get(
                 base_url,
                 params=params,
                 headers={
                     "User-Agent": "YachtVersal/1.0",
                     "Accept": "application/json",
                 },
-                proxies=_proxies or None,
                 timeout=60,
                 verify=False,
             )

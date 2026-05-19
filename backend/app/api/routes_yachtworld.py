@@ -307,29 +307,26 @@ def debug_proxy_ip(
     Use to verify the QuotaGuard proxy is active before setting QUOTAGUARD_URL as
     an env var in Render.  DELETE this endpoint after testing is confirmed.
     """
-    import requests as _req
-
     _require_admin(current_user)
 
-    from app.services.yachtworld_api import _iyba_proxies, _QUOTAGUARD_URL
+    from app.services.yachtworld_api import _iyba_proxy_session, _QUOTAGUARD_URL
 
-    proxies = _iyba_proxies()
+    sess = _iyba_proxy_session()
     try:
-        r = _req.get(
+        r = sess.get(
             "https://api.ipify.org?format=json",
-            proxies=proxies or None,
             timeout=15,
         )
         r.raise_for_status()
         return {
             "outbound_ip": r.json().get("ip"),
-            "proxy_active": bool(proxies),
+            "proxy_active": bool(_QUOTAGUARD_URL),
             "quotaguard_url_set": bool(_QUOTAGUARD_URL),
         }
     except Exception as exc:
         return {
             "error": str(exc),
-            "proxy_active": bool(proxies),
+            "proxy_active": bool(_QUOTAGUARD_URL),
             "quotaguard_url_set": bool(_QUOTAGUARD_URL),
         }
 
@@ -368,13 +365,12 @@ def get_yw_raw_sample(
     req_headers = {"Accept": "application/vnd.dmm-v1+json", "User-Agent": "YachtVersal/1.0"}
 
     try:
-        from app.services.yachtworld_api import _iyba_proxies
-        _proxies = _iyba_proxies() if job.feed_type == "iyba" else {}
+        from app.services.yachtworld_api import _iyba_proxy_session
+        _sess = _iyba_proxy_session() if job.feed_type == "iyba" else _requests.Session()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            resp = _requests.get(base_url, params=params, headers=req_headers,
-                                 proxies=_proxies or None,
-                                 timeout=30, verify=False)
+            resp = _sess.get(base_url, params=params, headers=req_headers,
+                             timeout=30, verify=False)
         resp.raise_for_status()
         payload = resp.json()
     except Exception as exc:
