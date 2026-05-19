@@ -47,27 +47,38 @@ def _iyba_proxies() -> dict:
 
 def _iyba_proxy_session() -> "requests.Session":
     """
-    Return a requests.Session pre-configured with QuotaGuard proxy auth.
-    Using a Session with explicit Proxy-Authorization is more reliable than
-    relying on credentials embedded in the proxy URL for HTTPS CONNECT tunnels
-    (works around a urllib3 edge-case with proxy auth on CONNECT).
+    Return a requests.Session pre-configured for the QuotaGuard proxy.
+    Uses a custom HTTPAdapter that overrides proxy_headers() so the
+    Proxy-Authorization header is explicitly injected into the CONNECT
+    tunnel request (works around urllib3 not forwarding embedded URL
+    credentials for HTTPS CONNECT in some versions).
     """
-    import base64
     from urllib.parse import urlparse
+    from requests.adapters import HTTPAdapter
+    import base64
 
     session = requests.Session()
     if not _QUOTAGUARD_URL:
         return session
 
     parsed = urlparse(_QUOTAGUARD_URL)
-    session.proxies = {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
-
+    _creds_b64 = ""
     if parsed.username and parsed.password:
-        credentials = base64.b64encode(
+        _creds_b64 = base64.b64encode(
             f"{parsed.username}:{parsed.password}".encode()
         ).decode()
-        session.headers["Proxy-Authorization"] = f"Basic {credentials}"
 
+    class _ProxyAuthAdapter(HTTPAdapter):
+        """Injects Proxy-Authorization into every CONNECT request."""
+        def proxy_headers(self, proxy):  # noqa: ARG002
+            if _creds_b64:
+                return {"Proxy-Authorization": f"Basic {_creds_b64}"}
+            return {}
+
+    adapter = _ProxyAuthAdapter()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.proxies = {"http": _QUOTAGUARD_URL, "https": _QUOTAGUARD_URL}
     return session
 
 # ---------------------------------------------------------------------------
