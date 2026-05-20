@@ -922,11 +922,33 @@ def _map_iyba_json_record(rec: dict) -> dict:
 
     # -- Images ---------------------------------------------------------------
     images: list[str] = []
-    dp = rec.get("DisplayPicture")
-    if isinstance(dp, dict):
-        img_url = dp.get("HD") or dp.get("Large") or dp.get("Medium") or dp.get("Thumbnail")
-        if img_url:
-            images.append(img_url)
+
+    # gallery=true returns a Gallery array with all photos
+    gallery = rec.get("Gallery") or []
+    if isinstance(gallery, list):
+        for item in gallery:
+            if isinstance(item, dict):
+                img_url = (
+                    item.get("HD")
+                    or item.get("Large")
+                    or item.get("Medium")
+                    or item.get("Thumbnail")
+                )
+                if img_url and img_url not in images:
+                    images.append(img_url)
+
+    # Fall back to DisplayPicture if no gallery images found
+    if not images:
+        dp = rec.get("DisplayPicture")
+        if isinstance(dp, dict):
+            img_url = (
+                dp.get("HD")
+                or dp.get("Large")
+                or dp.get("Medium")
+                or dp.get("Thumbnail")
+            )
+            if img_url:
+                images.append(img_url)
 
     # -- Features -------------------------------------------------------------
     feature_bullets: list[str] = []
