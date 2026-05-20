@@ -409,7 +409,9 @@ def get_yw_raw_sample(
     try:
         from app.services.yachtworld_api import _iyba_request
         if job.feed_type == "iyba":
-            resp = _iyba_request(base_url, params={**params}, timeout=30)
+            # IYBA uses limit/page, not rows/offset
+            iyba_params = {**_existing_params, "key": api_key, "limit": max(1, min(rows, 5)), "page": 1}
+            resp = _iyba_request(base_url, params=iyba_params, timeout=30)
         else:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -422,7 +424,8 @@ def get_yw_raw_sample(
 
     from app.services.yachtworld_api import _yw_get
     records = (
-        _yw_get(payload, "search", "records")
+        _yw_get(payload, "V-Data")
+        or _yw_get(payload, "search", "records")
         or _yw_get(payload, "results")
         or _yw_get(payload, "listings")
         or (payload if isinstance(payload, list) else [])
