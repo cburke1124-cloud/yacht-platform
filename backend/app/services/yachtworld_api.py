@@ -923,8 +923,8 @@ def _map_iyba_json_record(rec: dict) -> dict:
     # -- Images ---------------------------------------------------------------
     images: list[str] = []
 
-    # gallery=true returns a Gallery array with all photos
-    gallery = rec.get("Gallery") or []
+    # gallery=true returns a Gallery/gallery array with all photos
+    gallery = rec.get("Gallery") or rec.get("gallery") or []
     if isinstance(gallery, list):
         for item in gallery:
             if isinstance(item, dict):
