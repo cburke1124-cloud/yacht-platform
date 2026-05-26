@@ -18,7 +18,7 @@ interface TeamMember {
 export default function DealerProfilePage() {
   const params = useParams();
   const [dealer, setDealer] = useState<any>(null);
-  const [listings, setListings] = useState([]);
+  const [listings, setListings] = useState<any[]>([]);
   const [totalListings, setTotalListings] = useState(0);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
