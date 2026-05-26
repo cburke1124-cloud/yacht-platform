@@ -19,8 +19,12 @@ export default function DealerProfilePage() {
   const params = useParams();
   const [dealer, setDealer] = useState<any>(null);
   const [listings, setListings] = useState([]);
+  const [totalListings, setTotalListings] = useState(0);
+  const [listingsLoading, setListingsLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const LISTINGS_LIMIT = 100;
 
   useEffect(() => {
     fetchDealerProfile();
@@ -28,10 +32,11 @@ export default function DealerProfilePage() {
 
   const fetchDealerProfile = async () => {
     try {
-      const response = await fetch(apiUrl(`/dealers/${params.slug}`));
+      const response = await fetch(apiUrl(`/dealers/${params.slug}?skip=0&limit=${LISTINGS_LIMIT}`));
       const data = await response.json();
       setDealer(data.dealer);
       setListings(data.listings);
+      setTotalListings(data.total ?? data.listings?.length ?? 0);
 
       if (data.dealer?.show_team_on_profile) {
         try {
@@ -45,6 +50,20 @@ export default function DealerProfilePage() {
       console.error('Error fetching dealer:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreListings = async () => {
+    setListingsLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/dealers/${params.slug}?skip=${listings.length}&limit=${LISTINGS_LIMIT}`));
+      const data = await res.json();
+      setListings((prev: any) => [...prev, ...data.listings]);
+      setTotalListings(data.total ?? totalListings);
+    } catch (error) {
+      console.error('Error loading more listings:', error);
+    } finally {
+      setListingsLoading(false);
     }
   };
 
@@ -292,11 +311,12 @@ export default function DealerProfilePage() {
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-bold text-secondary">
               Available Yachts
-              <span className="ml-2 text-lg font-normal text-dark/50">({listings.length})</span>
+              <span className="ml-2 text-lg font-normal text-dark/50">({totalListings})</span>
             </h2>
           </div>
 
           {listings.length > 0 ? (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {listings.map((listing: any) => (
                 <ListingCard
@@ -324,6 +344,18 @@ export default function DealerProfilePage() {
                 />
               ))}
             </div>
+            {listings.length < totalListings && (
+              <div className="mt-10 text-center">
+                <button
+                  onClick={loadMoreListings}
+                  disabled={listingsLoading}
+                  className="px-8 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-all disabled:opacity-60"
+                >
+                  {listingsLoading ? 'Loading...' : `Load More (${listings.length} / ${totalListings})`}
+                </button>
+              </div>
+            )}
+            </>
           ) : (
             <div className="glass-card rounded-2xl p-16 text-center">
               <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">

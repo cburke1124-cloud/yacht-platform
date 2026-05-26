@@ -920,6 +920,23 @@ def get_my_listings(
     listing_ids = [l.id for l in listings]
     media_map = _get_primary_images_for_listings(db, listing_ids)
 
+    # Legacy fallback for listings not in new media system (e.g. IYBA-synced listings)
+    uncovered_ids = [lid for lid in listing_ids if lid not in media_map]
+    legacy_images_map: dict[int, list[dict]] = {}
+    if uncovered_ids:
+        legacy_rows = (
+            db.query(ListingImage)
+            .filter(ListingImage.listing_id.in_(uncovered_ids))
+            .order_by(
+                ListingImage.listing_id,
+                ListingImage.is_primary.desc(),
+                ListingImage.display_order,
+            )
+            .all()
+        )
+        for img in legacy_rows:
+            legacy_images_map.setdefault(img.listing_id, []).append({"url": img.url})
+
     return [
         {
             "id": l.id,
@@ -940,7 +957,7 @@ def get_my_listings(
             "created_at": l.created_at.isoformat() if l.created_at else None,
             "assigned_salesman_id": l.assigned_salesman_id,
             "guest_salesman_id": l.guest_salesman_id,
-            "images": media_map.get(l.id, []),
+            "images": media_map.get(l.id) or legacy_images_map.get(l.id, []),
         }
         for l in listings
     ]

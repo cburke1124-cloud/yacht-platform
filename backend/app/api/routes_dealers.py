@@ -6,7 +6,7 @@ from typing import Optional
 from app.db.session import get_db
 from app.models.user import User
 from app.models.dealer import DealerProfile
-from app.models.listing import Listing
+from app.models.listing import Listing, ListingImage
 from app.exceptions import ResourceNotFoundException
 from app.api.deps import get_current_user
 from app.api.routes_listings import _get_primary_images_for_listings
@@ -97,6 +97,8 @@ def get_all_dealers(
 @router.get("/{slug}")
 def get_dealer_by_slug(
     slug: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db)
 ):
     """Get dealer details by slug."""
@@ -113,15 +115,30 @@ def get_dealer_by_slug(
     if not user or not user.active:
         raise ResourceNotFoundException("Dealer", slug)
     
-    # Get dealer's active listings
-    listings = db.query(Listing).filter(
+    # Get dealer's active listings with pagination
+    listings_query = db.query(Listing).filter(
         Listing.user_id == user.id,
         Listing.status == "active"
-    ).order_by(Listing.created_at.desc()).limit(12).all()
+    )
+    total_active = listings_query.count()
+    listings = listings_query.order_by(Listing.created_at.desc()).offset(skip).limit(limit).all()
 
-    # Batch-fetch primary images using the new media system (fell back to legacy)
+    # Batch-fetch primary images — new media system first, legacy fallback
     listing_ids = [l.id for l in listings]
     primary_images = _get_primary_images_for_listings(db, listing_ids)
+
+    # Legacy fallback for listings not in new media system (e.g. IYBA-synced listings)
+    uncovered_ids = [lid for lid in listing_ids if lid not in primary_images]
+    legacy_images_map: dict[int, list[dict]] = {}
+    if uncovered_ids:
+        legacy_rows = (
+            db.query(ListingImage)
+            .filter(ListingImage.listing_id.in_(uncovered_ids))
+            .order_by(ListingImage.listing_id, ListingImage.is_primary.desc(), ListingImage.display_order)
+            .all()
+        )
+        for img in legacy_rows:
+            legacy_images_map.setdefault(img.listing_id, []).append({"url": img.url})
 
     # Get stats
     listing_stats = db.query(
@@ -159,6 +176,9 @@ def get_dealer_by_slug(
             "active_listings": listing_stats.active or 0,
             "show_team_on_profile": profile.show_team_on_profile or False,
         },
+        "total": total_active,
+        "skip": skip,
+        "limit": limit,
         "listings": [
             {
                 "id": l.id,
@@ -171,7 +191,7 @@ def get_dealer_by_slug(
                 "length_feet": l.length_feet,
                 "city": l.city,
                 "state": l.state,
-                "images": (primary_images.get(l.id) or [{"url": img.url} for img in l.images[:1]])[:1]
+                "images": (primary_images.get(l.id) or legacy_images_map.get(l.id) or [])[:1]
             }
             for l in listings
         ]
