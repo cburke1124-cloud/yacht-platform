@@ -8,9 +8,7 @@ import { Check, Loader2, ChevronLeft, ShieldCheck, Zap, Users } from 'lucide-rea
 import { apiUrl } from '@/app/lib/apiRoot';
 
 // --- One-time signup fee ------------------------------------------------------
-// TODO: Replace STRIPE_PAYMENT_LINK with the live Stripe Payment Link once created
-const SIGNUP_FEE = 200;
-const STRIPE_PAYMENT_LINK = ''; // e.g. 'https://buy.stripe.com/...'
+const SIGNUP_FEE = 199;
 
 const INCLUDED_FEATURES = [
   'Unlimited active listings',
@@ -21,7 +19,7 @@ const INCLUDED_FEATURES = [
   'Analytics dashboard',
   'IYBA feed sync & bulk import tools',
   'Co-brokering network access',
-  'No monthly fees — ever',
+  'No monthly fees ï¿½ ever',
   'No commission on sales',
 ];
 
@@ -98,13 +96,27 @@ function RegisterContent() {
       setRedirecting(true);
       setLoading(false);
 
-      if (STRIPE_PAYMENT_LINK) {
-        const url = new URL(STRIPE_PAYMENT_LINK);
-        url.searchParams.set('prefilled_email', formData.email);
-        window.location.href = url.toString();
-      } else {
-        router.push('/dashboard/billing?payment=required');
+      const checkoutRes = await fetch(apiUrl('/payments/create-setup-fee-session'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${regData.access_token}`,
+        },
+        body: JSON.stringify({
+          success_url: `${window.location.origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${window.location.origin}/register?payment=cancelled`,
+        }),
+      });
+
+      const checkoutData = await checkoutRes.json();
+      if (!checkoutRes.ok) {
+        setRedirecting(false);
+        const msg = checkoutData?.detail || checkoutData?.error || 'Payment setup failed. You can complete payment from your billing dashboard.';
+        setError(`Account created, but payment setup failed: ${msg}`);
+        setTimeout(() => router.push('/dashboard/billing?payment=required'), 3000);
+        return;
       }
+      window.location.href = checkoutData.checkout_url;
     } catch (err: any) {
       setError(err.message || 'Failed to register. Please try again.');
       setRedirecting(false);
