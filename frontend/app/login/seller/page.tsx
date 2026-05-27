@@ -5,64 +5,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { apiUrl } from '@/app/lib/apiRoot';
-import { ChevronDown, Loader2, Check } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
-
-// Fallback broker tiers (used until API responds)
-const BROKER_TIERS: Record<string, any> = {
-  basic: {
-    name: 'Basic',
-    price: 199,
-    trial_days: 14,
-    features: ['25 active listings', '15 images per listing', '1 video per listing', 'Enhanced search visibility', 'Priority email support', 'Analytics dashboard'],
-  },
-  plus: {
-    name: 'Plus',
-    price: 299,
-    trial_days: 14,
-    features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured broker badge', 'Priority support', 'Advanced analytics'],
-  },
-  pro: {
-    name: 'Pro',
-    price: 499,
-    trial_days: 30,
-    features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured broker badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
-  },
-  ultimate: {
-    name: 'Ultimate',
-    price: null,
-    trial_days: 0,
-    features: ['Unlimited listings', 'Unlimited images & video', 'White-glove onboarding', 'Dedicated account manager', 'Custom API integrations', 'Premium search placement'],
-  },
-};
-
-const PRIVATE_TIER: Record<string, any> = {
-  private_basic: {
-    name: 'Basic',
-    price: 9,
-    trial_days: 7,
-    features: ['1 active listing', '20 photos per listing', '1 video per listing', 'Standard search visibility', 'Direct buyer messaging', 'Email support'],
-  },
-  private_plus: {
-    name: 'Plus',
-    price: 19,
-    trial_days: 7,
-    features: ['3 active listings', '35 photos per listing', '1 video per listing', 'Priority search placement', 'Direct buyer messaging', 'Listing analytics', 'Email support'],
-  },
-  private_pro: {
-    name: 'Pro',
-    price: 39,
-    trial_days: 14,
-    features: ['10 active listings', '50 photos per listing', '3 videos per listing', 'Top search placement', 'Featured badge', 'Priority support', 'Social media promotion'],
-  },
-};
 
 function SellerLoginContent() {
   const router = useRouter();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showSignup, setShowSignup] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState<string>('/dashboard');
   const [userName, setUserName] = useState<string | undefined>();
@@ -77,24 +27,8 @@ function SellerLoginContent() {
   const [resendSent, setResendSent] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
 
-  const [liveBrokerTiers, setLiveBrokerTiers] = useState<Record<string, any>>(BROKER_TIERS);
-  const [livePrivateTier, setLivePrivateTier] = useState<Record<string, any>>(PRIVATE_TIER);
-
   useEffect(() => {
     fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
-    fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (!data) return;
-        if (data.broker) setLiveBrokerTiers(data.broker);
-        if (data.private) {
-          const activePrivate = Object.fromEntries(
-            Object.entries(data.private).filter(([, t]: [string, any]) => t.active !== false)
-          );
-          if (Object.keys(activePrivate).length > 0) setLivePrivateTier(activePrivate);
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const finishLogin = async (accessToken: string) => {
@@ -231,12 +165,12 @@ function SellerLoginContent() {
               <Image src="/logo/logo-full-cropped.png" alt="YachtVersal" width={220} height={55} priority />
             </Link>
             <h2 className="text-2xl font-semibold text-secondary">
-              {requires2fa ? 'Two-Factor Authentication' : showSignup ? 'List Your Yacht' : 'Seller Sign In'}
+              {requires2fa ? 'Two-Factor Authentication' : 'Seller Sign In'}
             </h2>
             <p className="mt-2 text-dark/70">
               {requires2fa
                 ? `Enter the verification code sent to ${twoFaEmail}`
-                : showSignup ? 'Choose a plan and get started today' : 'Welcome back to your seller account'}
+                : 'Welcome back to your seller account'}
             </p>
           </div>
 
@@ -289,8 +223,7 @@ function SellerLoginContent() {
           <>
           {/* ── Sign In form — constrained width, collapses when accordion open ── */}
           <div
-            className="overflow-hidden transition-all duration-500 ease-in-out max-w-md mx-auto"
-            style={{ maxHeight: showSignup ? 0 : 9999, opacity: showSignup ? 0 : 1 }}
+            className="max-w-md mx-auto"
           >
             <div className="bg-white rounded-2xl shadow-xl p-8">
               {error && (
@@ -356,153 +289,14 @@ function SellerLoginContent() {
             </div>
           </div>
 
-          {/* ── Signup accordion with full plan cards ── */}
-          <div
-            className="overflow-hidden transition-all duration-500 ease-in-out"
-            style={{ maxHeight: showSignup ? 9999 : 0, opacity: showSignup ? 1 : 0 }}
-          >
-            {/* Broker tiers — 4 columns */}
-            <div className="mb-8">
-              <div className="mb-5">
-                <h3 className="text-xl font-bold text-secondary">Yacht Broker</h3>
-                <p className="text-sm text-dark/60">Professional brokerage with multiple listings</p>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-                {Object.entries(liveBrokerTiers).map(([key, tier]) => {
-                  const isUltimate = key === 'ultimate';
-                  return (
-                    <div key={key} className={`flex flex-col p-7 rounded-2xl shadow-xl relative ${
-                      isUltimate
-                        ? 'bg-secondary text-white border-2 border-secondary'
-                        : key === 'plus'
-                        ? 'bg-white border-4 border-primary'
-                        : 'bg-white border border-gray-100'
-                    }`}>
-                      {key === 'plus' && (
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                          <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</span>
-                        </div>
-                      )}
-                      {isUltimate && (
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                          <span className="bg-gold text-secondary px-4 py-1 rounded-full text-sm font-semibold" style={{ backgroundColor: '#D4AF37' }}>ENTERPRISE</span>
-                        </div>
-                      )}
-                      <h4 className={`text-xl font-bold mb-1 ${isUltimate ? 'text-white' : 'text-secondary'}`}>{tier.name}</h4>
-                      {isUltimate ? (
-                        <div className="mb-4">
-                          <span className="text-2xl font-bold text-white/90">Custom Pricing</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-baseline gap-1 mb-1">
-                          <span className="text-3xl font-bold text-primary">${tier.price}</span>
-                          <span className="text-dark/50 text-sm">/month</span>
-                        </div>
-                      )}
-
-                      {isUltimate && <p className="text-xs text-white/60 font-medium mb-4">Tailored to your brokerage</p>}
-                      <ul className="space-y-2 mb-6 flex-1">
-                        {(tier.features || []).map((f: string, i: number) => (
-                          <li key={i} className={`flex items-start gap-2 text-sm ${isUltimate ? 'text-white/80' : 'text-dark/70'}`}>
-                            <Check size={14} className={`${isUltimate ? 'text-white/60' : 'text-primary'} mt-0.5 shrink-0`} />
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-                      <div>
-                      {isUltimate ? (
-                        <Link
-                          href="/contact?tier=ultimate"
-                          className="block w-full py-2.5 text-center rounded-lg text-sm font-semibold bg-white text-secondary transition-all duration-200 hover:scale-105 hover:shadow-lg"
-                        >
-                          Contact Us
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/register?user_type=dealer&subscription_tier=${key}`}
-                          className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
-                            key === 'plus' ? 'bg-primary' : 'bg-secondary'
-                          }`}
-                        >
-                          Get Started
-                        </Link>
-                      )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Private Seller tiers */}
-            <div>
-              <div className="mb-5">
-                <h3 className="text-xl font-bold text-secondary">Private Seller</h3>
-                <p className="text-sm text-dark/60">Selling your own yacht — no broker, no sales commission</p>
-              </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {Object.entries(livePrivateTier).map(([key, tier]) => (
-                  <div key={key} className={`flex flex-col p-7 rounded-2xl shadow-xl relative ${
-                    key === 'private_plus'
-                      ? 'bg-white border-4 border-primary'
-                      : 'bg-white border border-gray-100'
-                  }`}>
-                    {key === 'private_plus' && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                        <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold">BEST VALUE</span>
-                      </div>
-                    )}
-                    <h4 className="text-xl font-bold text-secondary mb-1">{(tier as any).name}</h4>
-                    <div className="flex items-baseline gap-1 mb-1">
-                      <span className="text-3xl font-bold text-primary">${(tier as any).price}</span>
-                      <span className="text-dark/50 text-sm">/month</span>
-                    </div>
-
-                    <p className="text-xs text-dark/50 mb-4">No commission on your sale price — ever</p>
-                    <ul className="space-y-2 mb-6 flex-1">
-                      {((tier as any).features || []).map((f: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-dark/70">
-                          <Check size={14} className="text-primary mt-0.5 shrink-0" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <Link
-                      href={`/register?user_type=private&subscription_tier=${key}`}
-                      className={`block w-full py-2.5 text-center rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:scale-105 hover:shadow-lg ${
-                        key === 'private_plus' ? 'bg-primary' : 'bg-secondary'
-                      }`}
-                    >
-                      Get Started
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-8 border border-gray-200 rounded-xl px-6 py-4 bg-gray-50">
-              <p className="text-xs text-dark/60 leading-relaxed text-center">
-                All plans start with a free trial &mdash; no charge until your trial ends.{' '}
-                Subscriptions renew automatically each month.{' '}
-                <strong>You may cancel at any time</strong> from your Account Dashboard under{' '}
-                <strong>Billing</strong>; your access continues through the end of your current paid period with no further charges.{' '}
-                Private seller plans never charge sales commission.
-              </p>
-            </div>
-          </div>
-
-          {/* ── Toggle button ── */}
+          {/* ── Create account entry point ── */}
           <div className="mt-5 max-w-md mx-auto">
-            <button
-              onClick={() => { setShowSignup((v) => !v); setError(''); }}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 bg-white rounded-xl shadow-sm text-sm font-medium text-secondary hover:bg-gray-50 transition-colors"
+            <Link
+              href="/register"
+              className="w-full flex items-center justify-center py-3 px-4 border border-gray-200 bg-white rounded-xl shadow-sm text-sm font-medium text-secondary hover:bg-gray-50 transition-colors"
             >
-              {showSignup ? 'Already have an account? Sign In' : "Don't have an account? View Plans"}
-              <ChevronDown
-                size={16}
-                className={`text-dark/50 transition-transform duration-300 ${showSignup ? 'rotate-180' : ''}`}
-              />
-            </button>
+              Don't have an account? Create one
+            </Link>
           </div>
 
           {/* ── Cross-link ── */}
