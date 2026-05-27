@@ -19,8 +19,8 @@ const INCLUDED_FEATURES = [
   'Analytics dashboard',
   'IYBA feed sync & bulk import tools',
   'Co-brokering network access',
-  'No monthly fees � ever',
-  'No commission on sales',
+  'No sales commission',
+  'Full platform access',
 ];
 
 function RegisterContent() {
@@ -146,18 +146,21 @@ function RegisterContent() {
 
           {/* -- Left: value prop ------------------------------------------- */}
           <div>
+            <div className="inline-block mb-3 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-semibold text-amber-700 uppercase tracking-wide">
+              Founding Member Offer
+            </div>
             <h1 className="text-3xl font-bold text-secondary mb-2">Join YachtVersal</h1>
             <p className="text-dark/60 mb-8 text-lg">
-              One flat fee. No monthly subscriptions. No sales commission. Ever.
+              Get started with a single setup fee and full access to every tool on the platform.
             </p>
 
             {/* Pricing card */}
             <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 mb-8">
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-5xl font-extrabold text-primary">${SIGNUP_FEE}</span>
-                <span className="text-dark/50 text-lg font-medium">one-time</span>
+                <span className="text-dark/50 text-lg font-medium">setup fee</span>
               </div>
-              <p className="text-dark/60 text-sm mb-6">Pay once. Access everything. No renewals.</p>
+              <p className="text-dark/60 text-sm mb-6">One-time payment. Full platform access from day one.</p>
 
               <ul className="space-y-3">
                 {INCLUDED_FEATURES.map((f, i) => (
@@ -324,10 +327,10 @@ function RegisterContent() {
 
               {/* Payment note */}
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
-                <p className="font-medium mb-0.5">Secure one-time payment via Stripe</p>
+                <p className="font-medium mb-0.5">Secure payment via Stripe</p>
                 <p className="text-blue-600">
                   After creating your account you will be taken to Stripe checkout to pay the{' '}
-                  <strong>${SIGNUP_FEE} one-time fee</strong>. Your account activates immediately after payment.
+                  <strong>${SIGNUP_FEE} setup fee</strong>. Your account activates immediately after payment.
                 </p>
               </div>
 
@@ -351,7 +354,7 @@ function RegisterContent() {
         </div>
 
         <p className="text-center text-xs text-dark/40 mt-10">
-          &copy; {new Date().getFullYear()} YachtVersal &middot; No commission on sales &middot; No recurring fees
+          &copy; {new Date().getFullYear()} YachtVersal &middot; No commission on sales
         </p>
       </div>
     </div>
