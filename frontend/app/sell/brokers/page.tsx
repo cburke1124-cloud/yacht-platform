@@ -278,7 +278,7 @@ export default function SellBrokersPage() {
           BUILT TO SUPPORT BROKERS + PRICING CARDS
           Figma: Group 122, left 312, top 615, width 1296
       ══════════════════════════════════════════════════════════════════ */}
-      <section className="bg-white" style={{ paddingTop: 80, paddingBottom: 100 }}>
+      {false && <section className="bg-white" style={{ paddingTop: 80, paddingBottom: 100 }}>
         <div
           className="mx-auto"
           style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
@@ -495,7 +495,7 @@ export default function SellBrokersPage() {
                 })}
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* ══════════════════════════════════════════════════════════════════
           WHY BROKERS LIST WITH YACHTVERSAL
