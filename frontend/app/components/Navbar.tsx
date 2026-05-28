@@ -477,6 +477,13 @@ export default function Navbar() {
             ) : (
               <>
                 <Link
+                  href="/register"
+                  className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: '#0E7A8A', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
+                >
+                  Create Account
+                </Link>
+                <Link
                   href="/login/buyer"
                   className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
                   style={{ backgroundColor: '#10214F', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
@@ -638,6 +645,14 @@ export default function Navbar() {
                 </>
               ) : (
                 <>
+                  <Link
+                    href="/register"
+                    className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
+                    style={{ backgroundColor: '#0E7A8A', fontFamily: 'Poppins, sans-serif' }}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Create Account
+                  </Link>
                   <Link
                     href="/login/buyer"
                     className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"

@@ -17,9 +17,8 @@ const INCLUDED_FEATURES = [
   'AI-powered search placement',
   'Broker profile page with team roster',
   'Analytics dashboard',
-  'IYBA feed sync & bulk import tools',
+  'Data feed sync & bulk import tools',
   'Co-brokering network access',
-  'No sales commission',
   'Full platform access',
 ];
 
@@ -129,7 +128,7 @@ function RegisterContent() {
     ? 'Redirecting to payment...'
     : loading
     ? 'Creating account...'
-    : `Create Account & Pay $${SIGNUP_FEE}`;
+    : 'Create Account';
 
   return (
     <div className="min-h-screen section-light py-12 px-4 sm:px-6 lg:px-8">
@@ -354,7 +353,7 @@ function RegisterContent() {
         </div>
 
         <p className="text-center text-xs text-dark/40 mt-10">
-          &copy; {new Date().getFullYear()} YachtVersal &middot; No commission on sales
+          &copy; {new Date().getFullYear()} YachtVersal
         </p>
       </div>
     </div>
