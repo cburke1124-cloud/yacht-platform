@@ -11,9 +11,93 @@ from datetime import datetime
 
 from app.db.session import get_db
 from app.models.listing import Listing
+from app.models.user import User
+from app.models.dealer import DealerProfile
 from app.api.routes_listings import _get_primary_images_for_listings
 
 router = APIRouter()
+
+
+def _looks_like_broker_query(raw_query: str) -> bool:
+    """Heuristic gate to detect broker/dealer name searches."""
+    q = (raw_query or "").strip().lower()
+    if not q:
+        return False
+
+    # Explicit broker intent keywords.
+    if any(k in q for k in ["broker", "dealer", "company", "from "]):
+        return True
+
+    tokens = re.findall(r"[a-z]+", q)
+    has_numbers = bool(re.search(r"\d", q))
+
+    # Name-like queries such as "rick obey" or "northrop & johnson".
+    return (2 <= len(tokens) <= 4) and not has_numbers
+
+
+def _find_broker_listing_user_ids(raw_query: str, db: Session) -> list[int]:
+    """
+    Resolve a broker/dealer text query into listing owner user IDs.
+    Includes the dealer plus team members under that dealer.
+    """
+    q = (raw_query or "").strip().lower()
+    if not q:
+        return []
+
+    like_q = f"%{q}%"
+
+    full_name = func.lower(
+        func.trim(
+            func.concat(
+                func.coalesce(User.first_name, ""),
+                " ",
+                func.coalesce(User.last_name, ""),
+            )
+        )
+    )
+
+    matches = (
+        db.query(User.id, User.user_type, User.parent_dealer_id)
+        .outerjoin(DealerProfile, DealerProfile.user_id == User.id)
+        .filter(
+            User.active == True,  # noqa: E712
+            User.is_demo != True,  # noqa: E712
+            or_(
+                full_name.like(like_q),
+                func.lower(func.coalesce(User.company_name, "")).like(like_q),
+                func.lower(func.coalesce(User.email, "")).like(like_q),
+                func.lower(func.coalesce(DealerProfile.name, "")).like(like_q),
+                func.lower(func.coalesce(DealerProfile.company_name, "")).like(like_q),
+                func.lower(func.coalesce(DealerProfile.slug, "")).like(like_q),
+            ),
+        )
+        .all()
+    )
+
+    if not matches:
+        return []
+
+    dealer_ids: set[int] = set()
+    for uid, user_type, parent_dealer_id in matches:
+        if user_type == "dealer":
+            dealer_ids.add(uid)
+        elif parent_dealer_id:
+            dealer_ids.add(parent_dealer_id)
+
+    # If only dealer/team relationship wasn't present, still include direct matches.
+    if not dealer_ids:
+        dealer_ids = {uid for uid, _, _ in matches}
+
+    listing_owner_rows = (
+        db.query(User.id)
+        .filter(
+            User.active == True,  # noqa: E712
+            User.is_demo != True,  # noqa: E712
+            or_(User.id.in_(dealer_ids), User.parent_dealer_id.in_(dealer_ids)),
+        )
+        .all()
+    )
+    return [row.id for row in listing_owner_rows]
 
 
 class AISearchRequest(BaseModel):
@@ -391,11 +475,16 @@ async def ai_search(
     try:
         # Step 1: Extract search criteria using Claude
         criteria = extract_search_criteria(request.query)
+
+        broker_user_ids: list[int] = []
+        broker_query_applied = False
+        if _looks_like_broker_query(request.query):
+            broker_user_ids = _find_broker_listing_user_ids(request.query, db)
+            broker_query_applied = len(broker_user_ids) > 0
         
         # Step 2: Build database query — inner-join User so orphaned listings
         # are excluded, and eager-load all relationships to prevent lazy-load 500s.
         from sqlalchemy.orm import joinedload as jl
-        from app.models.user import User
         query = (
             db.query(Listing)
             .join(User, Listing.user_id == User.id)
@@ -406,6 +495,10 @@ async def ai_search(
                 jl(Listing.images),
             )
         )
+
+        # If query looks like a broker/dealer name, narrow to that broker's inventory first.
+        if broker_query_applied:
+            query = query.filter(Listing.user_id.in_(broker_user_ids))
         
         # Apply hard filters (must-haves)
         if criteria.min_price:
@@ -469,6 +562,9 @@ async def ai_search(
 
         # Build search context message for the frontend banner
         search_context: Dict[str, Any] = {}
+        if broker_query_applied:
+            search_context["broker_match"] = request.query
+            search_context["broker_filtered"] = True
         if criteria.make and not exact_make_exists:
             search_context["no_exact_make"] = criteria.make
             search_context["showing_similar"] = True
