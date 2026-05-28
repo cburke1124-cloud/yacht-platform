@@ -85,6 +85,65 @@ function NavDropdown({
   );
 }
 
+// ─── CTA Dropdown Component (used for auth actions) ───────────────────────
+function CtaDropdown({
+  label,
+  items,
+  backgroundColor,
+}: {
+  label: string;
+  items: { label: string; href: string }[];
+  backgroundColor: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90 flex items-center gap-1"
+        style={{ backgroundColor, borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
+      >
+        {label}
+        <ChevronDown
+          size={16}
+          className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg overflow-hidden z-50"
+          style={{ border: '1px solid rgba(0,0,0,0.08)', minWidth: 220 }}
+        >
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="block px-5 py-3 transition-colors hover:bg-gray-50"
+              style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif', fontWeight: 500, fontSize: 14 }}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Navbar ─────────────────────────────────────────────────────────────
 export default function Navbar() {
   const router = useRouter();
@@ -99,6 +158,8 @@ export default function Navbar() {
   const [logoError, setLogoError] = useState(false);
   const [mobileSellOpen, setMobileSellOpen] = useState(false);
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
+  const [mobileSignInOpen, setMobileSignInOpen] = useState(false);
+  const [mobileCreateOpen, setMobileCreateOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -269,6 +330,16 @@ export default function Navbar() {
   const resourceItems = [
     { label: 'How Buying Works / Buyer\'s Guide', href: '/resources/how-buying-works' },
     { label: 'Financing', href: '/resources/financing' },
+  ];
+
+  const signInItems = [
+    { label: 'Buyer Sign In', href: '/login/buyer' },
+    { label: 'Seller Sign In', href: '/login/seller' },
+  ];
+
+  const createAccountItems = [
+    { label: 'Create Seller Account', href: '/register' },
+    { label: 'Create Buyer Account', href: '/register?user_type=buyer' },
   ];
 
   const navLinkStyle = { fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 400, fontSize: 14, color: '#10214F', textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
@@ -476,27 +547,8 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Link
-                  href="/register"
-                  className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: '#0E7A8A', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
-                >
-                  Create Account
-                </Link>
-                <Link
-                  href="/login/buyer"
-                  className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: '#10214F', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
-                >
-                  Buyer Sign In
-                </Link>
-                <Link
-                  href="/login/seller"
-                  className="px-5 py-2 text-white rounded-xl font-medium text-sm transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: '#01BBDC', borderRadius: 6, fontFamily: 'Poppins, sans-serif' }}
-                >
-                  Seller Sign In
-                </Link>
+                <CtaDropdown label="Sign In" items={signInItems} backgroundColor="#10214F" />
+                <CtaDropdown label="Create Account" items={createAccountItems} backgroundColor="#01BBDC" />
               </>
             )}
           </div>
@@ -645,30 +697,55 @@ export default function Navbar() {
                 </>
               ) : (
                 <>
-                  <Link
-                    href="/register"
-                    className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
-                    style={{ backgroundColor: '#0E7A8A', fontFamily: 'Poppins, sans-serif' }}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Create Account
-                  </Link>
-                  <Link
-                    href="/login/buyer"
-                    className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
-                    style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Buyer Sign In
-                  </Link>
-                  <Link
-                    href="/login/seller"
-                    className="block w-full px-4 py-2 text-white text-center rounded-xl font-medium text-sm"
-                    style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Seller Sign In
-                  </Link>
+                  <div>
+                    <button
+                      onClick={() => setMobileSignInOpen((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-2 text-white rounded-xl font-medium text-sm"
+                      style={{ backgroundColor: '#10214F', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      Sign In
+                      <ChevronDown size={16} className={`transition-transform ${mobileSignInOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {mobileSignInOpen && (
+                      <div className="mt-2 ml-2 space-y-1">
+                        {signInItems.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className="block w-full px-4 py-2 text-sm text-dark/80 bg-gray-50 rounded-lg"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <button
+                      onClick={() => setMobileCreateOpen((v) => !v)}
+                      className="w-full flex items-center justify-between px-4 py-2 text-white rounded-xl font-medium text-sm"
+                      style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
+                    >
+                      Create Account
+                      <ChevronDown size={16} className={`transition-transform ${mobileCreateOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {mobileCreateOpen && (
+                      <div className="mt-2 ml-2 space-y-1">
+                        {createAccountItems.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className="block w-full px-4 py-2 text-sm text-dark/80 bg-gray-50 rounded-lg"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
