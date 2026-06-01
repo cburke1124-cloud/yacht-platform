@@ -289,13 +289,13 @@ function SellerLoginContent() {
             </div>
           </div>
 
-          {/* ── Create account entry point ── */}
+          {/* ── Register account entry point ── */}
           <div className="mt-5 max-w-md mx-auto">
             <Link
               href="/register"
               className="w-full flex items-center justify-center py-3 px-4 border border-gray-200 bg-white rounded-xl shadow-sm text-sm font-medium text-secondary hover:bg-gray-50 transition-colors"
             >
-              Don't have an account? Create one
+              Don't have an account? Register one
             </Link>
           </div>
 

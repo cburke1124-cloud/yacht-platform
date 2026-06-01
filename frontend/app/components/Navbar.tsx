@@ -548,7 +548,7 @@ export default function Navbar() {
             ) : (
               <>
                 <CtaDropdown label="Sign In" items={signInItems} backgroundColor="#10214F" />
-                <CtaDropdown label="Create Account" items={createAccountItems} backgroundColor="#01BBDC" />
+                <CtaDropdown label="Register Account" items={createAccountItems} backgroundColor="#01BBDC" />
               </>
             )}
           </div>
@@ -728,7 +728,7 @@ export default function Navbar() {
                       className="w-full flex items-center justify-between px-4 py-2 text-white rounded-xl font-medium text-sm"
                       style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
                     >
-                      Create Account
+                      Register Account
                       <ChevronDown size={16} className={`transition-transform ${mobileCreateOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {mobileCreateOpen && (

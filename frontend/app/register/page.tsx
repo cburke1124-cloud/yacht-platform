@@ -128,7 +128,7 @@ function RegisterContent() {
     ? 'Redirecting to payment...'
     : loading
     ? 'Creating account...'
-    : 'Create Account';
+    : 'Register Account';
 
   return (
     <div className="min-h-screen section-light py-12 px-4 sm:px-6 lg:px-8">
