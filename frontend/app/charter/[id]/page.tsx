@@ -9,6 +9,7 @@ import {
   Ship, Zap, Bed, Waves, Check, ExternalLink
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 
 interface CharterListing {
   id: number;
@@ -55,8 +56,9 @@ interface CharterListing {
   charter_company_website?: string;
   booking_url?: string;
   created_at?: string;
-  availability_blocks?: Array<{ start_date: string; end_date: string; status: string }>;
+  availability_blocks?: AvailabilityBlock[];
   seasonal_rates?: Array<{
+    id?: number;
     season_name: string;
     start_date?: string;
     end_date?: string;
@@ -117,6 +119,8 @@ export default function CharterDetailPage() {
     const hold = charter.availability_blocks.filter(b => b.status === 'hold' || b.status === 'option').length;
     return `${booked} booked window${booked === 1 ? '' : 's'} and ${hold} tentative hold${hold === 1 ? '' : 's'}`;
   }, [charter]);
+
+  const seasonalRates = useMemo(() => charter?.seasonal_rates ?? [], [charter]);
 
   useEffect(() => {
     const fetchCharter = async () => {
@@ -327,6 +331,54 @@ export default function CharterDetailPage() {
               </ul>
             </div>
 
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Availability Calendar</h2>
+                  <p className="mt-1 text-sm text-gray-500">Blocked dates and tentative holds are shown here so you can judge timing before you inquire.</p>
+                </div>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">{availabilitySummary}</span>
+              </div>
+              {charter.availability_blocks?.length ? (
+                <AvailabilityCalendar blocks={charter.availability_blocks} monthsToShow={3} />
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600">
+                  No blocked dates are published yet. Availability is still confirmed directly with the charter company.
+                </div>
+              )}
+            </div>
+
+            {seasonalRates.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">Seasonal Pricing</h2>
+                  <p className="mt-1 text-sm text-gray-500">Holiday weeks, peak dates, and shoulder-season windows can price differently than the base rate.</p>
+                </div>
+                <div className="space-y-3">
+                  {seasonalRates.map((rate, index) => {
+                    const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
+                    return (
+                      <div key={rate.id ?? `${rate.season_name}-${index}`} className="rounded-xl border border-gray-200 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{rate.season_name}</p>
+                            <p className="text-xs text-gray-500">{rate.start_date || 'Open start'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
+                          </div>
+                          {rate.min_charter_days ? <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">Min {rate.min_charter_days} days</span> : null}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
+                          {rate.half_day_rate ? <span className="rounded-full bg-[#10214F]/6 px-2.5 py-1">Half day {moneyPrefix}{rate.half_day_rate.toLocaleString()}</span> : null}
+                          {rate.day_rate ? <span className="rounded-full bg-[#10214F]/6 px-2.5 py-1">Day {moneyPrefix}{rate.day_rate.toLocaleString()}</span> : null}
+                          {rate.week_rate ? <span className="rounded-full bg-[#10214F]/6 px-2.5 py-1">Week {moneyPrefix}{rate.week_rate.toLocaleString()}</span> : null}
+                        </div>
+                        {rate.notes ? <p className="mt-3 text-sm text-gray-600">{rate.notes}</p> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Description */}
             {charter.description && (
               <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -415,6 +467,20 @@ export default function CharterDetailPage() {
                   {charter.security_deposit ? <p><span className="font-medium text-gray-900">Security deposit:</span> {charter.currency === 'USD' ? '$' : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
                   {charter.tax_notes ? <p><span className="font-medium text-gray-900">Taxes:</span> {charter.tax_notes}</p> : null}
                   {charter.cancellation_policy ? <p><span className="font-medium text-gray-900">Cancellation:</span> {charter.cancellation_policy}</p> : null}
+                </div>
+              )}
+
+              {seasonalRates.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <p className="mb-2 text-sm font-medium text-gray-900">Seasonal rate windows</p>
+                  <div className="space-y-2">
+                    {seasonalRates.map((rate, index) => (
+                      <div key={rate.id ?? `${rate.season_name}-sidebar-${index}`} className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                        <p className="font-medium text-gray-900">{rate.season_name}</p>
+                        <p className="text-xs text-gray-500">{rate.start_date || 'Open start'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

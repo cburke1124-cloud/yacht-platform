@@ -441,6 +441,31 @@ def create_charter_seasonal_rate(
     return _serialize_rate(rate)
 
 
+@router.delete("/{charter_id}/seasonal-rates/{rate_id}")
+def delete_charter_seasonal_rate(
+    charter_id: int,
+    rate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rate = db.query(CharterSeasonalRate).filter(
+        CharterSeasonalRate.id == rate_id,
+        CharterSeasonalRate.charter_id == charter_id,
+    ).first()
+    if not rate:
+        raise HTTPException(status_code=404, detail="Seasonal rate not found")
+
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Charter listing not found")
+    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    db.delete(rate)
+    db.commit()
+    return {"success": True}
+
+
 @router.post("/inquiry")
 def submit_inquiry(data: CharterInquiryRequest, db: Session = Depends(get_db)):
     """Forward charter inquiry to the charter company and confirm to the inquirer."""

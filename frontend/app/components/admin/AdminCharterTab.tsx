@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -54,6 +55,21 @@ interface CharterListing {
   cancellation_policy?: string;
   included_items?: string[];
   excluded_items?: string[];
+  availability_blocks?: AvailabilityBlock[];
+  seasonal_rates?: SeasonalRate[];
+}
+
+interface SeasonalRate {
+  id: number;
+  season_name: string;
+  start_date?: string;
+  end_date?: string;
+  day_rate?: number;
+  half_day_rate?: number;
+  week_rate?: number;
+  currency?: string;
+  min_charter_days?: number;
+  notes?: string;
 }
 
 function Toast({ ok, msg, onClose }: { ok: boolean; msg: string; onClose: () => void }) {
@@ -73,22 +89,80 @@ const BOAT_TYPES = [
   'Center Console', 'Deck Boat', 'Houseboat', 'Other',
 ];
 
+const BLANK_CHARTER: Partial<CharterListing> = {
+  title: '', vessel_name: '', boat_type: '', status: 'active', crew_included: true, currency: 'USD',
+  charter_company_name: '', charter_company_email: '', charter_company_phone: '',
+  home_port_city: '', home_port_state: '', home_port_country: 'USA',
+  operating_regions: '', description: '', booking_url: '',
+  embarkation_ports: [], disembarkation_ports: [], included_items: [], excluded_items: [],
+};
+
 function CharterModal({ initial, onSave, onClose }: {
   initial?: CharterListing;
   onSave: (data: Partial<CharterListing>) => Promise<void>;
   onClose: () => void;
 }) {
-  const blank: Partial<CharterListing> = {
-    title: '', vessel_name: '', boat_type: '', status: 'active', crew_included: true, currency: 'USD',
-    charter_company_name: '', charter_company_email: '', charter_company_phone: '',
-    home_port_city: '', home_port_state: '', home_port_country: 'USA',
-    operating_regions: '', description: '', booking_url: '',
-    embarkation_ports: [], disembarkation_ports: [], included_items: [], excluded_items: [],
-  };
-  const [form, setForm] = useState<Partial<CharterListing>>(initial ?? blank);
+  const isEdit = Boolean(initial?.id);
+  const [form, setForm] = useState<Partial<CharterListing>>(initial ?? BLANK_CHARTER);
   const [saving, setSaving] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(isEdit);
+  const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>(initial?.availability_blocks ?? []);
+  const [seasonalRates, setSeasonalRates] = useState<SeasonalRate[]>(initial?.seasonal_rates ?? []);
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+  const [seasonalSaving, setSeasonalSaving] = useState(false);
+  const [deletingBlockId, setDeletingBlockId] = useState<number | null>(null);
+  const [deletingRateId, setDeletingRateId] = useState<number | null>(null);
+  const [availabilityForm, setAvailabilityForm] = useState({
+    start_date: '',
+    end_date: '',
+    status: 'booked',
+    source: 'manual',
+    notes: '',
+  });
+  const [seasonalRateForm, setSeasonalRateForm] = useState({
+    season_name: '',
+    start_date: '',
+    end_date: '',
+    day_rate: '',
+    half_day_rate: '',
+    week_rate: '',
+    min_charter_days: '',
+    notes: '',
+  });
 
   const set = (k: keyof CharterListing, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDetails = async () => {
+      if (!initial?.id) {
+        setDetailsLoading(false);
+        return;
+      }
+
+      setDetailsLoading(true);
+      try {
+        const res = await fetch(apiUrl(`/charter/${initial.id}`), { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load charter details');
+        const data = await res.json();
+        if (cancelled) return;
+        setForm({ ...BLANK_CHARTER, ...data });
+        setAvailabilityBlocks(data.availability_blocks ?? []);
+        setSeasonalRates(data.seasonal_rates ?? []);
+      } catch {
+        if (!cancelled) {
+          setAvailabilityBlocks(initial.availability_blocks ?? []);
+          setSeasonalRates(initial.seasonal_rates ?? []);
+        }
+      } finally {
+        if (!cancelled) setDetailsLoading(false);
+      }
+    };
+
+    loadDetails();
+    return () => { cancelled = true; };
+  }, [initial]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,17 +171,102 @@ function CharterModal({ initial, onSave, onClose }: {
     setSaving(false);
   };
 
+  const addAvailabilityBlock = async () => {
+    if (!initial?.id || !availabilityForm.start_date || !availabilityForm.end_date) return;
+    setAvailabilitySaving(true);
+    try {
+      const res = await fetch(apiUrl(`/charter/${initial.id}/availability`), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          ...availabilityForm,
+          notes: availabilityForm.notes || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const block: AvailabilityBlock = await res.json();
+      setAvailabilityBlocks((current) => [...current, block].sort((left, right) => left.start_date.localeCompare(right.start_date)));
+      setAvailabilityForm({ start_date: '', end_date: '', status: 'booked', source: 'manual', notes: '' });
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  };
+
+  const removeAvailabilityBlock = async (blockId: number) => {
+    if (!initial?.id) return;
+    setDeletingBlockId(blockId);
+    try {
+      const res = await fetch(apiUrl(`/charter/${initial.id}/availability/${blockId}`), {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      setAvailabilityBlocks((current) => current.filter((block) => block.id !== blockId));
+    } finally {
+      setDeletingBlockId(null);
+    }
+  };
+
+  const addSeasonalRate = async () => {
+    if (!initial?.id || !seasonalRateForm.season_name.trim()) return;
+    setSeasonalSaving(true);
+    try {
+      const res = await fetch(apiUrl(`/charter/${initial.id}/seasonal-rates`), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          season_name: seasonalRateForm.season_name.trim(),
+          start_date: seasonalRateForm.start_date || undefined,
+          end_date: seasonalRateForm.end_date || undefined,
+          day_rate: seasonalRateForm.day_rate ? Number(seasonalRateForm.day_rate) : undefined,
+          half_day_rate: seasonalRateForm.half_day_rate ? Number(seasonalRateForm.half_day_rate) : undefined,
+          week_rate: seasonalRateForm.week_rate ? Number(seasonalRateForm.week_rate) : undefined,
+          currency: form.currency || 'USD',
+          min_charter_days: seasonalRateForm.min_charter_days ? Number(seasonalRateForm.min_charter_days) : undefined,
+          notes: seasonalRateForm.notes || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const rate: SeasonalRate = await res.json();
+      setSeasonalRates((current) => [...current, rate].sort((left, right) => `${left.start_date ?? ''}${left.season_name}`.localeCompare(`${right.start_date ?? ''}${right.season_name}`)));
+      setSeasonalRateForm({ season_name: '', start_date: '', end_date: '', day_rate: '', half_day_rate: '', week_rate: '', min_charter_days: '', notes: '' });
+    } finally {
+      setSeasonalSaving(false);
+    }
+  };
+
+  const removeSeasonalRate = async (rateId: number) => {
+    if (!initial?.id) return;
+    setDeletingRateId(rateId);
+    try {
+      const res = await fetch(apiUrl(`/charter/${initial.id}/seasonal-rates/${rateId}`), {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      setSeasonalRates((current) => current.filter((rate) => rate.id !== rateId));
+    } finally {
+      setDeletingRateId(null);
+    }
+  };
+
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#10214F] focus:border-transparent';
   const lbl = 'block text-xs font-medium text-gray-600 mb-1';
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40" onClick={onClose}>
       <div className="flex min-h-full items-start justify-center px-4 py-8">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl p-6" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-semibold text-[#10214F]">{initial ? 'Edit Charter Listing' : 'New Charter Listing'}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
+        {detailsLoading ? (
+          <div className="flex items-center justify-center py-20 text-sm text-gray-500">
+            <div className="mr-3 h-6 w-6 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            Loading charter details...
+          </div>
+        ) : (
         <form onSubmit={submit} className="space-y-5">
           {/* Basic info */}
           <div className="grid grid-cols-2 gap-3">
@@ -299,6 +458,167 @@ function CharterModal({ initial, onSave, onClose }: {
             </select>
           </div>
 
+          {isEdit ? (
+            <>
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Availability Calendar</p>
+                      <h4 className="text-base font-semibold text-gray-900">Blocked dates and tentative holds</h4>
+                    </div>
+                    <span className="text-xs text-gray-400">Booked, hold, option, maintenance, owner use</span>
+                  </div>
+                  <AvailabilityCalendar blocks={availabilityBlocks} monthsToShow={3} />
+                </div>
+
+                <div className="space-y-4 rounded-xl border border-gray-200 p-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Add Availability Block</p>
+                    <h4 className="text-base font-semibold text-gray-900">Create a manual booking or hold</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Start Date</label>
+                      <input type="date" className={inp} value={availabilityForm.start_date} onChange={e => setAvailabilityForm((current) => ({ ...current, start_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>End Date</label>
+                      <input type="date" className={inp} min={availabilityForm.start_date || undefined} value={availabilityForm.end_date} onChange={e => setAvailabilityForm((current) => ({ ...current, end_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Status</label>
+                      <select className={inp} value={availabilityForm.status} onChange={e => setAvailabilityForm((current) => ({ ...current, status: e.target.value }))}>
+                        <option value="booked">Booked</option>
+                        <option value="hold">Hold</option>
+                        <option value="option">Option</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="owner_use">Owner Use</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={lbl}>Source</label>
+                      <select className={inp} value={availabilityForm.source} onChange={e => setAvailabilityForm((current) => ({ ...current, source: e.target.value }))}>
+                        <option value="manual">Manual</option>
+                        <option value="booking">Booking</option>
+                        <option value="ical">iCal</option>
+                        <option value="api">API</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className={lbl}>Notes</label>
+                      <textarea rows={2} className={inp + ' resize-none'} value={availabilityForm.notes} onChange={e => setAvailabilityForm((current) => ({ ...current, notes: e.target.value }))} placeholder="Guest hold until deposit clears" />
+                    </div>
+                  </div>
+                  <button type="button" onClick={addAvailabilityBlock} disabled={availabilitySaving || !availabilityForm.start_date || !availabilityForm.end_date} className="w-full rounded-lg bg-[#10214F] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a3570] disabled:opacity-50">
+                    {availabilitySaving ? 'Saving block...' : 'Add availability block'}
+                  </button>
+
+                  <div className="space-y-2 border-t border-gray-100 pt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Existing Blocks</p>
+                    {availabilityBlocks.length === 0 ? (
+                      <p className="text-sm text-gray-500">No blocked dates yet.</p>
+                    ) : availabilityBlocks.map((block) => (
+                      <div key={block.id ?? `${block.start_date}-${block.end_date}-${block.status}`} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium capitalize text-gray-900">{block.status.replace('_', ' ')}</p>
+                          <p className="text-xs text-gray-500">{block.start_date} to {block.end_date}</p>
+                        </div>
+                        <button type="button" onClick={() => block.id && removeAvailabilityBlock(block.id)} disabled={deletingBlockId === block.id} className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50">
+                          {deletingBlockId === block.id ? 'Removing...' : 'Remove'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.05fr)]">
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Seasonal Rates</p>
+                    <h4 className="text-base font-semibold text-gray-900">Add price windows for holidays, peak weeks, and shoulder season</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className={lbl}>Season Name</label>
+                      <input className={inp} value={seasonalRateForm.season_name} onChange={e => setSeasonalRateForm((current) => ({ ...current, season_name: e.target.value }))} placeholder="Holiday week" />
+                    </div>
+                    <div>
+                      <label className={lbl}>Start Date</label>
+                      <input type="date" className={inp} value={seasonalRateForm.start_date} onChange={e => setSeasonalRateForm((current) => ({ ...current, start_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>End Date</label>
+                      <input type="date" className={inp} min={seasonalRateForm.start_date || undefined} value={seasonalRateForm.end_date} onChange={e => setSeasonalRateForm((current) => ({ ...current, end_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Half Day Rate</label>
+                      <input type="number" className={inp} value={seasonalRateForm.half_day_rate} onChange={e => setSeasonalRateForm((current) => ({ ...current, half_day_rate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Day Rate</label>
+                      <input type="number" className={inp} value={seasonalRateForm.day_rate} onChange={e => setSeasonalRateForm((current) => ({ ...current, day_rate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Week Rate</label>
+                      <input type="number" className={inp} value={seasonalRateForm.week_rate} onChange={e => setSeasonalRateForm((current) => ({ ...current, week_rate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Min Charter Days</label>
+                      <input type="number" className={inp} value={seasonalRateForm.min_charter_days} onChange={e => setSeasonalRateForm((current) => ({ ...current, min_charter_days: e.target.value }))} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className={lbl}>Notes</label>
+                      <textarea rows={2} className={inp + ' resize-none'} value={seasonalRateForm.notes} onChange={e => setSeasonalRateForm((current) => ({ ...current, notes: e.target.value }))} placeholder="Applies to Christmas and New Year departures" />
+                    </div>
+                  </div>
+                  <button type="button" onClick={addSeasonalRate} disabled={seasonalSaving || !seasonalRateForm.season_name.trim()} className="mt-4 w-full rounded-lg bg-[#10214F] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a3570] disabled:opacity-50">
+                    {seasonalSaving ? 'Saving rate...' : 'Add seasonal rate'}
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Current Seasonal Pricing</p>
+                    <h4 className="text-base font-semibold text-gray-900">Published pricing windows</h4>
+                  </div>
+                  <div className="space-y-3">
+                    {seasonalRates.length === 0 ? (
+                      <p className="text-sm text-gray-500">No seasonal rates yet. Base pricing will stay visible publicly until you add one.</p>
+                    ) : seasonalRates.map((rate) => {
+                      const moneyPrefix = (rate.currency || form.currency || 'USD') === 'USD' ? '$' : (rate.currency || form.currency || 'USD');
+                      return (
+                        <div key={rate.id} className="rounded-xl border border-gray-200 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{rate.season_name}</p>
+                              <p className="text-xs text-gray-500">{rate.start_date || 'Open'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
+                            </div>
+                            <button type="button" onClick={() => removeSeasonalRate(rate.id)} disabled={deletingRateId === rate.id} className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50">
+                              {deletingRateId === rate.id ? 'Removing...' : 'Remove'}
+                            </button>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
+                            {rate.half_day_rate ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Half day {moneyPrefix}{rate.half_day_rate.toLocaleString()}</span> : null}
+                            {rate.day_rate ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Day {moneyPrefix}{rate.day_rate.toLocaleString()}</span> : null}
+                            {rate.week_rate ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Week {moneyPrefix}{rate.week_rate.toLocaleString()}</span> : null}
+                            {rate.min_charter_days ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Min {rate.min_charter_days} days</span> : null}
+                          </div>
+                          {rate.notes ? <p className="mt-3 text-sm text-gray-600">{rate.notes}</p> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              Save this charter first, then reopen it to manage blocked dates and seasonal pricing.
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={saving} className="px-5 py-2 bg-[#10214F] text-white rounded-lg text-sm font-medium hover:bg-[#1a3570] disabled:opacity-50">
@@ -306,6 +626,7 @@ function CharterModal({ initial, onSave, onClose }: {
             </button>
           </div>
         </form>
+        )}
       </div>
       </div>
     </div>
