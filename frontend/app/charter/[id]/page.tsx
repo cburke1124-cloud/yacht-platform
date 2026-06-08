@@ -55,6 +55,26 @@ interface CharterListing {
   charter_company_website?: string;
   booking_url?: string;
   created_at?: string;
+  availability_blocks?: Array<{ start_date: string; end_date: string; status: string }>;
+  seasonal_rates?: Array<{
+    season_name: string;
+    start_date?: string;
+    end_date?: string;
+    day_rate?: number;
+    half_day_rate?: number;
+    week_rate?: number;
+    currency?: string;
+    min_charter_days?: number;
+    notes?: string;
+  }>;
+  included_items?: string[];
+  excluded_items?: string[];
+  apa_percentage?: number;
+  security_deposit?: number;
+  tax_notes?: string;
+  cancellation_policy?: string;
+  one_way_allowed?: boolean;
+  turnaround_days?: number;
 }
 
 function formatRate(amount?: number, currency = 'USD', period?: string) {
@@ -76,6 +96,7 @@ export default function CharterDetailPage() {
   const [submitted, setSubmitted] = useState(false);
   const [charterStartDate, setCharterStartDate] = useState('');
   const [charterEndDate, setCharterEndDate] = useState('');
+  const [showSimpleGuide, setShowSimpleGuide] = useState(true);
 
   const charterDays = useMemo(() => {
     if (!charterStartDate || !charterEndDate) return 0;
@@ -89,6 +110,13 @@ export default function CharterDetailPage() {
     if (charter.week_rate) return Math.ceil(charterDays / 7) * charter.week_rate;
     return null;
   }, [charterDays, charter]);
+
+  const availabilitySummary = useMemo(() => {
+    if (!charter?.availability_blocks?.length) return 'Availability is confirmed after inquiry.';
+    const booked = charter.availability_blocks.filter(b => b.status === 'booked').length;
+    const hold = charter.availability_blocks.filter(b => b.status === 'hold' || b.status === 'option').length;
+    return `${booked} booked window${booked === 1 ? '' : 's'} and ${hold} tentative hold${hold === 1 ? '' : 's'}`;
+  }, [charter]);
 
   useEffect(() => {
     const fetchCharter = async () => {
@@ -232,6 +260,33 @@ export default function CharterDetailPage() {
               </div>
             </div>
 
+            {/* Simple charter guide */}
+            <div className="bg-[#10214F] text-white rounded-xl p-6">
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[#C9A84C] font-semibold">How chartering works</p>
+                  <h2 className="text-lg font-semibold">Simple, not complicated</h2>
+                </div>
+                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/80 hover:text-white underline decoration-white/30">{showSimpleGuide ? 'Hide' : 'Show'}</button>
+              </div>
+              {showSimpleGuide && (
+                <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-100">
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <p className="font-semibold text-white mb-1">1. Pick where you want to go</p>
+                    <p>Search by destination, dates, and group size. If you’re not sure, start with the trip location.</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <p className="font-semibold text-white mb-1">2. Ask for availability</p>
+                    <p>Most charters are confirmed by inquiry. We show what’s already booked and what’s tentatively held.</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <p className="font-semibold text-white mb-1">3. Review what’s included</p>
+                    <p>Some trips include crew, fuel allowances, and water toys. Others exclude expenses like taxes or gratuity.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Specs */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-4">Vessel Specifications</h2>
@@ -259,6 +314,17 @@ export default function CharterDetailPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* What to expect */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">What to Expect</h2>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li>• Charter trips are usually booked with a destination and date range.</li>
+                <li>• The yacht may be crewed or bareboat depending on the listing and your experience.</li>
+                <li>• Some costs are included, while others like tax, APA, or gratuity may be added later.</li>
+                <li>• Final confirmation happens after the charter company reviews your request.</li>
+              </ul>
             </div>
 
             {/* Description */}
@@ -319,6 +385,37 @@ export default function CharterDetailPage() {
                   {charter.min_charter_days && charter.max_charter_days && ' · '}
                   {charter.max_charter_days && `Max ${charter.max_charter_days} day${charter.max_charter_days !== 1 ? 's' : ''}`}
                 </p>
+              )}
+
+              <div className="mt-4 rounded-lg bg-gray-50 border border-gray-100 p-3 text-sm text-gray-700">
+                <p className="font-medium text-gray-900 mb-1">Availability</p>
+                <p>{availabilitySummary}</p>
+              </div>
+
+              {(charter.included_items?.length || charter.excluded_items?.length) && (
+                <div className="mt-4 space-y-3 text-sm">
+                  {charter.included_items?.length ? (
+                    <div>
+                      <p className="font-medium text-gray-900 mb-1">Usually included</p>
+                      <p className="text-gray-600">{charter.included_items.join(', ')}</p>
+                    </div>
+                  ) : null}
+                  {charter.excluded_items?.length ? (
+                    <div>
+                      <p className="font-medium text-gray-900 mb-1">Usually excluded</p>
+                      <p className="text-gray-600">{charter.excluded_items.join(', ')}</p>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {(charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
+                <div className="mt-4 space-y-3 text-sm text-gray-600 border-t border-gray-100 pt-4">
+                  {charter.apa_percentage ? <p><span className="font-medium text-gray-900">APA:</span> {charter.apa_percentage}% estimated advance provisioning.</p> : null}
+                  {charter.security_deposit ? <p><span className="font-medium text-gray-900">Security deposit:</span> {charter.currency === 'USD' ? '$' : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
+                  {charter.tax_notes ? <p><span className="font-medium text-gray-900">Taxes:</span> {charter.tax_notes}</p> : null}
+                  {charter.cancellation_policy ? <p><span className="font-medium text-gray-900">Cancellation:</span> {charter.cancellation_policy}</p> : null}
+                </div>
               )}
 
               {/* Preferred dates — always visible */}

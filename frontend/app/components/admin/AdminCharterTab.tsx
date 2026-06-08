@@ -42,6 +42,18 @@ interface CharterListing {
   charter_company_website?: string;
   amenities?: string[];
   min_charter_days?: number;
+  max_charter_days?: number;
+  operating_regions?: string;
+  embarkation_ports?: string[];
+  disembarkation_ports?: string[];
+  one_way_allowed?: boolean;
+  turnaround_days?: number;
+  apa_percentage?: number;
+  security_deposit?: number;
+  tax_notes?: string;
+  cancellation_policy?: string;
+  included_items?: string[];
+  excluded_items?: string[];
 }
 
 function Toast({ ok, msg, onClose }: { ok: boolean; msg: string; onClose: () => void }) {
@@ -70,7 +82,8 @@ function CharterModal({ initial, onSave, onClose }: {
     title: '', vessel_name: '', boat_type: '', status: 'active', crew_included: true, currency: 'USD',
     charter_company_name: '', charter_company_email: '', charter_company_phone: '',
     home_port_city: '', home_port_state: '', home_port_country: 'USA',
-    description: '', booking_url: '',
+    operating_regions: '', description: '', booking_url: '',
+    embarkation_ports: [], disembarkation_ports: [], included_items: [], excluded_items: [],
   };
   const [form, setForm] = useState<Partial<CharterListing>>(initial ?? blank);
   const [saving, setSaving] = useState(false);
@@ -162,9 +175,42 @@ function CharterModal({ initial, onSave, onClose }: {
                 <label className={lbl}>Min Charter Days</label>
                 <input type="number" className={inp} value={form.min_charter_days ?? ''} onChange={e => set('min_charter_days', e.target.value ? Number(e.target.value) : undefined)} />
               </div>
+              <div>
+                <label className={lbl}>Max Charter Days</label>
+                <input type="number" className={inp} value={form.max_charter_days ?? ''} onChange={e => set('max_charter_days', e.target.value ? Number(e.target.value) : undefined)} />
+              </div>
               <div className="flex items-center gap-2 pt-5">
                 <input type="checkbox" id="crew" checked={form.crew_included ?? true} onChange={e => set('crew_included', e.target.checked)} className="w-4 h-4 accent-[#10214F]" />
                 <label htmlFor="crew" className="text-sm text-gray-700">Crew Included</label>
+              </div>
+              <div className="flex items-center gap-2 pt-5">
+                <input type="checkbox" id="one_way_allowed" checked={form.one_way_allowed ?? false} onChange={e => set('one_way_allowed', e.target.checked)} className="w-4 h-4 accent-[#10214F]" />
+                <label htmlFor="one_way_allowed" className="text-sm text-gray-700">One-way allowed</label>
+              </div>
+              <div>
+                <label className={lbl}>Turnaround Days</label>
+                <input type="number" className={inp} value={form.turnaround_days ?? ''} onChange={e => set('turnaround_days', e.target.value ? Number(e.target.value) : undefined)} />
+              </div>
+            </div>
+          </div>
+
+          {/* Operation region */}
+          <div>
+            <label className={lbl}>Operating Regions</label>
+            <input className={inp} value={form.operating_regions ?? ''} onChange={e => set('operating_regions', e.target.value)} placeholder="Caribbean, Bahamas, Florida Keys" />
+          </div>
+
+          {/* Charter inclusions */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Included / Excluded</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={lbl}>Included Items (comma separated)</label>
+                <textarea className={inp + ' resize-none'} rows={3} value={(form.included_items ?? []).join(', ')} onChange={e => set('included_items', e.target.value.split(',').map(v => v.trim()).filter(Boolean))} placeholder="Crew, towels, water, soft drinks" />
+              </div>
+              <div>
+                <label className={lbl}>Excluded Items (comma separated)</label>
+                <textarea className={inp + ' resize-none'} rows={3} value={(form.excluded_items ?? []).join(', ')} onChange={e => set('excluded_items', e.target.value.split(',').map(v => v.trim()).filter(Boolean))} placeholder="Fuel, gratuity, marina fees" />
               </div>
             </div>
           </div>
@@ -184,6 +230,28 @@ function CharterModal({ initial, onSave, onClose }: {
               <div>
                 <label className={lbl}>Week Rate</label>
                 <input type="number" className={inp} value={form.week_rate ?? ''} onChange={e => set('week_rate', e.target.value ? Number(e.target.value) : undefined)} />
+              </div>
+              <div>
+                <label className={lbl}>APA %</label>
+                <input type="number" className={inp} value={form.apa_percentage ?? ''} onChange={e => set('apa_percentage', e.target.value ? Number(e.target.value) : undefined)} placeholder="30" />
+              </div>
+              <div>
+                <label className={lbl}>Security Deposit</label>
+                <input type="number" className={inp} value={form.security_deposit ?? ''} onChange={e => set('security_deposit', e.target.value ? Number(e.target.value) : undefined)} placeholder="5000" />
+              </div>
+              <div>
+                <label className={lbl}>Min Charter Days (seasonal)</label>
+                <input type="number" className={inp} value={form.min_charter_days ?? ''} onChange={e => set('min_charter_days', e.target.value ? Number(e.target.value) : undefined)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className={lbl}>Tax Notes</label>
+                <textarea className={inp + ' resize-none'} rows={2} value={form.tax_notes ?? ''} onChange={e => set('tax_notes', e.target.value)} placeholder="VAT applies in EU waters" />
+              </div>
+              <div>
+                <label className={lbl}>Cancellation Policy</label>
+                <textarea className={inp + ' resize-none'} rows={2} value={form.cancellation_policy ?? ''} onChange={e => set('cancellation_policy', e.target.value)} placeholder="50% within 30 days" />
               </div>
             </div>
           </div>

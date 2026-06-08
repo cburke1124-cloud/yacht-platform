@@ -34,6 +34,7 @@ interface CharterListing {
   status: string;
   charter_company_name?: string;
   charter_company_slug?: string;
+  availability_blocks?: Array<{ start_date: string; end_date: string; status: string }>;
 }
 
 const BOAT_TYPES = ['Motor Yacht', 'Sailing Yacht', 'Catamaran', 'Mega Yacht', 'Superyacht', 'Trawler'];
@@ -168,6 +169,8 @@ export default function CharterPage() {
   const [crewIncluded, setCrewIncluded] = useState('');
   const [maxDayRate, setMaxDayRate] = useState('');
   const [duration, setDuration] = useState('');
+  const [tripStart, setTripStart] = useState('');
+  const [tripEnd, setTripEnd] = useState('');
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -183,6 +186,8 @@ export default function CharterPage() {
       if (maxGuests) params.set('min_guests', maxGuests);
       if (crewIncluded) params.set('crew_included', crewIncluded);
       if (maxDayRate) params.set('max_day_rate', maxDayRate);
+      if (tripStart) params.set('start_date', tripStart);
+      if (tripEnd) params.set('end_date', tripEnd);
       const durationMaxDays: Record<string, number> = { day: 1, weekend: 3, week: 7 };
       if (duration && durationMaxDays[duration]) params.set('max_min_days', String(durationMaxDays[duration]));
       const res = await fetch(apiUrl(`/charter?${params}`));
@@ -196,17 +201,17 @@ export default function CharterPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, boatType, location, minLength, maxLength, maxGuests, crewIncluded, maxDayRate, duration]);
+  }, [page, search, boatType, location, minLength, maxLength, maxGuests, crewIncluded, maxDayRate, duration, tripStart, tripEnd]);
 
   useEffect(() => { fetchCharters(); }, [fetchCharters]);
 
   const clearFilters = () => {
     setSearch(''); setBoatType(''); setLocation('');
     setMinLength(''); setMaxLength(''); setMaxGuests('');
-    setCrewIncluded(''); setMaxDayRate(''); setDuration(''); setPage(1);
+    setCrewIncluded(''); setMaxDayRate(''); setDuration(''); setTripStart(''); setTripEnd(''); setPage(1);
   };
 
-  const hasActiveFilters = !!(search || boatType || location || minLength || maxLength || maxGuests || crewIncluded || maxDayRate || duration);
+  const hasActiveFilters = !!(search || boatType || location || minLength || maxLength || maxGuests || crewIncluded || maxDayRate || duration || tripStart || tripEnd);
 
   const pills: { label: string; clear: () => void }[] = [];
   if (search)       pills.push({ label: `"${search}"`,                      clear: () => setSearch('') });
@@ -217,6 +222,7 @@ export default function CharterPage() {
   if (crewIncluded) pills.push({ label: crewIncluded === 'true' ? 'Crew included' : 'Bareboat', clear: () => setCrewIncluded('') });
   if (minLength || maxLength) pills.push({ label: `${minLength || '0'}–${maxLength || '∞'} ft`, clear: () => { setMinLength(''); setMaxLength(''); } });
   if (maxDayRate)   pills.push({ label: `≤$${Number(maxDayRate).toLocaleString()}/day`,         clear: () => setMaxDayRate('') });
+  if (tripStart || tripEnd) pills.push({ label: `${tripStart || 'Any'} → ${tripEnd || 'Any'}`, clear: () => { setTripStart(''); setTripEnd(''); } });
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
@@ -229,7 +235,7 @@ export default function CharterPage() {
             <span className="text-[#C9A84C] uppercase tracking-widest text-sm font-medium" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter</span>
           </div>
           <h1 className="text-4xl font-bold mb-3" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Yacht Charter</h1>
-          <p className="text-blue-200 text-lg max-w-xl mx-auto">Crewed luxury, bareboat freedom, day escapes — discover charter yachts worldwide.</p>
+          <p className="text-blue-200 text-lg max-w-xl mx-auto">Pick a destination, dates, and group size. We’ll show charters that fit the trip.</p>
           <div className="mt-8 max-w-xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -240,6 +246,16 @@ export default function CharterPage() {
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg"
               />
+            </div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-blue-100 mb-1 text-left">Trip start</label>
+                <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
+              </div>
+              <div>
+                <label className="block text-xs text-blue-100 mb-1 text-left">Trip end</label>
+                <input type="date" value={tripEnd} min={tripStart || undefined} onChange={e => { setTripEnd(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
+              </div>
             </div>
           </div>
         </div>
@@ -315,6 +331,15 @@ export default function CharterPage() {
               </div>
             </FilterDropdown>
 
+            <FilterDropdown label="Trip Dates" active={!!(tripStart || tripEnd)}>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">When are you traveling?</label>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                <input type="date" value={tripEnd} min={tripStart || undefined} onChange={e => { setTripEnd(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">We’ll hide yachts blocked for those dates.</p>
+            </FilterDropdown>
+
             <FilterDropdown label="Crew" active={!!crewIncluded}>
               <div className="flex flex-col gap-1">
                 {[{ label: 'Any', value: '' }, { label: 'Crew included', value: 'true' }, { label: 'Bareboat', value: 'false' }].map(opt => (
@@ -359,7 +384,7 @@ export default function CharterPage() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-5">
           <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            {loading ? 'Loading…' : `${total.toLocaleString()} charter vessel${total !== 1 ? 's' : ''} available`}
+            {loading ? 'Loading…' : `${total.toLocaleString()} charter option${total !== 1 ? 's' : ''} available`}
           </p>
         </div>
 

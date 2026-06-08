@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
+from datetime import date, datetime
 import re
 import logging
 import os
 
 from app.db.session import get_db
-from app.models.charter import CharterListing
+from app.models.charter import CharterListing, CharterAvailabilityBlock, CharterSeasonalRate
 from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
 
@@ -27,6 +28,27 @@ class CharterInquiryRequest(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     guests: Optional[int] = None
+
+
+class AvailabilityBlockRequest(BaseModel):
+    start_date: date
+    end_date: date
+    status: str = "booked"
+    source: str = "manual"
+    notes: Optional[str] = None
+    external_ref: Optional[str] = None
+
+
+class SeasonalRateRequest(BaseModel):
+    season_name: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    day_rate: Optional[float] = None
+    half_day_rate: Optional[float] = None
+    week_rate: Optional[float] = None
+    currency: Optional[str] = "USD"
+    min_charter_days: Optional[int] = None
+    notes: Optional[str] = None
 
 
 def _slugify(text: str) -> str:
@@ -80,12 +102,22 @@ def _serialize(c: CharterListing) -> dict:
         "home_port_state": c.home_port_state,
         "home_port_country": c.home_port_country,
         "operating_regions": c.operating_regions,
+        "embarkation_ports": c.embarkation_ports or [],
+        "disembarkation_ports": c.disembarkation_ports or [],
+        "one_way_allowed": c.one_way_allowed or False,
+        "turnaround_days": c.turnaround_days,
         "day_rate": c.day_rate,
         "half_day_rate": c.half_day_rate,
         "week_rate": c.week_rate,
         "currency": c.currency or "USD",
         "min_charter_days": c.min_charter_days,
         "max_charter_days": c.max_charter_days,
+        "apa_percentage": c.apa_percentage,
+        "security_deposit": c.security_deposit,
+        "tax_notes": c.tax_notes,
+        "cancellation_policy": c.cancellation_policy,
+        "included_items": c.included_items or [],
+        "excluded_items": c.excluded_items or [],
         "description": c.description,
         "amenities": c.amenities or [],
         "images": c.images or [],
@@ -98,6 +130,40 @@ def _serialize(c: CharterListing) -> dict:
         "status": c.status,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
+
+
+def _serialize_block(b: CharterAvailabilityBlock) -> dict:
+    return {
+        "id": b.id,
+        "charter_id": b.charter_id,
+        "start_date": b.start_date.isoformat() if b.start_date else None,
+        "end_date": b.end_date.isoformat() if b.end_date else None,
+        "status": b.status,
+        "source": b.source,
+        "notes": b.notes,
+        "external_ref": b.external_ref,
+        "hold_expires_at": b.hold_expires_at.isoformat() if b.hold_expires_at else None,
+        "created_at": b.created_at.isoformat() if b.created_at else None,
+        "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+    }
+
+
+def _serialize_rate(r: CharterSeasonalRate) -> dict:
+    return {
+        "id": r.id,
+        "charter_id": r.charter_id,
+        "season_name": r.season_name,
+        "start_date": r.start_date.isoformat() if r.start_date else None,
+        "end_date": r.end_date.isoformat() if r.end_date else None,
+        "day_rate": r.day_rate,
+        "half_day_rate": r.half_day_rate,
+        "week_rate": r.week_rate,
+        "currency": r.currency or "USD",
+        "min_charter_days": r.min_charter_days,
+        "notes": r.notes,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
     }
 
 
@@ -116,6 +182,9 @@ def list_charters(
     max_length: Optional[float] = Query(None),
     max_day_rate: Optional[float] = Query(None),
     max_min_days: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    region: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -145,6 +214,18 @@ def list_charters(
                 CharterListing.operating_regions.ilike(loc_like),
             )
         )
+    if region:
+        reg_like = f"%{region}%"
+        query = query.filter(
+            or_(
+                CharterListing.home_port_city.ilike(reg_like),
+                CharterListing.home_port_state.ilike(reg_like),
+                CharterListing.home_port_country.ilike(reg_like),
+                CharterListing.operating_regions.ilike(reg_like),
+                CharterListing.embarkation_ports.cast(String).ilike(reg_like),
+                CharterListing.disembarkation_ports.cast(String).ilike(reg_like),
+            )
+        )
     if crew_included is not None:
         query = query.filter(CharterListing.crew_included == crew_included)
     if min_guests is not None:
@@ -162,6 +243,20 @@ def list_charters(
                 CharterListing.min_charter_days <= max_min_days,
             )
         )
+
+    # Phase 2: hide listings with conflicting availability blocks when dates are provided.
+    if start_date and end_date:
+        conflict_ids = (
+            db.query(CharterAvailabilityBlock.charter_id)
+            .filter(
+                CharterAvailabilityBlock.start_date <= end_date,
+                CharterAvailabilityBlock.end_date >= start_date,
+                CharterAvailabilityBlock.status.in_(["booked", "hold", "option", "maintenance", "owner_use"]),
+            )
+            .distinct()
+            .subquery()
+        )
+        query = query.filter(~CharterListing.id.in_(conflict_ids))
 
     total = query.count()
     charters = query.order_by(CharterListing.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -223,7 +318,127 @@ def get_charter(charter_id: int, db: Session = Depends(get_db)):
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter or charter.status == "inactive":
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    return _serialize(charter)
+    return {
+        **_serialize(charter),
+        "availability_blocks": [_serialize_block(b) for b in charter.availability_blocks],
+        "seasonal_rates": [_serialize_rate(r) for r in charter.seasonal_rates],
+    }
+
+
+@router.get("/{charter_id}/availability")
+def get_charter_availability(charter_id: int, db: Session = Depends(get_db)):
+    blocks = (
+        db.query(CharterAvailabilityBlock)
+        .filter(CharterAvailabilityBlock.charter_id == charter_id)
+        .order_by(CharterAvailabilityBlock.start_date.asc())
+        .all()
+    )
+    return [_serialize_block(b) for b in blocks]
+
+
+@router.post("/{charter_id}/availability")
+def create_charter_availability_block(
+    charter_id: int,
+    data: AvailabilityBlockRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Charter listing not found")
+    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Not authorised")
+    if data.end_date < data.start_date:
+        raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
+
+    conflict = (
+        db.query(CharterAvailabilityBlock.id)
+        .filter(
+            CharterAvailabilityBlock.charter_id == charter_id,
+            CharterAvailabilityBlock.start_date <= data.end_date,
+            CharterAvailabilityBlock.end_date >= data.start_date,
+            CharterAvailabilityBlock.status.in_(["booked", "hold", "option", "maintenance", "owner_use"]),
+        )
+        .first()
+    )
+    if conflict:
+        raise HTTPException(status_code=409, detail="Availability conflict")
+
+    block = CharterAvailabilityBlock(
+        charter_id=charter_id,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        status=data.status,
+        source=data.source,
+        notes=data.notes,
+        external_ref=data.external_ref,
+    )
+    db.add(block)
+    db.commit()
+    db.refresh(block)
+    return _serialize_block(block)
+
+
+@router.delete("/{charter_id}/availability/{block_id}")
+def delete_charter_availability_block(
+    charter_id: int,
+    block_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    block = db.query(CharterAvailabilityBlock).filter(
+        CharterAvailabilityBlock.id == block_id,
+        CharterAvailabilityBlock.charter_id == charter_id,
+    ).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Availability block not found")
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Not authorised")
+    db.delete(block)
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/{charter_id}/seasonal-rates")
+def get_charter_seasonal_rates(charter_id: int, db: Session = Depends(get_db)):
+    rates = (
+        db.query(CharterSeasonalRate)
+        .filter(CharterSeasonalRate.charter_id == charter_id)
+        .order_by(CharterSeasonalRate.start_date.asc().nullsfirst(), CharterSeasonalRate.season_name.asc())
+        .all()
+    )
+    return [_serialize_rate(r) for r in rates]
+
+
+@router.post("/{charter_id}/seasonal-rates")
+def create_charter_seasonal_rate(
+    charter_id: int,
+    data: SeasonalRateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Charter listing not found")
+    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Not authorised")
+    rate = CharterSeasonalRate(
+        charter_id=charter_id,
+        season_name=data.season_name,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        day_rate=data.day_rate,
+        half_day_rate=data.half_day_rate,
+        week_rate=data.week_rate,
+        currency=data.currency or "USD",
+        min_charter_days=data.min_charter_days,
+        notes=data.notes,
+    )
+    db.add(rate)
+    db.commit()
+    db.refresh(rate)
+    return _serialize_rate(rate)
 
 
 @router.post("/inquiry")
@@ -326,10 +541,11 @@ def create_charter(
 
     slug = _make_unique_slug(vessel_name or title, db)
 
+    allowed_keys = {col.name for col in CharterListing.__table__.columns}
     charter = CharterListing(
         user_id=current_user.id,
         slug=slug,
-        **{k: v for k, v in payload.items() if k not in ("slug",) and hasattr(CharterListing, k)},
+        **{k: v for k, v in payload.items() if k in allowed_keys and k not in ("id", "slug", "user_id", "created_at", "updated_at")},
     )
     db.add(charter)
     db.commit()
@@ -352,8 +568,9 @@ def update_charter(
     if charter.user_id != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorised")
 
+    allowed_keys = {col.name for col in CharterListing.__table__.columns}
     for key, val in payload.items():
-        if key not in ("id", "slug", "user_id", "created_at") and hasattr(CharterListing, key):
+        if key in allowed_keys and key not in ("id", "slug", "user_id", "created_at", "updated_at"):
             setattr(charter, key, val)
 
     db.commit()
