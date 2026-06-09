@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload } from 'lucide-react';
+import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 
 const authHeaders = () => ({
@@ -55,6 +55,7 @@ interface CharterListing {
   cancellation_policy?: string;
   included_items?: string[];
   excluded_items?: string[];
+  images?: (string | { url: string })[];
   availability_blocks?: AvailabilityBlock[];
   seasonal_rates?: SeasonalRate[];
 }
@@ -112,6 +113,14 @@ function CharterModal({ initial, onSave, onClose }: {
   const [seasonalSaving, setSeasonalSaving] = useState(false);
   const [deletingBlockId, setDeletingBlockId] = useState<number | null>(null);
   const [deletingRateId, setDeletingRateId] = useState<number | null>(null);
+  // Controlled text states for comma-separated fields — only parsed on blur/submit
+  const [includedText, setIncludedText] = useState((initial?.included_items ?? []).join(', '));
+  const [excludedText, setExcludedText] = useState((initial?.excluded_items ?? []).join(', '));
+  // Image management
+  const [charterImages, setCharterImages] = useState<string[]>(
+    (initial?.images ?? []).map((img) => (typeof img === 'string' ? img : img.url)),
+  );
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [availabilityForm, setAvailabilityForm] = useState({
     start_date: '',
     end_date: '',
@@ -150,6 +159,13 @@ function CharterModal({ initial, onSave, onClose }: {
         setForm({ ...BLANK_CHARTER, ...data });
         setAvailabilityBlocks(data.availability_blocks ?? []);
         setSeasonalRates(data.seasonal_rates ?? []);
+        setIncludedText((data.included_items ?? []).join(', '));
+        setExcludedText((data.excluded_items ?? []).join(', '));
+        setCharterImages(
+          (data.images ?? []).map((img: string | { url: string }) =>
+            typeof img === 'string' ? img : img.url,
+          ),
+        );
       } catch {
         if (!cancelled) {
           setAvailabilityBlocks(initial.availability_blocks ?? []);
@@ -167,7 +183,11 @@ function CharterModal({ initial, onSave, onClose }: {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await onSave(form);
+    await onSave({
+      ...form,
+      included_items: includedText.split(',').map(v => v.trim()).filter(Boolean),
+      excluded_items: excludedText.split(',').map(v => v.trim()).filter(Boolean),
+    });
     setSaving(false);
   };
 
@@ -248,6 +268,50 @@ function CharterModal({ initial, onSave, onClose }: {
     } finally {
       setDeletingRateId(null);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!initial?.id || !e.target.files?.length) return;
+    setUploadingImages(true);
+    const newUrls: string[] = [];
+    try {
+      for (const file of Array.from(e.target.files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(apiUrl('/upload'), {
+          method: 'POST',
+          headers: authHeaders(),
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          newUrls.push(data.url);
+        }
+      }
+      if (newUrls.length > 0) {
+        const updated = [...charterImages, ...newUrls];
+        const res = await fetch(apiUrl(`/charter/${initial.id}`), {
+          method: 'PUT',
+          headers: jsonHeaders(),
+          body: JSON.stringify({ images: updated }),
+        });
+        if (res.ok) setCharterImages(updated);
+      }
+    } finally {
+      setUploadingImages(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleImageDelete = async (url: string) => {
+    if (!initial?.id) return;
+    const updated = charterImages.filter((u) => u !== url);
+    const res = await fetch(apiUrl(`/charter/${initial.id}`), {
+      method: 'PUT',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ images: updated }),
+    });
+    if (res.ok) setCharterImages(updated);
   };
 
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#10214F] focus:border-transparent';
@@ -365,11 +429,25 @@ function CharterModal({ initial, onSave, onClose }: {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Included Items (comma separated)</label>
-                <textarea className={inp + ' resize-none'} rows={3} value={(form.included_items ?? []).join(', ')} onChange={e => set('included_items', e.target.value.split(',').map(v => v.trim()).filter(Boolean))} placeholder="Crew, towels, water, soft drinks" />
+                <textarea
+                  className={inp + ' resize-none'}
+                  rows={3}
+                  value={includedText}
+                  onChange={e => setIncludedText(e.target.value)}
+                  onBlur={e => set('included_items', e.target.value.split(',').map(v => v.trim()).filter(Boolean))}
+                  placeholder="Crew, towels, water, soft drinks"
+                />
               </div>
               <div>
                 <label className={lbl}>Excluded Items (comma separated)</label>
-                <textarea className={inp + ' resize-none'} rows={3} value={(form.excluded_items ?? []).join(', ')} onChange={e => set('excluded_items', e.target.value.split(',').map(v => v.trim()).filter(Boolean))} placeholder="Fuel, gratuity, marina fees" />
+                <textarea
+                  className={inp + ' resize-none'}
+                  rows={3}
+                  value={excludedText}
+                  onChange={e => setExcludedText(e.target.value)}
+                  onBlur={e => set('excluded_items', e.target.value.split(',').map(v => v.trim()).filter(Boolean))}
+                  placeholder="Fuel, gratuity, marina fees"
+                />
               </div>
             </div>
           </div>
@@ -460,6 +538,40 @@ function CharterModal({ initial, onSave, onClose }: {
 
           {isEdit ? (
             <>
+              {/* Images */}
+              <div className="rounded-xl border border-gray-200 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Images</p>
+                    <h4 className="text-base font-semibold text-gray-900">Charter listing photos</h4>
+                  </div>
+                  <label className={`flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#10214F] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a3570] ${uploadingImages ? 'pointer-events-none opacity-50' : ''}`}>
+                    <Upload size={13} />{uploadingImages ? 'Uploading…' : 'Add photos'}
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={uploadingImages} />
+                  </label>
+                </div>
+                {charterImages.length === 0 ? (
+                  <p className="text-sm text-gray-500">No images uploaded yet.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                    {charterImages.map((url, i) => (
+                      <div key={url} className="group relative aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+                        <img src={mediaUrl(url)} alt={`Charter image ${i + 1}`} onError={onImgError} className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleImageDelete(url)}
+                          className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+                          title="Remove image"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Availability Calendar */}
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
                 <div className="rounded-xl border border-gray-200 p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
