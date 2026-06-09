@@ -34,9 +34,21 @@ interface SearchResult {
   warnings: string[] | null;
 }
 
+interface SearchContext {
+  broker_filtered?: boolean;
+  broker_match?: string;
+  exact_make?: string;
+  no_exact_make?: string;
+  showing_similar?: boolean;
+  location_filtered?: string[];
+  no_location_match?: string[];
+  showing_all_locations?: boolean;
+}
+
 interface AISearchResponse {
   query: string;
   understood_criteria: any;
+  search_context?: SearchContext;
   total_found: number;
   results: SearchResult[];
   message?: string;
@@ -351,7 +363,26 @@ export default function AISearchComponent() {
                   Purpose: {searchResults.understood_criteria.use_case}
                 </span>
               )}
+              {searchResults.understood_criteria.locations?.map((loc: string) => (
+                <span key={loc} className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-sm">
+                  📍 {loc}
+                </span>
+              ))}
             </div>
+
+            {/* Location filter status banner */}
+            {searchResults.search_context?.location_filtered && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-teal-50 border border-teal-200 px-4 py-2.5 text-sm text-teal-800">
+                <span>✓</span>
+                <span>Showing results in <strong>{searchResults.search_context.location_filtered.join(', ')}</strong></span>
+              </div>
+            )}
+            {searchResults.search_context?.showing_all_locations && searchResults.search_context.no_location_match && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 text-sm text-amber-800">
+                <AlertTriangle size={15} className="flex-shrink-0" />
+                <span>No listings found in <strong>{searchResults.search_context.no_location_match.join(', ')}</strong> — showing similar boats from other areas</span>
+              </div>
+            )}
           </div>
         )}
 

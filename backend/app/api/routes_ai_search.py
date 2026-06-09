@@ -167,7 +167,8 @@ Key conversions:
 - "fishing" = fishing boat types, fishing equipment
 - "luxury" = higher price range, premium features
 - "family" = 3+ cabins, safe, comfortable
-- Location mentions = add to locations array
+- Location mentions = add to locations array; use country names ("Mexico", "Greece", "Croatia"), regional names ("Caribbean", "Pacific Coast", "Mediterranean"), and US state names as needed
+- Cruising-area context like "marina nearby", "resort", "anchorage", or "Pacific coast cruising" describes where the boat operates, NOT the boat itself — do NOT add those to features
 
 Return ONLY valid JSON, no markdown or explanations."""
 
@@ -350,8 +351,8 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
     else:
         score += 5
     
-    # Location match (5 points)
-    max_score += 5
+    # Location match (20 points) — weighted heavily: location is a hard requirement for most queries
+    max_score += 20
     if criteria.locations:
         location_match = False
         for loc in criteria.locations:
@@ -365,12 +366,12 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
                 break
         
         if location_match:
-            score += 5
+            score += 20
         else:
-            score += 1
+            score += 0  # No consolation — wrong location is a real mismatch
             warnings.append(f"Different location: {listing.city}, {listing.state}")
     else:
-        score += 5
+        score += 20
     
     # Use case bonus (bonus points, can exceed 100)
     if criteria.use_case:
@@ -531,7 +532,37 @@ async def ai_search(
             candidates_query = query.filter(func.lower(Listing.make) == criteria.make.strip().lower())
         else:
             candidates_query = query
-        
+
+        # Check if any listings exist in the requested location(s).
+        # If they do, constrain the candidate pool to that location so a Sarasota
+        # boat doesn't beat a Mexico boat just because most fields are unspecified.
+        location_exists_in_db = False
+        location_filter_clauses: list = []
+        if criteria.locations and not broker_query_applied:
+            for loc in criteria.locations:
+                loc_like = f"%{loc.lower()}%"
+                location_filter_clauses.append(
+                    or_(
+                        func.lower(Listing.city).like(loc_like),
+                        func.lower(Listing.state).like(loc_like),
+                        func.lower(Listing.country).like(loc_like),
+                        func.lower(func.coalesce(Listing.continent, "")).like(loc_like),
+                    )
+                )
+            if location_filter_clauses:
+                location_exists_in_db = (
+                    db.query(Listing.id)
+                    .filter(
+                        Listing.status == "active",
+                        Listing.deleted_at.is_(None),
+                        or_(*location_filter_clauses),
+                    )
+                    .first() is not None
+                )
+
+        if location_filter_clauses and location_exists_in_db:
+            candidates_query = candidates_query.filter(or_(*location_filter_clauses))
+
         # Get candidate listings (cast wider net for scoring)
         candidates = candidates_query.limit(50).all()
         
@@ -571,6 +602,12 @@ async def ai_search(
         elif criteria.make and exact_make_exists:
             search_context["exact_make"] = criteria.make
             search_context["showing_similar"] = False
+        if criteria.locations:
+            if location_exists_in_db:
+                search_context["location_filtered"] = criteria.locations
+            else:
+                search_context["no_location_match"] = criteria.locations
+                search_context["showing_all_locations"] = True
         
         return {
             "query": request.query,
