@@ -32,10 +32,11 @@ export interface Destination {
   subRegions?: string[];
 }
 
-let destinationsCache: Destination[] | null = null;
+
+let destinationsCache: Destination[] = [];
 
 function loadDestinations(): Destination[] {
-  if (destinationsCache) return destinationsCache;
+  if (destinationsCache.length > 0) return destinationsCache;
 
   try {
     const dataPath = path.join(process.cwd(), 'public', 'data', 'charter_destinations.json');
@@ -53,7 +54,7 @@ function loadDestinations(): Destination[] {
 
     const fileContent = fs.readFileSync(fullPath, 'utf-8');
     destinationsCache = JSON.parse(fileContent);
-    return destinationsCache;
+      return destinationsCache;
   } catch (error) {
     console.error('Error loading destinations:', error);
     return [];

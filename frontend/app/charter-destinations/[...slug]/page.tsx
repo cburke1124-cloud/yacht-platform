@@ -1,7 +1,4 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { useParams, notFound } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import {
   getDestinationBySlug,
   getSubregionsForRegion,
@@ -13,66 +10,41 @@ import DestinationInfo from '@/app/components/charter-destinations/DestinationIn
 import DestinationListings from '@/app/components/charter-destinations/DestinationListings';
 import SubRegionNavigation from '@/app/components/charter-destinations/SubRegionNavigation';
 
-export default function DestinationDetail() {
-  const params = useParams();
-  const slugArray = Array.isArray(params.slug) ? params.slug : [params.slug];
-  
-  const [destination, setDestination] = useState<Destination | null>(null);
-  const [parentRegion, setParentRegion] = useState<Destination | null>(null);
-  const [subregions, setSubregions] = useState<Destination[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DestinationDetailProps {
+  params: Promise<{ slug: string[] | string }>;
+}
 
-  useEffect(() => {
-    // Handle both region and sub-region paths
-    let dest: Destination | undefined;
-    let parent: Destination | undefined = null;
-    let subs: Destination[] = [];
+export default async function DestinationDetail({ params }: DestinationDetailProps) {
+  const resolvedParams = await params;
+  const slugArray = Array.isArray(resolvedParams.slug) ? resolvedParams.slug : [resolvedParams.slug];
+  // Handle both region and sub-region paths
+  let destination: Destination | undefined;
+  let parentRegion: Destination | undefined;
+  let subregions: Destination[] = [];
 
-    if (slugArray.length === 1) {
-      // Single slug - could be region or subregion
-      dest = getDestinationBySlug(slugArray[0]);
-      
-      if (dest?.type === 'region') {
-        // It's a region - get its subregions
-        subs = getSubregionsForRegion(dest.slug);
-      } else if (dest?.type === 'subregion') {
-        // It's a subregion - get its parent region
-        parent = getRegionForSubregion(dest.slug);
-      }
-    } else if (slugArray.length === 2) {
-      // Two slugs - [region]/[subregion]
-      const regionSlug = slugArray[0];
-      const subregionSlug = slugArray[1];
-      
-      parent = getDestinationBySlug(regionSlug);
-      dest = getDestinationBySlug(subregionSlug);
-      
-      // Verify parent-child relationship
-      if (dest?.type !== 'subregion' || dest.parentRegion !== regionSlug) {
-        setDestination(null);
-        setLoading(false);
-        return;
-      }
+  if (slugArray.length === 1) {
+    // Single slug - could be region or subregion
+    destination = getDestinationBySlug(slugArray[0]);
+
+    if (destination?.type === 'region') {
+      // It's a region - get its subregions
+      subregions = getSubregionsForRegion(destination.slug);
+    } else if (destination?.type === 'subregion') {
+      // It's a subregion - get its parent region
+      parentRegion = getRegionForSubregion(destination.slug);
     }
+  } else if (slugArray.length === 2) {
+    // Two slugs - [region]/[subregion]
+    const regionSlug = slugArray[0];
+    const subregionSlug = slugArray[1];
 
-    if (!dest) {
-      setDestination(null);
-      setLoading(false);
-      return;
+    parentRegion = getDestinationBySlug(regionSlug);
+    destination = getDestinationBySlug(subregionSlug);
+
+    // Verify parent-child relationship
+    if (destination?.type !== 'subregion' || destination.parentRegion !== regionSlug) {
+      notFound();
     }
-
-    setDestination(dest);
-    setParentRegion(parent || null);
-    setSubregions(subs);
-    setLoading(false);
-  }, [slugArray]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Loading destination...</p>
-      </div>
-    );
   }
 
   if (!destination) {

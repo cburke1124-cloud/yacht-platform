@@ -1,18 +1,10 @@
-'use client';
-
-import { useState, useEffect } from 'react';
 import { getRegions, Destination } from '@/app/lib/destinationData';
 import DestinationCard from '@/app/components/charter-destinations/DestinationCard';
 import { MapPin, Compass } from 'lucide-react';
 
 export default function DestinationsBrowse() {
-  const [regions, setRegions] = useState<Destination[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setRegions(getRegions());
-    setLoading(false);
-  }, []);
+  const regions = getRegions();
+  const loading = false;
 
   if (loading) {
     return (
