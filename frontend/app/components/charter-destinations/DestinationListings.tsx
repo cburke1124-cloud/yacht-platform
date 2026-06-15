@@ -79,7 +79,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
 
   if (loading) {
     return (
-      <div className="py-12 text-center">
+      <div className="py-12 text-center bg-white border border-gray-200 mx-6">
         <p className="text-gray-600">Loading available charters...</p>
       </div>
     );
@@ -87,7 +87,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
 
   if (error) {
     return (
-      <div className="py-12 text-center">
+      <div className="py-12 text-center bg-white border border-gray-200 mx-6">
         <p className="text-red-600">{error}</p>
       </div>
     );
@@ -95,9 +95,9 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
 
   if (!listings || listings.length === 0) {
     return (
-      <div className="py-12 text-center">
+      <div className="py-12 text-center bg-white border border-gray-200 mx-6">
         <p className="text-gray-600 mb-4">No charters available in this region yet.</p>
-        <Link href="/charter" className="text-blue-600 hover:text-blue-700 font-medium">
+        <Link href="/charter" className="text-[#01BBDC] hover:text-[#00a7c4] font-medium">
           Browse all available charters →
         </Link>
       </div>
@@ -105,10 +105,12 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
   }
 
   return (
-    <div className="w-full bg-gray-50 py-12 md:py-16">
+    <div className="w-full bg-[#F8F9FC] py-12 md:py-16">
       <div className="max-w-6xl mx-auto px-6">
         <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Available Yachts</h2>
+          <h2 className="text-3xl font-bold text-[#10214F] mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+            Available Yachts
+          </h2>
           <p className="text-gray-600">
             Explore {listings.length} {listings.length === 1 ? 'yacht' : 'yachts'} available for charter in {destination.name}
           </p>
@@ -122,7 +124,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
 
             return (
               <Link key={listing.id} href={`/charter/${listing.id}`}>
-                <div className="group h-full bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all">
+                <div className="group h-full bg-white border border-gray-200 overflow-hidden hover:border-[#01BBDC] hover:shadow-md transition-all duration-200">
                   {/* Image */}
                   <div className="relative h-48 bg-gray-200 overflow-hidden">
                     <img
@@ -137,7 +139,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
 
                   {/* Content */}
                   <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-[#01BBDC] transition-colors" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                       {listing.vessel_name}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">{listing.boat_type}</p>
@@ -176,7 +178,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
                     {(listing.day_rate || listing.week_rate) && (
                       <div className="mt-4 pt-3 border-t border-gray-200">
                         {listing.day_rate && (
-                          <p className="text-sm font-semibold text-gray-900">
+                          <p className="text-sm font-semibold text-[#01BBDC]">
                             ${listing.day_rate.toLocaleString()} {listing.currency}/day
                           </p>
                         )}
@@ -198,7 +200,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
           <div className="mt-8 text-center">
             <Link 
               href={`/search?region=${destination.slug}`}
-              className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="inline-block px-6 py-2 bg-[#01BCDD] text-white hover:bg-[#00a7c4] transition-colors font-medium"
             >
               View All Charters in {destination.name}
             </Link>

@@ -52,7 +52,7 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
       {/* Hero Section */}
       <DestinationHero 
         destination={destination} 
@@ -75,24 +75,24 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
       )}
 
       {/* Footer CTA */}
-      <div className="bg-gray-50 py-12 md:py-16">
+      <div className="bg-[#10214F] py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          <h2 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
             Ready to Book Your {destination.name} Charter?
           </h2>
-          <p className="text-gray-600 mb-8">
+          <p className="text-blue-100 mb-8">
             Browse available yachts above, compare options, or use our AI search to find your perfect match.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href={`/search?region=${destination.slug}`}
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="px-8 py-3 bg-[#01BCDD] text-white hover:bg-[#00a7c4] transition-colors font-medium"
             >
               Search by {destination.name}
             </a>
             <a
               href="/search"
-              className="px-8 py-3 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              className="px-8 py-3 bg-white text-[#10214F] hover:bg-gray-100 transition-colors font-medium"
             >
               Browse All Charters
             </a>

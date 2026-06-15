@@ -1,9 +1,8 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { Destination } from '@/app/lib/destinationData';
-import { ArrowRight, MapPin, Heart } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 interface DestinationCardProps {
   destination: Destination;
@@ -16,7 +15,7 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
 
   return (
     <Link href={href}>
-      <div className="group h-full cursor-pointer overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300">
+      <div className="group h-full cursor-pointer overflow-hidden border border-gray-200 bg-white hover:border-[#01BBDC] hover:shadow-md transition-all duration-200">
         {/* Hero Image */}
         <div className="relative h-64 overflow-hidden bg-gray-200">
           <img
@@ -31,7 +30,7 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
         <div className="p-6 bg-white">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div>
-              <h3 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+              <h3 className="text-xl font-semibold text-gray-900 group-hover:text-[#01BBDC] transition-colors" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                 {destination.name}
               </h3>
               <p className="text-sm text-gray-600 mt-1">{destination.subtitle}</p>
@@ -48,7 +47,8 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
             {destination.bestFor.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="inline-block text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded"
+                className="inline-block text-xs px-2 py-1 rounded"
+                style={{ backgroundColor: 'rgba(1, 187, 220, 0.1)', color: '#01BBDC', border: '1px solid rgba(1, 187, 220, 0.3)' }}
               >
                 {tag}
               </span>
@@ -56,7 +56,7 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
           </div>
 
           {/* CTA */}
-          <div className="mt-4 flex items-center text-blue-600 font-medium text-sm group-hover:gap-2 transition-all">
+          <div className="mt-4 flex items-center text-[#01BBDC] font-medium text-sm group-hover:gap-2 transition-all">
             Explore {destination.type === 'region' ? 'region' : 'location'}
             <ArrowRight size={16} className="ml-2" />
           </div>

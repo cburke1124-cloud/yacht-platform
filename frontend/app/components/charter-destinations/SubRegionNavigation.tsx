@@ -15,11 +15,11 @@ export default function SubRegionNavigation({ subregions, parentSlug }: SubRegio
     <div className="w-full bg-white py-12 md:py-16">
       <div className="max-w-6xl mx-auto px-6">
         <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-[#10214F] mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
             Explore Sub-Regions
           </h2>
           <p className="text-gray-600">
-            Dive deeper into specific locations within {subregions[0]?.parentRegion || 'this region'}
+            Dive deeper into specific locations within this region
           </p>
         </div>
 
