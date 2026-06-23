@@ -6,6 +6,9 @@ import { Destination } from '@/app/lib/destinationData';
 import { apiUrl } from '@/app/lib/apiRoot';
 import { MapPin, Anchor, Users, Waves } from 'lucide-react';
 
+const LISTING_FALLBACK_IMAGE = '/images/listing-fallback.png';
+const LOGO_FALLBACK_IMAGE = '/logo/logo-icon.png';
+
 interface CharterListingPreview {
   id: number;
   title: string;
@@ -80,7 +83,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
   if (loading) {
     return (
       <div className="py-12 text-center bg-white border border-gray-200 mx-6">
-        <p className="text-gray-600">Loading available charters...</p>
+        <p className="text-gray-600 font-poppins">Loading available charters...</p>
       </div>
     );
   }
@@ -88,7 +91,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
   if (error) {
     return (
       <div className="py-12 text-center bg-white border border-gray-200 mx-6">
-        <p className="text-red-600">{error}</p>
+        <p className="text-red-600 font-poppins">{error}</p>
       </div>
     );
   }
@@ -96,7 +99,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
   if (!listings || listings.length === 0) {
     return (
       <div className="py-12 text-center bg-white border border-gray-200 mx-6">
-        <p className="text-gray-600 mb-4">No charters available in this region yet.</p>
+        <p className="text-gray-600 mb-4 font-poppins">No charters available in this region yet.</p>
         <Link href="/charter" className="text-[#01BBDC] hover:text-[#00a7c4] font-medium">
           Browse all available charters →
         </Link>
@@ -120,7 +123,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
           {listings.map((listing) => {
             const imageUrl = listing.images && listing.images.length > 0
               ? typeof listing.images[0] === 'string' ? listing.images[0] : listing.images[0].url
-              : '/images/placeholder-yacht.jpg';
+              : LISTING_FALLBACK_IMAGE;
 
             return (
               <Link key={listing.id} href={`/charter/${listing.id}`}>
@@ -132,7 +135,15 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
                       alt={listing.vessel_name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       onError={(e) => {
-                        e.currentTarget.src = '/images/placeholder-yacht.jpg';
+                        const img = e.currentTarget;
+                        const currentSrc = img.getAttribute('src') || '';
+                        if (currentSrc !== LISTING_FALLBACK_IMAGE) {
+                          img.src = LISTING_FALLBACK_IMAGE;
+                          return;
+                        }
+                        img.src = LOGO_FALLBACK_IMAGE;
+                        img.classList.remove('object-cover');
+                        img.classList.add('object-contain', 'p-8', 'bg-white');
                       }}
                     />
                   </div>
@@ -142,7 +153,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
                     <h3 className="font-semibold text-gray-900 group-hover:text-[#01BBDC] transition-colors" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                       {listing.vessel_name}
                     </h3>
-                    <p className="text-sm text-gray-600 mt-1">{listing.boat_type}</p>
+                    <p className="text-sm text-gray-600 mt-1 font-poppins">{listing.boat_type}</p>
 
                     {/* Specs Grid */}
                     <div className="grid grid-cols-2 gap-2 mt-4 py-3 border-t border-gray-200">

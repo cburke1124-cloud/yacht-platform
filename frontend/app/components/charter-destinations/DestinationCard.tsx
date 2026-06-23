@@ -8,6 +8,9 @@ interface DestinationCardProps {
   destination: Destination;
 }
 
+const DESTINATION_FALLBACK_IMAGE = '/images/hero-yacht3.png';
+const LOGO_FALLBACK_IMAGE = '/logo/logo-icon.png';
+
 export default function DestinationCard({ destination }: DestinationCardProps) {
   const href = destination.type === 'region' 
     ? `/charter-destinations/${destination.slug}`
@@ -22,6 +25,17 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
             src={destination.heroImage}
             alt={destination.heroImageAlt}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              const img = e.currentTarget;
+              const currentSrc = img.getAttribute('src') || '';
+              if (currentSrc !== DESTINATION_FALLBACK_IMAGE) {
+                img.src = DESTINATION_FALLBACK_IMAGE;
+                return;
+              }
+              img.src = LOGO_FALLBACK_IMAGE;
+              img.classList.remove('object-cover');
+              img.classList.add('object-contain', 'p-8', 'bg-white');
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         </div>
@@ -33,12 +47,12 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
               <h3 className="text-xl font-semibold text-gray-900 group-hover:text-[#01BBDC] transition-colors" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                 {destination.name}
               </h3>
-              <p className="text-sm text-gray-600 mt-1">{destination.subtitle}</p>
+              <p className="text-sm text-gray-600 mt-1 font-poppins">{destination.subtitle}</p>
             </div>
           </div>
 
           {/* Description */}
-          <p className="text-gray-700 text-sm mt-3 line-clamp-2">
+          <p className="text-gray-700 text-sm mt-3 line-clamp-2 font-poppins">
             {destination.shortDescription}
           </p>
 

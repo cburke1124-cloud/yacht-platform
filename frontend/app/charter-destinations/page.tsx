@@ -8,7 +8,7 @@ export default function DestinationsBrowse() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
       {/* Hero Section */}
-      <div className="bg-[#10214F] text-white py-14 px-4">
+      <div className="bg-[#10214F] text-white py-16 px-4">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-3">
@@ -29,7 +29,7 @@ export default function DestinationsBrowse() {
             <p className="text-blue-100 text-lg max-w-2xl mx-auto mt-4">
               From pristine Caribbean anchorages to Mediterranean coastlines, discover the perfect destination for your next charter.
             </p>
-            <p className="text-blue-100 mt-6">
+            <p className="text-blue-100 mt-6 font-poppins">
               Pick a region to explore available yachts, plan your route, and learn what makes each destination special.
             </p>
           </div>
@@ -40,7 +40,7 @@ export default function DestinationsBrowse() {
       <div className="max-w-6xl mx-auto px-6 py-16">
         {regions.length === 0 ? (
           <div className="text-center py-12 bg-white border border-gray-200">
-            <p className="text-gray-600">No destinations available yet. Check back soon!</p>
+            <p className="text-gray-600 font-poppins">No destinations available yet. Check back soon!</p>
           </div>
         ) : (
           <div>
@@ -52,13 +52,15 @@ export default function DestinationsBrowse() {
 
             {/* CTA Section */}
             <div className="mt-16 bg-white border border-gray-200 p-8 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Not sure where to go?</h2>
-              <p className="text-gray-600 mb-6">
+              <h2 className="text-2xl font-bold text-[#10214F] mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+                Not sure where to go?
+              </h2>
+              <p className="text-gray-600 mb-6 font-poppins">
                 Tell us what you're looking for and we'll find the perfect yacht and destination combination.
               </p>
               <a
                 href="/search"
-                className="inline-block px-8 py-3 bg-[#01BCDD] text-white hover:bg-[#00a7c4] transition-colors font-medium"
+                className="inline-block px-8 py-3 bg-[#01BCDD] text-white hover:bg-[#00a7c4] transition-colors font-medium btn-press"
               >
                 Use AI-Powered Search
               </a>
@@ -70,12 +72,14 @@ export default function DestinationsBrowse() {
       {/* Educational CTA */}
       <div className="bg-[#10214F] text-white py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to Chart Your Course?</h2>
+          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+            Ready to Chart Your Course?
+          </h2>
           <p className="text-blue-100 mb-8 text-lg">
             Each destination page includes available yachts, sailing conditions, local information, 
             and everything you need to feel confident choosing your charter.
           </p>
-          <p className="text-blue-100 text-sm">
+          <p className="text-blue-100 text-sm font-poppins">
             New to yacht chartering? Start by browsing our guides above—we'll make sure you feel comfortable and prepared.
           </p>
         </div>

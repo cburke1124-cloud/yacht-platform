@@ -8,6 +8,9 @@ interface DestinationHeroProps {
   parentRegion?: Destination;
 }
 
+const DESTINATION_HERO_FALLBACK = '/images/cannes-luxury-yacht-port.jpg';
+const LOGO_FALLBACK_IMAGE = '/logo/logo-icon.png';
+
 export default function DestinationHero({ 
   destination, 
   showBreadcrumb = true,
@@ -21,6 +24,17 @@ export default function DestinationHero({
           src={destination.heroImage}
           alt={destination.heroImageAlt}
           className="w-full h-full object-cover"
+          onError={(e) => {
+            const img = e.currentTarget;
+            const currentSrc = img.getAttribute('src') || '';
+            if (currentSrc !== DESTINATION_HERO_FALLBACK) {
+              img.src = DESTINATION_HERO_FALLBACK;
+              return;
+            }
+            img.src = LOGO_FALLBACK_IMAGE;
+            img.classList.remove('object-cover');
+            img.classList.add('object-contain', 'p-10', 'bg-white');
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
@@ -37,7 +51,7 @@ export default function DestinationHero({
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
             {destination.displayName}
           </h1>
-          <p className="text-xl text-gray-100 max-w-2xl">
+          <p className="text-xl text-gray-100 max-w-2xl font-poppins">
             {destination.subtitle}
           </p>
         </div>
