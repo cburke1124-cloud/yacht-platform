@@ -5,7 +5,7 @@ import { Anchor } from 'lucide-react';
 export default function DestinationsBrowse() {
   const destinations = getDestinations();
   const regions = destinations.filter((d) => d.type === 'region');
-  const subRegions = destinations.filter((d) => d.type === 'subregion');
+  const subregionsBySlug = new Map(destinations.filter((d) => d.type === 'subregion').map((d) => [d.slug, d.name]));
 
   return (
     <div className="min-h-screen bg-soft">
@@ -54,25 +54,15 @@ export default function DestinationsBrowse() {
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {regions.map((region) => (
-                <DestinationCard key={region.id} destination={region} />
+                <DestinationCard
+                  key={region.id}
+                  destination={region}
+                  includedLocations={
+                    region.subRegions?.map((slug) => subregionsBySlug.get(slug)).filter((name): name is string => !!name) || []
+                  }
+                />
               ))}
             </div>
-
-            {subRegions.length > 0 && (
-              <>
-                <div className="mt-16 mb-8">
-                  <h2 className="text-3xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
-                    Featured Locations
-                  </h2>
-                  <p className="text-gray-600 mt-2 font-poppins">Explore individual charter hotspots within each region.</p>
-                </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {subRegions.map((subRegion) => (
-                    <DestinationCard key={subRegion.id} destination={subRegion} />
-                  ))}
-                </div>
-              </>
-            )}
 
             {/* CTA Section */}
             <div className="mt-16 bg-white border border-gray-200 p-8 text-center glass-card">

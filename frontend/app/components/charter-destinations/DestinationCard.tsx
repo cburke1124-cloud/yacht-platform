@@ -6,12 +6,13 @@ import { ArrowRight } from 'lucide-react';
 
 interface DestinationCardProps {
   destination: Destination;
+  includedLocations?: string[];
 }
 
 const DESTINATION_FALLBACK_IMAGE = '/images/hero-yacht3.png';
 const LOGO_FALLBACK_IMAGE = '/logo/logo-icon.png';
 
-export default function DestinationCard({ destination }: DestinationCardProps) {
+export default function DestinationCard({ destination, includedLocations = [] }: DestinationCardProps) {
   const href = destination.type === 'region' 
     ? `/charter-destinations/${destination.slug}`
     : `/charter-destinations/${destination.parentRegion}/${destination.slug}`;
@@ -74,6 +75,16 @@ export default function DestinationCard({ destination }: DestinationCardProps) {
             Explore {destination.type === 'region' ? 'region' : 'location'}
             <ArrowRight size={16} className="ml-2" />
           </div>
+
+          {/* Included locations for region cards */}
+          {destination.type === 'region' && includedLocations.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-2">Included locations</p>
+              <p className="text-sm text-gray-700 font-poppins">
+                {includedLocations.join(' • ')}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </Link>
