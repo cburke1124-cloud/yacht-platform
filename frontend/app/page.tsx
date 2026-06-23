@@ -43,92 +43,6 @@ type Listing = {
   };
 };
 
-// --- Step Card ---
-
-function StepCard({
-  number,
-  title,
-  description,
-  illustration,
-}: {
-  number: string;
-  title: string;
-  description: string;
-  illustration: string;
-}) {
-  return (
-    <div
-      className="flex flex-col items-center text-center"
-      style={{
-        backgroundColor: '#FFFFFF',
-        border: '1px solid rgba(0, 0, 0, 0.1)',
-        borderRadius: 6,
-        paddingBottom: 16,
-      }}
-    >
-      <div
-        className="rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ width: 82, height: 82, backgroundColor: '#01BBDC', marginTop: -41, marginBottom: 16, zIndex: 1, position: 'relative' }}
-      >
-        <span
-          style={{
-            fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-            fontSize: 30,
-            lineHeight: '36px',
-            color: '#FFFFFF',
-            fontWeight: 400,
-          }}
-        >
-          {number}
-        </span>
-      </div>
-
-      <p
-        className="text-center px-6"
-        style={{
-          color: '#10214F',
-          fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-          fontSize: 20,
-          lineHeight: '26px',
-          fontWeight: 400,
-          marginBottom: 12,
-          minHeight: 52,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {title}
-      </p>
-
-      <div
-        className="w-full flex-shrink-0"
-        style={{ height: 220, backgroundColor: '#F0FEFF', overflow: 'hidden' }}
-      >
-        <img
-          src={illustration}
-          alt={`${title} illustration`}
-          aria-hidden={true}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        />
-      </div>
-
-      <p
-        className="px-6 pt-3"
-        style={{
-          color: '#10214F',
-          fontFamily: 'Poppins, sans-serif',
-          fontSize: 16,
-          lineHeight: '24px',
-          textAlign: 'center',
-        }}
-      >
-        {description}
-      </p>
-    </div>
-  );
-}
-
 // --- AI Search Box ---
 
 function AISearchBox() {
@@ -332,27 +246,6 @@ export default function HomePage() {
 
   const visitorExchangeRate = visitorCurrency !== 'USD' ? (exchangeRates[visitorCurrency] ?? 1) : 1;
 
-  const steps = [
-    {
-      number: '01',
-      title: 'Step 1: Discover',
-      description: 'Explore yachts from brokers and sellers worldwide through one clean, modern marketplace.',
-      illustration: '/images/step-discover.svg',
-    },
-    {
-      number: '02',
-      title: 'Step 2: Connect',
-      description: 'Communicate directly with brokers while YachtVersal support representatives help coordinate questions, next steps, and information.',
-      illustration: '/images/step-connect.svg',
-    },
-    {
-      number: '03',
-      title: 'Step 3: Move Forward Confidently',
-      description: 'Schedule showings, request details, and proceed at your own pace with clarity and transparency.',
-      illustration: '/images/step-forward.svg',
-    },
-  ];
-
   const features = [
     'Global listings in one trusted platform',
     'Transparent information and professional presentation',
@@ -543,33 +436,6 @@ export default function HomePage() {
               ))}
             </div>
           )}
-        </div>
-      </section>
-
-      {/* HOW BUYING WORKS */}
-      <section className="bg-white" style={{ paddingTop: 80, paddingBottom: 100, overflow: 'visible' }}>
-        <div
-          className="mx-auto"
-          style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
-        >
-          <h2
-            className="font-normal text-center"
-            style={{
-              color: '#10214F',
-              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-              fontSize: 'clamp(24px, 3vw, 40px)',
-              lineHeight: '1.2',
-              fontWeight: 400,
-              marginBottom: 'clamp(32px, 5vw, 80px)',
-            }}
-          >
-            How Buying Works
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 24, paddingTop: 41, overflow: 'visible' }}>
-            {steps.map((step) => (
-              <StepCard key={step.number} {...step} />
-            ))}
-          </div>
         </div>
       </section>
 
