@@ -6,7 +6,7 @@ import { ArrowRight } from 'lucide-react';
 
 interface DestinationCardProps {
   destination: Destination;
-  includedLocations?: string[];
+  includedLocations?: Array<{ name: string; href: string }>;
 }
 
 const DESTINATION_FALLBACK_IMAGE = '/images/hero-yacht3.png';
@@ -18,8 +18,8 @@ export default function DestinationCard({ destination, includedLocations = [] }:
     : `/charter-destinations/${destination.parentRegion}/${destination.slug}`;
 
   return (
-    <Link href={href}>
-      <div className="group h-full cursor-pointer overflow-hidden border border-gray-200 bg-white hover:border-primary hover:shadow-md transition-all duration-200 hover-rise">
+    <div className="group h-full overflow-hidden border border-gray-200 bg-white hover:border-primary hover:shadow-md transition-all duration-200 hover-rise">
+      <Link href={href} className="block">
         {/* Hero Image */}
         <div className="relative h-64 overflow-hidden bg-gray-200">
           <img
@@ -75,18 +75,26 @@ export default function DestinationCard({ destination, includedLocations = [] }:
             Explore {destination.type === 'region' ? 'region' : 'location'}
             <ArrowRight size={16} className="ml-2" />
           </div>
-
-          {/* Included locations for region cards */}
-          {destination.type === 'region' && includedLocations.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-2">Included locations</p>
-              <p className="text-sm text-gray-700 font-poppins">
-                {includedLocations.join(' • ')}
-              </p>
-            </div>
-          )}
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {/* Included locations for region cards */}
+      {destination.type === 'region' && includedLocations.length > 0 && (
+        <div className="px-6 pb-5 pt-0 border-t border-gray-100">
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-2 mt-4">Included locations</p>
+          <div className="flex flex-wrap gap-2">
+            {includedLocations.map((location) => (
+              <Link
+                key={`${destination.slug}-${location.name}`}
+                href={location.href}
+                className="px-3 py-1.5 text-xs bg-white border border-gray-200 text-[#10214F] hover:border-primary hover:text-primary transition-colors font-poppins"
+              >
+                {location.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

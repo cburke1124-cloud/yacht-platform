@@ -27,7 +27,7 @@ function displayStyle(style: string): string {
 export default function DestinationsBrowse() {
   const destinations = getDestinations();
   const regions = destinations.filter((d) => d.type === 'region');
-  const subregionsBySlug = new Map(destinations.filter((d) => d.type === 'subregion').map((d) => [d.slug, d.name]));
+  const subregionsBySlug = new Map(destinations.filter((d) => d.type === 'subregion').map((d) => [d.slug, d]));
 
   const styleMap = new Map<string, Destination[]>();
   for (const region of regions) {
@@ -95,7 +95,13 @@ export default function DestinationsBrowse() {
                   key={region.id}
                   destination={region}
                   includedLocations={
-                    region.subRegions?.map((slug) => subregionsBySlug.get(slug)).filter((name): name is string => !!name) || []
+                    region.subRegions
+                      ?.map((slug) => subregionsBySlug.get(slug))
+                      .filter((subregion): subregion is Destination => !!subregion)
+                      .map((subregion) => ({
+                        name: subregion.name,
+                        href: `/charter-destinations/${region.slug}/${subregion.slug}`,
+                      })) || []
                   }
                 />
               ))}
