@@ -1,0 +1,58 @@
+Charter city / locale images needed
+
+Put these files into this folder and run: npm run images:destinations
+The sync script is currently for destination hero images, so treat this as the planned locale image handoff list for the next batch of pages.
+
+Caribbean / Atlantic locales
+1. Antigua - antigua-hero.jpg
+2. St. Martin - st-martin-hero.jpg
+3. St. Barts - st-barts-hero.jpg
+4. St. Lucia - st-lucia-hero.jpg
+5. Grenada - grenada-hero.jpg
+6. British Virgin Islands - bvi-hero.jpg
+7. US Virgin Islands - usvi-hero.jpg
+8. Exumas - exumas-hero.jpg
+9. Nassau - nassau-hero.jpg
+10. Turks & Caicos - turks-caicos-hero.jpg
+11. St. Vincent & the Grenadines - svg-hero.jpg
+12. Puerto Rico - puerto-rico-hero.jpg
+13. Tortola - tortola-hero.jpg
+14. Antigua Yacht Club / Falmouth Harbour - falmouth-harbour-hero.jpg
+15. St. Kitts & Nevis - st-kitts-nevis-hero.jpg
+
+Mediterranean locales
+16. Athens - athens-hero.jpg
+17. Athens Riviera - athens-riviera-hero.jpg
+18. Mykonos - mykonos-hero.jpg
+19. Santorini - santorini-hero.jpg
+20. Corfu - corfu-hero.jpg
+21. Split - split-hero.jpg
+22. Dubrovnik - dubrovnik-hero.jpg
+23. Ibiza - ibiza-hero.jpg
+24. Mallorca - mallorca-hero.jpg
+25. Sardinia - sardinia-hero.jpg
+26. Amalfi Coast - amalfi-coast-hero.jpg
+27. Naples - naples-hero.jpg
+28. South of France - south-of-france-hero.jpg
+29. Monaco - monaco-hero.jpg
+30. Corsica - corsica-hero.jpg
+31. Bodrum - bodrum-hero.jpg
+32. Göcek - gocek-hero.jpg
+
+Asia-Pacific / Northern Europe / Americas locales
+33. Phuket - phuket-hero.jpg
+34. Phi Phi Islands - phi-phi-hero.jpg
+35. Raja Ampat - raja-ampat-hero.jpg
+36. Komodo - komodo-hero.jpg
+37. Auckland - auckland-hero.jpg
+38. Whitsundays - whitsundays-hero.jpg
+39. Stockholm Archipelago - stockholm-archipelago-hero.jpg
+40. Oslofjord - oslofjord-hero.jpg
+41. San Juan del Sur - san-juan-del-sur-hero.jpg
+42. Galápagos - galapagos-hero.jpg
+43. Belize City / Ambergris Caye - ambergris-caye-hero.jpg
+
+Notes
+- These are the next planned locale pages based on the charter destinations rollout.
+- Keep filenames exact so a future bulk sync script can match them reliably.
+- For now, the destination pages keep using existing site imagery and the logo fallback.
