@@ -1,0 +1,18 @@
+Charter destination images needed
+
+Put these files into this folder and run: npm run images:destinations
+The sync script will copy them into public/images/destinations
+
+1. Caribbean - caribbean-hero.jpg
+2. Virgin Islands - virgin-islands-hero.jpg
+3. Bahamas - bahamas-hero.jpg
+4. Leeward Islands - leeward-islands-hero.jpg
+5. Mediterranean - mediterranean-hero.jpg
+6. North America - north-america-hero.jpg
+7. Asia-Pacific - asia-pacific-hero.jpg
+8. South & Central America - south-america-hero.jpg
+9. Northern Europe - northern-europe-hero.jpg
+
+Notes
+- The current pages will keep using existing site imagery and the logo fallback until these images are added.
+- Keep the filenames exactly as listed above so the bulk sync script can match them automatically.
