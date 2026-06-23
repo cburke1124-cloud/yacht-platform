@@ -1,48 +1,11 @@
 import { getDestinations, Destination } from '@/app/lib/destinationData';
 import DestinationCard from '@/app/components/charter-destinations/DestinationCard';
 import { Anchor } from 'lucide-react';
-import Link from 'next/link';
-
-const STYLE_PRIORITY = [
-  'Adventure seekers',
-  'Culture enthusiasts',
-  'Foodies',
-  'Families',
-  'First-time charterers',
-  'Couples',
-  'Relaxation',
-];
-
-function normalizeStyle(style: string): string {
-  return style.trim().toLowerCase();
-}
-
-function displayStyle(style: string): string {
-  return style
-    .split(' ')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
 
 export default function DestinationsBrowse() {
   const destinations = getDestinations();
   const regions = destinations.filter((d) => d.type === 'region');
   const subregionsBySlug = new Map(destinations.filter((d) => d.type === 'subregion').map((d) => [d.slug, d]));
-
-  const styleMap = new Map<string, Destination[]>();
-  for (const region of regions) {
-    for (const style of region.bestFor || []) {
-      const key = normalizeStyle(style);
-      const list = styleMap.get(key) || [];
-      list.push(region);
-      styleMap.set(key, list);
-    }
-  }
-
-  const orderedStyles = [
-    ...STYLE_PRIORITY.map(normalizeStyle).filter((style) => styleMap.has(style)),
-    ...Array.from(styleMap.keys()).filter((style) => !STYLE_PRIORITY.map(normalizeStyle).includes(style)).sort(),
-  ];
 
   return (
     <div className="min-h-screen bg-soft">
@@ -106,48 +69,6 @@ export default function DestinationsBrowse() {
                 />
               ))}
             </div>
-
-            {/* Browse by Travel Style */}
-            {orderedStyles.length > 0 && (
-              <div className="mt-16 bg-white border border-gray-200 p-8 glass-card">
-                <h2
-                  className="text-2xl font-bold text-[#10214F] mb-2"
-                  style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
-                >
-                  Browse by Travel Style
-                </h2>
-                <p className="text-gray-600 mb-6 font-poppins">
-                  Find destinations based on the kind of charter experience you want.
-                </p>
-
-                <div className="grid md:grid-cols-2 gap-6">
-                  {orderedStyles.map((style) => {
-                    const styleDestinations = styleMap.get(style) || [];
-                    return (
-                      <div key={style} className="border border-gray-200 p-4 bg-soft">
-                        <h3
-                          className="text-lg font-semibold text-[#10214F] mb-3"
-                          style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
-                        >
-                          {displayStyle(style)}
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          {styleDestinations.map((destination) => (
-                            <Link
-                              key={`${style}-${destination.slug}`}
-                              href={`/charter-destinations/${destination.slug}`}
-                              className="px-3 py-1.5 text-sm bg-white border border-gray-200 text-[#10214F] hover:border-primary hover:text-primary transition-colors font-poppins"
-                            >
-                              {destination.name}
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* CTA Section */}
             <div className="mt-16 bg-white border border-gray-200 p-8 text-center glass-card">
