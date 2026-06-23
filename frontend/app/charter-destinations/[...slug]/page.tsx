@@ -52,7 +52,7 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
+    <div className="min-h-screen bg-soft">
       {/* Hero Section */}
       <DestinationHero 
         destination={destination} 
@@ -75,7 +75,7 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
       )}
 
       {/* Footer CTA */}
-      <div className="bg-[#10214F] py-14 md:py-18">
+      <div className="bg-secondary py-14 md:py-18">
         <div className="max-w-6xl mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
             Ready to Book Your {destination.name} Charter?
@@ -86,7 +86,7 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href={`/search?region=${destination.slug}`}
-              className="px-8 py-3 bg-[#01BCDD] text-white hover:bg-[#00a7c4] transition-colors font-medium btn-press"
+              className="px-8 py-3 bg-primary text-white hover-primary transition-colors font-medium btn-press"
             >
               Search by {destination.name}
             </a>

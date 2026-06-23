@@ -167,7 +167,7 @@
       "country": ["USA", "Canada", "Mexico"]
     },
     "order": 3,
-    "published": false,
+    "published": true,
     "subRegions": []
   },
   {
@@ -195,7 +195,7 @@
       "country": ["Thailand", "Indonesia", "Philippines"]
     },
     "order": 4,
-    "published": false,
+    "published": true,
     "subRegions": []
   },
   {
@@ -223,7 +223,7 @@
       "country": ["Costa Rica", "Belize", "Galápagos"]
     },
     "order": 5,
-    "published": false,
+    "published": true,
     "subRegions": []
   },
   {
@@ -251,7 +251,7 @@
       "country": ["Norway", "Sweden", "Finland"]
     },
     "order": 6,
-    "published": false,
+    "published": true,
     "subRegions": []
   }
 ]

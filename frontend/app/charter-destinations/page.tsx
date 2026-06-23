@@ -6,9 +6,9 @@ export default function DestinationsBrowse() {
   const regions = getRegions();
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
+    <div className="min-h-screen bg-soft">
       {/* Hero Section */}
-      <div className="bg-[#10214F] text-white py-16 px-4">
+      <div className="bg-secondary text-white py-16 px-4">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-3">
@@ -26,7 +26,7 @@ export default function DestinationsBrowse() {
             >
                 Chart Your Course
             </h1>
-            <p className="text-blue-100 text-lg max-w-2xl mx-auto mt-4">
+            <p className="text-blue-100 text-lg max-w-2xl mx-auto mt-4 font-poppins">
               From pristine Caribbean anchorages to Mediterranean coastlines, discover the perfect destination for your next charter.
             </p>
             <p className="text-blue-100 mt-6 font-poppins">
@@ -39,7 +39,7 @@ export default function DestinationsBrowse() {
       {/* Destinations Grid */}
       <div className="max-w-6xl mx-auto px-6 py-16">
         {regions.length === 0 ? (
-          <div className="text-center py-12 bg-white border border-gray-200">
+          <div className="text-center py-12 bg-white border border-gray-200 glass-card">
             <p className="text-gray-600 font-poppins">No destinations available yet. Check back soon!</p>
           </div>
         ) : (
@@ -51,7 +51,7 @@ export default function DestinationsBrowse() {
             </div>
 
             {/* CTA Section */}
-            <div className="mt-16 bg-white border border-gray-200 p-8 text-center">
+            <div className="mt-16 bg-white border border-gray-200 p-8 text-center glass-card">
               <h2 className="text-2xl font-bold text-[#10214F] mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                 Not sure where to go?
               </h2>
@@ -60,7 +60,7 @@ export default function DestinationsBrowse() {
               </p>
               <a
                 href="/search"
-                className="inline-block px-8 py-3 bg-[#01BCDD] text-white hover:bg-[#00a7c4] transition-colors font-medium btn-press"
+                className="inline-block px-8 py-3 bg-primary text-white hover-primary transition-colors font-medium btn-press"
               >
                 Use AI-Powered Search
               </a>
@@ -70,7 +70,7 @@ export default function DestinationsBrowse() {
       </div>
 
       {/* Educational CTA */}
-      <div className="bg-[#10214F] text-white py-12 md:py-16">
+      <div className="bg-secondary text-white py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
             Ready to Chart Your Course?
