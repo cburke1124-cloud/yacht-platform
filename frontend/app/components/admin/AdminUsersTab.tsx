@@ -8,6 +8,8 @@ const PAID_TIERS = new Set([
   'private_basic', 'private_plus', 'private_pro',
 ]);
 
+const OVERRIDE_TIERS = ['free', 'basic', 'plus', 'pro', 'ultimate'] as const;
+
 function getSubscriptionBadge(user: any) {
   const isBrokerOrPrivate = user.user_type === 'dealer' || user.user_type === 'private';
   if (!isBrokerOrPrivate) return null;
@@ -49,6 +51,12 @@ export default function AdminUsersTab() {
   const [newEmail, setNewEmail] = useState('');
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ id: number; type: 'success' | 'error'; text: string } | null>(null);
+
+  // Billing panel
+  const [billingPanelId, setBillingPanelId] = useState<number | null>(null);
+  const [selectedTier, setSelectedTier] = useState<string>('');
+  const [reminderMsg, setReminderMsg] = useState('');
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   const showMsg = (id: number, type: 'success' | 'error', text: string) => {
     setActionMsg({ id, type, text });
@@ -249,6 +257,105 @@ export default function AdminUsersTab() {
         showMsg(user.id, 'success', changes.length ? `Synced: ${changes.join(', ')} updated` : 'Already up-to-date');
       } else {
         showMsg(user.id, 'error', data.detail || 'Sync failed');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSetTier = async (user: any, tier: string) => {
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/set-tier`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tier }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(users.map(u => u.id === user.id ? { ...u, subscription_tier: data.new_tier, always_free: false } : u));
+        showMsg(user.id, 'success', `Tier set to "${data.new_tier}"`);
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to set tier');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleAlwaysFree = async (user: any) => {
+    setActionLoading(user.id);
+    const newVal = !user.always_free;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/set-tier`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ always_free: newVal }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(users.map(u => u.id === user.id ? { ...u, always_free: data.always_free, subscription_tier: data.subscription_tier } : u));
+        showMsg(user.id, 'success', newVal ? 'Account set to Always Free' : 'Always Free removed');
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to update');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleGeneratePaymentLink = async (user: any) => {
+    setActionLoading(user.id);
+    setGeneratedLink(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/generate-payment-link`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: 'setup_fee' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setGeneratedLink(data.checkout_url);
+        showMsg(user.id, 'success', 'Payment link generated');
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to generate link');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSendReminder = async (user: any) => {
+    if (!confirm(`Send a payment reminder email to ${user.email}?`)) return;
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/send-payment-reminder`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: reminderMsg }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.email_sent) {
+          showMsg(user.id, 'success', `Payment reminder sent to ${user.email}`);
+        } else {
+          setGeneratedLink(data.checkout_url);
+          showMsg(user.id, 'error', 'Email delivery failed — link generated below, send it manually');
+        }
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to send reminder');
       }
     } catch {
       showMsg(user.id, 'error', 'Network error');
@@ -469,6 +576,23 @@ export default function AdminUsersTab() {
                               Sync Stripe
                             </button>
                           )}
+                          {isBrokerRow && (
+                            <button
+                              onClick={() => {
+                                setBillingPanelId(billingPanelId === user.id ? null : user.id);
+                                setSelectedTier(user.subscription_tier || 'free');
+                                setGeneratedLink(null);
+                                setReminderMsg('');
+                              }}
+                              className={`px-2.5 py-1 text-xs rounded-md transition ${
+                                billingPanelId === user.id
+                                  ? 'bg-violet-200 text-violet-800'
+                                  : 'bg-violet-50 text-violet-700 hover:bg-violet-100'
+                              }`}
+                            >
+                              {billingPanelId === user.id ? 'Close Billing' : 'Billing'}
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteUser(user.id)}
                             className="px-2.5 py-1 text-xs bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition"
@@ -516,6 +640,120 @@ export default function AdminUsersTab() {
                             >
                               {actionLoading === user.id ? 'Saving...' : 'Save'}
                             </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {billingPanelId === user.id && (
+                      <tr key={`billing-${user.id}`} className="bg-violet-50/50">
+                        <td colSpan={7} className="px-4 py-4">
+                          <div className="space-y-4">
+                            <p className="text-xs font-semibold text-violet-800 uppercase tracking-wide">
+                              Billing Management — {user.first_name} {user.last_name} ({user.email})
+                            </p>
+
+                            {/* Row 1: Tier override + always free */}
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div>
+                                <label className="block text-xs text-dark/60 mb-1 font-medium">Override Subscription Tier</label>
+                                <div className="flex gap-2">
+                                  <select
+                                    value={selectedTier}
+                                    onChange={e => setSelectedTier(e.target.value)}
+                                    className="px-2 py-1.5 border border-violet-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                                  >
+                                    {OVERRIDE_TIERS.map(t => (
+                                      <option key={t} value={t}>{t}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => handleSetTier(user, selectedTier)}
+                                    disabled={actionLoading === user.id}
+                                    className="px-3 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 transition"
+                                  >
+                                    {actionLoading === user.id ? '...' : 'Set Tier'}
+                                  </button>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-dark/60 mb-1 font-medium">Always Free Override</label>
+                                <button
+                                  onClick={() => handleToggleAlwaysFree(user)}
+                                  disabled={actionLoading === user.id}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition disabled:opacity-50 ${
+                                    user.always_free
+                                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {user.always_free ? '✓ Always Free (click to remove)' : 'Enable Always Free'}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Row 2: Payment link + send reminder */}
+                            <div className="flex flex-wrap items-start gap-3">
+                              <div>
+                                <label className="block text-xs text-dark/60 mb-1 font-medium">Generate Payment Link</label>
+                                <button
+                                  onClick={() => handleGeneratePaymentLink(user)}
+                                  disabled={actionLoading === user.id}
+                                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                                >
+                                  {actionLoading === user.id ? 'Generating...' : 'Generate $200 Setup Fee Link'}
+                                </button>
+                              </div>
+                              <div className="flex-1 min-w-[200px]">
+                                <label className="block text-xs text-dark/60 mb-1 font-medium">
+                                  Send Payment Reminder Email
+                                  <span className="font-normal ml-1 text-dark/40">(optional custom note)</span>
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={reminderMsg}
+                                    onChange={e => setReminderMsg(e.target.value)}
+                                    placeholder="e.g. We'd love to get you set up!"
+                                    className="flex-1 px-2 py-1.5 border border-violet-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                                  />
+                                  <button
+                                    onClick={() => handleSendReminder(user)}
+                                    disabled={actionLoading === user.id}
+                                    className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition whitespace-nowrap"
+                                  >
+                                    {actionLoading === user.id ? '...' : 'Send Reminder'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Generated link display */}
+                            {generatedLink && (
+                              <div className="bg-white border border-violet-200 rounded-lg p-3">
+                                <p className="text-xs font-medium text-dark/60 mb-1">Payment Link (24h expiry):</p>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    readOnly
+                                    value={generatedLink}
+                                    className="flex-1 text-xs font-mono px-2 py-1.5 border border-gray-200 rounded bg-gray-50 text-dark/70 truncate"
+                                  />
+                                  <button
+                                    onClick={() => { navigator.clipboard.writeText(generatedLink); showMsg(user.id, 'success', 'Link copied!'); }}
+                                    className="px-3 py-1.5 bg-gray-700 text-white text-xs rounded-lg hover:bg-gray-800 transition whitespace-nowrap"
+                                  >
+                                    Copy
+                                  </button>
+                                  <a
+                                    href={generatedLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition whitespace-nowrap"
+                                  >
+                                    Open
+                                  </a>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>

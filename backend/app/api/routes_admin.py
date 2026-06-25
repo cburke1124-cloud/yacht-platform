@@ -748,6 +748,238 @@ def delete_user(
     return {"success": True, "message": message}
 
 
+# ---------------------------------------------------------------------------
+# Billing / subscription management helpers (admin-only)
+# ---------------------------------------------------------------------------
+
+_VALID_OVERRIDE_TIERS = {"free", "basic", "plus", "pro", "ultimate"}
+
+
+@router.post("/users/{user_id}/set-tier")
+def admin_set_user_tier_v2(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Manually override a user's subscription tier without touching Stripe.
+    Pass { "tier": "basic"|"plus"|"pro"|"ultimate"|"free" } to change tier.
+    Pass { "always_free": true|false } to toggle permanent free-tier bypass.
+    """
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+
+    # Toggle always_free flag
+    if "always_free" in body:
+        target.always_free = bool(body["always_free"])
+        if target.always_free:
+            target.subscription_tier = "free"
+        db.commit()
+        logger.info(
+            "Admin %s set always_free=%s on user %s (%s)",
+            current_user.email, target.always_free, target.id, target.email,
+        )
+        return {"success": True, "always_free": target.always_free, "subscription_tier": target.subscription_tier}
+
+    # Change tier
+    new_tier = (body.get("tier") or "").strip().lower()
+    if new_tier not in _VALID_OVERRIDE_TIERS:
+        raise ValidationException(f"Invalid tier '{new_tier}'. Must be one of: {', '.join(sorted(_VALID_OVERRIDE_TIERS))}")
+
+    old_tier = target.subscription_tier
+    target.subscription_tier = new_tier
+    if new_tier != "free":
+        target.always_free = False
+    db.commit()
+
+    logger.info(
+        "Admin %s manually set user %s (%s) tier: %s → %s. Note: %s",
+        current_user.email, target.id, target.email, old_tier, new_tier, body.get("note", ""),
+    )
+    return {"success": True, "old_tier": old_tier, "new_tier": new_tier}
+
+
+@router.post("/users/{user_id}/generate-payment-link")
+def admin_generate_payment_link(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Generate a Stripe Checkout URL for a user so an admin can copy it and
+    send it to them directly.
+    Body: { "type": "setup_fee" | "subscription", "tier": "basic"|"plus"|"pro" }
+    Defaults to setup_fee (the $200 one-time activation fee).
+    """
+    from app.core.config import settings
+    from app.services.stripe_service import STRIPE_PRICES
+
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+
+    frontend_url = os.getenv("FRONTEND_URL", "https://yachtversal.com")
+    success_url = f"{frontend_url}/dashboard?payment=success"
+    cancel_url = f"{frontend_url}/billing?payment=cancelled"
+    SETUP_FEE_PRICE_ID = os.getenv("STRIPE_SETUP_FEE_PRICE_ID", "price_1TbSPJL4JS1hgLQ4sbTyGTst")
+
+    # Get or create Stripe customer
+    if not target.stripe_customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=target.email,
+                name=f"{target.first_name or ''} {target.last_name or ''}".strip(),
+                metadata={"user_id": str(target.id)},
+            )
+            target.stripe_customer_id = customer.id
+            db.commit()
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=502, detail=f"Stripe customer creation failed: {e}")
+
+    payment_type = (body.get("type") or "setup_fee").lower()
+
+    try:
+        if payment_type == "setup_fee":
+            session = stripe.checkout.Session.create(
+                customer=target.stripe_customer_id,
+                mode="payment",
+                line_items=[{"price": SETUP_FEE_PRICE_ID, "quantity": 1}],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata={"user_id": str(target.id), "subscription_tier": "pro"},
+            )
+        else:
+            tier_key = (body.get("tier") or "basic").lower()
+            price_id = STRIPE_PRICES.get(tier_key)
+            if not price_id:
+                raise ValidationException(f"No Stripe price configured for tier: {tier_key}")
+            session = stripe.checkout.Session.create(
+                customer=target.stripe_customer_id,
+                mode="subscription",
+                line_items=[{"price": price_id, "quantity": 1}],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata={"user_id": str(target.id), "subscription_tier": tier_key},
+            )
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Stripe error: {e}")
+
+    logger.info(
+        "Admin %s generated payment link for user %s (%s): type=%s",
+        current_user.email, target.id, target.email, payment_type,
+    )
+    return {"success": True, "checkout_url": session.url, "session_id": session.id}
+
+
+@router.post("/users/{user_id}/send-payment-reminder")
+def admin_send_payment_reminder(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Generate a Stripe payment link and email it to the user as a reminder
+    to complete registration / payment.
+    Body: { "message": "optional custom note to include" }
+    """
+    from app.core.config import settings
+
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+
+    frontend_url = os.getenv("FRONTEND_URL", "https://yachtversal.com")
+    success_url = f"{frontend_url}/dashboard?payment=success"
+    cancel_url = f"{frontend_url}/billing?payment=cancelled"
+    SETUP_FEE_PRICE_ID = os.getenv("STRIPE_SETUP_FEE_PRICE_ID", "price_1TbSPJL4JS1hgLQ4sbTyGTst")
+
+    if not target.stripe_customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=target.email,
+                name=f"{target.first_name or ''} {target.last_name or ''}".strip(),
+                metadata={"user_id": str(target.id)},
+            )
+            target.stripe_customer_id = customer.id
+            db.commit()
+        except stripe.error.StripeError as e:
+            raise HTTPException(status_code=502, detail=f"Stripe customer creation failed: {e}")
+
+    try:
+        session = stripe.checkout.Session.create(
+            customer=target.stripe_customer_id,
+            mode="payment",
+            line_items=[{"price": SETUP_FEE_PRICE_ID, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={"user_id": str(target.id), "subscription_tier": "pro"},
+        )
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=502, detail=f"Stripe error creating checkout session: {e}")
+
+    user_name = f"{target.first_name or ''} {target.last_name or ''}".strip() or "there"
+    custom_msg = (body.get("message") or "").strip()
+    custom_block = f"<p><em>{custom_msg}</em></p>" if custom_msg else ""
+
+    html = f"""
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#10214F;">Complete Your YachtVersal Registration</h2>
+  <p>Hi {user_name},</p>
+  <p>Your YachtVersal account is set up and ready — we just need you to complete
+     the one-time activation payment to get full access.</p>
+  {custom_block}
+  <p style="margin:28px 0;">
+    <a href="{session.url}"
+       style="display:inline-block;background:#01BCDD;color:#ffffff;padding:14px 32px;
+              border-radius:6px;text-decoration:none;font-weight:bold;font-size:16px;">
+      Complete Payment →
+    </a>
+  </p>
+  <p style="color:#666;font-size:13px;">
+    This link expires in 24 hours. If you have any questions, reply to this email
+    and we'll get you sorted right away.
+  </p>
+  <p>— The YachtVersal Team</p>
+</div>
+"""
+
+    email_sent = False
+    try:
+        email_service.send_email(
+            to_email=target.email,
+            subject="Action Required: Complete Your YachtVersal Payment",
+            html_content=html,
+        )
+        email_sent = True
+    except Exception as e:
+        logger.error("Payment reminder email failed for user %s: %s", target.id, e)
+
+    logger.info(
+        "Admin %s sent payment reminder to user %s (%s), email_sent=%s",
+        current_user.email, target.id, target.email, email_sent,
+    )
+    return {
+        "success": True,
+        "email_sent": email_sent,
+        "checkout_url": session.url,
+        "message": "Email sent" if email_sent else "Email delivery failed — use the checkout_url to send manually",
+    }
+
+
 # ============= DEALERS MANAGEMENT =============
 
 @router.get("/dealers")
