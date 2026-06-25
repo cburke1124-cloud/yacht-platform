@@ -211,7 +211,7 @@ export default function HomePage() {
     // Fetch listings
     const fetchListings = async () => {
       try {
-        const res = await fetch(`${API_ROOT}/listings?limit=12&status=active&sort=price_desc`);
+        const res = await fetch(`${API_ROOT}/listings?limit=12&status=active&featured=true&sort=price_desc`);
         if (!res.ok) {
           setListings([]);
         } else {
