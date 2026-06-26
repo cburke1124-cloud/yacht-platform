@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   Search, Anchor, Bed, Users, Ruler,
-  ChevronLeft, ChevronRight, ChevronDown, X,
+  ChevronLeft, ChevronRight, ChevronDown, X, SlidersHorizontal,
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
@@ -34,10 +34,16 @@ interface CharterListing {
   status: string;
   charter_company_name?: string;
   charter_company_slug?: string;
-  availability_blocks?: Array<{ start_date: string; end_date: string; status: string }>;
 }
 
-const BOAT_TYPES = ['Motor Yacht', 'Sailing Yacht', 'Catamaran', 'Mega Yacht', 'Superyacht', 'Trawler'];
+const CHARTER_TYPES = ['Sailboat', 'Catamaran', 'Yacht'] as const;
+
+const CHARTER_FEATURES = [
+  'Air Conditioning', 'Generator', 'Watermaker', 'WiFi', 'Stabilizers',
+  'Tender', 'Jet Ski', 'Water Slide', 'Kayaks', 'Snorkel Gear',
+  'Fishing Gear', 'Dive Equipment', 'BBQ', 'Jacuzzi',
+];
+
 const PAGE_SIZE = 24;
 
 const DESTINATIONS = [
@@ -158,38 +164,58 @@ export default function CharterPage() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const filterBarRef = useRef<HTMLDivElement>(null);
 
+  // Core filters
   const [search, setSearch] = useState('');
-  const [boatType, setBoatType] = useState('');
   const [location, setLocation] = useState('');
-  const [minLength, setMinLength] = useState('');
-  const [maxLength, setMaxLength] = useState('');
-  const [maxGuests, setMaxGuests] = useState('');
-  const [crewIncluded, setCrewIncluded] = useState('');
-  const [maxDayRate, setMaxDayRate] = useState('');
-  const [duration, setDuration] = useState('');
   const [tripStart, setTripStart] = useState('');
   const [tripEnd, setTripEnd] = useState('');
+  const [charterType, setCharterType] = useState('');
+  const [minGuests, setMinGuests] = useState('');
+  const [minCabins, setMinCabins] = useState('');
+  const [crewIncluded, setCrewIncluded] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [priceMode, setPriceMode] = useState<'day' | 'week'>('day');
+
+  // Advanced filters
+  const [vesselName, setVesselName] = useState('');
+  const [minYear, setMinYear] = useState('');
+  const [maxYear, setMaxYear] = useState('');
+  const [minLength, setMinLength] = useState('');
+  const [maxLength, setMaxLength] = useState('');
+  const [features, setFeatures] = useState<string[]>([]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  const toggleFeature = (f: string) =>
+    setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
 
   const fetchCharters = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
       if (search) params.set('q', search);
-      if (boatType) params.set('boat_type', boatType);
+      if (charterType) params.set('charter_category', charterType.toLowerCase());
       if (location) params.set('location', location);
-      if (minLength) params.set('min_length', minLength);
-      if (maxLength) params.set('max_length', maxLength);
-      if (maxGuests) params.set('min_guests', maxGuests);
+      if (minGuests) params.set('min_guests', minGuests);
+      if (minCabins) params.set('min_cabins', minCabins);
       if (crewIncluded) params.set('crew_included', crewIncluded);
-      if (maxDayRate) params.set('max_day_rate', maxDayRate);
+      if (maxPrice) {
+        if (priceMode === 'day') params.set('max_day_rate', maxPrice);
+        else params.set('max_week_rate', maxPrice);
+      }
       if (tripStart) params.set('start_date', tripStart);
       if (tripEnd) params.set('end_date', tripEnd);
-      const durationMaxDays: Record<string, number> = { day: 1, weekend: 3, week: 7 };
-      if (duration && durationMaxDays[duration]) params.set('max_min_days', String(durationMaxDays[duration]));
+      // Advanced
+      if (vesselName) params.set('vessel_name', vesselName);
+      if (minLength) params.set('min_length', minLength);
+      if (maxLength) params.set('max_length', maxLength);
+      if (minYear) params.set('min_year', minYear);
+      if (maxYear) params.set('max_year', maxYear);
+      if (features.length) params.set('features', features.join(','));
+
       const res = await fetch(apiUrl(`/charter?${params}`));
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -201,42 +227,45 @@ export default function CharterPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, boatType, location, minLength, maxLength, maxGuests, crewIncluded, maxDayRate, duration, tripStart, tripEnd]);
+  }, [page, search, charterType, location, minGuests, minCabins, crewIncluded, maxPrice, priceMode, tripStart, tripEnd, vesselName, minLength, maxLength, minYear, maxYear, features]);
 
   useEffect(() => { fetchCharters(); }, [fetchCharters]);
 
   const clearFilters = () => {
-    setSearch(''); setBoatType(''); setLocation('');
-    setMinLength(''); setMaxLength(''); setMaxGuests('');
-    setCrewIncluded(''); setMaxDayRate(''); setDuration(''); setTripStart(''); setTripEnd(''); setPage(1);
+    setSearch(''); setCharterType(''); setLocation('');
+    setMinGuests(''); setMinCabins(''); setCrewIncluded('');
+    setMaxPrice(''); setPriceMode('day');
+    setTripStart(''); setTripEnd('');
+    setVesselName(''); setMinYear(''); setMaxYear('');
+    setMinLength(''); setMaxLength(''); setFeatures([]);
+    setPage(1);
   };
 
-  const hasActiveFilters = !!(search || boatType || location || minLength || maxLength || maxGuests || crewIncluded || maxDayRate || duration || tripStart || tripEnd);
+  const hasAdvancedFilters = !!(vesselName || minYear || maxYear || minLength || maxLength || features.length);
+  const hasActiveFilters = !!(search || charterType || location || minGuests || minCabins || crewIncluded || maxPrice || tripStart || tripEnd || hasAdvancedFilters);
 
   const pills: { label: string; clear: () => void }[] = [];
-  if (search)       pills.push({ label: `"${search}"`,                      clear: () => setSearch('') });
-  if (boatType)     pills.push({ label: boatType,                           clear: () => setBoatType('') });
-  if (location)     pills.push({ label: `📍 ${location}`,                   clear: () => setLocation('') });
-  if (maxGuests)    pills.push({ label: `${maxGuests}+ guests`,              clear: () => setMaxGuests('') });
-  if (duration)     pills.push({ label: ({ day: 'Day Charter', weekend: 'Weekend', week: 'Full Week' } as Record<string, string>)[duration] ?? duration, clear: () => setDuration('') });
-  if (crewIncluded) pills.push({ label: crewIncluded === 'true' ? 'Crew included' : 'Bareboat', clear: () => setCrewIncluded('') });
-  if (minLength || maxLength) pills.push({ label: `${minLength || '0'}–${maxLength || '∞'} ft`, clear: () => { setMinLength(''); setMaxLength(''); } });
-  if (maxDayRate)   pills.push({ label: `≤$${Number(maxDayRate).toLocaleString()}/day`,         clear: () => setMaxDayRate('') });
+  if (search)        pills.push({ label: `"${search}"`,                         clear: () => setSearch('') });
+  if (charterType)   pills.push({ label: charterType,                           clear: () => setCharterType('') });
+  if (location)      pills.push({ label: `📍 ${location}`,                      clear: () => setLocation('') });
+  if (minGuests)     pills.push({ label: `${minGuests}+ guests`,                clear: () => setMinGuests('') });
+  if (minCabins)     pills.push({ label: `${minCabins}+ cabins`,                clear: () => setMinCabins('') });
+  if (crewIncluded)  pills.push({ label: crewIncluded === 'true' ? 'Crew included' : 'Bareboat', clear: () => setCrewIncluded('') });
+  if (maxPrice)      pills.push({ label: `≤$${Number(maxPrice).toLocaleString()}/${priceMode}`, clear: () => setMaxPrice('') });
   if (tripStart || tripEnd) pills.push({ label: `${tripStart || 'Any'} → ${tripEnd || 'Any'}`, clear: () => { setTripStart(''); setTripEnd(''); } });
+  if (vesselName)    pills.push({ label: `Vessel: ${vesselName}`,               clear: () => setVesselName('') });
+  if (minLength || maxLength) pills.push({ label: `${minLength || '0'}–${maxLength || '∞'} ft`, clear: () => { setMinLength(''); setMaxLength(''); } });
+  if (minYear || maxYear) pills.push({ label: `${minYear || '?'}–${maxYear || 'present'}`, clear: () => { setMinYear(''); setMaxYear(''); } });
+  features.forEach(f => pills.push({ label: f, clear: () => toggleFeature(f) }));
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#F8F9FC' }}>
 
       {/* Hero */}
-      <div className="bg-[#10214F] text-white py-14 px-4">
+      <div className="bg-[#10214F] text-white py-10 px-4">
         <div className="max-w-5xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Anchor className="w-6 h-6 text-[#C9A84C]" />
-            <span className="text-[#C9A84C] uppercase tracking-widest text-sm font-medium" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter</span>
-          </div>
-          <h1 className="text-4xl font-bold mb-3" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Yacht Charter</h1>
-          <p className="text-blue-200 text-lg max-w-xl mx-auto">Pick a destination, dates, and group size. We’ll show charters that fit the trip.</p>
-          <div className="mt-8 max-w-xl mx-auto">
+          <h1 className="text-4xl font-bold mb-6" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Search Charters</h1>
+          <div className="max-w-xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -247,7 +276,7 @@ export default function CharterPage() {
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg"
               />
             </div>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-blue-100 mb-1 text-left">Trip start</label>
                 <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
@@ -294,52 +323,72 @@ export default function CharterPage() {
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-2 flex-wrap">
 
-            <FilterDropdown label="Vessel Type" active={!!boatType}>
-              <div className="flex flex-col gap-1">
-                {BOAT_TYPES.map(t => (
-                  <button key={t} onClick={() => { setBoatType(boatType === t ? '' : t); setPage(1); }}
-                    className="text-left px-3 py-2 rounded-lg text-sm transition-colors"
-                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: boatType === t ? 'rgba(1,187,220,0.08)' : 'transparent', color: boatType === t ? '#01BBDC' : '#10214F', fontWeight: boatType === t ? 600 : 400 }}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </FilterDropdown>
-
-            <FilterDropdown label="Group Size" active={!!maxGuests}>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Guests in your group</label>
-              <input type="number" placeholder="e.g. 8" min={1} value={maxGuests} onChange={e => { setMaxGuests(e.target.value); setPage(1); }}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-              <p className="text-xs text-gray-400 mt-1.5">Shows vessels that fit your group</p>
-            </FilterDropdown>
-
-            <FilterDropdown label="Duration" active={!!duration}>
-              <div className="flex flex-col gap-1">
-                {[
-                  { label: 'Any', value: '' },
-                  { label: 'Day Charter', value: 'day', sub: '1 day' },
-                  { label: 'Weekend Escape', value: 'weekend', sub: '2–3 days' },
-                  { label: 'Full Week', value: 'week', sub: '7 days' },
-                ].map(opt => (
-                  <button key={opt.value} onClick={() => { setDuration(opt.value); setPage(1); }}
-                    className="text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between"
-                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: duration === opt.value ? 'rgba(1,187,220,0.08)' : 'transparent', color: duration === opt.value ? '#01BBDC' : '#10214F', fontWeight: duration === opt.value ? 600 : 400 }}>
-                    <span>{opt.label}</span>
-                    {'sub' in opt && <span className="text-xs text-gray-400 ml-2">{opt.sub}</span>}
-                  </button>
-                ))}
-              </div>
-            </FilterDropdown>
-
+            {/* Trip Dates */}
             <FilterDropdown label="Trip Dates" active={!!(tripStart || tripEnd)}>
               <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">When are you traveling?</label>
               <div className="grid grid-cols-2 gap-2">
                 <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
                 <input type="date" value={tripEnd} min={tripStart || undefined} onChange={e => { setTripEnd(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
               </div>
-              <p className="text-xs text-gray-400 mt-1.5">We’ll hide yachts blocked for those dates.</p>
+              <p className="text-xs text-gray-400 mt-1.5">We'll hide yachts blocked for those dates.</p>
             </FilterDropdown>
 
+            {/* Charter Type */}
+            <FilterDropdown label="Charter Type" active={!!charterType}>
+              <div className="flex flex-col gap-1">
+                {CHARTER_TYPES.map(t => (
+                  <button key={t} onClick={() => { setCharterType(charterType === t ? '' : t); setPage(1); }}
+                    className="text-left px-3 py-2 rounded-lg text-sm transition-colors"
+                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: charterType === t ? 'rgba(1,187,220,0.08)' : 'transparent', color: charterType === t ? '#01BBDC' : '#10214F', fontWeight: charterType === t ? 600 : 400 }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </FilterDropdown>
+
+            {/* Guests */}
+            <FilterDropdown label="Guests" active={!!minGuests}>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Minimum guests</label>
+              <input type="number" placeholder="e.g. 8" min={1} value={minGuests} onChange={e => { setMinGuests(e.target.value); setPage(1); }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+              <p className="text-xs text-gray-400 mt-1.5">Shows vessels that accommodate at least this many guests.</p>
+            </FilterDropdown>
+
+            {/* Cabins */}
+            <FilterDropdown label="Cabins" active={!!minCabins}>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Minimum cabins</label>
+              <input type="number" placeholder="e.g. 4" min={1} value={minCabins} onChange={e => { setMinCabins(e.target.value); setPage(1); }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+            </FilterDropdown>
+
+            {/* Max Price */}
+            <FilterDropdown label={`Max Price${maxPrice ? ` · $${Number(maxPrice).toLocaleString()}/${priceMode}` : ''}`} active={!!maxPrice}>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Price basis</label>
+              <div className="flex rounded-lg overflow-hidden border border-gray-200 mb-3">
+                <button
+                  onClick={() => { setPriceMode('day'); setPage(1); }}
+                  className="flex-1 py-2 text-xs font-medium transition-colors"
+                  style={{ backgroundColor: priceMode === 'day' ? '#01BBDC' : '#FFFFFF', color: priceMode === 'day' ? '#FFFFFF' : '#6b7280' }}
+                >
+                  Per Day
+                </button>
+                <button
+                  onClick={() => { setPriceMode('week'); setPage(1); }}
+                  className="flex-1 py-2 text-xs font-medium transition-colors"
+                  style={{ backgroundColor: priceMode === 'week' ? '#01BBDC' : '#FFFFFF', color: priceMode === 'week' ? '#FFFFFF' : '#6b7280' }}
+                >
+                  Per Week
+                </button>
+              </div>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                Max {priceMode === 'day' ? 'daily' : 'weekly'} rate (USD)
+              </label>
+              <input type="number" placeholder={priceMode === 'day' ? 'e.g. 10,000' : 'e.g. 50,000'} min={0} value={maxPrice}
+                onChange={e => { setMaxPrice(e.target.value); setPage(1); }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+            </FilterDropdown>
+
+            {/* Crew */}
             <FilterDropdown label="Crew" active={!!crewIncluded}>
               <div className="flex flex-col gap-1">
                 {[{ label: 'Any', value: '' }, { label: 'Crew included', value: 'true' }, { label: 'Bareboat', value: 'false' }].map(opt => (
@@ -352,32 +401,108 @@ export default function CharterPage() {
               </div>
             </FilterDropdown>
 
-            <FilterDropdown label="Length" active={!!(minLength || maxLength)}>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Length (ft)</label>
-              <div className="flex items-center gap-2">
-                <input type="number" placeholder="Min" value={minLength} onChange={e => { setMinLength(e.target.value); setPage(1); }}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                <span className="text-gray-400 text-xs">–</span>
-                <input type="number" placeholder="Max" value={maxLength} onChange={e => { setMaxLength(e.target.value); setPage(1); }}
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-              </div>
-            </FilterDropdown>
-
-            <FilterDropdown label="Day Rate" active={!!maxDayRate}>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Max per day (USD)</label>
-              <input type="number" placeholder="e.g. 10,000" min={0} value={maxDayRate} onChange={e => { setMaxDayRate(e.target.value); setPage(1); }}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-            </FilterDropdown>
-
-            {pills.map(p => <FilterPill key={p.label} label={p.label} onRemove={p.clear} />)}
-
-            {hasActiveFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1 text-sm text-red-500 hover:text-red-700 ml-auto whitespace-nowrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                <X className="w-3.5 h-3.5" /> Clear all
+            {/* Spacer + Advanced Search */}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setAdvancedOpen(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+                style={{
+                  fontFamily: 'Poppins, sans-serif',
+                  border: (advancedOpen || hasAdvancedFilters) ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
+                  backgroundColor: (advancedOpen || hasAdvancedFilters) ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
+                  color: (advancedOpen || hasAdvancedFilters) ? '#01BBDC' : '#10214F',
+                }}
+              >
+                <SlidersHorizontal size={14} />
+                Advanced Search
+                {hasAdvancedFilters && <span className="ml-1 bg-[#01BBDC] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{[vesselName, (minYear || maxYear), (minLength || maxLength), ...features].filter(Boolean).length}</span>}
               </button>
+
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="flex items-center gap-1 text-sm text-red-500 hover:text-red-700 whitespace-nowrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <X className="w-3.5 h-3.5" /> Clear all
+                </button>
+              )}
+            </div>
+
+            {/* Active filter pills */}
+            {pills.length > 0 && (
+              <div className="w-full flex flex-wrap gap-1.5 pt-1">
+                {pills.map(p => <FilterPill key={p.label} label={p.label} onRemove={p.clear} />)}
+              </div>
             )}
           </div>
         </div>
+
+        {/* Advanced Search Panel */}
+        {advancedOpen && (
+          <div style={{ backgroundColor: '#F8F9FC', borderTop: '1px solid rgba(16,33,79,0.08)' }}>
+            <div className="max-w-7xl mx-auto px-4 py-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+                {/* Vessel Name */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Vessel Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sea Dream"
+                    value={vesselName}
+                    onChange={e => { setVesselName(e.target.value); setPage(1); }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
+                  />
+                </div>
+
+                {/* Year */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Build Year</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" placeholder="From" min={1950} max={new Date().getFullYear()} value={minYear}
+                      onChange={e => { setMinYear(e.target.value); setPage(1); }}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
+                    <span className="text-gray-400 text-xs">–</span>
+                    <input type="number" placeholder="To" min={1950} max={new Date().getFullYear()} value={maxYear}
+                      onChange={e => { setMaxYear(e.target.value); setPage(1); }}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
+                  </div>
+                </div>
+
+                {/* Length */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Length (ft)</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" placeholder="Min" value={minLength} onChange={e => { setMinLength(e.target.value); setPage(1); }}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
+                    <span className="text-gray-400 text-xs">–</span>
+                    <input type="number" placeholder="Max" value={maxLength} onChange={e => { setMaxLength(e.target.value); setPage(1); }}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
+                  </div>
+                </div>
+
+                {/* Features */}
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Features</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CHARTER_FEATURES.map(f => (
+                      <button
+                        key={f}
+                        onClick={() => { toggleFeature(f); setPage(1); }}
+                        className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                        style={{
+                          border: features.includes(f) ? '1px solid #01BBDC' : '1px solid rgba(16,33,79,0.15)',
+                          backgroundColor: features.includes(f) ? 'rgba(1,187,220,0.1)' : '#FFFFFF',
+                          color: features.includes(f) ? '#01BBDC' : '#6b7280',
+                        }}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Results */}

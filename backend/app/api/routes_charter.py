@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, String
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import date, datetime
@@ -175,13 +175,20 @@ def _serialize_rate(r: CharterSeasonalRate) -> dict:
 def list_charters(
     q: Optional[str] = Query(None),
     boat_type: Optional[str] = Query(None),
+    charter_category: Optional[str] = Query(None),
+    vessel_name: Optional[str] = Query(None),
     location: Optional[str] = Query(None),
     crew_included: Optional[bool] = Query(None),
     min_guests: Optional[int] = Query(None),
+    min_cabins: Optional[int] = Query(None),
     min_length: Optional[float] = Query(None),
     max_length: Optional[float] = Query(None),
+    min_year: Optional[int] = Query(None),
+    max_year: Optional[int] = Query(None),
     max_day_rate: Optional[float] = Query(None),
+    max_week_rate: Optional[float] = Query(None),
     max_min_days: Optional[int] = Query(None),
+    features: Optional[str] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     region: Optional[str] = Query(None),
@@ -202,8 +209,25 @@ def list_charters(
                 CharterListing.charter_company_name.ilike(q_like),
             )
         )
+    if vessel_name:
+        query = query.filter(CharterListing.vessel_name.ilike(f"%{vessel_name}%"))
     if boat_type:
         query = query.filter(CharterListing.boat_type.ilike(f"%{boat_type}%"))
+    if charter_category:
+        cat = charter_category.lower()
+        if cat == "sailboat":
+            query = query.filter(CharterListing.boat_type.ilike("%sailing%"))
+        elif cat == "catamaran":
+            query = query.filter(CharterListing.boat_type.ilike("%catamaran%"))
+        elif cat == "yacht":
+            query = query.filter(
+                or_(
+                    CharterListing.boat_type.ilike("%motor yacht%"),
+                    CharterListing.boat_type.ilike("%mega yacht%"),
+                    CharterListing.boat_type.ilike("%superyacht%"),
+                    CharterListing.boat_type.ilike("%trawler%"),
+                )
+            )
     if location:
         loc_like = f"%{location}%"
         query = query.filter(
@@ -230,12 +254,31 @@ def list_charters(
         query = query.filter(CharterListing.crew_included == crew_included)
     if min_guests is not None:
         query = query.filter(CharterListing.max_guests >= min_guests)
+    if min_cabins is not None:
+        query = query.filter(CharterListing.cabins >= min_cabins)
     if min_length is not None:
         query = query.filter(CharterListing.length_feet >= min_length)
     if max_length is not None:
         query = query.filter(CharterListing.length_feet <= max_length)
+    if min_year is not None:
+        query = query.filter(CharterListing.year >= min_year)
+    if max_year is not None:
+        query = query.filter(CharterListing.year <= max_year)
     if max_day_rate is not None:
-        query = query.filter(CharterListing.day_rate <= max_day_rate)
+        query = query.filter(
+            or_(CharterListing.day_rate == None, CharterListing.day_rate <= max_day_rate)
+        )
+    if max_week_rate is not None:
+        query = query.filter(
+            or_(CharterListing.week_rate == None, CharterListing.week_rate <= max_week_rate)
+        )
+    if features:
+        for feature in features.split(","):
+            feature = feature.strip()
+            if feature:
+                query = query.filter(
+                    CharterListing.amenities.cast(String).ilike(f"%{feature}%")
+                )
     if max_min_days is not None:
         query = query.filter(
             or_(

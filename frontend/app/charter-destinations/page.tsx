@@ -16,7 +16,7 @@ export default function DestinationsBrowse() {
               className="text-4xl md:text-5xl font-bold"
               style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
             >
-              Browse Destinations
+              Search Your Destination
             </h1>
             <p className="text-blue-100 mt-6 font-poppins">
               Pick a region to explore available yachts, plan your route, and learn what makes each destination special.
