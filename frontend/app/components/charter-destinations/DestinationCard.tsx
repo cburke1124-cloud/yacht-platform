@@ -50,8 +50,8 @@ export default function DestinationCard({ destination, includedLocations = [] }:
 
           {/* Destination quick-links (region cards only) */}
           {destination.type === 'region' && includedLocations.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-2">Destinations</p>
+            <div className="mt-3">
+              <p className="text-xs uppercase tracking-wider text-gray-400 font-poppins mb-2">Destinations</p>
               <div className="flex flex-wrap gap-2" onClick={(e) => e.preventDefault()}>
                 {includedLocations.map((location) => (
                   <Link
@@ -65,11 +65,6 @@ export default function DestinationCard({ destination, includedLocations = [] }:
               </div>
             </div>
           )}
-
-          {/* Description */}
-          <p className="text-gray-700 text-sm mt-4 line-clamp-2 font-poppins">
-            {destination.shortDescription}
-          </p>
 
           {/* CTA */}
           <div className="mt-4 flex items-center text-primary font-medium text-sm group-hover:gap-2 transition-all">
