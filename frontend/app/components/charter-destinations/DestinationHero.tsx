@@ -40,11 +40,17 @@ export default function DestinationHero({
 
         {/* Content Overlay */}
         <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-12">
-          {showBreadcrumb && parentRegion && (
+          {showBreadcrumb && (
             <div className="mb-4">
-              <a href={`/charter-destinations/${parentRegion.slug}`} className="text-[#C9A84C] hover:text-[#e0c987] transition-colors text-sm">
-                ← Back to {parentRegion.name}
-              </a>
+              {parentRegion ? (
+                <a href={`/charter-destinations/${parentRegion.slug}`} className="text-[#C9A84C] hover:text-[#e0c987] transition-colors text-sm">
+                  ← Back to {parentRegion.name}
+                </a>
+              ) : (
+                <a href="/charter-destinations" className="text-[#C9A84C] hover:text-[#e0c987] transition-colors text-sm">
+                  ← Back to Destinations
+                </a>
+              )}
             </div>
           )}
 
