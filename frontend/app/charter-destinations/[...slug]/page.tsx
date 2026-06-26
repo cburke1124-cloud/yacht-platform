@@ -69,19 +69,19 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
         showBreadcrumb={!!parentRegion}
       />
 
-      {/* Info Section */}
-      <DestinationInfo destination={destination} />
+      {/* Sub-Destinations (if this is a region with sub-regions) */}
+      {subregions.length > 0 && (
+        <SubRegionNavigation
+          subregions={subregions}
+          parentSlug={destination.slug}
+        />
+      )}
 
       {/* Listings Section */}
       <DestinationListings destination={destination} limit={9} />
 
-      {/* Sub-Regions (if this is a region with sub-regions) */}
-      {subregions.length > 0 && (
-        <SubRegionNavigation 
-          subregions={subregions} 
-          parentSlug={destination.slug}
-        />
-      )}
+      {/* Info Section */}
+      <DestinationInfo destination={destination} />
 
       {/* Footer CTA */}
       <div className="bg-secondary py-14 md:py-18">

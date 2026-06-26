@@ -43,17 +43,31 @@ export default function DestinationCard({ destination, includedLocations = [] }:
 
         {/* Content */}
         <div className="p-6 bg-white">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 group-hover:text-primary transition-colors" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
-                {destination.name}
-              </h3>
-              <p className="text-sm text-gray-600 mt-1 font-poppins">{destination.subtitle}</p>
+          <h3 className="text-xl font-semibold text-gray-900 group-hover:text-primary transition-colors" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+            {destination.name}
+          </h3>
+          <p className="text-sm text-gray-600 mt-1 font-poppins">{destination.subtitle}</p>
+
+          {/* Destination quick-links (region cards only) */}
+          {destination.type === 'region' && includedLocations.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-2">Destinations</p>
+              <div className="flex flex-wrap gap-2" onClick={(e) => e.preventDefault()}>
+                {includedLocations.map((location) => (
+                  <Link
+                    key={`${destination.slug}-${location.name}`}
+                    href={location.href}
+                    className="px-3 py-1.5 text-xs bg-white border border-gray-200 text-[#10214F] hover:border-primary hover:text-primary transition-colors font-poppins"
+                  >
+                    {location.name}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Description */}
-          <p className="text-gray-700 text-sm mt-3 line-clamp-2 font-poppins">
+          <p className="text-gray-700 text-sm mt-4 line-clamp-2 font-poppins">
             {destination.shortDescription}
           </p>
 
@@ -64,24 +78,6 @@ export default function DestinationCard({ destination, includedLocations = [] }:
           </div>
         </div>
       </Link>
-
-      {/* Included destinations for region cards */}
-      {destination.type === 'region' && includedLocations.length > 0 && (
-        <div className="px-6 py-4 border-t border-gray-100">
-          <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-3">Destinations</p>
-          <div className="flex flex-wrap gap-2">
-            {includedLocations.map((location) => (
-              <Link
-                key={`${destination.slug}-${location.name}`}
-                href={location.href}
-                className="px-3 py-1.5 text-xs bg-white border border-gray-200 text-[#10214F] hover:border-primary hover:text-primary transition-colors font-poppins"
-              >
-                {location.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { getDestinations, Destination } from '@/app/lib/destinationData';
 import DestinationCard from '@/app/components/charter-destinations/DestinationCard';
-import { Anchor } from 'lucide-react';
 
 export default function DestinationsBrowse() {
   const destinations = getDestinations();
@@ -13,24 +12,12 @@ export default function DestinationsBrowse() {
       <div className="bg-secondary text-white py-16 px-4">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <Anchor className="w-6 h-6 text-[#C9A84C]" />
-              <span
-                className="text-[#C9A84C] uppercase tracking-widest text-sm font-medium"
-                style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
-              >
-                Destinations
-              </span>
-            </div>
             <h1
               className="text-4xl md:text-5xl font-bold"
               style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}
             >
-                Chart Your Course
+              Browse Destinations
             </h1>
-            <p className="text-blue-100 text-lg max-w-2xl mx-auto mt-4 font-poppins">
-              From pristine Caribbean anchorages to Mediterranean coastlines, discover the perfect destination for your next charter.
-            </p>
             <p className="text-blue-100 mt-6 font-poppins">
               Pick a region to explore available yachts, plan your route, and learn what makes each destination special.
             </p>
@@ -50,7 +37,6 @@ export default function DestinationsBrowse() {
               <h2 className="text-3xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                 Regions
               </h2>
-              <p className="text-gray-600 mt-2 font-poppins">Start broad, then drill into specific locations.</p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {regions.map((region) => (

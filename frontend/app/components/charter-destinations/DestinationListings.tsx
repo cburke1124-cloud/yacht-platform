@@ -64,7 +64,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
 
         params.append('limit', limit.toString());
 
-        const res = await fetch(`${apiUrl}/api/charter?${params.toString()}`);
+        const res = await fetch(`${apiUrl('/charter')}?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to fetch charters');
         
         const data = await res.json();
