@@ -71,7 +71,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
         setListings(data.charters || []);
       } catch (err) {
         console.error('Error fetching listings:', err);
-        setError('Unable to load listings');
+        setError('Our navigator took a wrong turn. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -99,7 +99,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
   if (!listings || listings.length === 0) {
     return (
       <div className="py-12 text-center bg-white border border-gray-200 mx-6">
-        <p className="text-gray-600 mb-4 font-poppins">No charters available in this region yet.</p>
+        <p className="text-gray-600 mb-4 font-poppins">The fleet is out to sea—no yachts available in {destination.name} yet.</p>
         <Link href="/charter" className="text-[#01BBDC] hover:text-[#00a7c4] font-medium">
           Browse all available charters →
         </Link>

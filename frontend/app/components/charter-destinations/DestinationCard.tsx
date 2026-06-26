@@ -57,31 +57,18 @@ export default function DestinationCard({ destination, includedLocations = [] }:
             {destination.shortDescription}
           </p>
 
-          {/* Best For */}
-          <div className="mt-4 flex flex-wrap gap-1">
-            {destination.bestFor.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="inline-block text-xs px-2 py-1 rounded"
-                style={{ backgroundColor: 'rgba(1, 187, 220, 0.1)', color: '#01BBDC', border: '1px solid rgba(1, 187, 220, 0.3)' }}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-
           {/* CTA */}
           <div className="mt-4 flex items-center text-primary font-medium text-sm group-hover:gap-2 transition-all">
-            Explore {destination.type === 'region' ? 'region' : 'location'}
+            Explore {destination.type === 'region' ? 'region' : 'destination'}
             <ArrowRight size={16} className="ml-2" />
           </div>
         </div>
       </Link>
 
-      {/* Included locations for region cards */}
+      {/* Included destinations for region cards */}
       {destination.type === 'region' && includedLocations.length > 0 && (
-        <div className="px-6 pb-5 pt-0 border-t border-gray-100">
-          <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-2 mt-4">Included locations</p>
+        <div className="px-6 py-4 border-t border-gray-100">
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-poppins mb-3">Destinations</p>
           <div className="flex flex-wrap gap-2">
             {includedLocations.map((location) => (
               <Link

@@ -53,9 +53,18 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
 
   return (
     <div className="min-h-screen bg-soft">
+      {/* Back to Destinations Navigation */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-6 py-3">
+          <a href="/charter-destinations" className="text-primary hover:text-opacity-80 transition-colors text-sm font-medium">
+            ← Back to Destinations
+          </a>
+        </div>
+      </div>
+
       {/* Hero Section */}
-      <DestinationHero 
-        destination={destination} 
+      <DestinationHero
+        destination={destination}
         parentRegion={parentRegion || undefined}
         showBreadcrumb={!!parentRegion}
       />
