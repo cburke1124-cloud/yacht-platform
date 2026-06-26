@@ -28,7 +28,18 @@
     "subRegions": [
       "virgin-islands",
       "bahamas",
-      "leeward-islands"
+      "leeward-islands",
+      "antigua",
+      "st-martin",
+      "st-barts",
+      "st-lucia",
+      "grenada",
+      "british-virgin-islands",
+      "turks-caicos",
+      "st-vincent-grenadines",
+      "puerto-rico",
+      "tortola",
+      "st-kitts-nevis"
     ]
   },
   {
@@ -115,6 +126,304 @@
     "published": true
   },
   {
+    "id": "caribbean_antigua",
+    "slug": "antigua",
+    "name": "Antigua",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "Antigua Yacht Charter",
+    "subtitle": "365 beaches, crystal-clear sailing, and authentic Caribbean charm",
+    "heroImage": "/images/destinations/antigua-hero.jpg",
+    "heroImageAlt": "Pristine white sand beach and turquoise waters of Antigua",
+    "shortDescription": "Antigua boasts 365 beaches—one for every day of the year. With reliable trade winds, calm anchorages, and a welcoming sailing community, it's a perfect base for island-hopping adventures.",
+    "longDescription": "Antigua is a sailor's paradise with a well-established charter industry and an annual sailing regatta that draws boats from around the world. The island offers something for everyone: protected anchorages for relaxation, open-water passages for dynamic sailing, and vibrant beach bars for evening entertainment.\n\nThe sailing here is consistent and rewarding. Trade winds are steady but not overpowering, making it excellent for intermediate sailors and families. Explore pristine beaches, snorkel pristine reefs, or simply anchor in a sheltered cove and watch the sunset.\n\nAntigua's sailing culture runs deep. You'll meet crews who've chartered here for decades, and locals who grew up sailing these waters. The island feels welcoming to cruising sailors, with excellent provisioning and world-class marinas.",
+    "whatToExpect": [
+      "365 unique beaches to explore",
+      "Consistent trade winds ideal for sailing",
+      "Multiple protected anchorages",
+      "Active sailing community and excellent marinas",
+      "Pristine snorkeling and diving spots",
+      "Relaxed island atmosphere with excellent dining"
+    ],
+    "bestFor": ["Sailing enthusiasts", "Families", "Island-hopping", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Antigua and Barbuda"
+    },
+    "order": 4,
+    "published": false
+  },
+  {
+    "id": "caribbean_st-martin",
+    "slug": "st-martin",
+    "name": "St. Martin",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "St. Martin Yacht Charter",
+    "subtitle": "Cosmopolitan island, pristine waters, and perfect sailing conditions",
+    "heroImage": "/images/destinations/st-martin-hero.jpg",
+    "heroImageAlt": "Colorful buildings and sailboats in the harbor of St. Martin",
+    "shortDescription": "St. Martin combines French and Dutch cultures, excellent restaurants, and reliable sailing. The island's position makes it a natural hub for exploring the northern Caribbean islands.",
+    "longDescription": "St. Martin is unique—half French (St. Martin), half Dutch (Sint Maarten)—creating a cosmopolitan blend of European and Caribbean culture. The island offers excellent provisioning, world-class dining, and a sophisticated sailing scene.\n\nThe sailing is reliable with good trade winds and protected anchorages. Nearby islands like Anguilla and St. Barts are just a short sail away, making St. Martin an ideal base for island-hopping charters. The waters are calm and inviting, with excellent snorkeling and diving opportunities.\n\nWhat makes St. Martin special is the lifestyle: French pastries for breakfast, Dutch architecture, Caribbean beaches, and a thriving sailing community. It's worldly without feeling pretentious.",
+    "whatToExpect": [
+      "Excellent restaurants and cosmopolitan culture",
+      "Consistent trade winds and calm waters",
+      "Short sails to nearby island destinations",
+      "World-class provisioning and chandlery",
+      "Pristine beaches and snorkeling spots",
+      "Active sailing scene and international community"
+    ],
+    "bestFor": ["Foodies", "Couples", "Intermediate sailors", "Island-hopping"],
+    "searchFilters": {
+      "country": "St. Martin"
+    },
+    "order": 5,
+    "published": false
+  },
+  {
+    "id": "caribbean_st-barts",
+    "slug": "st-barts",
+    "name": "St. Barts",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "St. Barts Yacht Charter",
+    "subtitle": "Upscale island charm, pristine waters, and exclusive sailing",
+    "heroImage": "/images/destinations/st-barts-hero.jpg",
+    "heroImageAlt": "Elegant harbor and luxury yachts anchored in St. Barts",
+    "shortDescription": "St. Barts is the epitome of Caribbean luxury. With exclusive dining, designer boutiques, and gorgeous anchorages, it's a favorite among sophisticated charterers seeking elegance and relaxation.",
+    "longDescription": "St. Barts is where luxury meets sailing. This small French island has cultivated a reputation for understated elegance, world-class dining, and pristine beaches. The island feels exclusive without being unwelcoming to sailors.\n\nThe anchorages are stunning: calm waters, clear visibility, and stunning sunsets. Gustavia Harbor is picturesque, with colonial architecture and excellent restaurants. The nearby beaches are some of the most beautiful in the Caribbean, perfect for swimming and snorkeling.\n\nSailing here is straightforward with reliable trade winds and protected waters. This is a destination where you'll spend as much time relaxing in beautiful settings as you will sailing. Many charterers base themselves here and take day sails to nearby islands.",
+    "whatToExpect": [
+      "Upscale dining and exclusive shopping",
+      "Pristine, calm anchorages",
+      "Picturesque harbor and colonial architecture",
+      "World-class beaches for swimming and relaxing",
+      "Excellent snorkeling in clear waters",
+      "Sophisticated but welcoming sailing community"
+    ],
+    "bestFor": ["Luxury seekers", "Couples", "Foodies", "Relaxation"],
+    "searchFilters": {
+      "country": "St. Barthelemy"
+    },
+    "order": 6,
+    "published": false
+  },
+  {
+    "id": "caribbean_st-lucia",
+    "slug": "st-lucia",
+    "name": "St. Lucia",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "St. Lucia Yacht Charter",
+    "subtitle": "Dramatic volcanic peaks, world-class sailing, and island charm",
+    "heroImage": "/images/destinations/st-lucia-hero.jpg",
+    "heroImageAlt": "The iconic Pitons rising from turquoise waters of St. Lucia",
+    "shortDescription": "St. Lucia's dramatic volcanic landscape, excellent sailing conditions, and vibrant island culture make it a premier destination for charterers seeking natural beauty and adventure.",
+    "longDescription": "St. Lucia is instantly recognizable by its iconic Pitons—two dramatic volcanic peaks rising directly from the sea. Beyond the stunning scenery, the island offers excellent sailing conditions, protected anchorages, and authentic Caribbean culture.\n\nThe sailing here is rewarding with good trade winds and varied terrain. You'll navigate past dramatic cliffs, anchor in sheltered bays, and explore volcanic beaches and lush rainforests. The island's infrastructure is well-developed for charter boats, with excellent provisioning and repair services.\n\nWhat sets St. Lucia apart is its authenticity. The island has maintained its character while embracing tourism thoughtfully. You'll find excellent restaurants blending international and local cuisine, friendly locals, and a rhythm of life that feels genuinely Caribbean.",
+    "whatToExpect": [
+      "Iconic Pitons and dramatic coastal scenery",
+      "Consistent trade winds and good sailing conditions",
+      "Multiple protected anchorages and bays",
+      "Lush rainforest and volcanic beaches",
+      "Excellent restaurants and local markets",
+      "Authentic Caribbean culture and hospitality"
+    ],
+    "bestFor": ["Scenery enthusiasts", "Intermediate sailors", "Culture lovers", "Adventure seekers"],
+    "searchFilters": {
+      "country": "St. Lucia"
+    },
+    "order": 7,
+    "published": false
+  },
+  {
+    "id": "caribbean_grenada",
+    "slug": "grenada",
+    "name": "Grenada",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "Grenada Yacht Charter",
+    "subtitle": "Spice islands, pristine waters, and sailing freedom",
+    "heroImage": "/images/destinations/grenada-hero.jpg",
+    "heroImageAlt": "Lush green hills and calm waters surrounding Grenada",
+    "shortDescription": "Grenada, the 'Spice Isle,' offers a more laid-back sailing experience with excellent anchorages, less crowding, and a genuinely warm welcome to visiting sailors.",
+    "longDescription": "Grenada is for sailors seeking authenticity and freedom. Known as the Spice Isle for its production of nutmeg, cinnamon, and cocoa, the island maintains a relaxed, unpretentious character that appeals to experienced charterers.\n\nThe sailing is excellent with steady trade winds and well-protected anchorages. The Grenadine Islands nearby—just a short sail away—are some of the most pristine and remote in the Caribbean. You'll find fewer crowds than other Caribbean destinations, meaning more solitude and connection with nature.\n\nGrenada's charm lies in its authenticity. Local markets overflow with tropical fruits, restaurants serve fresh-caught seafood, and island life moves at a human pace. This is where sailors go when they want the real Caribbean experience.",
+    "whatToExpect": [
+      "Steady trade winds and good sailing conditions",
+      "Multiple protected anchorages and bays",
+      "Access to pristine Grenadine Islands",
+      "Less crowded than mainstream Caribbean",
+      "Authentic local markets and dining",
+      "Excellent fresh provisioning and friendly locals"
+    ],
+    "bestFor": ["Experienced sailors", "Adventure seekers", "Culture enthusiasts", "Island-hoppers"],
+    "searchFilters": {
+      "country": "Grenada"
+    },
+    "order": 8,
+    "published": false
+  },
+  {
+    "id": "caribbean_british-virgin-islands",
+    "slug": "british-virgin-islands",
+    "name": "British Virgin Islands",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "British Virgin Islands Yacht Charter",
+    "subtitle": "Island-hopping paradise, perfect anchorages, and consistent sailing",
+    "heroImage": "/images/destinations/british-virgin-islands-hero.jpg",
+    "heroImageAlt": "Pristine white sand beaches and clear turquoise waters of the BVI",
+    "shortDescription": "The BVI are a sailor's dream: 50+ islands, protected waters, consistent trade winds, and anchorages ranging from crowded hub islands to remote hidden coves.",
+    "longDescription": "The British Virgin Islands are specifically designed for yacht chartering. With over 50 islands and cays, endless anchorage options, and reliable sailing conditions, it's the Caribbean's premier island-hopping destination.\n\nDaily sailing distances are manageable (3–15 nautical miles), leaving plenty of time to explore, snorkel, and relax. Each island has its own personality: Virgin Gorda's dramatic rock formations, Anegada's remote beaches, Jost Van Dyke's laid-back beach bars.\n\nThe charter infrastructure is outstanding—provisioning is easy, repair services are abundant, and the sailing community is welcoming. Whether you're bareboat sailing or chartering with a crew, the BVI delivers the full yacht charter experience.",
+    "whatToExpect": [
+      "50+ islands and cays to explore",
+      "Short, manageable day sails between anchorages",
+      "Protected waters ideal for all experience levels",
+      "Excellent provisioning and marina infrastructure",
+      "Pristine snorkeling and diving sites",
+      "Active sailing community and beach bars"
+    ],
+    "bestFor": ["Families", "Groups", "Island-hoppers", "Sailors of all levels"],
+    "searchFilters": {
+      "country": "British Virgin Islands"
+    },
+    "order": 9,
+    "published": false
+  },
+  {
+    "id": "caribbean_turks-caicos",
+    "slug": "turks-caicos",
+    "name": "Turks & Caicos",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "Turks & Caicos Yacht Charter",
+    "subtitle": "Crystal-clear waters, pristine beaches, and exclusive island escapes",
+    "heroImage": "/images/destinations/turks-caicos-hero.jpg",
+    "heroImageAlt": "Pure white sand beaches and impossibly clear turquoise waters of Turks and Caicos",
+    "shortDescription": "Turks & Caicos features some of the Caribbean's clearest waters, most pristine beaches, and a more exclusive, less-crowded sailing experience.",
+    "longDescription": "Turks & Caicos is Caribbean sailing at its most pristine. The islands are known for impossibly clear water (visibility to 200+ feet), white-powder beaches, and a more exclusive atmosphere than mainstream Caribbean destinations.\n\nThe sailing is straightforward with good trade winds and calm, clear waters. Anchorages are excellent—many in remote locations where you'll feel like the only boat in the world. The islands offer few crowds and excellent natural resources: pristine reefs, abundant marine life, and untouched beaches.\n\nThe infrastructure is modern and well-developed for luxury charters, with excellent provisioning and anchorage services. This is a destination for sailors seeking pristine beauty without the crowds that come with more established charter hubs.",
+    "whatToExpect": [
+      "Crystal-clear waters with excellent visibility",
+      "Pristine, uncrowded beaches and anchorages",
+      "Excellent diving and snorkeling opportunities",
+      "Modern infrastructure and provisioning services",
+      "Calm seas and reliable sailing conditions",
+      "Exclusive, peaceful island atmosphere"
+    ],
+    "bestFor": ["Luxury seekers", "Couples", "Divers", "Relaxation"],
+    "searchFilters": {
+      "country": "Turks and Caicos"
+    },
+    "order": 10,
+    "published": false
+  },
+  {
+    "id": "caribbean_st-vincent-grenadines",
+    "slug": "st-vincent-grenadines",
+    "name": "St. Vincent & the Grenadines",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "St. Vincent & the Grenadines Yacht Charter",
+    "subtitle": "Island-rich sailing, authentic culture, and Caribbean adventure",
+    "heroImage": "/images/destinations/st-vincent-grenadines-hero.jpg",
+    "heroImageAlt": "Lush volcanic islands and calm blue waters of St. Vincent and the Grenadines",
+    "shortDescription": "St. Vincent & the Grenadines offer some of the Caribbean's best island-hopping, with volcanic landscapes, friendly locals, and authentic Caribbean character.",
+    "longDescription": "St. Vincent & the Grenadines is a string of 32 islands and cays offering endless sailing possibilities. From the lush volcanic island of St. Vincent to the pristine beaches of the southern Grenadines (Bequia, Mustique, Union Island), there's incredible diversity in a compact area.\n\nThe sailing is excellent with manageable distances between islands, good trade winds, and well-protected anchorages. The islands maintain authentic Caribbean character—you'll find genuine local markets, friendly populations, and a rhythm of life that feels unhurried.\n\nWhat makes this destination special is the combination of natural beauty, accessibility, and authenticity. It's less developed than some Caribbean destinations, which means less crowding and more authentic cultural experiences.",
+    "whatToExpect": [
+      "32 islands and cays to explore",
+      "Good trade winds and calm protected waters",
+      "Volcanic landscapes and pristine beaches",
+      "Authentic local culture and markets",
+      "Excellent snorkeling and diving opportunities",
+      "Welcoming locals and relaxed island atmosphere"
+    ],
+    "bestFor": ["Island-hoppers", "Adventure seekers", "Culture enthusiasts", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "St. Vincent and the Grenadines"
+    },
+    "order": 11,
+    "published": false
+  },
+  {
+    "id": "caribbean_puerto-rico",
+    "slug": "puerto-rico",
+    "name": "Puerto Rico",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "Puerto Rico Yacht Charter",
+    "subtitle": "US Caribbean sailing, diverse landscapes, and vibrant culture",
+    "heroImage": "/images/destinations/puerto-rico-hero.jpg",
+    "heroImageAlt": "Lush tropical landscape and pristine beaches of Puerto Rico",
+    "shortDescription": "Puerto Rico offers the combination of US accessibility, tropical beauty, and cultural richness. Sailing here gives you Caribbean adventure without leaving US territory.",
+    "longDescription": "Puerto Rico is unique—a Caribbean island with US citizenship, infrastructure, and accessibility. This makes it ideal for sailors who want Caribbean sailing without the complexities of international waters.\n\nThe sailing is varied: the north coast offers dramatic coastal cliffs, while the south coast provides calmer, protected waters. The waters around Culebra and Vieques are pristine, with world-class snorkeling and diving. The islands themselves offer incredible cultural experiences—El Yunque rainforest, Old San Juan's colonial architecture, and world-class dining.\n\nWhat sets Puerto Rico apart is the blend of Caribbean nature with North American convenience. You get all the sailing beauty and culture of the Caribbean with the infrastructure and accessibility of the US.",
+    "whatToExpect": [
+      "Varied coastal scenery from cliffs to calm coves",
+      "Pristine snorkeling and diving sites",
+      "US infrastructure and provisioning familiarity",
+      "Access to El Yunque rainforest",
+      "Vibrant cultural experiences and dining",
+      "Year-round sailing with excellent weather"
+    ],
+    "bestFor": ["First-time Caribbean charterers", "Families", "Culture enthusiasts", "Convenience seekers"],
+    "searchFilters": {
+      "country": "Puerto Rico",
+      "state": "PR"
+    },
+    "order": 12,
+    "published": false
+  },
+  {
+    "id": "caribbean_tortola",
+    "slug": "tortola",
+    "name": "Tortola",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "Tortola Yacht Charter",
+    "subtitle": "BVI's main hub, protected waters, and perfect base for island-hopping",
+    "heroImage": "/images/destinations/tortola-hero.jpg",
+    "heroImageAlt": "Sailboats anchored in calm waters with green hills of Tortola",
+    "shortDescription": "Tortola is the gateway to the British Virgin Islands—a perfect base for exploring the 50+ islands of the BVI with steady trade winds and protected anchorages.",
+    "longDescription": "Tortola is the largest of the BVI and home to the charter industry that has made the BVI a premier destination. Road Town is the charter hub, with numerous charter companies, excellent provisioning, and outstanding infrastructure for sailors.\n\nBut Tortola itself offers much more than just a charter base. The island has beautiful anchorages, excellent beaches, and a welcoming sailing community. From Tortola, you can explore the entire BVI archipelago—each day sail takes you to new islands and new anchorages.\n\nThe sailing here is characteristically easy and manageable. Protected waters mean calm conditions, manageable distances mean short sailing days, and the abundance of anchorages means you have endless options for where to go next.",
+    "whatToExpect": [
+      "Excellent charter infrastructure and provisioning",
+      "Protected waters perfect for all skill levels",
+      "Easy access to 50+ nearby islands",
+      "Short day sails between anchorages",
+      "Beautiful beaches and snorkeling sites",
+      "Vibrant sailing community and provisioning services"
+    ],
+    "bestFor": ["Families", "First-time charterers", "Island-hoppers", "Groups"],
+    "searchFilters": {
+      "country": "British Virgin Islands"
+    },
+    "order": 13,
+    "published": false
+  },
+  {
+    "id": "caribbean_st-kitts-nevis",
+    "slug": "st-kitts-nevis",
+    "name": "St. Kitts & Nevis",
+    "type": "subregion",
+    "parentRegion": "caribbean",
+    "displayName": "St. Kitts & Nevis Yacht Charter",
+    "subtitle": "Twin island charm, steady trade winds, and authentic Caribbean sailing",
+    "heroImage": "/images/destinations/st-kitts-nevis-hero.jpg",
+    "heroImageAlt": "Lush tropical islands with white sand beaches and calm turquoise waters",
+    "shortDescription": "St. Kitts & Nevis offer steady trade winds, excellent anchorages, and authentic Caribbean character—perfect for sailors seeking adventure beyond the cruise-ship tourist zones.",
+    "longDescription": "St. Kitts & Nevis are twin islands that have maintained authentic Caribbean character while developing quality infrastructure for sailing. Basseterre on St. Kitts is the larger port, while Nevis retains a quieter, more laid-back feel.\n\nThe sailing is consistent with reliable trade winds and good protection from northeasterly swells. Anchorages range from the busy harbor of Basseterre to remote bays on Nevis where you'll have solitude. The islands offer excellent hiking (Mount Nevis provides stunning views), excellent restaurants, and genuine local culture.\n\nWhat makes this destination appealing is the balance: developed enough to feel comfortable, undeveloped enough to feel authentic. It's where experienced sailors go when they want something different from the well-worn Caribbean paths.",
+    "whatToExpect": [
+      "Steady trade winds and consistent sailing",
+      "Good anchorages from busy to remote",
+      "Excellent hiking opportunities on volcanic peaks",
+      "Authentic local markets and dining",
+      "Pristine snorkeling and diving sites",
+      "Less crowded than mainstream Caribbean hubs"
+    ],
+    "bestFor": ["Adventure seekers", "Intermediate sailors", "Culture enthusiasts", "Couples"],
+    "searchFilters": {
+      "country": "St. Kitts and Nevis"
+    },
+    "order": 14,
+    "published": false
+  },
+  {
     "id": "mediterranean",
     "slug": "mediterranean",
     "name": "Mediterranean",
@@ -140,7 +449,442 @@
     },
     "order": 2,
     "published": true,
-    "subRegions": []
+    "subRegions": [
+      "athens-riviera",
+      "mykonos",
+      "santorini",
+      "corfu",
+      "split",
+      "dubrovnik",
+      "ibiza",
+      "mallorca",
+      "sardinia",
+      "amalfi-coast",
+      "south-of-france",
+      "monaco",
+      "corsica",
+      "bodrum",
+      "turkish-riviera"
+    ]
+  },
+  {
+    "id": "mediterranean_athens-riviera",
+    "slug": "athens-riviera",
+    "name": "Athens / Athens Riviera",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Athens Riviera Yacht Charter",
+    "subtitle": "Ancient history, island-studded sailing, and Mediterranean culture",
+    "heroImage": "/images/destinations/athens-riviera-hero.jpg",
+    "heroImageAlt": "Turquoise waters with ancient ruins visible from the sea near Athens",
+    "shortDescription": "The Athens Riviera combines ancient Greek history with Mediterranean sailing. Explore ancient ruins, island-hop between Cycladic islands, and experience authentic Greek hospitality.",
+    "longDescription": "Chartering from Athens gives you immediate access to some of the Mediterranean's most storied waters. The ancient city itself is fascinating—thousands of years of history visible from the Acropolis. But the real sailing adventure lies just offshore.\n\nThe Saronic Islands offer protected, easy sailing—perfect for Mediterranean newcomers. The Cycladic Islands to the east are more dramatic: whitewashed villages perched on clifftops, pristine beaches, and blue-domed churches. The sailing is consistent with reliable winds and manageable distances between islands.\n\nWhat makes Athens special is the blend of culture, history, and Mediterranean sailing. You're following in the wakes of ancient triremes, visiting islands unchanged for centuries, and dining on food that tastes of the sea and the sun.",
+    "whatToExpect": [
+      "Ancient Greek history and archaeology",
+      "Island-studded sailing grounds with manageable distances",
+      "Whitewashed villages and blue-domed churches",
+      "Consistent sailing winds and calm protected waters",
+      "Excellent Greek cuisine and local wine",
+      "Friendly locals and authentic Mediterranean culture"
+    ],
+    "bestFor": ["Culture enthusiasts", "History lovers", "Intermediate sailors", "Couples"],
+    "searchFilters": {
+      "country": "Greece",
+      "region": "Attica"
+    },
+    "order": 1,
+    "published": false
+  },
+  {
+    "id": "mediterranean_mykonos",
+    "slug": "mykonos",
+    "name": "Mykonos",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Mykonos Yacht Charter",
+    "subtitle": "Cosmopolitan island charm, world-class nightlife, and pristine Cycladic sailing",
+    "heroImage": "/images/destinations/mykonos-hero.jpg",
+    "heroImageAlt": "Iconic white and blue buildings with sailboats in Mykonos harbor",
+    "shortDescription": "Mykonos is the cosmopolitan hub of the Cycladic Islands. World-class restaurants, vibrant nightlife, and pristine sailing make it ideal for sophisticated charterers.",
+    "longDescription": "Mykonos has mastered the art of combining cosmopolitan sophistication with Mediterranean charm. The island pulses with world-class dining, designer boutiques, and legendary nightlife—but retains the character and beauty of a traditional Greek island.\n\nThe sailing from Mykonos is excellent. You're positioned perfectly to explore the surrounding Cycladic islands—Santorini, Paros, Delos, Rhenia. The waters are generally calm with reliable summer winds. Mykonos town itself offers a sophisticated base with excellent restaurants and provisioning.\n\nWhat makes Mykonos special is that it doesn't feel like a tourist destination when you're arriving by yacht. You're part of the sailing community, and the locals treat you with respect and warmth. This is where sophisticated sailors go when they want world-class dining with Mediterranean sailing.",
+    "whatToExpect": [
+      "World-class restaurants and nightlife",
+      "Iconic Cycladic architecture and charm",
+      "Easy access to surrounding Cycladic islands",
+      "Reliable summer sailing winds",
+      "Excellent provisioning and yacht services",
+      "Cosmopolitan yet authentic Mediterranean atmosphere"
+    ],
+    "bestFor": ["Couples", "Foodies", "Sophisticated travelers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Greece",
+      "island": "Mykonos"
+    },
+    "order": 2,
+    "published": false
+  },
+  {
+    "id": "mediterranean_santorini",
+    "slug": "santorini",
+    "name": "Santorini",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Santorini Yacht Charter",
+    "subtitle": "Dramatic volcanic caldera, world-famous sunsets, and iconic Mediterranean beauty",
+    "heroImage": "/images/destinations/santorini-hero.jpg",
+    "heroImageAlt": "Dramatic white and blue cliffs rising from azure waters of Santorini",
+    "shortDescription": "Santorini is instantly recognizable—dramatic volcanic cliffs, whitewashed villages, and sunsets that have inspired poets. Sailing here is sailing at its most romantic.",
+    "longDescription": "Santorini's dramatic caldera—created by a volcanic eruption thousands of years ago—makes it one of the world's most recognizable landscapes. Approaching by yacht, you experience the island's raw beauty: vertical cliffs of volcanic stone, whitewashed villages perched impossibly high, and a sense of timelessness.\n\nThe sailing is straightforward. The caldera provides protected anchorage, though approach requires attention. Once anchored, you can tender ashore to explore villages, hike the cliffs, or simply relax and watch the sunset—which is indeed as stunning as it appears in photographs.\n\nWhat makes Santorini special is its intensity. It's not subtle. This is Mediterranean sailing at its most dramatic and romantic. Plan time here even if you're exploring other islands—Santorini is a once-in-a-lifetime experience.",
+    "whatToExpect": [
+      "Dramatic volcanic caldera landscape",
+      "Iconic whitewashed villages and churches",
+      "Protected anchorage with stunning views",
+      "World-famous sunsets and romantic atmosphere",
+      "Excellent local wine and cuisine",
+      "Opportunity to explore villages and volcanic geology"
+    ],
+    "bestFor": ["Couples", "Honeymoons", "Romance seekers", "Photography enthusiasts"],
+    "searchFilters": {
+      "country": "Greece",
+      "island": "Santorini"
+    },
+    "order": 3,
+    "published": false
+  },
+  {
+    "id": "mediterranean_corfu",
+    "slug": "corfu",
+    "name": "Corfu",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Corfu Yacht Charter",
+    "subtitle": "Ionian island beauty, Venetian charm, and protected sailing waters",
+    "heroImage": "/images/destinations/corfu-hero.jpg",
+    "heroImageAlt": "Lush green island with Venetian architecture and calm blue waters",
+    "shortDescription": "Corfu is the gem of the Ionian Islands—lush green landscapes, Venetian architecture, and calm protected waters make it ideal for exploratory island-hopping.",
+    "longDescription": "Corfu is different from the Aegean islands. Located in the Ionian Sea west of mainland Greece, it has a distinct character influenced by its Venetian history. The island is greener and more lush than the Aegean, with mountains, olive groves, and authentic Greek culture that feels less touristic.\n\nThe sailing in the Ionians is generally easier than the Aegean with calmer waters and shorter distances between islands. Corfu town is charming with Venetian fortresses, arcaded streets, and excellent restaurants. The surrounding islands—Paxi, Antipax, Kefalonia—offer equally rewarding exploration.\n\nWhat makes Corfu appealing is authenticity combined with accessibility. You get genuine Mediterranean sailing and culture without the intensity or crowds of more famous destinations. This is where sailors go when they want Mediterranean beauty without the hype.",
+    "whatToExpect": [
+      "Lush, green island landscapes",
+      "Venetian architecture and historic charm",
+      "Calm, protected sailing waters in the Ionians",
+      "Friendly locals and authentic Greek culture",
+      "Excellent local cuisine and olive oil",
+      "Access to less-crowded neighboring islands"
+    ],
+    "bestFor": ["Culture enthusiasts", "Intermediate sailors", "Families", "Couples"],
+    "searchFilters": {
+      "country": "Greece",
+      "island": "Corfu"
+    },
+    "order": 4,
+    "published": false
+  },
+  {
+    "id": "mediterranean_split",
+    "slug": "split",
+    "name": "Split",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Split Yacht Charter",
+    "subtitle": "Dalmatian Coast sailing, Roman history, and stunning Mediterranean landscapes",
+    "heroImage": "/images/destinations/split-hero.jpg",
+    "heroImageAlt": "Historic stone city of Split with sailboats in the Adriatic harbor",
+    "shortDescription": "Split is the gateway to Croatia's Dalmatian Coast—a UNESCO heritage site with ancient Roman palaces, dramatic coastlines, and some of Europe's best island-hopping.",
+    "longDescription": "Split is one of Europe's most historically significant coastal cities. Built around the Roman Palace of Diocletian (built 305 AD), the city is a living museum. But beyond the history, Split is the perfect base for exploring the stunning Dalmatian Coast.\n\nThe sailing here is excellent with the Dalmatian islands offering protected waters, dramatic limestone cliffs, and islands ranging from crowded hub islands to remote hideaways. The winds are reliable, the distances are manageable, and the scenery is stunning—think vertical stone cliffs plunging into azure water.\n\nWhat makes Split special is the combination of culture, history, and sailing. You're exploring a coast with 2,000 years of continuous human habitation, anchoring in protected bays, and experiencing one of Europe's last relatively unspoiled coastlines.",
+    "whatToExpect": [
+      "Roman history and UNESCO heritage sites",
+      "Dramatic Dalmatian limestone cliffs",
+      "Protected island-hopping waters",
+      "Medieval towns and ancient ruins at stops",
+      "Excellent local wine and Mediterranean cuisine",
+      "Pristine, less-crowded anchorages"
+    ],
+    "bestFor": ["History enthusiasts", "Culture lovers", "Intermediate sailors", "Adventure seekers"],
+    "searchFilters": {
+      "country": "Croatia",
+      "region": "Dalmatia"
+    },
+    "order": 5,
+    "published": false
+  },
+  {
+    "id": "mediterranean_dubrovnik",
+    "slug": "dubrovnik",
+    "name": "Dubrovnik",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Dubrovnik Yacht Charter",
+    "subtitle": "Medieval walled city, dramatic coastlines, and Adriatic adventure",
+    "heroImage": "/images/destinations/dubrovnik-hero.jpg",
+    "heroImageAlt": "Iconic red-roofed Dubrovnik old town surrounded by medieval walls and the Adriatic",
+    "shortDescription": "Dubrovnik is the crown jewel of the Adriatic—a perfectly preserved medieval city surrounded by defensive walls, dramatic limestone cliffs, and pristine sailing waters.",
+    "longDescription": "Dubrovnik is instantly recognizable: medieval walls surrounding a perfectly preserved old town, red-tiled roofs, and limestone cliffs plunging into azure water. It's one of Europe's most iconic destinations, and approaching by yacht makes it even more magical.\n\nThe sailing in southern Dalmatia is world-class. The Elafiti Islands near Dubrovnik offer easy, protected island-hopping with stunning views. Nearby is the Pelješac Peninsula with excellent anchorages and small family-run restaurants. The sailing conditions are consistent with reliable winds and calm waters.\n\nDubrovnik itself is worth exploring—the old town is fascinating with centuries of history visible in every stone wall and street. Provisioning is excellent, and the diving and snorkeling in the area are outstanding.",
+    "whatToExpect": [
+      "Iconic medieval walled city",
+      "Protected island-hopping anchorages",
+      "Dramatic limestone cliffs and pristine waters",
+      "Excellent local restaurants and wine",
+      "World-class snorkeling and diving sites",
+      "Rich history and authentic Mediterranean culture"
+    ],
+    "bestFor": ["Culture enthusiasts", "History lovers", "Couples", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Croatia",
+      "region": "Dubrovnik"
+    },
+    "order": 6,
+    "published": false
+  },
+  {
+    "id": "mediterranean_ibiza",
+    "slug": "ibiza",
+    "name": "Ibiza",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Ibiza Yacht Charter",
+    "subtitle": "Balearic Islands hub, nightlife and nature, Mediterranean culture",
+    "heroImage": "/images/destinations/ibiza-hero.jpg",
+    "heroImageAlt": "Sunset over Ibiza with sailboats and the Balearic Islands",
+    "shortDescription": "Ibiza is known for nightlife, but the island and surrounding Balearic islands offer excellent sailing, pristine beaches, and Mediterranean culture.",
+    "longDescription": "Ibiza has a reputation for nightlife, but that's only one dimension of this island. Ibiza Old Town is a UNESCO World Heritage site with authentic Balearic character. The surrounding island of Formentera is pristine and relaxed. The sailing from Ibiza is excellent with nearby islands offering diverse experiences.\n\nThe Balearic Islands—Ibiza, Formentera, Mallorca, Menorca—form a perfect sailing ground. Distances between islands are manageable, the waters are warm and clear, and each island has distinct character. You can sail from cosmopolitan Ibiza to quiet Formentera in just a few hours.\n\nWhat makes Ibiza special as a sailing destination is the balance: the option for world-class dining and nightlife in Ibiza town, but also pristine nature, quiet anchorages, and authentic Mediterranean villages just a short sail away.",
+    "whatToExpect": [
+      "Easy sailing between Balearic islands",
+      "Cosmopolitan dining and nightlife options",
+      "Pristine beaches and quiet anchorages",
+      "UNESCO heritage sites and local culture",
+      "Excellent provisioning and yacht services",
+      "Warm, clear Mediterranean waters perfect for swimming"
+    ],
+    "bestFor": ["Couples", "Young professionals", "Intermediate sailors", "Foodies"],
+    "searchFilters": {
+      "country": "Spain",
+      "island": "Ibiza"
+    },
+    "order": 7,
+    "published": false
+  },
+  {
+    "id": "mediterranean_mallorca",
+    "slug": "mallorca",
+    "name": "Mallorca",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Mallorca Yacht Charter",
+    "subtitle": "Largest Balearic island, dramatic coastlines, and Mediterranean elegance",
+    "heroImage": "/images/destinations/mallorca-hero.jpg",
+    "heroImageAlt": "Dramatic limestone cliffs and coves of Mallorca's coastline",
+    "shortDescription": "Mallorca offers dramatic coastal scenery, charming port towns, and excellent sailing conditions. The Tramuntana Mountains create stunning landscapes right to the water's edge.",
+    "longDescription": "Mallorca is Spain's largest Balearic island, and it rewards exploration. The north coast is dominated by the Tramuntana Mountains—dramatic limestone cliffs and peaks rising directly from the sea. The east coast offers protected bays and pretty port towns. The south is flatter with excellent beaches.\n\nThe sailing is varied—you can choose between dramatic mountain scenery or calm protected anchorages depending on your mood and conditions. Port towns like Pollensa and Andraitx are charming with excellent restaurants. The island offers both sophistication and authenticity.\n\nWhat makes Mallorca special is the combination of natural beauty, good sailing, and excellent infrastructure. You get Mediterranean sailing without sacrificing comfort or good provisioning.",
+    "whatToExpect": [
+      "Dramatic Tramuntana Mountains coastal scenery",
+      "Charming port towns and excellent restaurants",
+      "Protected anchorages and bays",
+      "Pristine beaches for swimming and snorkeling",
+      "Excellent provisioning and yacht services",
+      "Both sophisticated and authentic Mediterranean experiences"
+    ],
+    "bestFor": ["Couples", "Families", "Intermediate sailors", "Scenery enthusiasts"],
+    "searchFilters": {
+      "country": "Spain",
+      "island": "Mallorca"
+    },
+    "order": 8,
+    "published": false
+  },
+  {
+    "id": "mediterranean_sardinia",
+    "slug": "sardinia",
+    "name": "Sardinia",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Sardinia Yacht Charter",
+    "subtitle": "Mediterranean's secret gem, pristine waters, and island culture",
+    "heroImage": "/images/destinations/sardinia-hero.jpg",
+    "heroImageAlt": "Pristine turquoise waters and white sand beaches of Sardinia",
+    "shortDescription": "Sardinia is less touristy than other Mediterranean hot spots, offering pristine waters, untouched beaches, and authentic Italian island culture.",
+    "longDescription": "Sardinia is the Mediterranean's best-kept secret. The island has pristine waters, beaches that rival the Caribbean, and a distinct culture shaped by thousands of years of history. It's less developed and less touristy than most Mediterranean destinations, which means more authenticity and fewer crowds.\n\nThe sailing is excellent with consistent winds and well-protected anchorages. The waters are crystal-clear, perfect for snorkeling and diving. The islands around Sardinia—Maddalena, Caprera—are stunning. The Costa Smeralda to the north is developed but elegant. The south and east coasts remain wild and undiscovered.\n\nWhat makes Sardinia special is the balance between Mediterranean beauty and authentic island life. You can anchor in pristine coves, cook fresh seafood caught by locals, and experience genuine Sardinian hospitality.",
+    "whatToExpect": [
+      "Pristine waters and untouched beaches",
+      "Protected anchorages with stunning scenery",
+      "Less crowded than mainstream Mediterranean",
+      "Crystal-clear snorkeling and diving waters",
+      "Authentic Italian culture and cuisine",
+      "Wild, dramatic coastlines and remote islands"
+    ],
+    "bestFor": ["Adventure seekers", "Divers", "Couples", "Culture enthusiasts"],
+    "searchFilters": {
+      "country": "Italy",
+      "region": "Sardinia"
+    },
+    "order": 9,
+    "published": false
+  },
+  {
+    "id": "mediterranean_amalfi-coast",
+    "slug": "amalfi-coast",
+    "name": "Amalfi Coast",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Amalfi Coast Yacht Charter",
+    "subtitle": "Dramatic cliffs, legendary villages, and Italian Riviera elegance",
+    "heroImage": "/images/destinations/amalfi-coast-hero.jpg",
+    "heroImageAlt": "Colorful villages clinging to dramatic cliffsides along the Amalfi Coast",
+    "shortDescription": "The Amalfi Coast is Italy's legendary coastline—pastel-colored villages, dramatic cliffs, world-class restaurants, and one of the world's most beautiful sailing destinations.",
+    "longDescription": "The Amalfi Coast is instantly recognizable: brightly painted villages clinging to vertical cliffs, winding roads carved into stone, and Mediterranean blue sea below. Approaching by yacht, you experience it at its most magical—the villages rising vertically above your boat, the cooking smells from restaurants floating on the breeze.\n\nThe sailing is moderate difficulty—the coast is dramatic and requires attention—but the reward is sailing some of the Mediterranean's most beautiful waters. Small protected bays offer excellent anchorages. The towns—Positano, Ravello, Amalfi—are world-famous, with exceptional restaurants and shopping.\n\nWhat makes the Amalfi Coast special is that it lives up to the hype. It's genuinely as beautiful as photographs suggest. Plan time here even if you're exploring wider regions.",
+    "whatToExpect": [
+      "Dramatic vertical cliffsides rising from the sea",
+      "Iconic colorful villages and world-famous towns",
+      "Excellent restaurants and Italian cuisine",
+      "Protected anchorages with stunning views",
+      "Excellent provisioning and yacht services",
+      "Some of the Mediterranean's most beautiful scenery"
+    ],
+    "bestFor": ["Couples", "Foodies", "Photographers", "Romance seekers"],
+    "searchFilters": {
+      "country": "Italy",
+      "region": "Campania"
+    },
+    "order": 10,
+    "published": false
+  },
+  {
+    "id": "mediterranean_south-of-france",
+    "slug": "south-of-france",
+    "name": "South of France",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "South of France Yacht Charter",
+    "subtitle": "Côte d'Azur sophistication, world-class provisioning, and Mediterranean culture",
+    "heroImage": "/images/destinations/south-of-france-hero.jpg",
+    "heroImageAlt": "Luxury yachts and colorful buildings in a picturesque French Mediterranean port",
+    "shortDescription": "The French Riviera is the Mediterranean's most sophisticated destination. World-class restaurants, elegant port towns, and excellent sailing conditions attract experienced charterers.",
+    "longDescription": "The South of France—the Côte d'Azur—is synonymous with Mediterranean elegance. This is where you find Michelin-starred restaurants, luxury boutiques, and a cosmopolitan atmosphere that makes even sailing feel sophisticated.\n\nThe sailing is excellent with good winds and a mix of open sea and protected bays. Port towns like Saint-Tropez, Cannes, Antibes, and Nice are world-famous. But the real sailing often happens between these towns—exploring smaller anchorages, hidden coves, and the islands of Hyères (Porquerolles, Port-Cros).\n\nWhat makes South of France special is that sophistication doesn't come at the expense of sailing quality. The conditions are good, the infrastructure is outstanding, and you're sailing one of the Mediterranean's most historic coasts.",
+    "whatToExpect": [
+      "World-class restaurants and nightlife",
+      "Sophisticated port towns and marinas",
+      "Excellent sailing winds and conditions",
+      "Island hopping around the Îles d'Hyères",
+      "Michelin-starred dining options",
+      "Cosmopolitan yet authentic Mediterranean culture"
+    ],
+    "bestFor": ["Foodies", "Couples", "Luxury seekers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "France",
+      "region": "Provence-Alpes-Côte d'Azur"
+    },
+    "order": 11,
+    "published": false
+  },
+  {
+    "id": "mediterranean_monaco",
+    "slug": "monaco",
+    "name": "Monaco",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Monaco Yacht Charter",
+    "subtitle": "World's most glamorous principality, luxury sailing, and Côte d'Azur elegance",
+    "heroImage": "/images/destinations/monaco-hero.jpg",
+    "heroImageAlt": "Iconic Monaco with the Rock and luxurious yachts in the harbor",
+    "shortDescription": "Monaco is the world's most glamorous sailing destination. Luxury superyachts, world-class restaurants, and the most exclusive Mediterranean atmosphere make it a destination for high-end charters.",
+    "longDescription": "Monaco is in a class of its own. With a population of 36,000, it's the world's most densely populated country and synonymous with glamour, luxury, and sophistication. The harbor is filled with superyachts, the restaurants are world-class, and the atmosphere is distinctly upscale.\n\nBut Monaco is also beautifully situated on the Mediterranean coast. The surrounding area—the Côte d'Azur from Nice to Italian Liguria—offers excellent sailing. Monaco is a perfect base for exploring this sophisticated region while enjoying unparalleled amenities.\n\nWhat makes Monaco special is the unique blend of geography and culture. You're sailing in world-class conditions while surrounded by wealth, sophistication, and a unique micronation with its own culture and charm.",
+    "whatToExpect": [
+      "Unparalleled luxury and sophistication",
+      "World-class restaurants and shopping",
+      "Excellent superyacht amenities and services",
+      "Glamorous international atmosphere",
+      "Easy access to the Côte d'Azur sailing grounds",
+      "Unique culture and historical significance"
+    ],
+    "bestFor": ["Luxury seekers", "Couples", "High-net-worth individuals", "Sophisticated travelers"],
+    "searchFilters": {
+      "country": "Monaco"
+    },
+    "order": 12,
+    "published": false
+  },
+  {
+    "id": "mediterranean_corsica",
+    "slug": "corsica",
+    "name": "Corsica",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Corsica Yacht Charter",
+    "subtitle": "Mountain island mystique, pristine waters, and French Mediterranean character",
+    "heroImage": "/images/destinations/corsica-hero.jpg",
+    "heroImageAlt": "Dramatic mountain peaks and pristine Mediterranean waters of Corsica",
+    "shortDescription": "Corsica is a mountain island rising from the sea, offering dramatic scenery, pristine anchorages, and authentic Mediterranean culture with a distinct French character.",
+    "longDescription": "Corsica is unique—an island where mountains plunge directly into the sea. The sailing is some of the Mediterranean's most dramatic and rewarding. Distances between anchorages are manageable, but the scenery is consistently stunning: vertical granite cliffs, protected coves, and remote anchorages.\n\nThe culture is distinctly Corsican, with traditions and cuisine that are authentically Mediterranean. Small port towns like Calvi and Bonifacio are charming and less touristy than French Riviera alternatives. The waters are pristine and excellent for snorkeling and diving.\n\nWhat makes Corsica special is the combination of mountain drama, pristine sailing, and authentic culture. It's less developed than surrounding areas, which means fewer crowds and more authentic experiences.",
+    "whatToExpect": [
+      "Dramatic mountain scenery plunging to the sea",
+      "Pristine, less-crowded anchorages",
+      "Excellent snorkeling and diving opportunities",
+      "Authentic Corsican culture and cuisine",
+      "Charming small port towns",
+      "Protected sailing waters with consistent winds"
+    ],
+    "bestFor": ["Adventure seekers", "Divers", "Nature lovers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "France",
+      "region": "Corse"
+    },
+    "order": 13,
+    "published": false
+  },
+  {
+    "id": "mediterranean_bodrum",
+    "slug": "bodrum",
+    "name": "Bodrum",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Bodrum Yacht Charter",
+    "subtitle": "Turkish Riviera hub, ancient history, and world-class sailing grounds",
+    "heroImage": "/images/destinations/bodrum-hero.jpg",
+    "heroImageAlt": "White-washed town of Bodrum with crusader castle overlooking the Mediterranean",
+    "shortDescription": "Bodrum is the gateway to Turkey's Blue Voyage—world-class sailing, ancient Greek ruins, and the legendary Turkish Riviera hospitality.",
+    "longDescription": "Bodrum is Turkey's most famous sailing destination and the gateway to the Blue Voyage—one of the world's most legendary sailing routes. The town itself is charming with a crusader castle, waterfront restaurants, and a vibrant sailing culture.\n\nThe sailing from Bodrum is exceptional. You can explore the Turkish coastline with its calm protected bays, visit ancient Greek ruins, and anchor in pristine coves. Nearby islands like Gökçada and Bozcaada are less crowded alternatives. The Turkish Riviera's distinctive character—hospitable locals, fresh seafood, reasonable prices, excellent provisioning—makes it unique in the Mediterranean.\n\nWhat makes Bodrum special is the combination of world-class sailing, authentic culture, and value. You get Mediterranean sailing with excellent conditions at a fraction of the cost of other Mediterranean destinations.",
+    "whatToExpect": [
+      "World-class sailing conditions and protected bays",
+      "Ancient Greek and Roman ruins accessible by water",
+      "Warm, hospitable Turkish culture",
+      "Excellent provisioning and reasonable prices",
+      "Pristine anchorages and less-crowded sailing grounds",
+      "Fresh seafood and excellent local cuisine"
+    ],
+    "bestFor": ["Value-conscious travelers", "History enthusiasts", "Experienced sailors", "Adventure seekers"],
+    "searchFilters": {
+      "country": "Turkey",
+      "region": "Bodrum"
+    },
+    "order": 14,
+    "published": false
+  },
+  {
+    "id": "mediterranean_turkish-riviera",
+    "slug": "turkish-riviera",
+    "name": "Turkish Riviera (Göcek)",
+    "type": "subregion",
+    "parentRegion": "mediterranean",
+    "displayName": "Turkish Riviera Yacht Charter",
+    "subtitle": "Pristine anchorages, mountain scenery, and legendary Blue Voyage sailing",
+    "heroImage": "/images/destinations/turkish-riviera-hero.jpg",
+    "heroImageAlt": "Turquoise waters and forested mountains of the Turkish Riviera",
+    "shortDescription": "The Turkish Riviera is the world's most legendary sailing destination. Pristine bays, mountain scenery, ancient ruins, and world-class provisioning make it unforgettable.",
+    "longDescription": "The Turkish Riviera, particularly around Göcek, is the heart of the Blue Voyage—a sailing tradition so legendary it's become synonymous with perfect Mediterranean cruising. The coast is wild and beautiful: pine-forested mountains meeting turquoise water, ancient ruins scattered throughout, and anchorages so pristine they feel discovered.\n\nThe sailing is excellent with consistent winds and countless protected bays. Each bay has its own character: some completely remote, others with small family-run restaurants. The Turkish Riviera hospitality is legendary—locals welcome sailors warmly, provisioning is excellent, and prices are reasonable.\n\nWhat makes the Turkish Riviera special is that it exceeds expectations. The sailing is better than you imagine, the scenery is more dramatic, and the cultural experiences are more genuine than you'd expect.",
+    "whatToExpect": [
+      "Pristine turquoise waters and protected bays",
+      "Pine-forested mountains meeting the sea",
+      "Ancient Greek and Roman ruins",
+      "Legendary Turkish hospitality and provisioning",
+      "Consistent sailing winds and excellent conditions",
+      "Fresh seafood and authentic Mediterranean cuisine"
+    ],
+    "bestFor": ["Experienced sailors", "Adventure seekers", "Culture enthusiasts", "Divers"],
+    "searchFilters": {
+      "country": "Turkey",
+      "region": "Turkish Riviera"
+    },
+    "order": 15,
+    "published": false
   },
   {
     "id": "north-america",
@@ -196,7 +940,182 @@
     },
     "order": 4,
     "published": true,
-    "subRegions": []
+    "subRegions": [
+      "phuket",
+      "phi-phi-islands",
+      "raja-ampat",
+      "komodo",
+      "auckland",
+      "whitsundays"
+    ]
+  },
+  {
+    "id": "asia-pacific_phuket",
+    "slug": "phuket",
+    "name": "Phuket",
+    "type": "subregion",
+    "parentRegion": "asia-pacific",
+    "displayName": "Phuket Yacht Charter",
+    "subtitle": "Thailand's island hub, world-class diving, and tropical sailing adventure",
+    "heroImage": "/images/destinations/phuket-hero.jpg",
+    "heroImageAlt": "Tropical islands and pristine beaches surrounding Phuket",
+    "shortDescription": "Phuket is Thailand's premier sailing hub. Excellent diving, island-hopping possibilities, and affordable luxury make it ideal for exploring Southeast Asia by yacht.",
+    "longDescription": "Phuket is Thailand's largest island and the gateway to world-class sailing. The island is developed enough to offer excellent provisioning and services, but surrounded by pristine natural areas. From Phuket, you can explore Phang Nga Bay with its dramatic limestone karsts, the Phi Phi Islands, and Thailand's less-developed southern islands.\n\nThe sailing conditions are good during the dry season (November–April). The waters are warm, the provisioning is excellent, and the costs are remarkable—you get luxury sailing at fraction of Mediterranean prices.\n\nWhat makes Phuket special is that it combines adventure with comfort. The sailing conditions are good but not demanding, the infrastructure is excellent, and the culture is welcoming. This is where adventurers go when they want exploration with modern conveniences.",
+    "whatToExpect": [
+      "Warm tropical waters and island-hopping possibilities",
+      "World-class diving and snorkeling sites",
+      "Dramatic limestone karst formations",
+      "Excellent provisioning at reasonable prices",
+      "Tropical seafood and Thai cuisine",
+      "Warm, welcoming culture and hospitality"
+    ],
+    "bestFor": ["Adventure seekers", "Divers", "Value-conscious travelers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Thailand",
+      "region": "Phuket"
+    },
+    "order": 1,
+    "published": false
+  },
+  {
+    "id": "asia-pacific_phi-phi-islands",
+    "slug": "phi-phi-islands",
+    "name": "Phi Phi Islands",
+    "type": "subregion",
+    "parentRegion": "asia-pacific",
+    "displayName": "Phi Phi Islands Yacht Charter",
+    "subtitle": "Iconic limestone cliffs, pristine beaches, and world-class diving",
+    "heroImage": "/images/destinations/phi-phi-islands-hero.jpg",
+    "heroImageAlt": "Dramatic limestone cliffs and turquoise waters of the Phi Phi Islands",
+    "shortDescription": "The Phi Phi Islands are among the world's most beautiful island destinations. Dramatic limestone formations, pristine beaches, and excellent diving make them unmissable.",
+    "longDescription": "The Phi Phi Islands are instantly recognizable—dramatic limestone cliffs rising from turquoise waters, accessible only by boat. The islands became famous through the film 'The Beach,' but the reality exceeds the hype. The sailing here is engaging, the scenery is stunning, and the diving and snorkeling are world-class.\n\nThe islands offer both developed and remote experiences. Phi Phi Don has restaurants and services. Phi Phi Leh remains wild and pristine. Nearby islands like Bamboo and Monkey Beach offer excellent snorkeling and diving. The sailing is straightforward with good protection and manageable distances.\n\nWhat makes the Phi Phi Islands special is that they're as beautiful in person as they appear in photographs—a rare thing for famous destinations.",
+    "whatToExpect": [
+      "Iconic dramatic limestone cliff scenery",
+      "Pristine white sand beaches",
+      "World-class diving and snorkeling",
+      "Manageable sailing distances between islands",
+      "Mix of developed and remote experiences",
+      "Warm tropical waters and excellent visibility"
+    ],
+    "bestFor": ["Photographers", "Divers", "Couples", "Adventure seekers"],
+    "searchFilters": {
+      "country": "Thailand",
+      "region": "Phang Nga"
+    },
+    "order": 2,
+    "published": false
+  },
+  {
+    "id": "asia-pacific_raja-ampat",
+    "slug": "raja-ampat",
+    "name": "Raja Ampat",
+    "type": "subregion",
+    "parentRegion": "asia-pacific",
+    "displayName": "Raja Ampat Yacht Charter",
+    "subtitle": "Remote Indonesia, world-class diving, and pristine natural environment",
+    "heroImage": "/images/destinations/raja-ampat-hero.jpg",
+    "heroImageAlt": "Remote tropical islands surrounded by pristine turquoise waters",
+    "shortDescription": "Raja Ampat is the world's most biodiverse marine environment. Remote islands, pristine reefs, and world-class diving make it the ultimate diving destination.",
+    "longDescription": "Raja Ampat (Four Kings) in northwest Papua represents the pinnacle of dive tourism. The waters contain unparalleled biodiversity—75% of the world's coral species and over 1,500 fish species. For divers, it's the ultimate destination. For sailors, it's one of the world's most remote and beautiful sailing areas.\n\nThe sailing here is more adventurous—you need to plan carefully for weather and logistics. But those who venture here find truly pristine waters and islands where you may be the only yacht visible. The local culture remains authentic, provisioning requires planning, and the natural beauty is unmatched.\n\nWhat makes Raja Ampat special is that it remains genuine—not yet fully tourist-ified. The diving and snorkeling are extraordinary, and the sailing adventure is real.",
+    "whatToExpect": [
+      "World's most biodiverse marine life",
+      "Pristine, remote anchorages",
+      "Excellent but challenging diving opportunities",
+      "Authentic local culture and community",
+      "Adventurous sailing conditions requiring planning",
+      "Untouched natural environment"
+    ],
+    "bestFor": ["Experienced sailors", "Adventure seekers", "Divers", "Nature enthusiasts"],
+    "searchFilters": {
+      "country": "Indonesia",
+      "region": "Raja Ampat"
+    },
+    "order": 3,
+    "published": false
+  },
+  {
+    "id": "asia-pacific_komodo",
+    "slug": "komodo",
+    "name": "Komodo",
+    "type": "subregion",
+    "parentRegion": "asia-pacific",
+    "displayName": "Komodo Yacht Charter",
+    "subtitle": "Volcanic islands, Komodo dragons, and pristine Indonesian sailing",
+    "heroImage": "/images/destinations/komodo-hero.jpg",
+    "heroImageAlt": "Dramatic volcanic islands rising from turquoise waters of Komodo",
+    "shortDescription": "Komodo is a UNESCO World Heritage site featuring dramatic volcanic islands, unique wildlife, and some of Indonesia's most pristine sailing waters.",
+    "longDescription": "Komodo National Park is unique—a collection of volcanic islands most famous for their native Komodo dragons. But the real appeal for sailors is the dramatic scenery, pristine sailing conditions, and access to some of Indonesia's least-explored islands.\n\nThe sailing here is excellent—good winds, protected waters, and manageable distances between islands. Anchorages are pristine, often completely empty. The diving and snorkeling are world-class, with healthy reefs and abundant fish life. The local culture remains authentic, and interaction with local communities is rewarding.\n\nWhat makes Komodo special is the combination of famous wildlife (the dragons), dramatic scenery, and pristine sailing. This is adventure sailing with a side of natural wonder.",
+    "whatToExpect": [
+      "Dramatic volcanic island scenery",
+      "Pristine anchorages and sailing grounds",
+      "World-class diving and snorkeling",
+      "Opportunity to see Komodo dragons",
+      "Authentic local culture and hospitality",
+      "Reliable sailing conditions and good protection"
+    ],
+    "bestFor": ["Adventure seekers", "Nature enthusiasts", "Divers", "Photographers"],
+    "searchFilters": {
+      "country": "Indonesia",
+      "region": "Komodo"
+    },
+    "order": 4,
+    "published": false
+  },
+  {
+    "id": "asia-pacific_auckland",
+    "slug": "auckland",
+    "name": "Auckland",
+    "type": "subregion",
+    "parentRegion": "asia-pacific",
+    "displayName": "Auckland Yacht Charter",
+    "subtitle": "New Zealand's nautical hub, modern city sailing, and Waitemata Harbor beauty",
+    "heroImage": "/images/destinations/auckland-hero.jpg",
+    "heroImageAlt": "Modern Auckland skyline with sailboats in Waitemata Harbor",
+    "shortDescription": "Auckland is one of the world's most boat-friendly cities. Modern infrastructure, nearby island-hopping, and access to stunning New Zealand sailing make it an excellent base.",
+    "longDescription": "Auckland is called the City of Sails for good reason. The harbor (Waitemata) is filled with sailboats, and the city embraces its maritime culture. Sailing here combines modern city amenities with easy access to pristine natural areas.\n\nFrom Auckland, you can explore the Hauraki Gulf with its 50+ islands, sail to the Bay of Islands further north, or venture further afield. The sailing conditions are good, with access to diverse experiences from suburban harbors to remote anchorages.\n\nWhat makes Auckland special is that it offers the best of both worlds: a cosmopolitan city with world-class provisioning, restaurants, and services, combined with easy access to pristine sailing grounds. This is where New Zealanders go to sail.",
+    "whatToExpect": [
+      "Modern, cosmopolitan city infrastructure",
+      "Excellent provisioning and yacht services",
+      "50+ islands in the Hauraki Gulf",
+      "Pristine sailing waters within reach",
+      "World-class restaurants and culture",
+      "Easy access to diverse sailing experiences"
+    ],
+    "bestFor": ["First-time charterers", "Families", "City explorers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "New Zealand",
+      "city": "Auckland"
+    },
+    "order": 5,
+    "published": false
+  },
+  {
+    "id": "asia-pacific_whitsundays",
+    "slug": "whitsundays",
+    "name": "Whitsundays",
+    "type": "subregion",
+    "parentRegion": "asia-pacific",
+    "displayName": "Whitsundays Yacht Charter",
+    "subtitle": "Australia's Great Barrier Reef access, tropical island sailing, and pristine waters",
+    "heroImage": "/images/destinations/whitsundays-hero.jpg",
+    "heroImageAlt": "Pristine white sand beaches and turquoise waters of the Whitsunday Islands",
+    "shortDescription": "The Whitsundays offer Caribbean-like beauty in Australia. 74 islands, Great Barrier Reef access, and excellent sailing conditions make it a tropical sailing paradise.",
+    "longDescription": "The Whitsunday Islands are 74 tropical islands strung across the Coral Sea off Queensland's coast. Each island has its own character: some developed with resorts, others completely wild. The sailing is excellent with manageable distances, good wind conditions, and countless anchorage options.\n\nThe real draw is access to the Great Barrier Reef—the world's largest coral reef system. Snorkeling and diving here are legendary. The islands are lush and tropical, the waters are warm and clear, and the Australian culture is welcoming. Provisioning is excellent, and the infrastructure supports both bareboat and crewed charters.\n\nWhat makes the Whitsundays special is that they combine tropical island beauty with Great Barrier Reef access—an unmissable combination.",
+    "whatToExpect": [
+      "74 tropical islands to explore",
+      "Great Barrier Reef diving and snorkeling",
+      "Pristine white sand beaches",
+      "Manageable sailing distances and good winds",
+      "Excellent provisioning and yacht services",
+      "Warm tropical waters and stunning scenery"
+    ],
+    "bestFor": ["Families", "Divers", "Island-hoppers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Australia",
+      "region": "Queensland"
+    },
+    "order": 6,
+    "published": false
   },
   {
     "id": "south-central-america",
@@ -224,7 +1143,94 @@
     },
     "order": 5,
     "published": true,
-    "subRegions": []
+    "subRegions": [
+      "san-juan-del-sur",
+      "galapagos",
+      "belize"
+    ]
+  },
+  {
+    "id": "south-central-america_san-juan-del-sur",
+    "slug": "san-juan-del-sur",
+    "name": "San Juan del Sur",
+    "type": "subregion",
+    "parentRegion": "south-central-america",
+    "displayName": "San Juan del Sur Yacht Charter",
+    "subtitle": "Costa Rica's Pacific gateway, wildlife-rich waters, and adventure sailing",
+    "heroImage": "/images/destinations/san-juan-del-sur-hero.jpg",
+    "heroImageAlt": "Lush tropical coastline and pristine waters of San Juan del Sur",
+    "shortDescription": "San Juan del Sur is Costa Rica's premier sailing destination. Wildlife-rich waters, jungle-covered coastlines, and warm hospitality make it ideal for adventure-seeking charterers.",
+    "longDescription": "San Juan del Sur is a laid-back beach town on Costa Rica's Pacific coast—a perfect base for exploring some of the Americas' most pristine and wildlife-rich waters. From here, you can sail to remote islands, explore mangrove forests, and encounter wildlife found nowhere else.\n\nThe sailing is variable—some areas are protected, others require more skill. But the rewards are enormous: you'll see tropical birds, monkeys, dolphins, and whales. The culture is warm and welcoming, provisioning is good, and the experience feels genuinely adventurous without being too extreme.\n\nWhat makes San Juan del Sur special is the combination of wildlife, adventure, and approachability. This is where sailors go when they want to experience Central American nature and culture by water.",
+    "whatToExpect": [
+      "Abundant wildlife: monkeys, birds, dolphins, whales",
+      "Pristine, less-explored sailing grounds",
+      "Jungle-covered coastlines and mangrove forests",
+      "Variable sailing conditions requiring flexibility",
+      "Warm, welcoming local culture",
+      "Excellent fresh provisioning and local seafood"
+    ],
+    "bestFor": ["Adventure seekers", "Nature enthusiasts", "Wildlife lovers", "Experienced sailors"],
+    "searchFilters": {
+      "country": "Costa Rica",
+      "region": "Rivas Province"
+    },
+    "order": 1,
+    "published": false
+  },
+  {
+    "id": "south-central-america_galapagos",
+    "slug": "galapagos",
+    "name": "Galápagos",
+    "type": "subregion",
+    "parentRegion": "south-central-america",
+    "displayName": "Galápagos Yacht Charter",
+    "subtitle": "UNESCO World Heritage site, unique wildlife, and transformative sailing adventure",
+    "heroImage": "/images/destinations/galapagos-hero.jpg",
+    "heroImageAlt": "Dramatic volcanic islands and unique wildlife of the Galápagos",
+    "shortDescription": "The Galápagos are the world's most unique ecosystem. Endemic wildlife, pristine nature, and the sense of exploring a lost world make it the ultimate adventure yacht charter.",
+    "longDescription": "The Galápagos Islands are unlike anywhere else on Earth. Isolated 600 miles off Ecuador's coast, the islands have evolved unique wildlife found nowhere else: giant tortoises, flightless cormorants, marine iguanas. Darwin visited here and it shaped his theory of evolution.\n\nSailing here is genuinely adventurous. Conditions are variable, planning is crucial, and regulations are strict (to protect the ecosystem). But the reward is an experience that transcends sailing—it's a journey to a primordial world. You'll see wildlife found nowhere else, explore volcanic landscapes, and understand why the Galápagos inspired one of history's greatest scientific insights.\n\nWhat makes the Galápagos special is that it's not just sailing—it's a transformative experience. Come here and you'll understand why conservation matters.",
+    "whatToExpect": [
+      "Endemic wildlife found nowhere else on Earth",
+      "Volcanic landscapes and pristine nature",
+      "UNESCO World Heritage site protection",
+      "Strict regulations protecting the ecosystem",
+      "Adventurous sailing conditions requiring planning",
+      "A transformative, once-in-a-lifetime experience"
+    ],
+    "bestFor": ["Adventure seekers", "Nature enthusiasts", "Environmentalists", "Experienced sailors"],
+    "searchFilters": {
+      "country": "Ecuador",
+      "region": "Galápagos"
+    },
+    "order": 2,
+    "published": false
+  },
+  {
+    "id": "south-central-america_belize",
+    "slug": "belize",
+    "name": "Belize",
+    "type": "subregion",
+    "parentRegion": "south-central-america",
+    "displayName": "Belize Yacht Charter",
+    "subtitle": "Caribbean-meets-jungle adventure, Barrier Reef access, and Central America sailing",
+    "heroImage": "/images/destinations/belize-hero.jpg",
+    "heroImageAlt": "Pristine Caribbean waters and limestone islands of Belize",
+    "shortDescription": "Belize offers the unique combination of Caribbean sailing with Central American adventure. Barrier Reef diving, jungle exploration, and laid-back culture make it unforgettable.",
+    "longDescription": "Belize is unique—the only English-speaking Central American country with a Caribbean coastline. It combines Caribbean sailing beauty with jungle adventure and Mayan archaeological sites. The country has a well-established tourism infrastructure while maintaining authentic cultural character.\n\nThe sailing is excellent—calm protected waters, multiple islands to explore, and access to the world's second-longest barrier reef. The Cayes (islands) range from developed tourist hubs to remote hideaways. Diving and snorkeling are world-class. The mainland offers jungle adventure, archaeological sites, and genuine rainforest experience.\n\nWhat makes Belize special is that you get Caribbean sailing plus Central American adventure—and everything is English-speaking and accessible.",
+    "whatToExpect": [
+      "Caribbean sailing with calm, protected waters",
+      "World-class barrier reef diving and snorkeling",
+      "Island-hopping with diverse experiences",
+      "Access to Mayan archaeological sites",
+      "Jungle adventure and rainforest exploration",
+      "Warm, welcoming English-speaking culture"
+    ],
+    "bestFor": ["Families", "Adventure seekers", "Divers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Belize"
+    },
+    "order": 3,
+    "published": false
   },
   {
     "id": "northern-europe",
@@ -252,6 +1258,65 @@
     },
     "order": 6,
     "published": true,
-    "subRegions": []
+    "subRegions": [
+      "stockholm-archipelago",
+      "oslofjord"
+    ]
+  },
+  {
+    "id": "northern-europe_stockholm-archipelago",
+    "slug": "stockholm-archipelago",
+    "name": "Stockholm Archipelago",
+    "type": "subregion",
+    "parentRegion": "northern-europe",
+    "displayName": "Stockholm Archipelago Yacht Charter",
+    "subtitle": "30,000 islands, midnight sun sailing, and Nordic archipelago adventure",
+    "heroImage": "/images/destinations/stockholm-archipelago-hero.jpg",
+    "heroImageAlt": "Countless islands and calm waters of the Stockholm Archipelago",
+    "shortDescription": "The Stockholm Archipelago features 30,000 islands—the world's largest archipelago. Island-hopping paradise with midnight sun summers and excellent Nordic sailing culture.",
+    "longDescription": "The Stockholm Archipelago is jaw-dropping in scale: 30,000 islands and skerries stretching from Stockholm far into the Baltic. You could spend months exploring and never see it all. The sailing is gentle—protected waters, short distances between islands, and countless anchorages.\n\nIn summer, the midnight sun means nearly continuous daylight. You can sail at 11 PM with the sun still high. The landscape is characterized by rocky islands, pine forests, and pristine water. Each island has personality: some have small villages, others are completely wild.\n\nThe Swedish sailing culture is welcoming, provisioning is excellent, and the experience feels both Nordic and timeless. This is where Swedes go to understand their maritime heritage.",
+    "whatToExpect": [
+      "30,000 islands to explore",
+      "Midnight sun in summer (nearly 24-hour daylight)",
+      "Protected, gentle sailing waters",
+      "Rocky, forested islands with Nordic character",
+      "Excellent provisioning and yacht services",
+      "Strong Nordic sailing culture and hospitality"
+    ],
+    "bestFor": ["Adventure seekers", "Nature lovers", "Island-hoppers", "Intermediate sailors"],
+    "searchFilters": {
+      "country": "Sweden",
+      "region": "Stockholm"
+    },
+    "order": 1,
+    "published": false
+  },
+  {
+    "id": "northern-europe_oslofjord",
+    "slug": "oslofjord",
+    "name": "Oslofjord",
+    "type": "subregion",
+    "parentRegion": "northern-europe",
+    "displayName": "Oslofjord Yacht Charter",
+    "subtitle": "Oslo's maritime gateway, fjord sailing, and Nordic adventure",
+    "heroImage": "/images/destinations/oslofjord-hero.jpg",
+    "heroImageAlt": "Dramatic fjord scenery surrounding the Oslofjord near Oslo",
+    "shortDescription": "Oslofjord combines urban sophistication with dramatic fjord scenery. Easy access to Oslo's world-class dining and culture, plus excellent sailing and island-hopping opportunities.",
+    "longDescription": "Oslofjord is the maritime gateway to Norway's capital. The fjord itself is stunning—deep waters surrounded by forested slopes and granite peaks. From Oslo, you can explore dozens of islands, sail into side fjords, and experience world-class Nordic sailing.\n\nWhat makes Oslofjord special is that it combines urban sophistication with natural beauty. You can provision in Oslo, enjoy world-class restaurants and museums, but be sailing in pristine fjord wilderness within hours. The sailing is straightforward with good protection and reliable conditions.\n\nThe local culture is warm and welcoming. Provisioning is excellent. The infrastructure supports both luxurious and adventurous charters. This is where Oslo residents go to sail.",
+    "whatToExpect": [
+      "Dramatic fjord scenery near Oslo",
+      "Easy access to urban sophistication and dining",
+      "Island-hopping opportunities in pristine waters",
+      "Protected fjord sailing with good conditions",
+      "Norwegian hospitality and culture",
+      "Excellent provisioning and yacht services"
+    ],
+    "bestFor": ["Couples", "Foodies", "Intermediate sailors", "Urban explorers"],
+    "searchFilters": {
+      "country": "Norway",
+      "region": "Oslo"
+    },
+    "order": 2,
+    "published": false
   }
 ]
