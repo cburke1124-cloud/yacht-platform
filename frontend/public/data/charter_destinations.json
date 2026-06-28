@@ -27,19 +27,12 @@
     "published": true,
     "subRegions": [
       "virgin-islands",
-      "bahamas",
-      "leeward-islands",
-      "antigua",
-      "st-martin",
-      "st-barts",
-      "st-lucia",
-      "grenada",
       "british-virgin-islands",
-      "turks-caicos",
-      "st-vincent-grenadines",
-      "puerto-rico",
-      "tortola",
-      "st-kitts-nevis"
+      "leeward-islands",
+      "st-martin-st-barts",
+      "st-lucia",
+      "the-grenadines",
+      "turks-caicos"
     ]
   },
   {
@@ -71,31 +64,31 @@
     "published": true
   },
   {
-    "id": "caribbean_bahamas",
-    "slug": "bahamas",
-    "name": "Bahamas",
+    "id": "caribbean_british-virgin-islands",
+    "slug": "british-virgin-islands",
+    "name": "British Virgin Islands",
     "type": "subregion",
     "parentRegion": "caribbean",
-    "displayName": "Bahamas Yacht Charter",
-    "subtitle": "Pink sand beaches, bioluminescent bays, and pure relaxation",
-    "heroImage": "/images/destinations/bahamas-hero.jpg",
-    "heroImageAlt": "Crystal clear turquoise waters and white sand beaches of the Bahamas",
-    "shortDescription": "The Bahamas offer shallow, crystal-clear waters, stunning beaches, and a slowdown-and-relax vibe that's hard to beat.",
-    "longDescription": "The Bahamas are synonymous with yacht charter luxury and ease. Shallow, warm waters mean excellent snorkeling right from your boat. Pink sand beaches, bioluminescent bays, and friendly locals create a magical atmosphere.\n\nThe Exuma Cays are the charter hub—a series of islands with protected anchorages, sandy bottoms perfect for anchoring, and everything from deserted beaches to lively beach bars. Sailing distances are short, and the waters are so clear you can see the sea floor from deck.\n\nFirst-timers often choose the Bahamas because the charter experience feels effortless. You'll spend more time swimming and relaxing than worrying about navigation or sailing conditions. The lifestyle here is pure island time.",
+    "displayName": "British Virgin Islands Yacht Charter",
+    "subtitle": "Island-hopping paradise, perfect anchorages, and consistent sailing",
+    "heroImage": "/images/destinations/british-virgin-islands-hero.jpg",
+    "heroImageAlt": "Pristine white sand beaches and clear turquoise waters of the BVI",
+    "shortDescription": "The BVI are a sailor's dream: 50+ islands, protected waters, consistent trade winds, and anchorages ranging from lively beach bars to remote hidden coves.",
+    "longDescription": "The British Virgin Islands are specifically designed for yacht chartering. With over 50 islands and cays, endless anchorage options, and reliable sailing conditions, it's the Caribbean's premier island-hopping destination.\n\nDaily sailing distances are manageable (3–15 nautical miles), leaving plenty of time to explore, snorkel, and relax. Each island has its own personality: Virgin Gorda's dramatic rock formations, Anegada's remote beaches, Jost Van Dyke's laid-back beach bars.\n\nThe charter infrastructure is outstanding—provisioning is easy, repair services are abundant, and the sailing community is welcoming. Whether you're bareboat sailing or chartering with a crew, the BVI delivers the full yacht charter experience.",
     "whatToExpect": [
-      "Shallow, crystal-clear turquoise waters",
-      "Perfect white and pink sand beaches",
-      "Calm seas and gentle winds",
-      "Excellent anchorages with sandy bottoms",
-      "Swimming and snorkeling from your boat daily",
-      "Bioluminescent bays at night"
+      "50+ islands and cays to explore",
+      "Short, manageable day sails between anchorages",
+      "Protected waters ideal for all experience levels",
+      "Excellent provisioning and marina infrastructure",
+      "Pristine snorkeling and diving sites",
+      "Active sailing community and beach bars"
     ],
-    "bestFor": ["Families", "Relaxation", "Honeymoons", "First-time charterers"],
+    "bestFor": ["Families", "Groups", "Island-hoppers", "Sailors of all levels"],
     "searchFilters": {
-      "country": "Bahamas"
+      "country": "British Virgin Islands"
     },
     "order": 2,
-    "published": true
+    "published": false
   },
   {
     "id": "caribbean_leeward-islands",
@@ -108,7 +101,7 @@
     "heroImage": "/images/destinations/leeward-islands-hero.jpg",
     "heroImageAlt": "Colorful colonial architecture and turquoise waters of the Leeward Islands",
     "shortDescription": "The Leeward Islands offer authentic Caribbean character, colonial history, and excellent sailing with a more adventurous edge.",
-    "longDescription": "The Leeward Islands—including St. Lucia, St. Kitts, Nevis, and Aruba—blend Caribbean beauty with Old World charm. Colonial architecture, local culture, and world-class restaurants define this region.\n\nThe sailing is a bit more challenging than other Caribbean destinations (stronger trade winds), making it perfect for intermediate sailors. But first-timers shouldn't be intimidated—charter companies here are excellent at working with all experience levels.\n\nYou'll experience authentic Caribbean culture: local markets, steel drum music, historic forts, and genuine island hospitality. The pace is slower, the islands are less crowded than the Bahamas, and the character is more distinctly Caribbean.",
+    "longDescription": "The Leeward Islands—Antigua, St. Kitts, Nevis, Aruba, and their neighbors—blend Caribbean beauty with Old World charm. Antigua is the sailing hub of the Eastern Caribbean, host to the legendary Antigua Sailing Week. Colonial architecture, local culture, and world-class restaurants define this entire region.\n\nThe sailing is a bit more challenging than other Caribbean destinations (stronger trade winds), making it perfect for intermediate sailors. But first-timers shouldn't be intimidated—charter companies here are excellent at working with all experience levels.\n\nYou'll experience authentic Caribbean culture: local markets, steel drum music, historic forts, and genuine island hospitality. The pace is slower, the islands are less crowded, and the character is more distinctly Caribbean.",
     "whatToExpect": [
       "Stronger trade winds and more interesting sailing",
       "Less crowded than mainstream Caribbean",
@@ -120,90 +113,36 @@
     "bestFor": ["Intermediate sailors", "Culture enthusiasts", "Adventure seekers"],
     "searchFilters": {
       "operatingRegions": "Leeward Islands",
-      "country": ["St. Lucia", "St. Kitts", "Nevis", "Aruba"]
+      "country": ["Antigua and Barbuda", "St. Kitts and Nevis", "Aruba"]
     },
     "order": 3,
     "published": true
   },
   {
-    "id": "caribbean_antigua",
-    "slug": "antigua",
-    "name": "Antigua",
+    "id": "caribbean_st-martin-st-barts",
+    "slug": "st-martin-st-barts",
+    "name": "St. Martin & St. Barts",
     "type": "subregion",
     "parentRegion": "caribbean",
-    "displayName": "Antigua Yacht Charter",
-    "subtitle": "365 beaches, crystal-clear sailing, and authentic Caribbean charm",
-    "heroImage": "/images/destinations/antigua-hero.jpg",
-    "heroImageAlt": "Pristine white sand beach and turquoise waters of Antigua",
-    "shortDescription": "Antigua boasts 365 beaches—one for every day of the year. With reliable trade winds, calm anchorages, and a welcoming sailing community, it's a perfect base for island-hopping adventures.",
-    "longDescription": "Antigua is a sailor's paradise with a well-established charter industry and an annual sailing regatta that draws boats from around the world. The island offers something for everyone: protected anchorages for relaxation, open-water passages for dynamic sailing, and vibrant beach bars for evening entertainment.\n\nThe sailing here is consistent and rewarding. Trade winds are steady but not overpowering, making it excellent for intermediate sailors and families. Explore pristine beaches, snorkel pristine reefs, or simply anchor in a sheltered cove and watch the sunset.\n\nAntigua's sailing culture runs deep. You'll meet crews who've chartered here for decades, and locals who grew up sailing these waters. The island feels welcoming to cruising sailors, with excellent provisioning and world-class marinas.",
+    "displayName": "St. Martin & St. Barts Yacht Charter",
+    "subtitle": "Twin island luxury, cosmopolitan dining, and exclusive Caribbean sailing",
+    "heroImage": "/images/destinations/st-martin-hero.jpg",
+    "heroImageAlt": "Colorful harbor and sailboats with crystal clear waters of St. Martin",
+    "shortDescription": "St. Martin and St. Barts form a natural charter pairing just 15 miles apart—cosmopolitan French culture, upscale dining, and some of the northern Caribbean's most beautiful sailing.",
+    "longDescription": "St. Martin and St. Barts are natural sailing partners. St. Martin's dual French-Dutch character creates a cosmopolitan energy—excellent provisioning, world-class dining, and a sophisticated sailing scene. Just 15 miles south by sail, St. Barts is synonymous with understated luxury: pristine anchorages, the picturesque harbor of Gustavia, and beaches that rival anywhere in the Caribbean.\n\nMost charter itineraries from this area cover both islands across a week, making it easy to experience two distinct personalities without long passages. The sailing conditions are excellent with reliable trade winds and protected waters. Nearby Anguilla and the BVI add further variety for longer trips.\n\nWhat makes this pairing special is the balance: you get French sophistication, Caribbean warmth, and excellent sailing grounds in one itinerary.",
     "whatToExpect": [
-      "365 unique beaches to explore",
-      "Consistent trade winds ideal for sailing",
-      "Multiple protected anchorages",
-      "Active sailing community and excellent marinas",
-      "Pristine snorkeling and diving spots",
-      "Relaxed island atmosphere with excellent dining"
+      "Cosmopolitan dining and provisioning on St. Martin",
+      "Exclusive anchorages and luxury atmosphere on St. Barts",
+      "Short 15-mile sail between the two islands",
+      "Pristine beaches and crystal-clear snorkeling waters",
+      "Consistent trade winds and reliable sailing conditions",
+      "Easy access to Anguilla and other northern Caribbean islands"
     ],
-    "bestFor": ["Sailing enthusiasts", "Families", "Island-hopping", "Intermediate sailors"],
+    "bestFor": ["Luxury seekers", "Couples", "Foodies", "Intermediate sailors"],
     "searchFilters": {
-      "country": "Antigua and Barbuda"
+      "country": ["St. Martin", "St. Barthelemy"]
     },
     "order": 4,
-    "published": false
-  },
-  {
-    "id": "caribbean_st-martin",
-    "slug": "st-martin",
-    "name": "St. Martin",
-    "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "St. Martin Yacht Charter",
-    "subtitle": "Cosmopolitan island, pristine waters, and perfect sailing conditions",
-    "heroImage": "/images/destinations/st-martin-hero.jpg",
-    "heroImageAlt": "Colorful buildings and sailboats in the harbor of St. Martin",
-    "shortDescription": "St. Martin combines French and Dutch cultures, excellent restaurants, and reliable sailing. The island's position makes it a natural hub for exploring the northern Caribbean islands.",
-    "longDescription": "St. Martin is unique—half French (St. Martin), half Dutch (Sint Maarten)—creating a cosmopolitan blend of European and Caribbean culture. The island offers excellent provisioning, world-class dining, and a sophisticated sailing scene.\n\nThe sailing is reliable with good trade winds and protected anchorages. Nearby islands like Anguilla and St. Barts are just a short sail away, making St. Martin an ideal base for island-hopping charters. The waters are calm and inviting, with excellent snorkeling and diving opportunities.\n\nWhat makes St. Martin special is the lifestyle: French pastries for breakfast, Dutch architecture, Caribbean beaches, and a thriving sailing community. It's worldly without feeling pretentious.",
-    "whatToExpect": [
-      "Excellent restaurants and cosmopolitan culture",
-      "Consistent trade winds and calm waters",
-      "Short sails to nearby island destinations",
-      "World-class provisioning and chandlery",
-      "Pristine beaches and snorkeling spots",
-      "Active sailing scene and international community"
-    ],
-    "bestFor": ["Foodies", "Couples", "Intermediate sailors", "Island-hopping"],
-    "searchFilters": {
-      "country": "St. Martin"
-    },
-    "order": 5,
-    "published": false
-  },
-  {
-    "id": "caribbean_st-barts",
-    "slug": "st-barts",
-    "name": "St. Barts",
-    "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "St. Barts Yacht Charter",
-    "subtitle": "Upscale island charm, pristine waters, and exclusive sailing",
-    "heroImage": "/images/destinations/st-barts-hero.jpg",
-    "heroImageAlt": "Elegant harbor and luxury yachts anchored in St. Barts",
-    "shortDescription": "St. Barts is the epitome of Caribbean luxury. With exclusive dining, designer boutiques, and gorgeous anchorages, it's a favorite among sophisticated charterers seeking elegance and relaxation.",
-    "longDescription": "St. Barts is where luxury meets sailing. This small French island has cultivated a reputation for understated elegance, world-class dining, and pristine beaches. The island feels exclusive without being unwelcoming to sailors.\n\nThe anchorages are stunning: calm waters, clear visibility, and stunning sunsets. Gustavia Harbor is picturesque, with colonial architecture and excellent restaurants. The nearby beaches are some of the most beautiful in the Caribbean, perfect for swimming and snorkeling.\n\nSailing here is straightforward with reliable trade winds and protected waters. This is a destination where you'll spend as much time relaxing in beautiful settings as you will sailing. Many charterers base themselves here and take day sails to nearby islands.",
-    "whatToExpect": [
-      "Upscale dining and exclusive shopping",
-      "Pristine, calm anchorages",
-      "Picturesque harbor and colonial architecture",
-      "World-class beaches for swimming and relaxing",
-      "Excellent snorkeling in clear waters",
-      "Sophisticated but welcoming sailing community"
-    ],
-    "bestFor": ["Luxury seekers", "Couples", "Foodies", "Relaxation"],
-    "searchFilters": {
-      "country": "St. Barthelemy"
-    },
-    "order": 6,
     "published": false
   },
   {
@@ -230,61 +169,34 @@
     "searchFilters": {
       "country": "St. Lucia"
     },
-    "order": 7,
+    "order": 5,
     "published": false
   },
   {
-    "id": "caribbean_grenada",
-    "slug": "grenada",
-    "name": "Grenada",
+    "id": "caribbean_the-grenadines",
+    "slug": "the-grenadines",
+    "name": "The Grenadines",
     "type": "subregion",
     "parentRegion": "caribbean",
-    "displayName": "Grenada Yacht Charter",
-    "subtitle": "Spice islands, pristine waters, and sailing freedom",
-    "heroImage": "/images/destinations/grenada-hero.jpg",
-    "heroImageAlt": "Lush green hills and calm waters surrounding Grenada",
-    "shortDescription": "Grenada, the 'Spice Isle,' offers a more laid-back sailing experience with excellent anchorages, less crowding, and a genuinely warm welcome to visiting sailors.",
-    "longDescription": "Grenada is for sailors seeking authenticity and freedom. Known as the Spice Isle for its production of nutmeg, cinnamon, and cocoa, the island maintains a relaxed, unpretentious character that appeals to experienced charterers.\n\nThe sailing is excellent with steady trade winds and well-protected anchorages. The Grenadine Islands nearby—just a short sail away—are some of the most pristine and remote in the Caribbean. You'll find fewer crowds than other Caribbean destinations, meaning more solitude and connection with nature.\n\nGrenada's charm lies in its authenticity. Local markets overflow with tropical fruits, restaurants serve fresh-caught seafood, and island life moves at a human pace. This is where sailors go when they want the real Caribbean experience.",
+    "displayName": "The Grenadines Yacht Charter",
+    "subtitle": "The Caribbean's finest island chain—pristine, unhurried, and made for sailing",
+    "heroImage": "/images/destinations/st-vincent-grenadines-hero.jpg",
+    "heroImageAlt": "Lush volcanic islands and calm blue waters of the Grenadines chain",
+    "shortDescription": "The Grenadines stretch 100 miles from St. Vincent to Grenada—a string of volcanic islands, quiet anchorages, and authentic Caribbean life that remains refreshingly uncrowded.",
+    "longDescription": "The Grenadines are what the Caribbean looked like before the cruise ships arrived. Stretching from St. Vincent in the north to Grenada in the south, this 100-mile island chain is tailor-made for sailing. Bequia, Mustique, Canouan, Union Island, Carriacou, and Petite Martinique are just a few of the stops along a classic Grenadines week itinerary.\n\nEach island has its own personality: Bequia is the sailor's favorite—a traditional fishing island with excellent provisioning and a warm community. Mustique is where celebrities go for total privacy. Union Island has a lively harbor. Grenada anchors the southern end with its spice markets, chocolate farms, and welcoming character.\n\nThe sailing is ideal—manageable distances, consistent trade winds, and anchorages that feel genuinely remote. This is the Caribbean at its most authentic.",
     "whatToExpect": [
-      "Steady trade winds and good sailing conditions",
-      "Multiple protected anchorages and bays",
-      "Access to pristine Grenadine Islands",
-      "Less crowded than mainstream Caribbean",
-      "Authentic local markets and dining",
-      "Excellent fresh provisioning and friendly locals"
+      "Over a dozen distinct islands to explore in one itinerary",
+      "Manageable sailing distances between anchorages",
+      "Authentic Caribbean culture away from tourist crowds",
+      "Excellent provisioning on Bequia and Grenada",
+      "Pristine snorkeling and diverse marine life",
+      "A rhythm of island life that slows you down in the best way"
     ],
-    "bestFor": ["Experienced sailors", "Adventure seekers", "Culture enthusiasts", "Island-hoppers"],
+    "bestFor": ["Island-hoppers", "Adventure seekers", "Culture enthusiasts", "Intermediate sailors"],
     "searchFilters": {
-      "country": "Grenada"
+      "country": ["St. Vincent and the Grenadines", "Grenada"]
     },
-    "order": 8,
-    "published": false
-  },
-  {
-    "id": "caribbean_british-virgin-islands",
-    "slug": "british-virgin-islands",
-    "name": "British Virgin Islands",
-    "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "British Virgin Islands Yacht Charter",
-    "subtitle": "Island-hopping paradise, perfect anchorages, and consistent sailing",
-    "heroImage": "/images/destinations/british-virgin-islands-hero.jpg",
-    "heroImageAlt": "Pristine white sand beaches and clear turquoise waters of the BVI",
-    "shortDescription": "The BVI are a sailor's dream: 50+ islands, protected waters, consistent trade winds, and anchorages ranging from crowded hub islands to remote hidden coves.",
-    "longDescription": "The British Virgin Islands are specifically designed for yacht chartering. With over 50 islands and cays, endless anchorage options, and reliable sailing conditions, it's the Caribbean's premier island-hopping destination.\n\nDaily sailing distances are manageable (3–15 nautical miles), leaving plenty of time to explore, snorkel, and relax. Each island has its own personality: Virgin Gorda's dramatic rock formations, Anegada's remote beaches, Jost Van Dyke's laid-back beach bars.\n\nThe charter infrastructure is outstanding—provisioning is easy, repair services are abundant, and the sailing community is welcoming. Whether you're bareboat sailing or chartering with a crew, the BVI delivers the full yacht charter experience.",
-    "whatToExpect": [
-      "50+ islands and cays to explore",
-      "Short, manageable day sails between anchorages",
-      "Protected waters ideal for all experience levels",
-      "Excellent provisioning and marina infrastructure",
-      "Pristine snorkeling and diving sites",
-      "Active sailing community and beach bars"
-    ],
-    "bestFor": ["Families", "Groups", "Island-hoppers", "Sailors of all levels"],
-    "searchFilters": {
-      "country": "British Virgin Islands"
-    },
-    "order": 9,
+    "order": 6,
     "published": false
   },
   {
@@ -311,116 +223,93 @@
     "searchFilters": {
       "country": "Turks and Caicos"
     },
-    "order": 10,
+    "order": 7,
     "published": false
   },
   {
-    "id": "caribbean_st-vincent-grenadines",
-    "slug": "st-vincent-grenadines",
-    "name": "St. Vincent & the Grenadines",
-    "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "St. Vincent & the Grenadines Yacht Charter",
-    "subtitle": "Island-rich sailing, authentic culture, and Caribbean adventure",
-    "heroImage": "/images/destinations/st-vincent-grenadines-hero.jpg",
-    "heroImageAlt": "Lush volcanic islands and calm blue waters of St. Vincent and the Grenadines",
-    "shortDescription": "St. Vincent & the Grenadines offer some of the Caribbean's best island-hopping, with volcanic landscapes, friendly locals, and authentic Caribbean character.",
-    "longDescription": "St. Vincent & the Grenadines is a string of 32 islands and cays offering endless sailing possibilities. From the lush volcanic island of St. Vincent to the pristine beaches of the southern Grenadines (Bequia, Mustique, Union Island), there's incredible diversity in a compact area.\n\nThe sailing is excellent with manageable distances between islands, good trade winds, and well-protected anchorages. The islands maintain authentic Caribbean character—you'll find genuine local markets, friendly populations, and a rhythm of life that feels unhurried.\n\nWhat makes this destination special is the combination of natural beauty, accessibility, and authenticity. It's less developed than some Caribbean destinations, which means less crowding and more authentic cultural experiences.",
+    "id": "bahamas",
+    "slug": "bahamas",
+    "name": "Bahamas",
+    "type": "region",
+    "displayName": "Bahamas Yacht Charter",
+    "subtitle": "Pink sand beaches, bioluminescent bays, and pure relaxation",
+    "heroImage": "/images/destinations/bahamas-hero.jpg",
+    "heroImageAlt": "Crystal clear turquoise waters and white sand beaches of the Bahamas",
+    "shortDescription": "The Bahamas offer shallow, crystal-clear waters, stunning beaches, and a slowdown-and-relax vibe that's hard to beat.",
+    "longDescription": "The Bahamas are synonymous with yacht charter luxury and ease. Shallow, warm waters mean excellent snorkeling right from your boat. Pink sand beaches, bioluminescent bays, and friendly locals create a magical atmosphere.\n\nThe Exuma Cays are the charter hub—a series of islands with protected anchorages, sandy bottoms perfect for anchoring, and everything from deserted beaches to lively beach bars. Sailing distances are short, and the waters are so clear you can see the sea floor from deck.\n\nFirst-timers often choose the Bahamas because the charter experience feels effortless. You'll spend more time swimming and relaxing than worrying about navigation or sailing conditions. The lifestyle here is pure island time.",
     "whatToExpect": [
-      "32 islands and cays to explore",
-      "Good trade winds and calm protected waters",
-      "Volcanic landscapes and pristine beaches",
-      "Authentic local culture and markets",
-      "Excellent snorkeling and diving opportunities",
-      "Welcoming locals and relaxed island atmosphere"
+      "Shallow, crystal-clear turquoise waters",
+      "Perfect white and pink sand beaches",
+      "Calm seas and gentle winds",
+      "Excellent anchorages with sandy bottoms",
+      "Swimming and snorkeling from your boat daily",
+      "Bioluminescent bays at night"
     ],
-    "bestFor": ["Island-hoppers", "Adventure seekers", "Culture enthusiasts", "Intermediate sailors"],
+    "bestFor": ["Families", "Relaxation", "Honeymoons", "First-time charterers"],
     "searchFilters": {
-      "country": "St. Vincent and the Grenadines"
+      "country": "Bahamas"
     },
-    "order": 11,
+    "order": 2,
+    "published": true,
+    "subRegions": [
+      "exumas",
+      "abacos"
+    ]
+  },
+  {
+    "id": "bahamas_exumas",
+    "slug": "exumas",
+    "name": "Exumas",
+    "type": "subregion",
+    "parentRegion": "bahamas",
+    "displayName": "Exumas Yacht Charter",
+    "subtitle": "The Bahamas at their finest—365 cays, impossible water clarity, and total freedom",
+    "heroImage": "/images/destinations/exumas-hero.jpg",
+    "heroImageAlt": "Turquoise shallow waters and deserted sandbars of the Exuma Cays",
+    "shortDescription": "The Exuma Cays are the crown jewel of Bahamas sailing—365 cays, sandbars you can anchor next to, swimming pigs, and water so clear it looks like you're floating above the sea floor.",
+    "longDescription": "The Exumas are the reason people fall in love with the Bahamas. A chain of 365 cays stretching south from Nassau, the Exuma Cays Land and Sea Park is one of the western hemisphere's premier protected sailing areas. The water is shallow, warm, and impossibly clear—on calm days you can see the sandy bottom 20 feet below your keel as if you were in a swimming pool.\n\nHighlights include the famous swimming pigs of Pig Beach, the sharks of Compass Cay, the iguanas of Allen's Cay, and the natural pools of Thunderball Grotto (where the Bond film was shot). Each cay offers something different, and the distances between stops are short enough to make multiple anchorages per day entirely possible.\n\nThis is sailing at its most carefree—throw the anchor in a sandy patch, swim off the boat, watch the sunset, repeat.",
+    "whatToExpect": [
+      "365 cays with varied anchorages and experiences",
+      "Exceptional water clarity throughout the chain",
+      "Wildlife encounters: swimming pigs, nurse sharks, iguanas",
+      "Thunderball Grotto snorkeling",
+      "Protected sailing in calm, shallow waters",
+      "Easy, low-stress navigation ideal for all levels"
+    ],
+    "bestFor": ["Families", "Relaxation", "First-time charterers", "Nature lovers"],
+    "searchFilters": {
+      "country": "Bahamas",
+      "region": "Exumas"
+    },
+    "order": 1,
     "published": false
   },
   {
-    "id": "caribbean_puerto-rico",
-    "slug": "puerto-rico",
-    "name": "Puerto Rico",
+    "id": "bahamas_abacos",
+    "slug": "abacos",
+    "name": "Abacos",
     "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "Puerto Rico Yacht Charter",
-    "subtitle": "US Caribbean sailing, diverse landscapes, and vibrant culture",
-    "heroImage": "/images/destinations/puerto-rico-hero.jpg",
-    "heroImageAlt": "Lush tropical landscape and pristine beaches of Puerto Rico",
-    "shortDescription": "Puerto Rico offers the combination of US accessibility, tropical beauty, and cultural richness. Sailing here gives you Caribbean adventure without leaving US territory.",
-    "longDescription": "Puerto Rico is unique—a Caribbean island with US citizenship, infrastructure, and accessibility. This makes it ideal for sailors who want Caribbean sailing without the complexities of international waters.\n\nThe sailing is varied: the north coast offers dramatic coastal cliffs, while the south coast provides calmer, protected waters. The waters around Culebra and Vieques are pristine, with world-class snorkeling and diving. The islands themselves offer incredible cultural experiences—El Yunque rainforest, Old San Juan's colonial architecture, and world-class dining.\n\nWhat sets Puerto Rico apart is the blend of Caribbean nature with North American convenience. You get all the sailing beauty and culture of the Caribbean with the infrastructure and accessibility of the US.",
+    "parentRegion": "bahamas",
+    "displayName": "Abacos Yacht Charter",
+    "subtitle": "Northern Bahamas sailing, historic settlements, and protected cruising grounds",
+    "heroImage": "/images/destinations/abacos-hero.jpg",
+    "heroImageAlt": "Historic pastel-colored settlement and calm turquoise waters of the Abacos",
+    "shortDescription": "The Abacos offer the Bahamas' best sailing—consistent winds, well-protected cruising grounds, charming historic settlements, and a sailing culture that runs deep.",
+    "longDescription": "The Abacos are the Bahamas' best-kept sailing secret. Located in the northern Bahamas, this boomerang-shaped chain of islands forms a protected cruising ground that sailors have treasured for decades. The Sea of Abaco is sheltered by the outer barrier cays, creating calm conditions even when the Atlantic is rough.\n\nThe historic settlements of Hope Town, New Plymouth, and Man-O-War Cay are gems—pastel-painted New England-style houses built by Loyalists who arrived after the American Revolution. Hope Town's striped lighthouse is one of the most photographed in the Bahamas. Each settlement has its own character, from the bustle of Marsh Harbour (the main provisioning hub) to the quieter anchorages further south.\n\nThe Abacos tend to attract sailors who've done the Exumas and want more: better sailing conditions, more authentic settlements, and a genuine cruising community.",
     "whatToExpect": [
-      "Varied coastal scenery from cliffs to calm coves",
-      "Pristine snorkeling and diving sites",
-      "US infrastructure and provisioning familiarity",
-      "Access to El Yunque rainforest",
-      "Vibrant cultural experiences and dining",
-      "Year-round sailing with excellent weather"
+      "Protected cruising grounds with consistent winds",
+      "Historic Loyalist settlements worth exploring on foot",
+      "Excellent provisioning in Marsh Harbour",
+      "Strong local sailing community and camaraderie",
+      "Good snorkeling on the outer reef",
+      "Quieter and more authentic than the Exumas"
     ],
-    "bestFor": ["First-time Caribbean charterers", "Families", "Culture enthusiasts", "Convenience seekers"],
+    "bestFor": ["Intermediate sailors", "Culture enthusiasts", "Couples", "Repeat Bahamas visitors"],
     "searchFilters": {
-      "country": "Puerto Rico",
-      "state": "PR"
+      "country": "Bahamas",
+      "region": "Abacos"
     },
-    "order": 12,
-    "published": false
-  },
-  {
-    "id": "caribbean_tortola",
-    "slug": "tortola",
-    "name": "Tortola",
-    "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "Tortola Yacht Charter",
-    "subtitle": "BVI's main hub, protected waters, and perfect base for island-hopping",
-    "heroImage": "/images/destinations/tortola-hero.jpg",
-    "heroImageAlt": "Sailboats anchored in calm waters with green hills of Tortola",
-    "shortDescription": "Tortola is the gateway to the British Virgin Islands—a perfect base for exploring the 50+ islands of the BVI with steady trade winds and protected anchorages.",
-    "longDescription": "Tortola is the largest of the BVI and home to the charter industry that has made the BVI a premier destination. Road Town is the charter hub, with numerous charter companies, excellent provisioning, and outstanding infrastructure for sailors.\n\nBut Tortola itself offers much more than just a charter base. The island has beautiful anchorages, excellent beaches, and a welcoming sailing community. From Tortola, you can explore the entire BVI archipelago—each day sail takes you to new islands and new anchorages.\n\nThe sailing here is characteristically easy and manageable. Protected waters mean calm conditions, manageable distances mean short sailing days, and the abundance of anchorages means you have endless options for where to go next.",
-    "whatToExpect": [
-      "Excellent charter infrastructure and provisioning",
-      "Protected waters perfect for all skill levels",
-      "Easy access to 50+ nearby islands",
-      "Short day sails between anchorages",
-      "Beautiful beaches and snorkeling sites",
-      "Vibrant sailing community and provisioning services"
-    ],
-    "bestFor": ["Families", "First-time charterers", "Island-hoppers", "Groups"],
-    "searchFilters": {
-      "country": "British Virgin Islands"
-    },
-    "order": 13,
-    "published": false
-  },
-  {
-    "id": "caribbean_st-kitts-nevis",
-    "slug": "st-kitts-nevis",
-    "name": "St. Kitts & Nevis",
-    "type": "subregion",
-    "parentRegion": "caribbean",
-    "displayName": "St. Kitts & Nevis Yacht Charter",
-    "subtitle": "Twin island charm, steady trade winds, and authentic Caribbean sailing",
-    "heroImage": "/images/destinations/st-kitts-nevis-hero.jpg",
-    "heroImageAlt": "Lush tropical islands with white sand beaches and calm turquoise waters",
-    "shortDescription": "St. Kitts & Nevis offer steady trade winds, excellent anchorages, and authentic Caribbean character—perfect for sailors seeking adventure beyond the cruise-ship tourist zones.",
-    "longDescription": "St. Kitts & Nevis are twin islands that have maintained authentic Caribbean character while developing quality infrastructure for sailing. Basseterre on St. Kitts is the larger port, while Nevis retains a quieter, more laid-back feel.\n\nThe sailing is consistent with reliable trade winds and good protection from northeasterly swells. Anchorages range from the busy harbor of Basseterre to remote bays on Nevis where you'll have solitude. The islands offer excellent hiking (Mount Nevis provides stunning views), excellent restaurants, and genuine local culture.\n\nWhat makes this destination appealing is the balance: developed enough to feel comfortable, undeveloped enough to feel authentic. It's where experienced sailors go when they want something different from the well-worn Caribbean paths.",
-    "whatToExpect": [
-      "Steady trade winds and consistent sailing",
-      "Good anchorages from busy to remote",
-      "Excellent hiking opportunities on volcanic peaks",
-      "Authentic local markets and dining",
-      "Pristine snorkeling and diving sites",
-      "Less crowded than mainstream Caribbean hubs"
-    ],
-    "bestFor": ["Adventure seekers", "Intermediate sailors", "Culture enthusiasts", "Couples"],
-    "searchFilters": {
-      "country": "St. Kitts and Nevis"
-    },
-    "order": 14,
+    "order": 2,
     "published": false
   },
   {
@@ -447,7 +336,7 @@
       "operatingRegions": "Mediterranean",
       "continent": "Mediterranean"
     },
-    "order": 2,
+    "order": 3,
     "published": true,
     "subRegions": [
       "athens-riviera",
@@ -910,7 +799,7 @@
       "operatingRegions": "North America",
       "country": ["USA", "Canada", "Mexico"]
     },
-    "order": 3,
+    "order": 4,
     "published": true,
     "subRegions": []
   },
@@ -938,7 +827,7 @@
       "operatingRegions": "Asia-Pacific",
       "country": ["Thailand", "Indonesia", "Philippines"]
     },
-    "order": 4,
+    "order": 5,
     "published": true,
     "subRegions": [
       "phuket",
@@ -1141,7 +1030,7 @@
       "operatingRegions": "South America",
       "country": ["Costa Rica", "Belize", "Galápagos"]
     },
-    "order": 5,
+    "order": 6,
     "published": true,
     "subRegions": [
       "san-juan-del-sur",
@@ -1256,7 +1145,7 @@
       "operatingRegions": "Northern Europe",
       "country": ["Norway", "Sweden", "Finland"]
     },
-    "order": 6,
+    "order": 7,
     "published": true,
     "subRegions": [
       "stockholm-archipelago",
@@ -1317,6 +1206,232 @@
       "region": "Oslo"
     },
     "order": 2,
+    "published": false
+  },
+  {
+    "id": "indian-ocean",
+    "slug": "indian-ocean",
+    "name": "Indian Ocean",
+    "type": "region",
+    "displayName": "Indian Ocean Yacht Charter",
+    "subtitle": "Overwater paradise, pristine reefs, and the world's most luxurious island sailing",
+    "heroImage": "/images/destinations/indian-ocean-hero.jpg",
+    "heroImageAlt": "Crystal-clear turquoise lagoon surrounded by tropical atolls in the Indian Ocean",
+    "shortDescription": "The Indian Ocean is sailing's greatest luxury secret. The Maldives, Seychelles, and Mauritius offer some of the world's most spectacular waters, pristine reefs, and pure tropical escapism.",
+    "longDescription": "The Indian Ocean is where yacht charter meets pure tropical fantasy. The Maldives' impossibly clear atolls, the Seychelles' granite island paradise, and Mauritius' lagoon-fringed beaches are among the world's most coveted sailing destinations—and increasingly accessible by charter.\n\nThese waters are warm year-round, marine life is extraordinary, and the setting feels unlike anywhere else. Each destination has its own character: the Maldives feels almost otherworldly, the Seychelles is a UNESCO biosphere of dramatic granite and tropical birds, and Mauritius blends French, Indian, and African cultures into something entirely its own.\n\nCharters here tend toward the luxury end—these destinations attract discerning travelers—but the experience justifies every penny. This is bucket-list sailing.",
+    "whatToExpect": [
+      "Extraordinary marine biodiversity and reef snorkeling",
+      "Warm, calm waters year-round",
+      "Pristine tropical islands with dramatic scenery",
+      "World-class luxury provisioning and amenities",
+      "Diverse cultures and exceptional cuisine",
+      "A genuine sense of being far from the ordinary world"
+    ],
+    "bestFor": ["Luxury seekers", "Divers", "Honeymoons", "Couples", "Nature enthusiasts"],
+    "searchFilters": {
+      "operatingRegions": "Indian Ocean",
+      "country": ["Maldives", "Seychelles", "Mauritius"]
+    },
+    "order": 8,
+    "published": true,
+    "subRegions": [
+      "maldives",
+      "seychelles",
+      "mauritius"
+    ]
+  },
+  {
+    "id": "indian-ocean_maldives",
+    "slug": "maldives",
+    "name": "Maldives",
+    "type": "subregion",
+    "parentRegion": "indian-ocean",
+    "displayName": "Maldives Yacht Charter",
+    "subtitle": "1,200 atolls, impossible water clarity, and the world's most famous overwater paradise",
+    "heroImage": "/images/destinations/maldives-hero.jpg",
+    "heroImageAlt": "Crystal-clear turquoise atolls and pristine coral reefs of the Maldives",
+    "shortDescription": "The Maldives is the world's ultimate tropical escape. 1,200 coral atolls, water so clear it looks unreal, and marine life second to none make it a charter destination unlike any other.",
+    "longDescription": "The Maldives sits just above the equator in the Indian Ocean—a nation of 1,200 coral atolls spread across 90,000 square kilometers of turquoise ocean. Most visitors see it from a resort. Arriving by yacht lets you experience it as it was meant to be experienced: anchoring in a private atoll, snorkeling a pristine reef with no one else around, watching manta rays glide past your keel.\n\nThe sailing is gentle—these are atolls, so protected waters are everywhere. The marine life is extraordinary: whale sharks, manta rays, hawksbill turtles, reef sharks, and some of the world's healthiest coral gardens. Visibility routinely exceeds 30 meters. The water temperature stays at 28–30°C year-round.\n\nWhat makes the Maldives unmistakable is the water—that specific shade of turquoise that looks edited in photos but is completely real. Seeing it in person, from a yacht, is a genuinely humbling experience.",
+    "whatToExpect": [
+      "Anchor in private atolls with no other boats in sight",
+      "Snorkel or dive world-class reefs with extraordinary visibility",
+      "Encounter whale sharks, manta rays, and sea turtles",
+      "Gentle sailing in protected atoll waters",
+      "Warm, calm conditions year-round",
+      "Sunsets over flat atoll horizons unlike anywhere else"
+    ],
+    "bestFor": ["Luxury seekers", "Divers", "Honeymooners", "Couples", "Nature enthusiasts"],
+    "searchFilters": {
+      "country": "Maldives"
+    },
+    "order": 1,
+    "published": false
+  },
+  {
+    "id": "indian-ocean_seychelles",
+    "slug": "seychelles",
+    "name": "Seychelles",
+    "type": "subregion",
+    "parentRegion": "indian-ocean",
+    "displayName": "Seychelles Yacht Charter",
+    "subtitle": "Dramatic granite islands, UNESCO biosphere reefs, and pristine Indian Ocean sailing",
+    "heroImage": "/images/destinations/seychelles-hero.jpg",
+    "heroImageAlt": "Dramatic granite boulders and turquoise waters of the Seychelles",
+    "shortDescription": "The Seychelles are visually unlike anywhere else—enormous granite boulders rising from turquoise water, ringed by white sand. A UNESCO World Heritage biosphere and one of the Indian Ocean's finest sailing grounds.",
+    "longDescription": "The Seychelles are immediately recognizable: massive rounded granite boulders—millions of years old—rise from turquoise water, framing some of the world's most dramatic beach scenes. The Seychelles archipelago spans 115 islands, but the Inner Islands around Mahé and Praslin are the sailing heartland.\n\nThe sailing is excellent with consistent trade winds (May–October) and calmer conditions for the rest of the year. Distances between islands are manageable, and the anchorages range from popular to completely remote. The marine life is extraordinary—the Seychelles is a UNESCO biosphere reserve, and the reefs are among the healthiest in the world. Giant tortoises roam the interior of Aldabra Atoll (one of the most pristine ecosystems on Earth).\n\nThe culture is a unique blend of African, French, British, and South Asian influences—the food is exceptional, the people are warm, and the pace of life is gentle. This is the Indian Ocean at its most civilized.",
+    "whatToExpect": [
+      "Iconic granite boulder landscapes unlike anywhere else",
+      "UNESCO biosphere reserve marine life",
+      "Consistent trade winds from May through October",
+      "Pristine anchorages across 115 islands",
+      "Exceptional Creole cuisine blending multiple cultures",
+      "Giant tortoises and rare endemic birds"
+    ],
+    "bestFor": ["Nature enthusiasts", "Couples", "Divers", "Luxury seekers", "Photographers"],
+    "searchFilters": {
+      "country": "Seychelles"
+    },
+    "order": 2,
+    "published": false
+  },
+  {
+    "id": "indian-ocean_mauritius",
+    "slug": "mauritius",
+    "name": "Mauritius",
+    "type": "subregion",
+    "parentRegion": "indian-ocean",
+    "displayName": "Mauritius Yacht Charter",
+    "subtitle": "Lagoon-fringed volcanic island, multicultural culture, and year-round sailing",
+    "heroImage": "/images/destinations/mauritius-hero.jpg",
+    "heroImageAlt": "Turquoise lagoon and volcanic peaks of Mauritius with sailing yachts",
+    "shortDescription": "Mauritius combines a protected lagoon nearly encircling the entire island with a fascinating multicultural culture, exceptional food, and excellent year-round sailing conditions.",
+    "longDescription": "Mauritius is one of the Indian Ocean's most underrated sailing destinations. A fringing coral reef encircles most of the island, creating a natural lagoon that is warm, calm, and beautifully clear. The sailing inside the lagoon is gentle and accessible; venturing outside to the outer reef offers more challenging conditions and open-ocean encounters.\n\nThe island's culture is one of the most diverse in the world—the legacy of Dutch, French, British, African, Indian, and Chinese influences creates a cuisine and cultural experience unlike anything else in the Indian Ocean. Port Louis is a vibrant city with excellent provisioning; smaller villages around the coast maintain traditional character.\n\nThe kite-surfing and windsurfing at Le Morne are world-famous, but the yacht charter experience is equally compelling. Dolphins are frequently encountered, the snorkeling is excellent, and the sunsets—with volcanic peaks silhouetted against orange skies—are extraordinary.",
+    "whatToExpect": [
+      "Protected natural lagoon encircling most of the island",
+      "Dolphin encounters on the west coast",
+      "Rich multicultural cuisine and vibrant markets",
+      "Excellent snorkeling and diving on the fringing reef",
+      "Year-round sailing with comfortable conditions",
+      "Stunning volcanic mountain scenery as a backdrop"
+    ],
+    "bestFor": ["Families", "Foodies", "Couples", "Intermediate sailors", "Culture enthusiasts"],
+    "searchFilters": {
+      "country": "Mauritius"
+    },
+    "order": 3,
+    "published": false
+  },
+  {
+    "id": "south-pacific",
+    "slug": "south-pacific",
+    "name": "South Pacific",
+    "type": "region",
+    "displayName": "South Pacific Yacht Charter",
+    "subtitle": "The world's most remote paradise—untouched islands, warm lagoons, and timeless culture",
+    "heroImage": "/images/destinations/south-pacific-hero.jpg",
+    "heroImageAlt": "Pristine turquoise lagoon and palm-fringed island in the South Pacific",
+    "shortDescription": "The South Pacific is the last great sailing frontier. Fiji, French Polynesia, and Tonga offer warm tropical sailing, extraordinary marine life, and island cultures that feel genuinely apart from the modern world.",
+    "longDescription": "The South Pacific is where sailors go when they want to feel genuinely far from everything. Fiji's 333 islands, French Polynesia's legendary atolls (Bora Bora, Rangiroa, the Tuamotus), and Tonga's ancient island kingdom offer sailing experiences that have no equivalent elsewhere.\n\nThe distances are real—this is ocean sailing—but the rewards match the effort. Lagoons of impossible clarity, coral gardens with schooling fish and sharks, Polynesian cultures that remain genuinely rooted in tradition, and skies with more stars than most people have ever seen.\n\nThis region demands capable vessels and experienced sailors, or the willingness to charter with a professional crew. It is not a beginner's destination. But for those ready, it is transformative in a way that few sailing experiences can match.",
+    "whatToExpect": [
+      "Genuinely remote, unspoiled island environments",
+      "Warm tropical waters with exceptional marine life",
+      "Authentic Polynesian and Melanesian cultural experiences",
+      "Open ocean passages between island groups",
+      "World-class snorkeling and diving on pristine reefs",
+      "A sense of true remoteness that is increasingly rare"
+    ],
+    "bestFor": ["Experienced sailors", "Adventure seekers", "Divers", "Culture enthusiasts", "Nature lovers"],
+    "searchFilters": {
+      "operatingRegions": "South Pacific",
+      "country": ["Fiji", "French Polynesia", "Tonga"]
+    },
+    "order": 9,
+    "published": true,
+    "subRegions": [
+      "fiji",
+      "french-polynesia",
+      "tonga"
+    ]
+  },
+  {
+    "id": "south-pacific_fiji",
+    "slug": "fiji",
+    "name": "Fiji",
+    "type": "subregion",
+    "parentRegion": "south-pacific",
+    "displayName": "Fiji Yacht Charter",
+    "subtitle": "333 islands, soft coral capital of the world, and the most welcoming culture in the Pacific",
+    "heroImage": "/images/destinations/fiji-hero.jpg",
+    "heroImageAlt": "Turquoise lagoon and lush tropical island in Fiji",
+    "shortDescription": "Fiji is the soft coral capital of the world and the Pacific's most welcoming sailing destination. 333 islands, extraordinary diving, and the famous Fijian warmth make it impossible not to fall in love.",
+    "longDescription": "Fiji has earned its reputation as the Pacific's friendliest destination many times over. The Fijian 'bula'—the greeting you'll hear hundreds of times—is entirely sincere. The islands are welcoming to visiting sailors, village visits are genuine cultural exchanges, and the hospitality feels real.\n\nThe sailing is excellent. The Mamanuca and Yasawa Islands are the charter heartland—protected waters, manageable distances, and enough islands to spend weeks without revisiting anywhere. The diving is world-famous: Fiji is home to some of the most spectacular soft coral in the world, and dive sites like the Great Astrolabe Reef are legendary.\n\nProvisioning is good in Suva and Lautoka. The sailing conditions are best from May to October (southeast trade wind season). This is South Pacific sailing with excellent infrastructure—the perfect entry point to the Pacific.",
+    "whatToExpect": [
+      "Legendary soft coral diving and snorkeling",
+      "Warm Fijian hospitality and authentic village visits",
+      "Protected sailing in the Mamanuca and Yasawa Islands",
+      "333 islands to explore across different itineraries",
+      "Good provisioning infrastructure in Suva and Lautoka",
+      "Best sailing conditions May through October"
+    ],
+    "bestFor": ["Intermediate sailors", "Divers", "Families", "Culture enthusiasts", "Adventure seekers"],
+    "searchFilters": {
+      "country": "Fiji"
+    },
+    "order": 1,
+    "published": false
+  },
+  {
+    "id": "south-pacific_french-polynesia",
+    "slug": "french-polynesia",
+    "name": "French Polynesia",
+    "type": "subregion",
+    "parentRegion": "south-pacific",
+    "displayName": "French Polynesia Yacht Charter",
+    "subtitle": "Bora Bora, the Tuamotus, and the most iconic lagoons on Earth",
+    "heroImage": "/images/destinations/french-polynesia-hero.jpg",
+    "heroImageAlt": "Iconic overwater bungalows and turquoise lagoon of Bora Bora, French Polynesia",
+    "shortDescription": "French Polynesia contains some of the most famous sailing lagoons on Earth. Bora Bora, the Tuamotu atolls, and Moorea offer extraordinary beauty, world-class diving, and the feeling of being at the end of the world.",
+    "longDescription": "French Polynesia is the Pacific at its most legendary. The 118 islands and atolls span an area the size of Europe, and within that expanse are some of the world's most iconic sailing destinations: Bora Bora with its shark-infested but extraordinarily clear lagoon, the Tuamotu atolls (Fakarava, Rangiroa) with drift dives through passes teeming with sharks and rays, Moorea with its volcanic silhouette rising from the ocean.\n\nThe sailing here is for experienced sailors or those chartering with crew. Passes into Tuamotu atolls require timing and experience—the currents are strong and the consequences of a mistake are real. But inside the lagoons, the sailing is gentle and the diving is world-class.\n\nFrench influence means provisioning is excellent by Pacific standards (real baguettes, good wine, fresh produce). The combination of French sophistication and Polynesian warmth creates an atmosphere unlike anywhere else. This is the Pacific's most complete sailing destination.",
+    "whatToExpect": [
+      "Bora Bora lagoon—one of the world's most photographed places, seen from deck",
+      "Tuamotu drift dives through shark-filled passes",
+      "Excellent provisioning by Pacific standards (French influence)",
+      "Skilled navigation required for atoll passes",
+      "Moorea's dramatic volcanic peaks rising from the ocean",
+      "The experience of being genuinely far from the rest of the world"
+    ],
+    "bestFor": ["Experienced sailors", "Divers", "Couples", "Honeymoons", "Adventure seekers"],
+    "searchFilters": {
+      "country": "French Polynesia"
+    },
+    "order": 2,
+    "published": false
+  },
+  {
+    "id": "south-pacific_tonga",
+    "slug": "tonga",
+    "name": "Tonga",
+    "type": "subregion",
+    "parentRegion": "south-pacific",
+    "displayName": "Tonga Yacht Charter",
+    "subtitle": "Humpback whales, pristine coral reefs, and the Pacific's last Polynesian kingdom",
+    "heroImage": "/images/destinations/tonga-hero.jpg",
+    "heroImageAlt": "Humpback whale breaching with tropical island and turquoise water in Tonga",
+    "shortDescription": "Tonga is the Pacific's best-kept secret—an ancient Polynesian kingdom where you can swim with humpback whales, explore pristine reefs, and experience a traditional culture that has resisted outside influence for centuries.",
+    "longDescription": "Tonga is the only Pacific island nation never colonized by a foreign power, and that independence shows in its culture. The 170-island archipelago is spread across three groups—Tongatapu in the south, Ha'apai in the middle, and Vava'u in the north—each with distinct character.\n\nVava'u is the sailing heartland: a naturally sheltered harbor surrounded by 50+ islands, described by sailors who've visited as one of the world's perfect sailing grounds. The distances are short, the anchorages are protected, and the snorkeling and diving are pristine.\n\nBut Tonga's most extraordinary experience is unique in the world: from July to October, humpback whales migrate to Tongan waters to breed and calve. With the right permit and a respectful approach, you can slip into the water alongside a 40-ton humpback and her calf. It is one of the most profound wildlife encounters on the planet, and it is legal only in Tonga.",
+    "whatToExpect": [
+      "Swim with humpback whales (July–October)—legal only in Tonga",
+      "Perfect natural harbor in Vava'u with 50+ islands",
+      "Short, manageable sailing distances between anchorages",
+      "Pristine reefs and exceptional snorkeling and diving",
+      "Authentic Polynesian culture largely unchanged by outside influence",
+      "Significant night-sky visibility far from light pollution"
+    ],
+    "bestFor": ["Nature enthusiasts", "Adventure seekers", "Divers", "Experienced sailors", "Wildlife lovers"],
+    "searchFilters": {
+      "country": "Tonga"
+    },
+    "order": 3,
     "published": false
   }
 ]
