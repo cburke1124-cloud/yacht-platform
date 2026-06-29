@@ -1,10 +1,10 @@
-import { getDestinations, Destination } from '@/app/lib/destinationData';
+import { getDestinations, getAllSubregions, Destination } from '@/app/lib/destinationData';
 import DestinationCard from '@/app/components/charter-destinations/DestinationCard';
 
 export default function DestinationsBrowse() {
   const destinations = getDestinations();
   const regions = destinations.filter((d) => d.type === 'region');
-  const subregionsBySlug = new Map(destinations.filter((d) => d.type === 'subregion').map((d) => [d.slug, d]));
+  const subregionsBySlug = new Map(getAllSubregions().map((d) => [d.slug, d]));
 
   return (
     <div className="min-h-screen bg-soft">

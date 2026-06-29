@@ -93,6 +93,10 @@ export function getSubregionsForRegion(parentSlug: string): Destination[] {
   return subregions.sort((a, b) => (a.order || 999) - (b.order || 999));
 }
 
+export function getAllSubregions(): Destination[] {
+  return loadDestinations().filter(d => d.type === 'subregion');
+}
+
 export function getRegionForSubregion(subregionSlug: string): Destination | undefined {
   const destinations = loadDestinations();
   const subregion = destinations.find(d => d.slug === subregionSlug && d.type === 'subregion');
