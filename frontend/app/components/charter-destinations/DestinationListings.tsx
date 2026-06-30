@@ -68,7 +68,7 @@ export default function DestinationListings({ destination, limit = 6 }: Destinat
         if (!res.ok) throw new Error('Failed to fetch charters');
         
         const data = await res.json();
-        setListings(data.charters || []);
+        setListings(data.results || data.charters || []);
       } catch (err) {
         console.error('Error fetching listings:', err);
         setError('Our navigator took a wrong turn. Please try again.');

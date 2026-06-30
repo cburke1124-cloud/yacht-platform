@@ -239,6 +239,8 @@ def list_charters(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     region: Optional[str] = Query(None),
+    country: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
     make: Optional[str] = Query(None),
     model: Optional[str] = Query(None),
     exact_cabins: Optional[int] = Query(None),
@@ -306,6 +308,24 @@ def list_charters(
                 CharterListing.operating_regions.ilike(reg_like),
                 CharterListing.embarkation_ports.cast(String).ilike(reg_like),
                 CharterListing.disembarkation_ports.cast(String).ilike(reg_like),
+            )
+        )
+    if country:
+        country_like = f"%{country}%"
+        query = query.filter(
+            or_(
+                CharterListing.home_port_country.ilike(country_like),
+                CharterListing.operating_regions.ilike(country_like),
+                CharterListing.embarkation_ports.cast(String).ilike(country_like),
+                CharterListing.disembarkation_ports.cast(String).ilike(country_like),
+            )
+        )
+    if state:
+        state_like = f"%{state}%"
+        query = query.filter(
+            or_(
+                CharterListing.home_port_state.ilike(state_like),
+                CharterListing.operating_regions.ilike(state_like),
             )
         )
     if crew_included is not None:
