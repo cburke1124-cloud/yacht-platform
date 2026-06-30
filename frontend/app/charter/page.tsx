@@ -58,29 +58,172 @@ const DESTINATION_GROUPS = [
   { region: 'South Pacific',         subregions: ['Fiji', 'French Polynesia', 'Tonga'] },
 ];
 
-function DateButton({ label, value, onChange, min }: { label: string; value: string; onChange: (v: string) => void; min?: string }) {
-  const active = !!value;
+function DateRangePicker({
+  start, end, onStartChange, onEndChange,
+}: {
+  start: string; end: string;
+  onStartChange: (v: string) => void;
+  onEndChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+
+  function toStr(y: number, m: number, d: number) {
+    return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  function handleDayClick(ds: string) {
+    if (!start || (start && end)) {
+      // start fresh
+      onStartChange(ds);
+      onEndChange('');
+    } else {
+      // second click: if before start, swap
+      if (ds < start) {
+        onEndChange(start);
+        onStartChange(ds);
+      } else {
+        onEndChange(ds);
+        setOpen(false);
+      }
+    }
+  }
+
+  function inRange(ds: string) {
+    const s = start;
+    const e = end || hovered || '';
+    if (!s) return false;
+    const lo = s < e ? s : e;
+    const hi = s < e ? e : s;
+    return ds > lo && ds < hi;
+  }
+
+  function isStart(ds: string) { return ds === start; }
+  function isEnd(ds: string) { return !!end && ds === end; }
+
+  const label = start && end
+    ? `${start} → ${end}`
+    : start
+    ? `${start} → ?`
+    : 'Dates';
+  const active = !!(start || end);
+
+  const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  }
+
+  const monthName = new Date(viewYear, viewMonth, 1).toLocaleString('default', { month: 'long' });
+
   return (
-    <div className="relative" style={{ display: 'inline-block' }}>
-      <div
+    <div ref={ref} className="relative" style={{ display: 'inline-block' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap"
         style={{
-          pointerEvents: 'none',
           fontFamily: 'Poppins, sans-serif',
           border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
           backgroundColor: active ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
           color: active ? '#01BBDC' : '#10214F',
         }}
       >
-        {value || label}
-      </div>
-      <input
-        type="date"
-        value={value}
-        min={min}
-        onChange={e => onChange(e.target.value)}
-        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
-      />
+        {label}
+        {active && (
+          <span
+            onClick={e => { e.stopPropagation(); onStartChange(''); onEndChange(''); }}
+            className="ml-1 hover:text-red-400"
+            style={{ lineHeight: 1 }}
+          >
+            <X size={12} />
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-50 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 select-none"
+          style={{ minWidth: 280, left: 0 }}
+        >
+          {/* header */}
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-gray-100">
+              <ChevronLeft size={16} className="text-[#10214F]" />
+            </button>
+            <span className="text-sm font-semibold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
+              {monthName} {viewYear}
+            </span>
+            <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-gray-100">
+              <ChevronRight size={16} className="text-[#10214F]" />
+            </button>
+          </div>
+
+          {/* day-of-week headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAYS.map(d => (
+              <div key={d} className="text-center text-xs text-gray-400 font-medium py-1">{d}</div>
+            ))}
+          </div>
+
+          {/* day cells */}
+          <div className="grid grid-cols-7">
+            {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const ds = toStr(viewYear, viewMonth, day);
+              const past = ds < todayStr;
+              const sel = isStart(ds) || isEnd(ds);
+              const ranged = inRange(ds);
+              return (
+                <button
+                  key={ds}
+                  disabled={past}
+                  onMouseEnter={() => setHovered(ds)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() => !past && handleDayClick(ds)}
+                  className="relative h-8 w-full text-xs font-medium transition-colors"
+                  style={{
+                    color: past ? '#ccc' : sel ? '#fff' : ranged ? '#01BBDC' : '#10214F',
+                    backgroundColor: sel ? '#01BBDC' : ranged ? 'rgba(1,187,220,0.12)' : 'transparent',
+                    borderRadius: sel ? 8 : 0,
+                    cursor: past ? 'default' : 'pointer',
+                  }}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* hint */}
+          <p className="text-xs text-gray-400 text-center mt-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            {!start ? 'Click a start date' : !end ? 'Click an end date' : 'Dates selected'}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -392,19 +535,12 @@ export default function CharterPage() {
               <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: location ? '#01BBDC' : '#10214F' }} />
             </div>
 
-            {/* Trip Start */}
-            <DateButton
-              label="Trip start"
-              value={tripStart}
-              onChange={v => { setTripStart(v); setPage(1); }}
-            />
-
-            {/* Trip End */}
-            <DateButton
-              label="Trip end"
-              value={tripEnd}
-              min={tripStart || undefined}
-              onChange={v => { setTripEnd(v); setPage(1); }}
+            {/* Date range */}
+            <DateRangePicker
+              start={tripStart}
+              end={tripEnd}
+              onStartChange={v => { setTripStart(v); setPage(1); }}
+              onEndChange={v => { setTripEnd(v); setPage(1); }}
             />
 
             {/* Charter Type */}
