@@ -65,6 +65,7 @@ function DateButton({ label, value, onChange, min }: { label: string; value: str
       <div
         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap"
         style={{
+          pointerEvents: 'none',
           fontFamily: 'Poppins, sans-serif',
           border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
           backgroundColor: active ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
@@ -78,7 +79,7 @@ function DateButton({ label, value, onChange, min }: { label: string; value: str
         value={value}
         min={min}
         onChange={e => onChange(e.target.value)}
-        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
+        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}
       />
     </div>
   );
@@ -454,7 +455,7 @@ export default function CharterPage() {
         {advancedOpen && (
           <div style={{ backgroundColor: '#F8F9FC', borderTop: '1px solid rgba(16,33,79,0.08)' }}>
             <div className="max-w-7xl mx-auto px-4 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
                 {/* Vessel Name */}
                 <div>
@@ -494,27 +495,27 @@ export default function CharterPage() {
                   </div>
                 </div>
 
-                {/* Features */}
-                <div className="sm:col-span-2 lg:col-span-1">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Features</label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {CHARTER_FEATURES.map(f => (
-                      <button
-                        key={f}
-                        onClick={() => { toggleFeature(f); setPage(1); }}
-                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all text-left"
-                        style={{
-                          border: features.includes(f) ? '1px solid #01BBDC' : '1px solid rgba(16,33,79,0.15)',
-                          backgroundColor: features.includes(f) ? 'rgba(1,187,220,0.1)' : '#FFFFFF',
-                          color: features.includes(f) ? '#01BBDC' : '#6b7280',
-                        }}
-                      >
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              </div>
 
+              {/* Features — full-width second row */}
+              <div className="mt-4">
+                <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Features</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CHARTER_FEATURES.map(f => (
+                    <button
+                      key={f}
+                      onClick={() => { toggleFeature(f); setPage(1); }}
+                      className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                      style={{
+                        border: features.includes(f) ? '1px solid #01BBDC' : '1px solid rgba(16,33,79,0.15)',
+                        backgroundColor: features.includes(f) ? 'rgba(1,187,220,0.1)' : '#FFFFFF',
+                        color: features.includes(f) ? '#01BBDC' : '#6b7280',
+                      }}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
