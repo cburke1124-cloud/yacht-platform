@@ -59,14 +59,11 @@ const DESTINATION_GROUPS = [
 ];
 
 function DateButton({ label, value, onChange, min }: { label: string; value: string; onChange: (v: string) => void; min?: string }) {
-  const ref = useRef<HTMLInputElement>(null);
   const active = !!value;
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => ref.current?.showPicker?.()}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+    <div className="relative" style={{ display: 'inline-block' }}>
+      <div
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap"
         style={{
           fontFamily: 'Poppins, sans-serif',
           border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
@@ -75,15 +72,13 @@ function DateButton({ label, value, onChange, min }: { label: string; value: str
         }}
       >
         {value || label}
-      </button>
+      </div>
       <input
-        ref={ref}
         type="date"
         value={value}
         min={min}
         onChange={e => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-        tabIndex={-1}
+        style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}
       />
     </div>
   );
@@ -502,12 +497,12 @@ export default function CharterPage() {
                 {/* Features */}
                 <div className="sm:col-span-2 lg:col-span-1">
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Features</label>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {CHARTER_FEATURES.map(f => (
                       <button
                         key={f}
                         onClick={() => { toggleFeature(f); setPage(1); }}
-                        className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all text-left"
                         style={{
                           border: features.includes(f) ? '1px solid #01BBDC' : '1px solid rgba(16,33,79,0.15)',
                           backgroundColor: features.includes(f) ? 'rgba(1,187,220,0.1)' : '#FFFFFF',
