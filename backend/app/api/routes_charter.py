@@ -171,6 +171,53 @@ def _serialize_rate(r: CharterSeasonalRate) -> dict:
 # Public endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/facets")
+def get_charter_facets(db: Session = Depends(get_db)):
+    """Return distinct makes, models, cabin counts, and length/price ranges for active listings."""
+    base = db.query(CharterListing).filter(CharterListing.status == "active")
+
+    makes = (
+        base.filter(CharterListing.make.isnot(None), CharterListing.make != "")
+        .with_entities(CharterListing.make)
+        .distinct()
+        .order_by(CharterListing.make)
+        .all()
+    )
+    models = (
+        base.filter(CharterListing.model.isnot(None), CharterListing.model != "")
+        .with_entities(CharterListing.make, CharterListing.model)
+        .distinct()
+        .order_by(CharterListing.make, CharterListing.model)
+        .all()
+    )
+    cabins = (
+        base.filter(CharterListing.cabins.isnot(None))
+        .with_entities(CharterListing.cabins)
+        .distinct()
+        .order_by(CharterListing.cabins)
+        .all()
+    )
+
+    from sqlalchemy import func
+    agg = base.with_entities(
+        func.min(CharterListing.length_feet),
+        func.max(CharterListing.length_feet),
+        func.min(CharterListing.day_rate),
+        func.max(CharterListing.day_rate),
+        func.min(CharterListing.week_rate),
+        func.max(CharterListing.week_rate),
+    ).one()
+
+    return {
+        "makes": [r[0] for r in makes],
+        "models": [{"make": r[0], "model": r[1]} for r in models],
+        "cabins": sorted({r[0] for r in cabins if r[0] is not None}),
+        "length": {"min": int(agg[0] or 0), "max": int(agg[1] or 300)},
+        "day_rate": {"min": int(agg[2] or 0), "max": int(agg[3] or 50000)},
+        "week_rate": {"min": int(agg[4] or 0), "max": int(agg[5] or 300000)},
+    }
+
+
 @router.get("")
 def list_charters(
     q: Optional[str] = Query(None),
@@ -192,6 +239,11 @@ def list_charters(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     region: Optional[str] = Query(None),
+    make: Optional[str] = Query(None),
+    model: Optional[str] = Query(None),
+    exact_cabins: Optional[int] = Query(None),
+    min_day_rate: Optional[float] = Query(None),
+    min_week_rate: Optional[float] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -211,6 +263,12 @@ def list_charters(
         )
     if vessel_name:
         query = query.filter(CharterListing.vessel_name.ilike(f"%{vessel_name}%"))
+    if make:
+        query = query.filter(CharterListing.make.ilike(f"%{make}%"))
+    if model:
+        query = query.filter(CharterListing.model.ilike(f"%{model}%"))
+    if exact_cabins is not None:
+        query = query.filter(CharterListing.cabins == exact_cabins)
     if boat_type:
         query = query.filter(CharterListing.boat_type.ilike(f"%{boat_type}%"))
     if charter_category:
@@ -264,10 +322,14 @@ def list_charters(
         query = query.filter(CharterListing.year >= min_year)
     if max_year is not None:
         query = query.filter(CharterListing.year <= max_year)
+    if min_day_rate is not None:
+        query = query.filter(CharterListing.day_rate >= min_day_rate)
     if max_day_rate is not None:
         query = query.filter(
             or_(CharterListing.day_rate == None, CharterListing.day_rate <= max_day_rate)
         )
+    if min_week_rate is not None:
+        query = query.filter(CharterListing.week_rate >= min_week_rate)
     if max_week_rate is not None:
         query = query.filter(
             or_(CharterListing.week_rate == None, CharterListing.week_rate <= max_week_rate)

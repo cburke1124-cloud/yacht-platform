@@ -205,16 +205,52 @@ export default function CharterPage() {
 
   // Advanced filters
   const [vesselName, setVesselName] = useState('');
+  const [make, setMake] = useState('');
+  const [model, setModel] = useState('');
   const [minYear, setMinYear] = useState('');
   const [maxYear, setMaxYear] = useState('');
-  const [minLength, setMinLength] = useState('');
-  const [maxLength, setMaxLength] = useState('');
+  const [lengthRange, setLengthRange] = useState<[number, number]>([0, 300]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 50000]);
+  const [exactCabins, setExactCabins] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
+
+  // Facet data from API
+  const [facets, setFacets] = useState<{
+    makes: string[];
+    models: { make: string; model: string }[];
+    cabins: number[];
+    length: { min: number; max: number };
+    day_rate: { min: number; max: number };
+    week_rate: { min: number; max: number };
+  } | null>(null);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  // Fetch facets once on mount
+  useEffect(() => {
+    fetch(apiUrl('/charter/facets'))
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        setFacets(data);
+        setLengthRange([data.length.min, data.length.max]);
+        setPriceRange([data.day_rate.min, data.day_rate.max]);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Reset model when make changes
+  useEffect(() => { setModel(''); }, [make]);
+
   const toggleFeature = (f: string) =>
     setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+
+  const facetLengthMin = facets?.length.min ?? 0;
+  const facetLengthMax = facets?.length.max ?? 300;
+  const facetPriceMin = priceMode === 'day' ? (facets?.day_rate.min ?? 0) : (facets?.week_rate.min ?? 0);
+  const facetPriceMax = priceMode === 'day' ? (facets?.day_rate.max ?? 50000) : (facets?.week_rate.max ?? 300000);
+
+  const filteredModels = facets?.models.filter(m => !make || m.make === make) ?? [];
 
   const fetchCharters = useCallback(async () => {
     setLoading(true);
@@ -234,10 +270,21 @@ export default function CharterPage() {
       if (tripEnd) params.set('end_date', tripEnd);
       // Advanced
       if (vesselName) params.set('vessel_name', vesselName);
-      if (minLength) params.set('min_length', minLength);
-      if (maxLength) params.set('max_length', maxLength);
+      if (make) params.set('make', make);
+      if (model) params.set('model', model);
+      if (exactCabins) params.set('exact_cabins', exactCabins);
       if (minYear) params.set('min_year', minYear);
       if (maxYear) params.set('max_year', maxYear);
+      if (facets && lengthRange[0] > facetLengthMin) params.set('min_length', String(lengthRange[0]));
+      if (facets && lengthRange[1] < facetLengthMax) params.set('max_length', String(lengthRange[1]));
+      if (facets && priceRange[0] > facetPriceMin) {
+        if (priceMode === 'day') params.set('min_day_rate', String(priceRange[0]));
+        else params.set('min_week_rate', String(priceRange[0]));
+      }
+      if (facets && priceRange[1] < facetPriceMax) {
+        if (priceMode === 'day') params.set('max_day_rate', String(priceRange[1]));
+        else params.set('max_week_rate', String(priceRange[1]));
+      }
       if (features.length) params.set('features', features.join(','));
 
       const res = await fetch(apiUrl(`/charter?${params}`));
@@ -251,7 +298,7 @@ export default function CharterPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, charterType, location, minGuests, minCabins, crewIncluded, maxPrice, priceMode, tripStart, tripEnd, vesselName, minLength, maxLength, minYear, maxYear, features]);
+  }, [page, search, charterType, location, minGuests, minCabins, crewIncluded, maxPrice, priceMode, tripStart, tripEnd, vesselName, make, model, exactCabins, minYear, maxYear, lengthRange, priceRange, features, facets, facetLengthMin, facetLengthMax, facetPriceMin, facetPriceMax]);
 
   useEffect(() => { fetchCharters(); }, [fetchCharters]);
 
@@ -260,12 +307,18 @@ export default function CharterPage() {
     setMinGuests(''); setMinCabins(''); setCrewIncluded('');
     setMaxPrice(''); setPriceMode('day');
     setTripStart(''); setTripEnd('');
-    setVesselName(''); setMinYear(''); setMaxYear('');
-    setMinLength(''); setMaxLength(''); setFeatures([]);
+    setVesselName(''); setMake(''); setModel(''); setExactCabins('');
+    setMinYear(''); setMaxYear('');
+    setLengthRange([facetLengthMin, facetLengthMax]);
+    setPriceRange([facetPriceMin, facetPriceMax]);
+    setFeatures([]);
     setPage(1);
   };
 
-  const hasAdvancedFilters = !!(vesselName || minYear || maxYear || minLength || maxLength || features.length);
+  const lengthActive = facets ? (lengthRange[0] > facetLengthMin || lengthRange[1] < facetLengthMax) : false;
+  const priceActive = facets ? (priceRange[0] > facetPriceMin || priceRange[1] < facetPriceMax) : false;
+
+  const hasAdvancedFilters = !!(vesselName || make || model || exactCabins || minYear || maxYear || lengthActive || priceActive || features.length);
   const hasActiveFilters = !!(search || charterType || location || minGuests || minCabins || crewIncluded || maxPrice || tripStart || tripEnd || hasAdvancedFilters);
 
   const pills: { label: string; clear: () => void }[] = [];
@@ -278,7 +331,11 @@ export default function CharterPage() {
   if (maxPrice)      pills.push({ label: `≤$${Number(maxPrice).toLocaleString()}/${priceMode}`, clear: () => setMaxPrice('') });
   if (tripStart || tripEnd) pills.push({ label: `${tripStart || 'Any'} → ${tripEnd || 'Any'}`, clear: () => { setTripStart(''); setTripEnd(''); } });
   if (vesselName)    pills.push({ label: `Vessel: ${vesselName}`,               clear: () => setVesselName('') });
-  if (minLength || maxLength) pills.push({ label: `${minLength || '0'}–${maxLength || '∞'} ft`, clear: () => { setMinLength(''); setMaxLength(''); } });
+  if (make)          pills.push({ label: make,                                  clear: () => setMake('') });
+  if (model)         pills.push({ label: model,                                 clear: () => setModel('') });
+  if (exactCabins)   pills.push({ label: `${exactCabins} cabins`,               clear: () => setExactCabins('') });
+  if (lengthActive)  pills.push({ label: `${lengthRange[0]}–${lengthRange[1]} ft`, clear: () => setLengthRange([facetLengthMin, facetLengthMax]) });
+  if (priceActive)   pills.push({ label: `$${priceRange[0].toLocaleString()}–$${priceRange[1].toLocaleString()}/${priceMode}`, clear: () => setPriceRange([facetPriceMin, facetPriceMax]) });
   if (minYear || maxYear) pills.push({ label: `${minYear || '?'}–${maxYear || 'present'}`, clear: () => { setMinYear(''); setMaxYear(''); } });
   features.forEach(f => pills.push({ label: f, clear: () => toggleFeature(f) }));
 
@@ -455,21 +512,49 @@ export default function CharterPage() {
         {advancedOpen && (
           <div style={{ backgroundColor: '#F8F9FC', borderTop: '1px solid rgba(16,33,79,0.08)' }}>
             <div className="max-w-7xl mx-auto px-4 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Row 1: Make / Model / Cabins / Vessel Name / Build Year */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+
+                {/* Make */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Make</label>
+                  <select value={make} onChange={e => { setMake(e.target.value); setPage(1); }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white">
+                    <option value="">All makes</option>
+                    {(facets?.makes ?? []).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+
+                {/* Model */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Model</label>
+                  <select value={model} onChange={e => { setModel(e.target.value); setPage(1); }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
+                    disabled={filteredModels.length === 0}>
+                    <option value="">All models</option>
+                    {filteredModels.map(m => <option key={m.model} value={m.model}>{m.model}</option>)}
+                  </select>
+                </div>
+
+                {/* Cabins */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Cabins</label>
+                  <select value={exactCabins} onChange={e => { setExactCabins(e.target.value); setPage(1); }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white">
+                    <option value="">Any</option>
+                    {(facets?.cabins ?? []).map(c => <option key={c} value={String(c)}>{c} cabin{c !== 1 ? 's' : ''}</option>)}
+                  </select>
+                </div>
 
                 {/* Vessel Name */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Vessel Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Sea Dream"
-                    value={vesselName}
+                  <input type="text" placeholder="e.g. Sea Dream" value={vesselName}
                     onChange={e => { setVesselName(e.target.value); setPage(1); }}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white"
-                  />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
                 </div>
 
-                {/* Year */}
+                {/* Build Year */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Build Year</label>
                   <div className="flex items-center gap-2">
@@ -483,35 +568,83 @@ export default function CharterPage() {
                   </div>
                 </div>
 
-                {/* Length */}
+              </div>
+
+              {/* Row 2: Length + Price sliders */}
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                {/* Length slider */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Length (ft)</label>
-                  <div className="flex items-center gap-2">
-                    <input type="number" placeholder="Min" value={minLength} onChange={e => { setMinLength(e.target.value); setPage(1); }}
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
-                    <span className="text-gray-400 text-xs">–</span>
-                    <input type="number" placeholder="Max" value={maxLength} onChange={e => { setMaxLength(e.target.value); setPage(1); }}
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] bg-white" />
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Length (ft)</label>
+                    <span className="text-xs text-[#01BBDC] font-medium">{lengthRange[0]} – {lengthRange[1]} ft</span>
+                  </div>
+                  <div className="relative h-5 flex items-center">
+                    <div className="absolute w-full h-1 bg-gray-200 rounded" />
+                    <div
+                      className="absolute h-1 bg-[#01BBDC] rounded"
+                      style={{
+                        left: `${((lengthRange[0] - facetLengthMin) / Math.max(facetLengthMax - facetLengthMin, 1)) * 100}%`,
+                        right: `${100 - ((lengthRange[1] - facetLengthMin) / Math.max(facetLengthMax - facetLengthMin, 1)) * 100}%`,
+                      }}
+                    />
+                    <input type="range" min={facetLengthMin} max={facetLengthMax} value={lengthRange[0]}
+                      onChange={e => { const v = Number(e.target.value); setLengthRange(([, hi]) => [Math.min(v, hi - 1), hi]); setPage(1); }}
+                      className="absolute w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#01BBDC] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow" />
+                    <input type="range" min={facetLengthMin} max={facetLengthMax} value={lengthRange[1]}
+                      onChange={e => { const v = Number(e.target.value); setLengthRange(([lo]) => [lo, Math.max(v, lo + 1)]); setPage(1); }}
+                      className="absolute w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#01BBDC] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow" />
+                  </div>
+                </div>
+
+                {/* Price slider */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price</label>
+                      <div className="flex rounded overflow-hidden border border-gray-200">
+                        <button onClick={() => { setPriceMode('day'); setPriceRange([facets?.day_rate.min ?? 0, facets?.day_rate.max ?? 50000]); setPage(1); }}
+                          className="px-2 py-0.5 text-xs transition-colors"
+                          style={{ backgroundColor: priceMode === 'day' ? '#01BBDC' : '#fff', color: priceMode === 'day' ? '#fff' : '#6b7280' }}>Day</button>
+                        <button onClick={() => { setPriceMode('week'); setPriceRange([facets?.week_rate.min ?? 0, facets?.week_rate.max ?? 300000]); setPage(1); }}
+                          className="px-2 py-0.5 text-xs transition-colors"
+                          style={{ backgroundColor: priceMode === 'week' ? '#01BBDC' : '#fff', color: priceMode === 'week' ? '#fff' : '#6b7280' }}>Week</button>
+                      </div>
+                    </div>
+                    <span className="text-xs text-[#01BBDC] font-medium">${priceRange[0].toLocaleString()} – ${priceRange[1].toLocaleString()}</span>
+                  </div>
+                  <div className="relative h-5 flex items-center">
+                    <div className="absolute w-full h-1 bg-gray-200 rounded" />
+                    <div
+                      className="absolute h-1 bg-[#01BBDC] rounded"
+                      style={{
+                        left: `${((priceRange[0] - facetPriceMin) / Math.max(facetPriceMax - facetPriceMin, 1)) * 100}%`,
+                        right: `${100 - ((priceRange[1] - facetPriceMin) / Math.max(facetPriceMax - facetPriceMin, 1)) * 100}%`,
+                      }}
+                    />
+                    <input type="range" min={facetPriceMin} max={facetPriceMax} step={priceMode === 'day' ? 500 : 5000} value={priceRange[0]}
+                      onChange={e => { const v = Number(e.target.value); setPriceRange(([, hi]) => [Math.min(v, hi - 1), hi]); setPage(1); }}
+                      className="absolute w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#01BBDC] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow" />
+                    <input type="range" min={facetPriceMin} max={facetPriceMax} step={priceMode === 'day' ? 500 : 5000} value={priceRange[1]}
+                      onChange={e => { const v = Number(e.target.value); setPriceRange(([lo]) => [lo, Math.max(v, lo + 1)]); setPage(1); }}
+                      className="absolute w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#01BBDC] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow" />
                   </div>
                 </div>
 
               </div>
 
-              {/* Features — full-width second row */}
+              {/* Row 3: Features */}
               <div className="mt-4">
                 <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Features</label>
                 <div className="flex flex-wrap gap-1.5">
                   {CHARTER_FEATURES.map(f => (
-                    <button
-                      key={f}
-                      onClick={() => { toggleFeature(f); setPage(1); }}
+                    <button key={f} onClick={() => { toggleFeature(f); setPage(1); }}
                       className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                       style={{
                         border: features.includes(f) ? '1px solid #01BBDC' : '1px solid rgba(16,33,79,0.15)',
                         backgroundColor: features.includes(f) ? 'rgba(1,187,220,0.1)' : '#FFFFFF',
                         color: features.includes(f) ? '#01BBDC' : '#6b7280',
-                      }}
-                    >
+                      }}>
                       {f}
                     </button>
                   ))}
