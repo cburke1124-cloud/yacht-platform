@@ -1,462 +1,277 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { Check, CreditCard, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Check, CreditCard, Loader2, AlertCircle, ShieldCheck, Infinity } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  original_price?: number;
-  interval: string;
-  features: string[];
-  popular?: boolean;
-  custom_price?: boolean;
-}
-
-interface SubscriptionInfo {
-  active: boolean;
-  tier: string;
-  status?: string;
-  current_period_end?: string;
-  cancel_at_period_end?: boolean;
-  trial_active?: boolean;
-  trial_end?: string;
-}
-
-function CheckoutForm({ tier }: { tier: string }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-
-    setLoading(true);
-
-    try {
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(apiUrl('/payments/create-subscription'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ tier })
-      });
-
-      const { client_secret } = await response.json();
-
-      const result = await stripe.confirmCardPayment(client_secret, {
-        payment_method: {
-          card: elements.getElement(CardElement)!,
-        }
-      });
-
-      if (result.error) {
-        alert(result.error.message);
-      } else {
-        alert('Subscription activated!');
-        window.location.href = '/dashboard';
-      }
-    } catch (error) {
-      alert('Payment failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="p-4 border border-gray-200 rounded-lg bg-white">
-        <CardElement options={{
-          style: {
-            base: {
-              fontSize: '16px',
-              color: '#2E2E2E',
-              '::placeholder': { color: '#9CA3AF' },
-            },
-          },
-        }} />
-      </div>
-      
-      <button
-        type="submit"
-        disabled={!stripe || loading}
-        className="w-full px-6 py-4 bg-[#01BBDC] text-white rounded-xl hover:bg-[#00a5c4] disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition-all shadow-lg"
-      >
-        {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <Loader2 className="animate-spin h-5 w-5" />
-            Processing...
-          </span>
-        ) : (
-          'Subscribe Now'
-        )}
-      </button>
-    </form>
-  );
-}
-
-export default function BillingPage() {
+function BillingContent() {
   const router = useRouter();
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const searchParams = useSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [isPaid, setIsPaid] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const [error, setError] = useState('');
+  const [paidDate, setPaidDate] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { router.replace('/login'); return; }
-    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(u => {
-        if (!u || (u.user_type !== 'dealer' && u.user_type !== 'admin')) {
-          router.replace('/dashboard');
-        }
-      });
-  }, []);
-  const [currentTier, setCurrentTier] = useState('free');
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [selectedTier, setSelectedTier] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [managingBilling, setManagingBilling] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  useEffect(() => {
-    fetchData();
+    const sessionId = searchParams.get('session_id');
+    const success = searchParams.get('success');
+    const cancelled = searchParams.get('cancelled');
+
+    if (success && sessionId) {
+      // Coming back from Stripe — confirm the session
+      confirmSession(token, sessionId);
+    } else if (cancelled) {
+      setLoading(false);
+      setError('Payment was cancelled. You can try again whenever you\'re ready.');
+      checkStatus(token);
+    } else {
+      checkStatus(token);
+    }
   }, []);
 
-  const fetchData = async () => {
+  const checkStatus = async (token: string) => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const res = await fetch(apiUrl('/auth/me'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { router.replace('/login'); return; }
+      const user = await res.json();
 
-      const [plansRes, subRes] = await Promise.all([
-        fetch(apiUrl('/payments/plans'), { headers }),
-        fetch(apiUrl('/payments/subscription'), { headers }),
-      ]);
-
-      if (plansRes.ok) {
-        const plansData = await plansRes.json();
-        setPlans(plansData.plans || []);
-        setCurrentTier(plansData.current_tier || 'free');
-        // Default selection: current tier or the first plan
-        setSelectedTier(plansData.current_tier !== 'free' ? plansData.current_tier : (plansData.plans?.[0]?.id || ''));
+      if (user.user_type !== 'dealer' && user.user_type !== 'admin') {
+        router.replace('/dashboard');
+        return;
       }
 
-      if (subRes.ok) {
-        const subData = await subRes.json();
-        setSubscription(subData);
+      const tier = user.subscription_tier || 'free';
+      if (tier !== 'free') {
+        setIsPaid(true);
+        if (user.subscription_start_date) {
+          setPaidDate(new Date(user.subscription_start_date).toLocaleDateString());
+        }
       }
-    } catch (err) {
-      console.error('Failed to load billing data:', err);
-      setError('Failed to load billing information.');
+    } catch {
+      setError('Failed to load account status.');
     } finally {
       setLoading(false);
     }
   };
 
-  const openStripePortal = async () => {
-    setManagingBilling(true);
+  const confirmSession = async (token: string, sessionId: string) => {
+    setConfirming(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(apiUrl('/payments/billing-portal'), {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const { url } = await res.json();
-        window.location.href = url;
-      } else {
-        alert('Unable to open billing portal.');
-      }
-    } catch {
-      alert('Unable to open billing portal.');
-    } finally {
-      setManagingBilling(false);
-    }
-  };
-
-  const cancelSubscription = async () => {
-    setCancelling(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(apiUrl('/payments/cancel-subscription'), {
+      const res = await fetch(apiUrl('/payments/confirm-session'), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cancel_immediately: false }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ session_id: sessionId }),
       });
       if (res.ok) {
-        setShowCancelConfirm(false);
-        await fetchData();
+        setIsPaid(true);
+        // Clean up URL params
+        window.history.replaceState({}, '', '/dashboard/billing');
       } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Unable to cancel subscription. Please try again.');
+        setError('Payment confirmation failed. Please contact support if you were charged.');
+        await checkStatus(token);
       }
     } catch {
-      alert('Unable to cancel subscription. Please try again.');
+      setError('Failed to confirm payment. Please contact support.');
+      await checkStatus(token);
     } finally {
-      setCancelling(false);
+      setConfirming(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  const startCheckout = async () => {
+    setRedirecting(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const origin = window.location.origin;
+      const res = await fetch(apiUrl('/payments/create-setup-fee-session'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          success_url: `${origin}/dashboard/billing?success=1&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}/dashboard/billing?cancelled=1`,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const { checkout_url } = await res.json();
+      window.location.href = checkout_url;
+    } catch {
+      setError('Unable to start checkout. Please try again.');
+      setRedirecting(false);
+    }
+  };
+
+  if (loading || confirming) {
     return (
-      <div className="max-w-5xl mx-auto p-6 flex items-center justify-center min-h-[60vh]">
+      <div className="max-w-2xl mx-auto p-6 flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="animate-spin h-10 w-10 text-[#01BBDC]" />
+        <p className="text-gray-500 text-sm">{confirming ? 'Confirming your payment…' : 'Loading…'}</p>
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="max-w-5xl mx-auto p-6">
-        <div className="bg-red-50 text-red-700 p-4 rounded-xl flex items-center gap-3">
-          <AlertCircle size={20} />
-          {error}
-        </div>
-      </div>
-    );
-  }
-
-  const selectedPlan = plans.find(p => p.id === selectedTier);
-  const isCurrentPlan = selectedTier === currentTier;
-  const hasActiveSubscription = subscription?.active && subscription?.status === 'active';
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      {/* Cancel confirmation modal */}
-      {showCancelConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
-            <h3 className="text-xl font-bold text-[#10214F] mb-3">Cancel Subscription?</h3>
-            <p className="text-gray-600 mb-2">
-              Your subscription will remain active until the end of your current billing period, after which it will not renew.
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              You can re-subscribe at any time. No refunds are issued for unused days in the current period.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCancelConfirm(false)}
-                className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 transition-all"
-              >
-                Keep My Plan
-              </button>
-              <button
-                onClick={cancelSubscription}
-                disabled={cancelling}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 disabled:bg-red-300 transition-all flex items-center justify-center gap-2"
-              >
-                {cancelling ? <Loader2 className="animate-spin h-4 w-4" /> : null}
-                {cancelling ? 'Cancelling…' : 'Yes, Cancel'}
-              </button>
+    <div className="max-w-2xl mx-auto p-6">
+
+      {error && (
+        <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl flex items-start gap-3">
+          <AlertCircle size={18} className="mt-0.5 flex-shrink-0" />
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+
+      {isPaid ? (
+        /* ── PAID STATE ── */
+        <div>
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-4">
+              <ShieldCheck className="w-10 h-10 text-green-600" />
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Limited-time promo banner */}
-      <div className="mb-8 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white text-center shadow-lg">
-        <p className="text-sm font-semibold uppercase tracking-widest mb-1 opacity-90">Limited Time — Founding Member Offer</p>
-        <p className="text-2xl font-black mb-1">Up to 75% Off — Price Locked In For Life</p>
-        <p className="text-sm opacity-90">
-          Subscribe during our launch and your rate never increases, no matter what future pricing looks like.
-        </p>
-      </div>
-
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-[#10214F] mb-3">Choose Your Plan</h1>
-        <p className="text-lg text-gray-600">
-          Select the perfect plan for your yacht dealership
-        </p>
-      </div>
-
-      {/* Current subscription banner */}
-      {hasActiveSubscription && (
-        <div className="mb-8 bg-[#01BBDC]/10 border border-[#01BBDC]/30 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold text-[#10214F]">
-              Current Plan: <span className="text-[#01BBDC] capitalize">{currentTier}</span>
-              {subscription.cancel_at_period_end && (
-                <span className="ml-2 text-sm text-orange-600 font-medium">
-                  (cancels at period end)
-                </span>
-              )}
+            <h1 className="text-3xl font-bold text-[#10214F] mb-2">You're all set</h1>
+            <p className="text-gray-500">
+              Your one-time setup fee has been paid. Your account is active for life — no renewals, no monthly charges.
             </p>
-            {subscription.current_period_end && (
-              <p className="text-sm text-gray-600 mt-1">
-                Next billing date: {new Date(Number(subscription.current_period_end) * 1000).toLocaleDateString()}
-              </p>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+              <span className="font-semibold text-green-800">Account Active — Free for Life</span>
+            </div>
+            <ul className="space-y-2 ml-8">
+              {[
+                'Unlimited yacht listings',
+                'Full CRM and lead management',
+                'Analytics dashboard',
+                'Team management',
+                'Charter listings',
+                'Priority support',
+                'All future features included',
+              ].map(f => (
+                <li key={f} className="flex items-center gap-2 text-sm text-green-700">
+                  <Check className="w-4 h-4 flex-shrink-0" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            {paidDate && (
+              <p className="mt-4 ml-8 text-xs text-green-600">Member since {paidDate}</p>
             )}
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={openStripePortal}
-              disabled={managingBilling}
-              className="flex items-center gap-2 px-5 py-2.5 border-2 border-[#01BBDC] text-[#01BBDC] rounded-xl font-semibold hover:bg-[#01BBDC] hover:text-white transition-all"
-            >
-              {managingBilling ? <Loader2 className="animate-spin h-4 w-4" /> : <ExternalLink size={16} />}
-              Manage Billing
-            </button>
-            {!subscription?.cancel_at_period_end && (
-              <button
-                onClick={() => setShowCancelConfirm(true)}
-                className="flex items-center gap-2 px-5 py-2.5 border-2 border-red-300 text-red-600 rounded-xl font-semibold hover:bg-red-50 transition-all"
-              >
-                Cancel Plan
-              </button>
-            )}
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center">
+            <Infinity className="w-8 h-8 text-[#01BBDC] mx-auto mb-2" />
+            <h3 className="font-semibold text-[#10214F] mb-1">No renewals. Ever.</h3>
+            <p className="text-sm text-gray-500">
+              You paid once and you're done. Your listing access, leads, and tools will never be paywalled again.
+            </p>
           </div>
         </div>
-      )}
+      ) : (
+        /* ── UNPAID STATE ── */
+        <div>
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-[#10214F] mb-2">Activate Your Account</h1>
+            <p className="text-gray-500">
+              One payment. No subscriptions. Free access for the life of your account.
+            </p>
+          </div>
 
-      {/* Plan cards */}
-      <div className={`grid gap-6 mb-10 ${plans.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
-        {plans.map((plan) => {
-          const isCurrent = plan.id === currentTier;
-          const isSelected = plan.id === selectedTier;
+          {/* Offer card */}
+          <div className="border-2 border-[#01BBDC] rounded-2xl p-8 mb-6 bg-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-[#01BBDC] text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl">
+              ONE-TIME ONLY
+            </div>
 
-          return (
-            <div
-              key={plan.id}
-              onClick={() => setSelectedTier(plan.id)}
-              className={`relative p-8 border-2 rounded-2xl cursor-pointer transition-all ${
-                isSelected
-                  ? 'border-[#01BBDC] bg-[#01BBDC]/5 shadow-xl scale-[1.02]'
-                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-lg'
-              }`}
-            >
-              {plan.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <span className="bg-[#01BBDC] text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">
-                    Most Popular
-                  </span>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-[#10214F] mb-1">Founding Member</h2>
+              <div className="flex items-baseline gap-2 mt-3">
+                <span className="text-6xl font-bold text-[#01BBDC]">$200</span>
+                <div className="text-left">
+                  <p className="text-gray-400 line-through text-lg">$299</p>
+                  <p className="text-sm font-semibold text-amber-600">Launch pricing</p>
                 </div>
-              )}
-
-              {isCurrent && (
-                <div className="absolute top-4 right-4">
-                  <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-                    Current Plan
-                  </span>
-                </div>
-              )}
-
-              {isSelected && !isCurrent && (
-                <div className="absolute top-6 right-6">
-                  <div className="w-8 h-8 rounded-full bg-[#01BBDC] flex items-center justify-center">
-                    <Check className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-[#10214F] mb-2">{plan.name}</h2>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-[#01BBDC]">${plan.price}</span>
-                  <span className="text-gray-500 text-lg">/{plan.interval}</span>
-                  {plan.original_price && !plan.custom_price && (
-                    <span className="text-lg text-gray-400 line-through ml-1">${plan.original_price}</span>
-                  )}
-                </div>
-                {plan.original_price && !plan.custom_price && (
-                  <p className="text-xs font-semibold text-amber-600 mt-1">
-                    🔒 Launch price — locked in for life
-                  </p>
-                )}
-                {plan.custom_price && (
-                  <p className="text-xs text-[#01BBDC] font-medium mt-1">Custom pricing applied</p>
-                )}
               </div>
-
-              <ul className="space-y-3 mb-6">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start gap-3">
-                    <Check className="w-5 h-5 text-[#01BBDC] flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-700">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                  isCurrent
-                    ? 'bg-green-50 text-green-700 border border-green-200'
-                    : isSelected
-                    ? 'bg-[#01BBDC] text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
-              </button>
+              <p className="text-gray-500 text-sm mt-2">One-time setup fee — never pay again</p>
             </div>
-          );
-        })}
-      </div>
 
-      {/* Payment form — show only if not on the selected plan already */}
-      {!isCurrentPlan && selectedPlan && (
-        <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 rounded-full bg-[#01BBDC]/10 flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-[#01BBDC]" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-[#10214F]">Payment Details</h3>
-              <p className="text-sm text-gray-500">
-                {hasActiveSubscription ? 'Upgrade' : 'Subscribe'} to:{' '}
-                <span className="font-semibold text-[#01BBDC]">
-                  {selectedPlan.name} — ${selectedPlan.price}/{selectedPlan.interval}
-                </span>
-              </p>
-            </div>
+            <ul className="space-y-3 mb-8">
+              {[
+                'Unlimited yacht and charter listings',
+                'Full CRM and inquiry management',
+                'Analytics and performance dashboard',
+                'Team management and multi-user access',
+                'API access for inventory sync',
+                'All future features at no additional cost',
+                'Priority support',
+              ].map(f => (
+                <li key={f} className="flex items-start gap-3">
+                  <Check className="w-5 h-5 text-[#01BBDC] flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-700 text-sm">{f}</span>
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={startCheckout}
+              disabled={redirecting}
+              className="w-full py-4 bg-[#01BBDC] hover:bg-[#00a5c4] disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              {redirecting ? (
+                <>
+                  <Loader2 className="animate-spin h-5 w-5" />
+                  Redirecting to checkout…
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-5 w-5" />
+                  Pay $200 — Activate Account
+                </>
+              )}
+            </button>
+
+            <p className="text-center text-xs text-gray-400 mt-4">
+              🔒 Secure payment via Stripe. No subscription. No renewals. Cancel-free.
+            </p>
           </div>
 
-          <Elements stripe={stripePromise}>
-            <CheckoutForm tier={selectedTier} />
-          </Elements>
-
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center">
-              🔒 Secure payment powered by Stripe. Cancel anytime. No hidden fees.
-            </p>
+          {/* Reassurance */}
+          <div className="grid grid-cols-3 gap-4 text-center">
+            {[
+              { icon: '🔒', title: 'Secure', desc: 'Stripe-encrypted checkout' },
+              { icon: '♾️', title: 'Lifetime', desc: 'One payment, forever' },
+              { icon: '🚀', title: 'Instant', desc: 'Access activates immediately' },
+            ].map(item => (
+              <div key={item.title} className="bg-white border border-gray-200 rounded-xl p-4">
+                <div className="text-2xl mb-1">{item.icon}</div>
+                <p className="font-semibold text-[#10214F] text-sm">{item.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
-
-      {/* All plans include */}
-      <div className="mt-10 bg-[#F5F7FA] border-2 border-gray-200 rounded-2xl p-8">
-        <h3 className="text-lg font-bold text-[#10214F] mb-4 text-center">
-          All Plans Include
-        </h3>
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="text-center">
-            <div className="text-3xl mb-2">📊</div>
-            <h4 className="font-semibold text-[#10214F] mb-1">Analytics Dashboard</h4>
-            <p className="text-sm text-gray-500">Track views and performance</p>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl mb-2">📧</div>
-            <h4 className="font-semibold text-[#10214F] mb-1">Lead Management</h4>
-            <p className="text-sm text-gray-500">Manage inquiries easily</p>
-          </div>
-          <div className="text-center">
-            <div className="text-3xl mb-2">🔒</div>
-            <h4 className="font-semibold text-[#10214F] mb-1">Secure Platform</h4>
-            <p className="text-sm text-gray-500">Your data is protected</p>
-          </div>
-        </div>
-      </div>
     </div>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-2xl mx-auto p-6 flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="animate-spin h-10 w-10 text-[#01BBDC]" />
+      </div>
+    }>
+      <BillingContent />
+    </Suspense>
   );
 }
