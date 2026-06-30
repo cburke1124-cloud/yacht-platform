@@ -46,19 +46,16 @@ const CHARTER_FEATURES = [
 
 const PAGE_SIZE = 24;
 
-const DESTINATIONS = [
-  { label: 'Caribbean',              flag: '🌴', query: 'Caribbean' },
-  { label: 'Greece',                 flag: '🇬🇷', query: 'Greece' },
-  { label: 'Croatia',                flag: '🇭🇷', query: 'Croatia' },
-  { label: 'Italy',                  flag: '🇮🇹', query: 'Italy' },
-  { label: 'France',                 flag: '🇫🇷', query: 'France' },
-  { label: 'Spain',                  flag: '🇪🇸', query: 'Spain' },
-  { label: 'Turkey',                 flag: '🇹🇷', query: 'Turkey' },
-  { label: 'British Virgin Islands', flag: '🇻🇬', query: 'British Virgin Islands' },
-  { label: 'Bahamas',                flag: '🇧🇸', query: 'Bahamas' },
-  { label: 'Florida',                flag: '🇺🇸', query: 'Florida' },
-  { label: 'Thailand',               flag: '🇹🇭', query: 'Thailand' },
-  { label: 'Maldives',               flag: '🇲🇻', query: 'Maldives' },
+const DESTINATION_GROUPS = [
+  { region: 'Caribbean',             subregions: ['Virgin Islands', 'British Virgin Islands', 'Leeward Islands', 'St. Martin & St. Barts', 'St. Lucia', 'The Grenadines', 'Turks & Caicos'] },
+  { region: 'Bahamas',               subregions: ['Exumas', 'Abacos'] },
+  { region: 'Mediterranean',         subregions: ['Greece', 'Croatia', 'Balearic Islands', 'Italy', 'French Riviera', 'Turkey'] },
+  { region: 'North America',         subregions: ['Florida', 'New England', 'Chesapeake Bay', 'Pacific Northwest', 'Alaska'] },
+  { region: 'Asia-Pacific',          subregions: ['Thailand', 'Raja Ampat', 'Komodo', 'Whitsundays', 'New Zealand'] },
+  { region: 'South & Central America', subregions: ['Belize', 'Costa Rica', 'Galápagos'] },
+  { region: 'Northern Europe',       subregions: ['Norway', 'Sweden', 'Scotland'] },
+  { region: 'Indian Ocean',          subregions: ['Maldives', 'Seychelles', 'Mauritius'] },
+  { region: 'South Pacific',         subregions: ['Fiji', 'French Polynesia', 'Tonga'] },
 ];
 
 function FilterDropdown({ label, active, children }: { label: string; active?: boolean; children: React.ReactNode }) {
@@ -265,18 +262,37 @@ export default function CharterPage() {
       <div className="bg-[#10214F] text-white py-10 px-4">
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-4xl font-bold mb-6" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Search Charters</h1>
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name, make, or destination..."
+                placeholder="Search by name, make, or model..."
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg"
               />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-blue-100 mb-1 text-left">Destination</label>
+                <select
+                  value={location}
+                  onChange={e => { setLocation(e.target.value); setPage(1); }}
+                  className="w-full px-3 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg appearance-none"
+                  style={{ fontFamily: 'Poppins, sans-serif' }}
+                >
+                  <option value="">All destinations</option>
+                  {DESTINATION_GROUPS.map(group => (
+                    <optgroup key={group.region} label={group.region}>
+                      <option value={group.region}>{group.region} (all)</option>
+                      {group.subregions.map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-xs text-blue-100 mb-1 text-left">Trip start</label>
                 <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
@@ -286,34 +302,6 @@ export default function CharterPage() {
                 <input type="date" value={tripEnd} min={tripStart || undefined} onChange={e => { setTripEnd(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Destination quick-filters */}
-      <div className="bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap mr-1">Destinations</span>
-            {DESTINATIONS.map(dest => {
-              const active = location === dest.query;
-              return (
-                <button
-                  key={dest.query}
-                  onClick={() => { setLocation(active ? '' : dest.query); setPage(1); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap flex-shrink-0"
-                  style={{
-                    fontFamily: 'Poppins, sans-serif',
-                    border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.12)',
-                    backgroundColor: active ? 'rgba(1,187,220,0.08)' : '#FAFAFA',
-                    color: active ? '#01BBDC' : '#10214F',
-                  }}
-                >
-                  <span className="text-base leading-none">{dest.flag}</span>
-                  {dest.label}
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>
