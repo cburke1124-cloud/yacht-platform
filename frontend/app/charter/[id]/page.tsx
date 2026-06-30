@@ -4,8 +4,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, MapPin, Anchor, Users, Ruler, Calendar, 
-  Mail, Phone, Globe, ChevronLeft, ChevronRight,
+  ArrowLeft, MapPin, Anchor, Users, Ruler, Calendar, X,
+  Mail, Phone, ChevronLeft, ChevronRight,
   Ship, Zap, Bed, Waves, Check, ExternalLink
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
@@ -163,213 +163,373 @@ export default function CharterDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="w-14 h-14 rounded-full border-4 border-t-[#01BBDC] border-[#01BBDC]/20 animate-spin" />
       </div>
     );
   }
 
   if (notFound || !charter) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
         <Anchor className="w-12 h-12 text-gray-300" />
-        <h2 className="text-xl font-semibold text-gray-600">Charter listing not found</h2>
-        <Link href="/charter" className="text-primary hover:underline text-sm">Browse all charters</Link>
+        <h2 className="text-xl font-semibold text-[#10214F]">Charter listing not found</h2>
+        <Link href="/charter" className="text-[#01BBDC] hover:underline text-sm">Browse all charters</Link>
       </div>
     );
   }
 
   const location = [charter.home_port_city, charter.home_port_state, charter.home_port_country].filter(Boolean).join(', ') || charter.home_port;
+  const primaryRate = charter.day_rate
+    ? formatRate(charter.day_rate, charter.currency, 'day')
+    : charter.week_rate
+      ? formatRate(charter.week_rate, charter.currency, 'week')
+      : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Back nav */}
-      <div className="bg-white border-b border-gray-200 py-3 px-4">
-        <div className="max-w-7xl mx-auto">
-          <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors text-sm">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Charter Listings
-          </button>
+    <div className="min-h-screen bg-white">
+
+      {/* ══ INQUIRY MODAL ══════════════════════════════════════════════════════ */}
+      {showInquiry && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm" style={{ zIndex: 9999 }} onClick={() => setShowInquiry(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Request Charter</h3>
+                {charter.charter_company_name && <p className="text-sm text-gray-500 mt-1">{charter.charter_company_name}</p>}
+              </div>
+              <button onClick={() => setShowInquiry(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+            <div className="px-6 py-6">
+              <div className="mb-5 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
+                <p className="text-sm text-gray-600">Re: <span className="font-semibold text-[#10214F]">{charter.title}</span></p>
+              </div>
+              {submitted ? (
+                <div className="text-center py-8">
+                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
+                  <p className="text-sm text-gray-400 mb-6">The charter company will be in touch shortly.</p>
+                  <button onClick={() => { setSubmitted(false); setShowInquiry(false); }} className="px-8 py-2.5 bg-[#01BBDC] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-colors">Close</button>
+                </div>
+              ) : (
+                <form onSubmit={handleInquiry} className="space-y-3">
+                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Preferred start</label>
+                      <input type="date" value={charterStartDate} onChange={e => setCharterStartDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Preferred end</label>
+                      <input type="date" value={charterEndDate} min={charterStartDate || undefined} onChange={e => setCharterEndDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    </div>
+                  </div>
+                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
+                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
+                    {submitting ? ‘Sending...’ : ‘Send Request’}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-8">
+      {/* ══ PAGE ═══════════════════════════════════════════════════════════════ */}
+      <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-          {/* Left column */}
-          <div className="space-y-6">
-            {/* Image gallery */}
-            <div className="bg-white rounded-xl overflow-hidden border border-gray-200">
-              <div className="relative h-[420px] bg-gray-100">
-                {images.length > 0 ? (
-                  <img src={images[activeImg]} alt={charter.title} onError={onImgError} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Anchor className="w-16 h-16 text-gray-300" />
+        {/* Back button */}
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-sm mb-6 text-[#10214F] hover:text-[#01BBDC] transition-colors group">
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to charter listings
+        </button>
+
+        {/* ══ TITLE + RATE ══════════════════════════════════════════════════════ */}
+        <div className="flex flex-wrap items-baseline justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#10214F] tracking-tight mb-2" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>
+              {charter.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[#10214F]">
+              {location && (
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={15} className="text-[#01BBDC]" />
+                  {location}
+                </span>
+              )}
+              {charter.operating_regions && (
+                <span className="flex items-center gap-1.5">
+                  <Waves size={15} className="text-[#01BBDC]" />
+                  Operates in: {charter.operating_regions}
+                </span>
+              )}
+              {charter.crew_included && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
+                  <Check size={11} /> Crew Included
+                </span>
+              )}
+            </div>
+          </div>
+          {primaryRate && (
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-4xl md:text-5xl font-bold text-[#01BBDC]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>
+                {primaryRate}
+              </span>
+              {charter.min_charter_days && (
+                <span className="text-xs text-gray-400">Min {charter.min_charter_days} day{charter.min_charter_days !== 1 ? ‘s’ : ‘’}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ══ FEATURED IMAGE + BOOKING CARD ═════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
+
+          {/* Featured image — 8 cols */}
+          <div className="lg:col-span-8">
+            <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100" style={{ height: 500 }}>
+              {images.length > 0 ? (
+                <img src={images[activeImg]} alt={charter.title} onError={onImgError} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Anchor className="w-16 h-16 text-gray-300" />
+                </div>
+              )}
+              {images.length > 1 && (
+                <>
+                  <button onClick={() => setActiveImg(i => (i - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors">
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setActiveImg(i => (i + 1) % images.length)} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors">
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2.5 py-1 rounded-full">
+                    {activeImg + 1} / {images.length}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Booking card — 4 cols */}
+          <div className="lg:col-span-4">
+            <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden sticky top-5">
+              <div className="p-6 text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="w-20 h-20 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
+                    <Anchor className="w-10 h-10 text-[#01BBDC]" />
+                  </div>
+                </div>
+                {charter.charter_company_name && (
+                  <p style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, fontWeight: 700, textTransform: ‘uppercase’, letterSpacing: ‘0.06em’, fontSize: 15, color: ‘#10214F’, marginBottom: 4 }}>
+                    {charter.charter_company_name}
+                  </p>
+                )}
+                {charter.charter_company_phone && (
+                  <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-4" style={{ color: ‘#10214F’ }}>
+                    <Phone size={13} /> {charter.charter_company_phone}
+                  </a>
+                )}
+
+                {/* Rates */}
+                <div className="text-left space-y-2 mb-4">
+                  {charter.half_day_rate && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Half Day</span>
+                      <span className="font-semibold text-[#10214F]">{formatRate(charter.half_day_rate, charter.currency)}</span>
+                    </div>
+                  )}
+                  {charter.day_rate && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Per Day</span>
+                      <span className="font-semibold text-[#10214F]">{formatRate(charter.day_rate, charter.currency)}</span>
+                    </div>
+                  )}
+                  {charter.week_rate && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Per Week</span>
+                      <span className="font-semibold text-[#10214F]">{formatRate(charter.week_rate, charter.currency)}</span>
+                    </div>
+                  )}
+                  {!charter.day_rate && !charter.week_rate && !charter.half_day_rate && (
+                    <p className="text-sm text-gray-400">Contact for pricing</p>
+                  )}
+                </div>
+
+                {/* Estimated total */}
+                {estimatedTotal !== null && (
+                  <div className="mb-4 rounded-xl bg-[#01BBDC]/8 px-3 py-2 text-sm text-left">
+                    <span className="text-gray-600">Est. total: </span>
+                    <span className="font-semibold text-[#10214F]">{charter.currency === ‘USD’ ? ‘$’ : charter.currency}{estimatedTotal.toLocaleString()}</span>
+                    <span className="text-gray-400"> ({charterDays}d)</span>
                   </div>
                 )}
-                {images.length > 1 && (
-                  <>
-                    <button onClick={() => setActiveImg(i => (i - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition-colors">
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => setActiveImg(i => (i + 1) % images.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white rounded-full p-2 transition-colors">
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                    <div className="absolute bottom-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                      {activeImg + 1} / {images.length}
-                    </div>
-                  </>
+
+                {/* CTA */}
+                {charter.booking_url ? (
+                  <a href={charter.booking_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
+                    style={{ backgroundColor: ‘#10214F’, fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, letterSpacing: ‘0.08em’, fontSize: 13 }}>
+                    BOOK NOW <ExternalLink size={13} />
+                  </a>
+                ) : (
+                  <button onClick={() => setShowInquiry(true)}
+                    className="w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
+                    style={{ backgroundColor: ‘#10214F’, fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, letterSpacing: ‘0.08em’, fontSize: 13 }}>
+                    REQUEST CHARTER
+                  </button>
                 )}
               </div>
-              {images.length > 1 && (
-                <div className="flex gap-2 p-3 overflow-x-auto">
-                  {images.map((src, i) => (
-                    <button key={i} onClick={() => setActiveImg(i)} className={`flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-colors ${i === activeImg ? 'border-primary' : 'border-transparent'}`}>
-                      <img src={src} alt="" onError={onImgError} className="w-full h-full object-cover" />
-                    </button>
+
+              {(charter.charter_company_email || charter.charter_company_website) && (
+                <div className="border-t border-gray-100 p-5 bg-gray-50">
+                  <div className="space-y-2">
+                    {charter.charter_company_email && (
+                      <a href={`mailto:${charter.charter_company_email}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#01BBDC] transition-colors">
+                        <Mail size={14} /> {charter.charter_company_email}
+                      </a>
+                    )}
+                    {charter.charter_company_website && (
+                      <a href={charter.charter_company_website} target="_blank" rel="noopener noreferrer"
+                        className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80 mt-2"
+                        style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, letterSpacing: ‘0.06em’, border: ‘1.5px solid #10214F’, color: ‘#10214F’ }}>
+                        VISIT WEBSITE
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ══ PHOTO STRIP ═══════════════════════════════════════════════════════ */}
+        {images.length > 1 && (
+          <div className="flex justify-center gap-3 mb-12 overflow-hidden">
+            {images.slice(1, 5).map((src, idx) => {
+              const isLast = idx === 3;
+              const remaining = Math.max(images.length - 5, 0);
+              return (
+                <button key={idx} type="button"
+                  className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                  style={{ height: 160, width: ‘calc(25% - 9px)’ }}
+                  onClick={() => setActiveImg(idx + 1)}>
+                  <img src={src} alt={`${charter.title} photo ${idx + 2}`} onError={onImgError} className="w-full h-full object-cover" />
+                  {isLast && remaining > 0 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="text-white text-xl font-bold" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>+{remaining}</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ══ SPECS + SIDEBAR ════════════════════════════════════════════════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
+
+          {/* Left — 8 cols */}
+          <div className="lg:col-span-8 space-y-10">
+
+            {/* VESSEL SPECIFICATIONS */}
+            <div>
+              <SectionHeading>Vessel Specifications</SectionHeading>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+                  {[
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: ‘Length’,      value: charter.length_feet ? `${charter.length_feet} ft` : null },
+                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: ‘Type’,        value: charter.boat_type },
+                    { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: ‘Year’,        value: charter.year?.toString() },
+                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: ‘Max Guests’,  value: charter.max_guests?.toString() },
+                    { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: ‘Cabins’,      value: charter.cabins?.toString() },
+                    { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: ‘Make / Model’, value: [charter.make, charter.model].filter(Boolean).join(‘ ‘) || null },
+                    { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: ‘Engines’,     value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ‘’}`.trim() : null },
+                    { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: ‘Fuel Type’,   value: charter.fuel_type },
+                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: ‘Max Speed’,   value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
+                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: ‘Crew’,        value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ‘’}` : ‘Bareboat’ },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: ‘Beam’,        value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: ‘Draft’,       value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
+                  ].filter(s => s.value).map((spec, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: ‘rgba(1,187,220,0.1)’ }}>
+                        {spec.icon}
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#10214F]/55 uppercase tracking-wide" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>{spec.label}</p>
+                        <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>{spec.value}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* Title + location */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
-                    {charter.title}
-                  </h1>
-                  {charter.vessel_name && charter.vessel_name !== charter.title && (
-                    <p className="text-gray-500 text-sm mt-0.5">{charter.vessel_name}</p>
-                  )}
-                  {location && (
-                    <div className="flex items-center gap-1.5 text-gray-500 text-sm mt-2">
-                      <MapPin className="w-4 h-4 flex-shrink-0" />
-                      {location}
-                    </div>
-                  )}
-                  {charter.operating_regions && (
-                    <div className="flex items-center gap-1.5 text-gray-500 text-sm mt-1">
-                      <Waves className="w-4 h-4 flex-shrink-0" />
-                      Operates in: {charter.operating_regions}
-                    </div>
-                  )}
-                </div>
-                {charter.crew_included && (
-                  <span className="flex-shrink-0 flex items-center gap-1.5 bg-primary/10 text-primary text-sm font-medium px-3 py-1.5 rounded-full">
-                    <Check className="w-3.5 h-3.5" /> Crew Included
-                  </span>
-                )}
               </div>
             </div>
 
-            {/* Simple charter guide */}
-            <div className="bg-[#10214F] text-white rounded-xl p-6">
-              <div className="flex items-center justify-between gap-4 mb-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-[#C9A84C] font-semibold">How chartering works</p>
-                  <h2 className="text-lg font-semibold">Simple, not complicated</h2>
+            {/* DESCRIPTION */}
+            {charter.description && (
+              <div>
+                <SectionHeading>About This Vessel</SectionHeading>
+                <div className="text-[15px] leading-[1.8] text-[#10214F] whitespace-pre-line" style={{ fontFamily: ‘Poppins, sans-serif’ }}>
+                  {charter.description}
                 </div>
-                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/80 hover:text-white underline decoration-white/30">{showSimpleGuide ? 'Hide' : 'Show'}</button>
               </div>
-              {showSimpleGuide && (
-                <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-100">
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="font-semibold text-white mb-1">1. Pick where you want to go</p>
-                    <p>Search by destination, dates, and group size. If you’re not sure, start with the trip location.</p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="font-semibold text-white mb-1">2. Ask for availability</p>
-                    <p>Most charters are confirmed by inquiry. We show what’s already booked and what’s tentatively held.</p>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="font-semibold text-white mb-1">3. Review what’s included</p>
-                    <p>Some trips include crew, fuel allowances, and water toys. Others exclude expenses like taxes or gratuity.</p>
+            )}
+
+            {/* AMENITIES */}
+            {charter.amenities && charter.amenities.length > 0 && (
+              <div>
+                <SectionHeading>Amenities &amp; Features</SectionHeading>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {charter.amenities.map((a, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm text-[#10214F]">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ backgroundColor: ‘#01BBDC’ }}>✓</span>
+                        {a}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Specs */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Vessel Specifications</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {[
-                  { icon: <Ruler className="w-4 h-4" />, label: 'Length', value: charter.length_feet ? `${charter.length_feet} ft` : null },
-                  { icon: <Ship className="w-4 h-4" />, label: 'Vessel Type', value: charter.boat_type },
-                  { icon: <Calendar className="w-4 h-4" />, label: 'Year', value: charter.year?.toString() },
-                  { icon: <Users className="w-4 h-4" />, label: 'Max Guests', value: charter.max_guests?.toString() },
-                  { icon: <Bed className="w-4 h-4" />, label: 'Cabins', value: charter.cabins?.toString() },
-                  { icon: <Anchor className="w-4 h-4" />, label: 'Make / Model', value: [charter.make, charter.model].filter(Boolean).join(' ') || null },
-                  { icon: <Zap className="w-4 h-4" />, label: 'Engines', value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ''}`.trim() : null },
-                  { icon: <Waves className="w-4 h-4" />, label: 'Fuel Type', value: charter.fuel_type },
-                  { icon: <Gauge className="w-4 h-4" />, label: 'Max Speed', value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
-                  { icon: <Users className="w-4 h-4" />, label: 'Crew', value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ''}` : 'Bareboat' },
-                  { icon: <Ruler className="w-4 h-4" />, label: 'Beam', value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
-                  { icon: <Ruler className="w-4 h-4" />, label: 'Draft', value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
-                ].filter(s => s.value).map((spec, i) => (
-                  <div key={i} className="flex items-start gap-2.5">
-                    <span className="text-primary mt-0.5 flex-shrink-0">{spec.icon}</span>
-                    <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wide">{spec.label}</p>
-                      <p className="text-sm font-medium text-gray-800">{spec.value}</p>
-                    </div>
-                  </div>
-                ))}
               </div>
-            </div>
+            )}
 
-            {/* What to expect */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">What to Expect</h2>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Charter trips are usually booked with a destination and date range.</li>
-                <li>• The yacht may be crewed or bareboat depending on the listing and your experience.</li>
-                <li>• Some costs are included, while others like tax, APA, or gratuity may be added later.</li>
-                <li>• Final confirmation happens after the charter company reviews your request.</li>
-              </ul>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800">Availability Calendar</h2>
-                  <p className="mt-1 text-sm text-gray-500">Blocked dates and tentative holds are shown here so you can judge timing before you inquire.</p>
-                </div>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">{availabilitySummary}</span>
+            {/* AVAILABILITY */}
+            <div>
+              <div className="mb-5 pl-4 border-l-4 border-[#01BBDC] flex items-center justify-between gap-4">
+                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Availability</h3>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 flex-shrink-0">{availabilitySummary}</span>
               </div>
               {charter.availability_blocks?.length ? (
                 <AvailabilityCalendar blocks={charter.availability_blocks} monthsToShow={3} />
               ) : (
-                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600">
-                  No blocked dates are published yet. Availability is still confirmed directly with the charter company.
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600">
+                  No blocked dates published yet. Availability is confirmed directly with the charter company.
                 </div>
               )}
             </div>
 
+            {/* SEASONAL PRICING */}
             {seasonalRates.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="mb-4">
-                  <h2 className="text-lg font-semibold text-gray-800">Seasonal Pricing</h2>
-                  <p className="mt-1 text-sm text-gray-500">Holiday weeks, peak dates, and shoulder-season windows can price differently than the base rate.</p>
-                </div>
+              <div>
+                <SectionHeading>Seasonal Pricing</SectionHeading>
                 <div className="space-y-3">
                   {seasonalRates.map((rate, index) => {
-                    const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
+                    const moneyPrefix = (rate.currency || charter.currency || ‘USD’) === ‘USD’ ? ‘$’ : (rate.currency || charter.currency || ‘USD’);
                     return (
-                      <div key={rate.id ?? `${rate.season_name}-${index}`} className="rounded-xl border border-gray-200 p-4">
+                      <div key={rate.id ?? `${rate.season_name}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-gray-900">{rate.season_name}</p>
-                            <p className="text-xs text-gray-500">{rate.start_date || 'Open start'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
+                            <p className="text-sm font-semibold text-[#10214F]">{rate.season_name}</p>
+                            <p className="text-xs text-gray-500">{rate.start_date || ‘Open start’}{rate.end_date ? ` to ${rate.end_date}` : ‘’}</p>
                           </div>
-                          {rate.min_charter_days ? <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">Min {rate.min_charter_days} days</span> : null}
+                          {rate.min_charter_days ? <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Min {rate.min_charter_days} days</span> : null}
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600">
-                          {rate.half_day_rate ? <span className="rounded-full bg-[#10214F]/6 px-2.5 py-1">Half day {moneyPrefix}{rate.half_day_rate.toLocaleString()}</span> : null}
-                          {rate.day_rate ? <span className="rounded-full bg-[#10214F]/6 px-2.5 py-1">Day {moneyPrefix}{rate.day_rate.toLocaleString()}</span> : null}
-                          {rate.week_rate ? <span className="rounded-full bg-[#10214F]/6 px-2.5 py-1">Week {moneyPrefix}{rate.week_rate.toLocaleString()}</span> : null}
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                          {rate.half_day_rate ? <span className="rounded-full bg-[#01BBDC]/10 text-[#01BBDC] px-2.5 py-1 font-medium">Half day {moneyPrefix}{rate.half_day_rate.toLocaleString()}</span> : null}
+                          {rate.day_rate ? <span className="rounded-full bg-[#01BBDC]/10 text-[#01BBDC] px-2.5 py-1 font-medium">Day {moneyPrefix}{rate.day_rate.toLocaleString()}</span> : null}
+                          {rate.week_rate ? <span className="rounded-full bg-[#01BBDC]/10 text-[#01BBDC] px-2.5 py-1 font-medium">Week {moneyPrefix}{rate.week_rate.toLocaleString()}</span> : null}
                         </div>
                         {rate.notes ? <p className="mt-3 text-sm text-gray-600">{rate.notes}</p> : null}
                       </div>
@@ -379,223 +539,79 @@ export default function CharterDetailPage() {
               </div>
             )}
 
-            {/* Description */}
-            {charter.description && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-3">About This Vessel</h2>
-                <div className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{charter.description}</div>
+            {/* HOW CHARTERING WORKS */}
+            <div className="bg-[#10214F] text-white rounded-2xl p-6">
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[#C9A84C] font-semibold mb-1">How chartering works</p>
+                  <h2 className="text-lg font-semibold" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Simple, not complicated</h2>
+                </div>
+                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/70 hover:text-white flex-shrink-0">{showSimpleGuide ? ‘Hide’ : ‘Show’}</button>
               </div>
-            )}
-
-            {/* Amenities */}
-            {charter.amenities && charter.amenities.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Amenities & Features</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {charter.amenities.map((a, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                      {a}
+              {showSimpleGuide && (
+                <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-100">
+                  {[
+                    { n: ‘1’, title: ‘Pick where you want to go’, body: "Search by destination, dates, and group size." },
+                    { n: ‘2’, title: ‘Ask for availability’, body: "Most charters are confirmed by inquiry. We show booked and tentative holds." },
+                    { n: ‘3’, title: "Review what’s included", body: "Some trips include crew and water toys. Others exclude taxes or gratuity." },
+                  ].map(s => (
+                    <div key={s.n} className="bg-white/5 rounded-xl p-4">
+                      <p className="font-semibold text-white mb-1">{s.n}. {s.title}</p>
+                      <p>{s.body}</p>
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right column — pricing + contact */}
-          <div className="space-y-5">
-            {/* Pricing card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-5">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Charter Rates</h2>
-
-              {charter.half_day_rate && (
-                <div className="flex items-center justify-between py-2.5 border-b border-gray-100">
-                  <span className="text-sm text-gray-600">Half Day</span>
-                  <span className="font-semibold text-gray-900">{formatRate(charter.half_day_rate, charter.currency)}</span>
-                </div>
-              )}
-              {charter.day_rate && (
-                <div className="flex items-center justify-between py-2.5 border-b border-gray-100">
-                  <span className="text-sm text-gray-600">Per Day</span>
-                  <span className="font-semibold text-gray-900">{formatRate(charter.day_rate, charter.currency)}</span>
-                </div>
-              )}
-              {charter.week_rate && (
-                <div className="flex items-center justify-between py-2.5 border-b border-gray-100">
-                  <span className="text-sm text-gray-600">Per Week</span>
-                  <span className="font-semibold text-gray-900">{formatRate(charter.week_rate, charter.currency)}</span>
-                </div>
-              )}
-              {!charter.day_rate && !charter.week_rate && !charter.half_day_rate && (
-                <p className="text-gray-500 text-sm">Contact for pricing</p>
-              )}
-
-              {(charter.min_charter_days || charter.max_charter_days) && (
-                <p className="text-xs text-gray-400 mt-3">
-                  {charter.min_charter_days && `Min ${charter.min_charter_days} day${charter.min_charter_days !== 1 ? 's' : ''}`}
-                  {charter.min_charter_days && charter.max_charter_days && ' · '}
-                  {charter.max_charter_days && `Max ${charter.max_charter_days} day${charter.max_charter_days !== 1 ? 's' : ''}`}
-                </p>
-              )}
-
-              <div className="mt-4 rounded-lg bg-gray-50 border border-gray-100 p-3 text-sm text-gray-700">
-                <p className="font-medium text-gray-900 mb-1">Availability</p>
-                <p>{availabilitySummary}</p>
-              </div>
-
-              {(charter.included_items?.length || charter.excluded_items?.length) && (
-                <div className="mt-4 space-y-3 text-sm">
-                  {charter.included_items?.length ? (
-                    <div>
-                      <p className="font-medium text-gray-900 mb-1">Usually included</p>
-                      <p className="text-gray-600">{charter.included_items.join(', ')}</p>
-                    </div>
-                  ) : null}
-                  {charter.excluded_items?.length ? (
-                    <div>
-                      <p className="font-medium text-gray-900 mb-1">Usually excluded</p>
-                      <p className="text-gray-600">{charter.excluded_items.join(', ')}</p>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
-              {(charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
-                <div className="mt-4 space-y-3 text-sm text-gray-600 border-t border-gray-100 pt-4">
-                  {charter.apa_percentage ? <p><span className="font-medium text-gray-900">APA:</span> {charter.apa_percentage}% estimated advance provisioning.</p> : null}
-                  {charter.security_deposit ? <p><span className="font-medium text-gray-900">Security deposit:</span> {charter.currency === 'USD' ? '$' : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
-                  {charter.tax_notes ? <p><span className="font-medium text-gray-900">Taxes:</span> {charter.tax_notes}</p> : null}
-                  {charter.cancellation_policy ? <p><span className="font-medium text-gray-900">Cancellation:</span> {charter.cancellation_policy}</p> : null}
-                </div>
-              )}
-
-              {seasonalRates.length > 0 && (
-                <div className="mt-4 border-t border-gray-100 pt-4">
-                  <p className="mb-2 text-sm font-medium text-gray-900">Seasonal rate windows</p>
-                  <div className="space-y-2">
-                    {seasonalRates.map((rate, index) => (
-                      <div key={rate.id ?? `${rate.season_name}-sidebar-${index}`} className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                        <p className="font-medium text-gray-900">{rate.season_name}</p>
-                        <p className="text-xs text-gray-500">{rate.start_date || 'Open start'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Preferred dates — always visible */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Preferred Dates</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">Start date</label>
-                    <input
-                      type="date"
-                      value={charterStartDate}
-                      onChange={e => setCharterStartDate(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">End date</label>
-                    <input
-                      type="date"
-                      value={charterEndDate}
-                      min={charterStartDate || undefined}
-                      onChange={e => setCharterEndDate(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-                {estimatedTotal !== null && (
-                  <p className="text-xs text-gray-600 mt-2">
-                    Estimated total: <span className="font-semibold text-gray-900">{charter.currency === 'USD' ? '$' : charter.currency}{estimatedTotal.toLocaleString()}</span>
-                    <span className="text-gray-400"> ({charterDays} day{charterDays !== 1 ? 's' : ''})</span>
-                  </p>
-                )}
-              </div>
-
-              {charter.booking_url ? (
-                <a
-                  href={charter.booking_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-5 flex items-center justify-center gap-2 w-full bg-primary text-white py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
-                >
-                  Book Now <ExternalLink className="w-4 h-4" />
-                </a>
-              ) : (
-                <button
-                  onClick={() => setShowInquiry(v => !v)}
-                  className="mt-5 w-full bg-primary text-white py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
-                >
-                  Request Charter
-                </button>
-              )}
-
-              {/* Inquiry form */}
-              {showInquiry && !submitted && (
-                <form onSubmit={handleInquiry} className="mt-5 space-y-3 border-t border-gray-100 pt-5">
-                  <h3 className="text-sm font-semibold text-gray-700">Send Inquiry</h3>
-                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                  <textarea required rows={3} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
-                  <button type="submit" disabled={submitting} className="w-full bg-[#C9A84C] text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-[#b8933f] transition-colors disabled:opacity-50">
-                    {submitting ? 'Sending...' : 'Send Request'}
-                  </button>
-                </form>
-              )}
-              {submitted && (
-                <div className="mt-5 border-t border-gray-100 pt-4 text-center">
-                  <Check className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-700">Request sent!</p>
-                  <p className="text-xs text-gray-400 mt-1">The charter company will be in touch shortly.</p>
                 </div>
               )}
             </div>
 
-            {/* Charter company */}
-            {(charter.charter_company_name || charter.charter_company_email || charter.charter_company_phone) && (
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Charter Company</h3>
-                {charter.charter_company_name && (
-                  <p className="font-medium text-gray-900 mb-3">{charter.charter_company_name}</p>
-                )}
-                <div className="space-y-2">
-                  {charter.charter_company_email && (
-                    <a href={`mailto:${charter.charter_company_email}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary transition-colors">
-                      <Mail className="w-4 h-4" />{charter.charter_company_email}
-                    </a>
-                  )}
-                  {charter.charter_company_phone && (
-                    <a href={`tel:${charter.charter_company_phone}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary transition-colors">
-                      <Phone className="w-4 h-4" />{charter.charter_company_phone}
-                    </a>
-                  )}
-                  {charter.charter_company_website && (
-                    <a href={charter.charter_company_website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary transition-colors">
-                      <Globe className="w-4 h-4" />Website
-                    </a>
+          </div>
+
+          {/* Right sidebar — 4 cols */}
+          <div className="lg:col-span-4 space-y-6">
+
+            {/* Charter policy card */}
+            {(charter.included_items?.length || charter.excluded_items?.length || charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
+              <div className="rounded-3xl border border-gray-200 bg-white p-6">
+                <h4 className="text-lg font-bold text-[#10214F] mb-4" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Charter Terms</h4>
+                <div className="space-y-4 text-sm">
+                  {charter.included_items?.length ? (
+                    <div>
+                      <p className="font-medium text-[#10214F] mb-1">Usually included</p>
+                      <p className="text-gray-500">{charter.included_items.join(‘, ‘)}</p>
+                    </div>
+                  ) : null}
+                  {charter.excluded_items?.length ? (
+                    <div>
+                      <p className="font-medium text-[#10214F] mb-1">Usually excluded</p>
+                      <p className="text-gray-500">{charter.excluded_items.join(‘, ‘)}</p>
+                    </div>
+                  ) : null}
+                  {(charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
+                    <div className="space-y-2 text-gray-600 border-t border-gray-100 pt-4">
+                      {charter.apa_percentage ? <p><span className="font-medium text-[#10214F]">APA:</span> {charter.apa_percentage}% estimated advance provisioning.</p> : null}
+                      {charter.security_deposit ? <p><span className="font-medium text-[#10214F]">Security deposit:</span> {charter.currency === ‘USD’ ? ‘$’ : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
+                      {charter.tax_notes ? <p><span className="font-medium text-[#10214F]">Taxes:</span> {charter.tax_notes}</p> : null}
+                      {charter.cancellation_policy ? <p><span className="font-medium text-[#10214F]">Cancellation:</span> {charter.cancellation_policy}</p> : null}
+                    </div>
                   )}
                 </div>
               </div>
             )}
+
           </div>
         </div>
+
       </div>
     </div>
   );
 }
 
-// Needed for the spec grid
-function Gauge(props: React.SVGProps<SVGSVGElement>) {
+function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 2a10 10 0 1 0 10 10" />
-      <path d="M12 12 8.5 8.5" />
-      <circle cx="12" cy="12" r="1" fill="currentColor" />
-    </svg>
+    <div className="mb-5 pl-4 border-l-4 border-[#01BBDC]">
+      <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>
+        {children}
+      </h3>
+    </div>
   );
 }
