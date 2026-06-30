@@ -489,7 +489,7 @@ export default function CharterPage() {
               >
                 <SlidersHorizontal size={14} />
                 Advanced Search
-                {hasAdvancedFilters && <span className="ml-1 bg-[#01BBDC] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{[vesselName, (minYear || maxYear), (minLength || maxLength), ...features].filter(Boolean).length}</span>}
+                {hasAdvancedFilters && <span className="ml-1 bg-[#01BBDC] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{[vesselName, make, model, exactCabins, (minYear || maxYear), lengthActive, priceActive, ...features].filter(Boolean).length}</span>}
               </button>
 
               {hasActiveFilters && (
