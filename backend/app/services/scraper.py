@@ -2910,6 +2910,42 @@ def run_scraper_job(job_id: int, db) -> Dict:
     job.last_error = None
     db.commit()
 
+    # ── Master Ocean REST API path ────────────────────────────────────────────
+    _template = job.site_template or {}
+    if _template.get("api_type") == "master_ocean":
+        from app.services.master_ocean import run_master_ocean_sync
+        try:
+            mo_stats = run_master_ocean_sync(job_id, job, _template, db)
+            job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+            if not job:
+                return mo_stats
+            if "error" in mo_stats:
+                job.status = "failed"
+                job.last_error = mo_stats["error"]
+            else:
+                job.status = "completed"
+                job.listings_found = mo_stats.get("found", 0)
+                job.listings_created = mo_stats.get("created", 0)
+                job.listings_updated = mo_stats.get("updated", 0)
+                job.listings_removed = mo_stats.get("archived", 0)
+                job.total_runs = (job.total_runs or 0) + 1
+                job.last_run_at = datetime.utcnow()
+                from datetime import timedelta
+                job.next_run_at = datetime.utcnow() + timedelta(hours=job.schedule_hours or 24)
+            job.completed_at = datetime.utcnow()
+            db.commit()
+        except Exception as exc:
+            logger.exception(f"[Job {job_id}] Master Ocean sync failed: {exc}")
+            job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.last_error = str(exc)
+                job.completed_at = datetime.utcnow()
+                db.commit()
+        _mo_result = locals().get('mo_stats') or {"error": locals().get('exc', 'unknown error')}
+        return _mo_result
+    # ─────────────────────────────────────────────────────────────────────────
+
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
     scraper = OptimizedYachtScraper(api_key=api_key)
 

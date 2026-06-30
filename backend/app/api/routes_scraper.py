@@ -2223,3 +2223,83 @@ def get_bulk_enrich_status(
         raise HTTPException(status_code=404, detail="Job not found")
     return status
 
+
+# -----------------------------------------------------------------------
+# MASTER OCEAN — REST API sync
+# -----------------------------------------------------------------------
+
+class MasterOceanJobRequest(BaseModel):
+    dealer_id: int
+    salesman_id: Optional[int] = None
+    api_key: str
+    sync_types: List[str] = ["Charter", "Sale"]
+    schedule_hours: int = 24
+    site_name: Optional[str] = "Master Ocean"
+
+
+@router.post("/scraper/master-ocean/jobs")
+def create_master_ocean_job(
+    data: MasterOceanJobRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create a ScraperJob configured for the Master Ocean REST API.
+    The api_key and sync_types are stored in site_template.
+    """
+    _require_admin(current_user)
+
+    # Validate dealer exists
+    dealer = db.query(User).filter(User.id == data.dealer_id).first()
+    if not dealer:
+        raise HTTPException(status_code=404, detail="Dealer not found")
+
+    template = {
+        "api_type": "master_ocean",
+        "api_key": data.api_key,
+        "sync_types": data.sync_types,
+    }
+
+    job = ScraperJob(
+        dealer_id=data.dealer_id,
+        salesman_id=data.salesman_id,
+        created_by_id=current_user.id,
+        site_name=data.site_name or "Master Ocean",
+        broker_url="https://master-ocean.com",
+        schedule_hours=data.schedule_hours,
+        notes="Master Ocean REST API sync",
+        enabled=True,
+        status="idle",
+        site_template=template,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return {"success": True, "job": _job_to_dict(job)}
+
+
+@router.post("/scraper/master-ocean/test")
+def test_master_ocean_connection(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Test a Master Ocean API key by fetching the first page of Charter yachts.
+    Returns the count found and first 3 yacht names.
+    """
+    _require_admin(current_user)
+    api_key = data.get("api_key", "")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="api_key is required")
+
+    from app.services.master_ocean import MasterOceanClient
+    client = MasterOceanClient(api_key)
+    yachts = client.get_yachts("Charter", limit=10, offset=0)
+    sample = [y.get("name") or y.get("id") for y in yachts[:3]]
+    return {
+        "success": True,
+        "count_on_first_page": len(yachts),
+        "sample_names": sample,
+    }
+
