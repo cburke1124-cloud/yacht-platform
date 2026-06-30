@@ -58,6 +58,37 @@ const DESTINATION_GROUPS = [
   { region: 'South Pacific',         subregions: ['Fiji', 'French Polynesia', 'Tonga'] },
 ];
 
+function DateButton({ label, value, onChange, min }: { label: string; value: string; onChange: (v: string) => void; min?: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const active = !!value;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => ref.current?.showPicker?.()}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+        style={{
+          fontFamily: 'Poppins, sans-serif',
+          border: active ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
+          backgroundColor: active ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
+          color: active ? '#01BBDC' : '#10214F',
+        }}
+      >
+        {value || label}
+      </button>
+      <input
+        ref={ref}
+        type="date"
+        value={value}
+        min={min}
+        onChange={e => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+        tabIndex={-1}
+      />
+    </div>
+  );
+}
+
 function FilterDropdown({ label, active, children }: { label: string; active?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -262,7 +293,7 @@ export default function CharterPage() {
       <div className="bg-[#10214F] text-white py-10 px-4">
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-4xl font-bold mb-6" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Search Charters</h1>
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -273,35 +304,6 @@ export default function CharterPage() {
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg"
               />
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs text-blue-100 mb-1 text-left">Destination</label>
-                <select
-                  value={location}
-                  onChange={e => { setLocation(e.target.value); setPage(1); }}
-                  className="w-full px-3 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg appearance-none"
-                  style={{ fontFamily: 'Poppins, sans-serif' }}
-                >
-                  <option value="">All destinations</option>
-                  {DESTINATION_GROUPS.map(group => (
-                    <optgroup key={group.region} label={group.region}>
-                      <option value={group.region}>{group.region} (all)</option>
-                      {group.subregions.map(sub => (
-                        <option key={sub} value={sub}>{sub}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-blue-100 mb-1 text-left">Trip start</label>
-                <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
-              </div>
-              <div>
-                <label className="block text-xs text-blue-100 mb-1 text-left">Trip end</label>
-                <input type="date" value={tripEnd} min={tripStart || undefined} onChange={e => { setTripEnd(e.target.value); setPage(1); }} className="w-full px-4 py-3 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg" />
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -311,15 +313,46 @@ export default function CharterPage() {
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-2 flex-wrap">
 
-            {/* Trip Dates */}
-            <FilterDropdown label="Trip Dates" active={!!(tripStart || tripEnd)}>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">When are you traveling?</label>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={tripStart} onChange={e => { setTripStart(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                <input type="date" value={tripEnd} min={tripStart || undefined} onChange={e => { setTripEnd(e.target.value); setPage(1); }} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-              </div>
-              <p className="text-xs text-gray-400 mt-1.5">We'll hide yachts blocked for those dates.</p>
-            </FilterDropdown>
+            {/* Destination */}
+            <div className="relative">
+              <select
+                value={location}
+                onChange={e => { setLocation(e.target.value); setPage(1); }}
+                className="appearance-none px-3 py-2 pr-7 rounded-xl text-sm font-medium transition-all whitespace-nowrap cursor-pointer focus:outline-none"
+                style={{
+                  fontFamily: 'Poppins, sans-serif',
+                  border: location ? '1.5px solid #01BBDC' : '1.5px solid rgba(16,33,79,0.15)',
+                  backgroundColor: location ? 'rgba(1,187,220,0.06)' : '#FFFFFF',
+                  color: location ? '#01BBDC' : '#10214F',
+                }}
+              >
+                <option value="">Destination</option>
+                {DESTINATION_GROUPS.map(group => (
+                  <optgroup key={group.region} label={group.region}>
+                    <option value={group.region}>{group.region} (all)</option>
+                    {group.subregions.map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: location ? '#01BBDC' : '#10214F' }} />
+            </div>
+
+            {/* Trip Start */}
+            <DateButton
+              label="Trip start"
+              value={tripStart}
+              onChange={v => { setTripStart(v); setPage(1); }}
+            />
+
+            {/* Trip End */}
+            <DateButton
+              label="Trip end"
+              value={tripEnd}
+              min={tripStart || undefined}
+              onChange={v => { setTripEnd(v); setPage(1); }}
+            />
 
             {/* Charter Type */}
             <FilterDropdown label="Charter Type" active={!!charterType}>
