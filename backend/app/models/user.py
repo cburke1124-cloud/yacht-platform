@@ -49,6 +49,7 @@ class User(Base):
 
     stripe_customer_id = Column(String, unique=True, nullable=True, index=True)
     stripe_subscription_id = Column(String, unique=True, nullable=True)
+    subscription_start_date = Column(DateTime, nullable=True)  # date of first paid activation
 
     # Flag to make an account permanently free (bypass billing)
     always_free = Column(Boolean, default=False, index=True)

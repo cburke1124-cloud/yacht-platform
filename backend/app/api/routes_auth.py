@@ -603,6 +603,7 @@ def get_me(current_user: User = Depends(get_current_user)):
         "agreed_terms": bool((permissions or {}).get("agreed_terms", False)),
         "email_verified": bool(current_user.email_verified),
         "two_factor_enabled": bool(current_user.two_factor_enabled),
+        "subscription_start_date": current_user.subscription_start_date.isoformat() if getattr(current_user, "subscription_start_date", None) else None,
     }
 
 

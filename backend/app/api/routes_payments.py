@@ -710,26 +710,35 @@ async def confirm_checkout_session(
         raise HTTPException(status_code=402, detail=f"Payment not complete (status: {session.payment_status})")
 
     tier = (session.metadata or {}).get("subscription_tier")
-    subscription_id = session.subscription.id if session.subscription else None
+    is_one_time = session.mode == "payment"
 
-    if subscription_id:
-        current_user.stripe_subscription_id = subscription_id
-    if tier:
-        current_user.subscription_tier = tier
-
-    # Check for trial
-    if session.subscription:
-        sub = session.subscription
-        if getattr(sub, "status", None) == "trialing" and getattr(sub, "trial_end", None):
-            current_user.trial_active = True
-            current_user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
+    if is_one_time:
+        # One-time setup fee — no subscription object
+        if tier:
+            current_user.subscription_tier = tier
+        if not current_user.subscription_start_date:
+            current_user.subscription_start_date = datetime.utcnow()
+    else:
+        subscription_id = session.subscription.id if session.subscription else None
+        if subscription_id:
+            current_user.stripe_subscription_id = subscription_id
+        if tier:
+            current_user.subscription_tier = tier
+        if not current_user.subscription_start_date:
+            current_user.subscription_start_date = datetime.utcnow()
+        # Check for trial
+        if session.subscription:
+            sub = session.subscription
+            if getattr(sub, "status", None) == "trialing" and getattr(sub, "trial_end", None):
+                current_user.trial_active = True
+                current_user.trial_end_date = datetime.utcfromtimestamp(sub.trial_end)
 
     db.commit()
     db.refresh(current_user)
 
     logger.info(
-        "confirm_session: activated user %s (tier=%s, subscription=%s)",
-        current_user.id, tier, subscription_id,
+        "confirm_session: activated user %s (tier=%s, mode=%s)",
+        current_user.id, tier, session.mode,
     )
     return {
         "success": True,
@@ -878,10 +887,12 @@ async def stripe_webhook(
             user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
 
         if user:
-            user.stripe_subscription_id = subscription_id
             if tier:
                 user.subscription_tier = tier
+            if not user.subscription_start_date:
+                user.subscription_start_date = datetime.utcnow()
             if subscription_id:
+                user.stripe_subscription_id = subscription_id
                 try:
                     sub = stripe.Subscription.retrieve(subscription_id)
                     if sub.status == "trialing" and sub.trial_end:
@@ -890,7 +901,7 @@ async def stripe_webhook(
                 except stripe.error.StripeError:
                     pass
             db.commit()
-            logger.info("checkout.session.completed → user %s subscribed (tier=%s)", user.id, tier)
+            logger.info("checkout.session.completed → user %s activated (tier=%s, mode=%s)", user.id, tier, obj.get("mode"))
 
     elif event_type == "payment_intent.succeeded":
         await handle_payment_succeeded(event["data"]["object"], db, background_tasks)
