@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingIncludes: {
+    '/charter-destinations': ['./public/data/charter_destinations.json'],
+    '/charter-destinations/[...slug]': ['./public/data/charter_destinations.json'],
+  },
   images: {
     remotePatterns: [
       {
