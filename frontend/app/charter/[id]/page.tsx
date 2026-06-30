@@ -189,13 +189,13 @@ export default function CharterDetailPage() {
   return (
     <div className="min-h-screen bg-white">
 
-      {/* ══ INQUIRY MODAL ══════════════════════════════════════════════════════ */}
+      {/* == INQUIRY MODAL ====================================================== */}
       {showInquiry && (
         <div className="fixed inset-0 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm" style={{ zIndex: 9999 }} onClick={() => setShowInquiry(false)}>
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div>
-                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Request Charter</h3>
+                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Request Charter</h3>
                 {charter.charter_company_name && <p className="text-sm text-gray-500 mt-1">{charter.charter_company_name}</p>}
               </div>
               <button onClick={() => setShowInquiry(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition">
@@ -230,7 +230,7 @@ export default function CharterDetailPage() {
                   </div>
                   <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
                   <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
-                    {submitting ? ‘Sending...’ : ‘Send Request’}
+                    {submitting ? 'Sending...' : 'Send Request'}
                   </button>
                 </form>
               )}
@@ -239,7 +239,7 @@ export default function CharterDetailPage() {
         </div>
       )}
 
-      {/* ══ PAGE ═══════════════════════════════════════════════════════════════ */}
+      {/* == PAGE =============================================================== */}
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Back button */}
@@ -247,10 +247,10 @@ export default function CharterDetailPage() {
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to charter listings
         </button>
 
-        {/* ══ TITLE + RATE ══════════════════════════════════════════════════════ */}
+        {/* == TITLE + RATE ====================================================== */}
         <div className="flex flex-wrap items-baseline justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold text-[#10214F] tracking-tight mb-2" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#10214F] tracking-tight mb-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
               {charter.title}
             </h1>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[#10214F]">
@@ -275,20 +275,20 @@ export default function CharterDetailPage() {
           </div>
           {primaryRate && (
             <div className="flex flex-col items-end gap-1">
-              <span className="text-4xl md:text-5xl font-bold text-[#01BBDC]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>
+              <span className="text-4xl md:text-5xl font-bold text-[#01BBDC]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
                 {primaryRate}
               </span>
               {charter.min_charter_days && (
-                <span className="text-xs text-gray-400">Min {charter.min_charter_days} day{charter.min_charter_days !== 1 ? ‘s’ : ‘’}</span>
+                <span className="text-xs text-gray-400">Min {charter.min_charter_days} day{charter.min_charter_days !== 1 ? 's' : ''}</span>
               )}
             </div>
           )}
         </div>
 
-        {/* ══ FEATURED IMAGE + BOOKING CARD ═════════════════════════════════════ */}
+        {/* == FEATURED IMAGE + BOOKING CARD ===================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
-          {/* Featured image — 8 cols */}
+          {/* Featured image -- 8 cols */}
           <div className="lg:col-span-8">
             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100" style={{ height: 500 }}>
               {images.length > 0 ? (
@@ -314,7 +314,7 @@ export default function CharterDetailPage() {
             </div>
           </div>
 
-          {/* Booking card — 4 cols */}
+          {/* Booking card -- 4 cols */}
           <div className="lg:col-span-4">
             <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden sticky top-5">
               <div className="p-6 text-center">
@@ -324,12 +324,12 @@ export default function CharterDetailPage() {
                   </div>
                 </div>
                 {charter.charter_company_name && (
-                  <p style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, fontWeight: 700, textTransform: ‘uppercase’, letterSpacing: ‘0.06em’, fontSize: 15, color: ‘#10214F’, marginBottom: 4 }}>
+                  <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4 }}>
                     {charter.charter_company_name}
                   </p>
                 )}
                 {charter.charter_company_phone && (
-                  <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-4" style={{ color: ‘#10214F’ }}>
+                  <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-4" style={{ color: '#10214F' }}>
                     <Phone size={13} /> {charter.charter_company_phone}
                   </a>
                 )}
@@ -363,7 +363,7 @@ export default function CharterDetailPage() {
                 {estimatedTotal !== null && (
                   <div className="mb-4 rounded-xl bg-[#01BBDC]/8 px-3 py-2 text-sm text-left">
                     <span className="text-gray-600">Est. total: </span>
-                    <span className="font-semibold text-[#10214F]">{charter.currency === ‘USD’ ? ‘$’ : charter.currency}{estimatedTotal.toLocaleString()}</span>
+                    <span className="font-semibold text-[#10214F]">{charter.currency === 'USD' ? '$' : charter.currency}{estimatedTotal.toLocaleString()}</span>
                     <span className="text-gray-400"> ({charterDays}d)</span>
                   </div>
                 )}
@@ -372,13 +372,13 @@ export default function CharterDetailPage() {
                 {charter.booking_url ? (
                   <a href={charter.booking_url} target="_blank" rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
-                    style={{ backgroundColor: ‘#10214F’, fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, letterSpacing: ‘0.08em’, fontSize: 13 }}>
+                    style={{ backgroundColor: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.08em', fontSize: 13 }}>
                     BOOK NOW <ExternalLink size={13} />
                   </a>
                 ) : (
                   <button onClick={() => setShowInquiry(true)}
                     className="w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
-                    style={{ backgroundColor: ‘#10214F’, fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, letterSpacing: ‘0.08em’, fontSize: 13 }}>
+                    style={{ backgroundColor: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.08em', fontSize: 13 }}>
                     REQUEST CHARTER
                   </button>
                 )}
@@ -395,7 +395,7 @@ export default function CharterDetailPage() {
                     {charter.charter_company_website && (
                       <a href={charter.charter_company_website} target="_blank" rel="noopener noreferrer"
                         className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80 mt-2"
-                        style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’, letterSpacing: ‘0.06em’, border: ‘1.5px solid #10214F’, color: ‘#10214F’ }}>
+                        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.06em', border: '1.5px solid #10214F', color: '#10214F' }}>
                         VISIT WEBSITE
                       </a>
                     )}
@@ -406,7 +406,7 @@ export default function CharterDetailPage() {
           </div>
         </div>
 
-        {/* ══ PHOTO STRIP ═══════════════════════════════════════════════════════ */}
+        {/* == PHOTO STRIP ======================================================= */}
         {images.length > 1 && (
           <div className="flex justify-center gap-3 mb-12 overflow-hidden">
             {images.slice(1, 5).map((src, idx) => {
@@ -415,12 +415,12 @@ export default function CharterDetailPage() {
               return (
                 <button key={idx} type="button"
                   className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
-                  style={{ height: 160, width: ‘calc(25% - 9px)’ }}
+                  style={{ height: 160, width: 'calc(25% - 9px)' }}
                   onClick={() => setActiveImg(idx + 1)}>
                   <img src={src} alt={`${charter.title} photo ${idx + 2}`} onError={onImgError} className="w-full h-full object-cover" />
                   {isLast && remaining > 0 && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <span className="text-white text-xl font-bold" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>+{remaining}</span>
+                      <span className="text-white text-xl font-bold" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>+{remaining}</span>
                     </div>
                   )}
                 </button>
@@ -429,10 +429,10 @@ export default function CharterDetailPage() {
           </div>
         )}
 
-        {/* ══ SPECS + SIDEBAR ════════════════════════════════════════════════════ */}
+        {/* == SPECS + SIDEBAR ==================================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Left — 8 cols */}
+          {/* Left -- 8 cols */}
           <div className="lg:col-span-8 space-y-10">
 
             {/* VESSEL SPECIFICATIONS */}
@@ -441,26 +441,26 @@ export default function CharterDetailPage() {
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
                   {[
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: ‘Length’,      value: charter.length_feet ? `${charter.length_feet} ft` : null },
-                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: ‘Type’,        value: charter.boat_type },
-                    { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: ‘Year’,        value: charter.year?.toString() },
-                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: ‘Max Guests’,  value: charter.max_guests?.toString() },
-                    { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: ‘Cabins’,      value: charter.cabins?.toString() },
-                    { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: ‘Make / Model’, value: [charter.make, charter.model].filter(Boolean).join(‘ ‘) || null },
-                    { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: ‘Engines’,     value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ‘’}`.trim() : null },
-                    { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: ‘Fuel Type’,   value: charter.fuel_type },
-                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: ‘Max Speed’,   value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
-                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: ‘Crew’,        value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ‘’}` : ‘Bareboat’ },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: ‘Beam’,        value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: ‘Draft’,       value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Length',      value: charter.length_feet ? `${charter.length_feet} ft` : null },
+                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Type',        value: charter.boat_type },
+                    { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Year',        value: charter.year?.toString() },
+                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Max Guests',  value: charter.max_guests?.toString() },
+                    { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Cabins',      value: charter.cabins?.toString() },
+                    { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Make / Model', value: [charter.make, charter.model].filter(Boolean).join(' ') || null },
+                    { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: 'Engines',     value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ''}`.trim() : null },
+                    { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: 'Fuel Type',   value: charter.fuel_type },
+                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Max Speed',   value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
+                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Crew',        value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ''}` : 'Bareboat' },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Beam',        value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Draft',       value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
                   ].filter(s => s.value).map((spec, i) => (
                     <div key={i} className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: ‘rgba(1,187,220,0.1)’ }}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
                         {spec.icon}
                       </div>
                       <div>
-                        <p className="text-xs text-[#10214F]/55 uppercase tracking-wide" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>{spec.label}</p>
-                        <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>{spec.value}</p>
+                        <p className="text-xs text-[#10214F]/55 uppercase tracking-wide" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{spec.label}</p>
+                        <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{spec.value}</p>
                       </div>
                     </div>
                   ))}
@@ -472,7 +472,7 @@ export default function CharterDetailPage() {
             {charter.description && (
               <div>
                 <SectionHeading>About This Vessel</SectionHeading>
-                <div className="text-[15px] leading-[1.8] text-[#10214F] whitespace-pre-line" style={{ fontFamily: ‘Poppins, sans-serif’ }}>
+                <div className="text-[15px] leading-[1.8] text-[#10214F] whitespace-pre-line" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {charter.description}
                 </div>
               </div>
@@ -486,7 +486,7 @@ export default function CharterDetailPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {charter.amenities.map((a, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm text-[#10214F]">
-                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ backgroundColor: ‘#01BBDC’ }}>✓</span>
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ backgroundColor: '#01BBDC' }}>v</span>
                         {a}
                       </div>
                     ))}
@@ -498,7 +498,7 @@ export default function CharterDetailPage() {
             {/* AVAILABILITY */}
             <div>
               <div className="mb-5 pl-4 border-l-4 border-[#01BBDC] flex items-center justify-between gap-4">
-                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Availability</h3>
+                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Availability</h3>
                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 flex-shrink-0">{availabilitySummary}</span>
               </div>
               {charter.availability_blocks?.length ? (
@@ -516,13 +516,13 @@ export default function CharterDetailPage() {
                 <SectionHeading>Seasonal Pricing</SectionHeading>
                 <div className="space-y-3">
                   {seasonalRates.map((rate, index) => {
-                    const moneyPrefix = (rate.currency || charter.currency || ‘USD’) === ‘USD’ ? ‘$’ : (rate.currency || charter.currency || ‘USD’);
+                    const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
                     return (
                       <div key={rate.id ?? `${rate.season_name}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-[#10214F]">{rate.season_name}</p>
-                            <p className="text-xs text-gray-500">{rate.start_date || ‘Open start’}{rate.end_date ? ` to ${rate.end_date}` : ‘’}</p>
+                            <p className="text-xs text-gray-500">{rate.start_date || 'Open start'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
                           </div>
                           {rate.min_charter_days ? <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Min {rate.min_charter_days} days</span> : null}
                         </div>
@@ -544,16 +544,16 @@ export default function CharterDetailPage() {
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-[#C9A84C] font-semibold mb-1">How chartering works</p>
-                  <h2 className="text-lg font-semibold" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Simple, not complicated</h2>
+                  <h2 className="text-lg font-semibold" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Simple, not complicated</h2>
                 </div>
-                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/70 hover:text-white flex-shrink-0">{showSimpleGuide ? ‘Hide’ : ‘Show’}</button>
+                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/70 hover:text-white flex-shrink-0">{showSimpleGuide ? 'Hide' : 'Show'}</button>
               </div>
               {showSimpleGuide && (
                 <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-100">
                   {[
-                    { n: ‘1’, title: ‘Pick where you want to go’, body: "Search by destination, dates, and group size." },
-                    { n: ‘2’, title: ‘Ask for availability’, body: "Most charters are confirmed by inquiry. We show booked and tentative holds." },
-                    { n: ‘3’, title: "Review what’s included", body: "Some trips include crew and water toys. Others exclude taxes or gratuity." },
+                    { n: '1', title: 'Pick where you want to go', body: "Search by destination, dates, and group size." },
+                    { n: '2', title: 'Ask for availability', body: "Most charters are confirmed by inquiry. We show booked and tentative holds." },
+                    { n: '3', title: "Review what's included", body: "Some trips include crew and water toys. Others exclude taxes or gratuity." },
                   ].map(s => (
                     <div key={s.n} className="bg-white/5 rounded-xl p-4">
                       <p className="font-semibold text-white mb-1">{s.n}. {s.title}</p>
@@ -566,30 +566,30 @@ export default function CharterDetailPage() {
 
           </div>
 
-          {/* Right sidebar — 4 cols */}
+          {/* Right sidebar -- 4 cols */}
           <div className="lg:col-span-4 space-y-6">
 
             {/* Charter policy card */}
             {(charter.included_items?.length || charter.excluded_items?.length || charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
               <div className="rounded-3xl border border-gray-200 bg-white p-6">
-                <h4 className="text-lg font-bold text-[#10214F] mb-4" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>Charter Terms</h4>
+                <h4 className="text-lg font-bold text-[#10214F] mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter Terms</h4>
                 <div className="space-y-4 text-sm">
                   {charter.included_items?.length ? (
                     <div>
                       <p className="font-medium text-[#10214F] mb-1">Usually included</p>
-                      <p className="text-gray-500">{charter.included_items.join(‘, ‘)}</p>
+                      <p className="text-gray-500">{charter.included_items.join(', ')}</p>
                     </div>
                   ) : null}
                   {charter.excluded_items?.length ? (
                     <div>
                       <p className="font-medium text-[#10214F] mb-1">Usually excluded</p>
-                      <p className="text-gray-500">{charter.excluded_items.join(‘, ‘)}</p>
+                      <p className="text-gray-500">{charter.excluded_items.join(', ')}</p>
                     </div>
                   ) : null}
                   {(charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
                     <div className="space-y-2 text-gray-600 border-t border-gray-100 pt-4">
                       {charter.apa_percentage ? <p><span className="font-medium text-[#10214F]">APA:</span> {charter.apa_percentage}% estimated advance provisioning.</p> : null}
-                      {charter.security_deposit ? <p><span className="font-medium text-[#10214F]">Security deposit:</span> {charter.currency === ‘USD’ ? ‘$’ : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
+                      {charter.security_deposit ? <p><span className="font-medium text-[#10214F]">Security deposit:</span> {charter.currency === 'USD' ? '$' : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
                       {charter.tax_notes ? <p><span className="font-medium text-[#10214F]">Taxes:</span> {charter.tax_notes}</p> : null}
                       {charter.cancellation_policy ? <p><span className="font-medium text-[#10214F]">Cancellation:</span> {charter.cancellation_policy}</p> : null}
                     </div>
@@ -609,7 +609,7 @@ export default function CharterDetailPage() {
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-5 pl-4 border-l-4 border-[#01BBDC]">
-      <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: ‘Bahnschrift, DIN Alternate, sans-serif’ }}>
+      <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>
         {children}
       </h3>
     </div>
