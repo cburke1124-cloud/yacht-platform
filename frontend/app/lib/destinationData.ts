@@ -33,14 +33,10 @@ export interface Destination {
 }
 
 
-let destinationsCache: Destination[] = [];
-
 function loadDestinations(): Destination[] {
-  if (destinationsCache.length > 0) return destinationsCache;
-
   try {
     const dataPath = path.join(process.cwd(), 'public', 'data', 'charter_destinations.json');
-    
+
     // Also try the backend data folder if public doesn't have it
     let fullPath = dataPath;
     if (!fs.existsSync(fullPath)) {
@@ -53,8 +49,7 @@ function loadDestinations(): Destination[] {
     }
 
     const fileContent = fs.readFileSync(fullPath, 'utf-8');
-    destinationsCache = JSON.parse(fileContent);
-      return destinationsCache;
+    return JSON.parse(fileContent) as Destination[];
   } catch (error) {
     console.error('Error loading destinations:', error);
     return [];
