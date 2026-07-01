@@ -507,7 +507,8 @@ export default function CharterPage() {
       {/* Sticky filter bar */}
       <div ref={filterBarRef} className="sticky top-0 z-40" style={{ backgroundColor: '#FFFFFF', borderBottom: '1px solid rgba(16,33,79,0.08)', boxShadow: '0 2px 12px rgba(16,33,79,0.06)' }}>
         <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Row 1: filter chips — never wrap */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
 
             {/* Destination */}
             <div className="relative">
@@ -635,13 +636,14 @@ export default function CharterPage() {
               )}
             </div>
 
-            {/* Active filter pills */}
-            {pills.length > 0 && (
-              <div className="w-full flex flex-wrap gap-1.5 pt-1">
-                {pills.map(p => <FilterPill key={p.label} label={p.label} onRemove={p.clear} />)}
-              </div>
-            )}
           </div>
+
+          {/* Row 2: active filter pills */}
+          {pills.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-2">
+              {pills.map(p => <FilterPill key={p.label} label={p.label} onRemove={p.clear} />)}
+            </div>
+          )}
         </div>
 
         {/* Advanced Search Panel */}
