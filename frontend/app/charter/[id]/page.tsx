@@ -39,6 +39,10 @@ interface CharterListing {
   home_port_state?: string;
   home_port_country?: string;
   operating_regions?: string;
+  embarkation_ports?: string[];
+  disembarkation_ports?: string[];
+  one_way_allowed?: boolean;
+  turnaround_days?: number;
   day_rate?: number;
   half_day_rate?: number;
   week_rate?: number;
@@ -266,6 +270,23 @@ export default function CharterDetailPage() {
                   Operates in: {charter.operating_regions}
                 </span>
               )}
+              {charter.embarkation_ports && charter.embarkation_ports.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <Anchor size={15} className="text-[#01BBDC]" />
+                  Departs: {charter.embarkation_ports.join(', ')}
+                </span>
+              )}
+              {charter.disembarkation_ports && charter.disembarkation_ports.length > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <Anchor size={15} className="text-[#01BBDC]" />
+                  Arrives: {charter.disembarkation_ports.join(', ')}
+                </span>
+              )}
+              {charter.one_way_allowed && (
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-[#10214F] bg-[#C9A84C]/20">
+                  One-Way Available
+                </span>
+              )}
               {charter.crew_included && (
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white bg-[#01BBDC]">
                   <Check size={11} /> Crew Included
@@ -447,12 +468,17 @@ export default function CharterDetailPage() {
                     { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Max Guests',  value: charter.max_guests?.toString() },
                     { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Cabins',      value: charter.cabins?.toString() },
                     { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Make / Model', value: [charter.make, charter.model].filter(Boolean).join(' ') || null },
-                    { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: 'Engines',     value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ''}`.trim() : null },
-                    { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: 'Fuel Type',   value: charter.fuel_type },
-                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Max Speed',   value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
-                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Crew',        value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ''}` : 'Bareboat' },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Beam',        value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Draft',       value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
+                    { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: 'Engines',         value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ''}`.trim() : null },
+                    { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: 'Fuel Type',       value: charter.fuel_type },
+                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Max Speed',       value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
+                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Cruise Speed',    value: charter.cruising_speed_knots ? `${charter.cruising_speed_knots} kts` : null },
+                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Crew',            value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ''}` : 'Bareboat' },
+                    { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Berths',          value: charter.berths?.toString() },
+                    { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Heads',           value: charter.heads?.toString() },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Hull Material',   value: charter.hull_material },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Beam',            value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
+                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Draft',           value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
+                    { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Charter Duration', value: charter.min_charter_days || charter.max_charter_days ? [charter.min_charter_days ? `Min ${charter.min_charter_days}d` : null, charter.max_charter_days ? `Max ${charter.max_charter_days}d` : null].filter(Boolean).join(' · ') : null },
                   ].filter(s => s.value).map((spec, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
