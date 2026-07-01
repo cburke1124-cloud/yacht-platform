@@ -1349,6 +1349,223 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
           })}
         </div>
       )}
+
+      {/* ── Master Ocean API ── */}
+      <MasterOceanSection dealers={dealers} apiUrl={_apiUrl} authHeaders={_authHeaders} />
+    </div>
+  );
+}
+
+// ─── Master Ocean Section ─────────────────────────────────────────────────────
+
+function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }: { dealers: Dealer[]; apiUrl: (p: string) => string; authHeaders: () => Record<string, string> }) {
+  const [moJob, setMoJob] = useState<{ id: number; status: string; schedule_hours: number; last_run_at?: string; next_run_at?: string; listings_found: number; listings_created: number; listings_updated: number; listings_removed: number; total_runs: number; last_error?: string; enabled: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ dealer_id: '', api_key: '', sync_types: ['Charter'] as string[], schedule_hours: '24' });
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [runningId, setRunningId] = useState<number | null>(null);
+  const [runMsg, setRunMsg] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  async function loadMoJob(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const r = await fetch(_apiUrl('/scraper/jobs'), { headers: _authHeaders() });
+      const d = await r.json();
+      if (d.success && Array.isArray(d.jobs)) {
+        const found = d.jobs.find((j: any) => {
+          try { return JSON.parse(j.site_template || '{}').api_type === 'master_ocean'; } catch { return false; }
+        }) ?? d.jobs.find((j: any) => j.broker_url?.startsWith('https://master-ocean.com') || j.site_name?.toLowerCase().includes('master ocean'));
+        setMoJob(found ?? null);
+      }
+    } catch { /* ignore */ } finally { if (!silent) setLoading(false); }
+  }
+
+  useEffect(() => { loadMoJob(); }, []);
+
+  function toggleSyncType(t: string) {
+    setForm(f => ({ ...f, sync_types: f.sync_types.includes(t) ? f.sync_types.filter(x => x !== t) : [...f.sync_types, t] }));
+  }
+
+  async function handleTest() {
+    if (!form.api_key.trim()) { setTestResult({ ok: false, text: 'Enter an API key first' }); return; }
+    setTestLoading(true); setTestResult(null);
+    try {
+      const r = await fetch(_apiUrl('/scraper/master-ocean/test'), { method: 'POST', headers: _authHeaders(), body: JSON.stringify({ api_key: form.api_key.trim() }) });
+      const d = await r.json();
+      setTestResult(d.success ? { ok: true, text: `Connected — ${d.total_found ?? d.count ?? '?'} listings available` } : { ok: false, text: d.detail || d.message || 'Connection failed' });
+    } catch (e: any) { setTestResult({ ok: false, text: e.message }); } finally { setTestLoading(false); }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.dealer_id) { setSaveMsg({ ok: false, text: 'Select a dealer' }); return; }
+    if (!form.api_key.trim()) { setSaveMsg({ ok: false, text: 'Enter the API key' }); return; }
+    if (!form.sync_types.length) { setSaveMsg({ ok: false, text: 'Select at least one type to sync' }); return; }
+    setSaving(true); setSaveMsg(null);
+    try {
+      const r = await fetch(_apiUrl('/scraper/master-ocean/jobs'), { method: 'POST', headers: _authHeaders(), body: JSON.stringify({ api_key: form.api_key.trim(), sync_types: form.sync_types, schedule_hours: Number(form.schedule_hours), dealer_id: Number(form.dealer_id) }) });
+      const d = await r.json();
+      if (d.success) { setSaveMsg({ ok: true, text: `Job #${d.job?.id} created` }); setShowForm(false); loadMoJob(); }
+      else setSaveMsg({ ok: false, text: d.detail || d.message || 'Failed' });
+    } catch (e: any) { setSaveMsg({ ok: false, text: e.message }); } finally { setSaving(false); }
+  }
+
+  async function handleRun(jobId: number) {
+    setRunningId(jobId); setRunMsg('Starting sync…');
+    if (pollRef.current) clearInterval(pollRef.current);
+    try {
+      const r = await fetch(_apiUrl(`/scraper/jobs/${jobId}/run`), { method: 'POST', headers: _authHeaders() });
+      const d = await r.json();
+      if (!d.success) { setRunMsg(d.message || 'Failed to start'); setRunningId(null); return; }
+      setRunMsg('Syncing — this may take a few minutes…');
+      pollRef.current = setInterval(async () => {
+        await loadMoJob(true);
+        const r2 = await fetch(_apiUrl(`/scraper/jobs/${jobId}`), { headers: _authHeaders() });
+        const d2 = await r2.json();
+        if (d2.success && d2.job?.status !== 'running') {
+          clearInterval(pollRef.current!); pollRef.current = null;
+          setRunningId(null);
+          const j = d2.job;
+          setRunMsg(j.status === 'completed' ? `Done — found ${j.listings_found ?? 0}, created ${j.listings_created ?? 0}, updated ${j.listings_updated ?? 0}` : `Finished with status: ${j.status}`);
+          loadMoJob(true);
+        }
+      }, 4000);
+    } catch (e: any) { setRunMsg(e.message); setRunningId(null); }
+  }
+
+  const fmtDate = (s?: string) => s ? new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+  return (
+    <div className="mt-8 pt-6 border-t border-gray-200">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">Master Ocean API</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Sync charter and/or sale listings directly from the Master Ocean REST API.</p>
+        </div>
+        {!showForm && !moJob && !loading && (
+          <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800">
+            + Set Up Master Ocean
+          </button>
+        )}
+      </div>
+
+      {loading && <p className="text-xs text-gray-400">Loading…</p>}
+
+      {/* Existing job card */}
+      {!loading && moJob && (
+        <div className="border border-gray-200 rounded-xl p-4 bg-white">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-gray-900">Master Ocean</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-100 text-cyan-700">MO API Feed</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${moJob.status === 'completed' ? 'bg-green-100 text-green-700' : moJob.status === 'running' ? 'bg-blue-100 text-blue-700' : moJob.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{moJob.status}</span>
+                {!moJob.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+                <span>Every {moJob.schedule_hours}h</span>
+                <span>Runs: {moJob.total_runs}</span>
+                {moJob.last_run_at && <span>Last: {fmtDate(moJob.last_run_at)}</span>}
+                {moJob.next_run_at && moJob.enabled && <span>Next: {fmtDate(moJob.next_run_at)}</span>}
+              </div>
+              {moJob.total_runs > 0 && (
+                <div className="mt-1 flex gap-3 text-xs">
+                  <span className="text-green-700">+{moJob.listings_created} created</span>
+                  <span className="text-blue-700">{moJob.listings_updated} updated</span>
+                  <span className="text-gray-500">{moJob.listings_removed} archived</span>
+                </div>
+              )}
+              {moJob.last_error && <p className="mt-1 text-xs text-red-600 truncate">{moJob.last_error}</p>}
+              {runMsg && <p className="mt-1 text-xs text-blue-600">{runMsg}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => handleRun(moJob.id)} disabled={runningId === moJob.id || moJob.status === 'running'}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-700 text-white rounded-lg hover:bg-blue-800 font-medium disabled:opacity-60">
+                {runningId === moJob.id || moJob.status === 'running'
+                  ? <><span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Running…</>
+                  : <>▶ Run</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Setup form */}
+      {showForm && (
+        <form onSubmit={handleCreate} className="p-5 bg-gray-50 border border-gray-200 rounded-xl space-y-4">
+          <h4 className="text-sm font-semibold text-gray-800">Configure Master Ocean Sync</h4>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Assign listings to dealer *</label>
+              <select value={form.dealer_id} onChange={e => setForm(f => ({ ...f, dealer_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="">— Select dealer —</option>
+                {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Sync schedule</label>
+              <select value={form.schedule_hours} onChange={e => setForm(f => ({ ...f, schedule_hours: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                <option value="6">Every 6 hours</option>
+                <option value="12">Every 12 hours</option>
+                <option value="24">Daily</option>
+                <option value="48">Every 2 days</option>
+                <option value="168">Weekly</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">API Key *</label>
+              <div className="flex gap-2">
+                <input type="password" value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
+                  placeholder="Paste Master Ocean API key" autoComplete="off"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+                <button type="button" onClick={handleTest} disabled={testLoading || !form.api_key.trim()}
+                  className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 disabled:opacity-40">
+                  {testLoading ? 'Testing…' : 'Test'}
+                </button>
+              </div>
+              {testResult && (
+                <p className={`mt-1 text-xs ${testResult.ok ? 'text-green-700' : 'text-red-600'}`}>
+                  {testResult.ok ? '✓' : '✗'} {testResult.text}
+                </p>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Stored server-side. Never returned to the browser after saving.</p>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-2">What to sync *</label>
+              <div className="flex gap-3">
+                {['Charter', 'Sale'].map(t => (
+                  <button key={t} type="button" onClick={() => toggleSyncType(t)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${form.sync_types.includes(t) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                    {t} listings
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Charter → charter listings table. Sale → boats-for-sale table.</p>
+            </div>
+          </div>
+
+          {saveMsg && <p className={`text-sm ${saveMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{saveMsg.ok ? '✓' : '✗'} {saveMsg.text}</p>}
+          <div className="flex gap-3">
+            <button type="submit" disabled={saving} className="px-5 py-2 bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-800 disabled:opacity-50">
+              {saving ? 'Creating…' : 'Create Sync Job'}
+            </button>
+            <button type="button" onClick={() => { setShowForm(false); setSaveMsg(null); setTestResult(null); }}
+              className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
