@@ -2215,6 +2215,16 @@ export default function AdminScraperTab() {
     } catch { flash('Failed to delete job'); }
   }
 
+  async function handleResetJob(job: ScraperJob) {
+    if (!confirm(`Reset "${job.site_name || job.broker_url}"?\nUse this if a run is stuck on "running" (e.g. after a deploy interrupted it) and won't clear on its own.`)) return;
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/reset`), { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (data.success) { setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: 'idle', last_error: undefined } : j)); flash('Job reset — you can run it again'); }
+      else flash('Failed to reset job');
+    } catch { flash('Failed to reset job'); }
+  }
+
   function handleStartEdit(job: ScraperJob) {
     setEditingJob(job);
     setForm({
@@ -2791,6 +2801,12 @@ export default function AdminScraperTab() {
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
                             <RefreshCw size={16} className={job.status === 'running' ? 'animate-spin' : ''} />
                           </button>
+                          {job.status === 'running' && (
+                            <button onClick={() => handleResetJob(job)} title="Reset a stuck run back to idle"
+                              className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg">
+                              <AlertCircle size={16} />
+                            </button>
+                          )}
                           <button onClick={() => handleStartEdit(job)} title="Edit job"
                             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg">
                             <Pencil size={16} />

@@ -921,6 +921,23 @@ def delete_scraper_job(
     return {"success": True, "message": f"Job {job_id} deleted", "listings_removed": len(scraped_ids)}
 
 
+@router.post("/scraper/jobs/{job_id}/reset")
+def reset_scraper_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Force-reset a stuck or errored job back to idle so it can be run again."""
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job.status = "idle"
+    job.last_error = None
+    db.commit()
+    return {"success": True}
+
+
 @router.post("/scraper/jobs/{job_id}/toggle")
 def toggle_scraper_job(
     job_id: int,
@@ -937,6 +954,9 @@ def toggle_scraper_job(
     return {"success": True, "enabled": job.enabled, "job": _job_to_dict(job)}
 
 
+STALE_RUNNING_MINUTES = 30  # a job stuck "running" longer than this is treated as crashed, not active
+
+
 @router.post("/scraper/jobs/{job_id}/run")
 def run_job_now(
     job_id: int,
@@ -949,7 +969,18 @@ def run_job_now(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status == "running":
-        return {"success": False, "message": "Job is already running"}
+        # The background thread that runs a sync can die without ever reaching its own
+        # except block (e.g. a deploy/restart mid-run), leaving the job stuck "running"
+        # forever with no way to retry. Treat a run that's been going longer than
+        # STALE_RUNNING_MINUTES as crashed rather than active, and allow a fresh run.
+        is_stale = job.started_at and (_dt.utcnow() - job.started_at).total_seconds() > STALE_RUNNING_MINUTES * 60
+        if not is_stale:
+            return {"success": False, "message": "Job is already running"}
+        logger.warning(f"[Job {job_id}] Run stuck since {job.started_at} (> {STALE_RUNNING_MINUTES}m) — treating as crashed and restarting")
+        job.status = "failed"
+        job.last_error = f"Previous run appears to have crashed (stuck in 'running' since {job.started_at.isoformat()})"
+        job.completed_at = _dt.utcnow()
+        db.commit()
 
     # Run in a background thread so the request returns immediately
     def _run():
