@@ -831,6 +831,9 @@ export default function AdminCharterTab() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const LIMIT = 25;
 
   const load = useCallback(async () => {
@@ -883,6 +886,66 @@ export default function AdminCharterTab() {
     }
   };
 
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(apiUrl('/charter/export'), { headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `charter-listings-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setToast({ ok: false, msg: 'Export failed' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    const header = 'title,vessel_name,make,model,year,boat_type,hull_material,length_feet,beam_feet,draft_feet,cabins,berths,heads,max_guests,crew_included,crew_count,home_port_city,home_port_state,home_port_country,operating_regions,day_rate,half_day_rate,week_rate,currency,min_charter_days,max_charter_days,apa_percentage,security_deposit,amenities,included_items,excluded_items,description,charter_company_name,charter_company_email,charter_company_phone,charter_company_website,booking_url,status';
+    const example = ',North Wind,Custom,Gulet,2023,Sailing Yacht,Wood,144,31.2,10.5,5,10,5,10,true,8,Bodrum,,Turkey,"Turkey, Bodrum, Marmaris",,,149188,EUR,,,35,,"Air Conditioning, Generator, Watermaker, WiFi","Crew","Fuel, Beverages, VAT","44m luxury gulet available for charter in Turkey.",Master Ocean Yacht Brokerage,,,,,draft';
+    const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'charter-listings-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleImportCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(apiUrl('/charter/import'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.detail || 'Import failed');
+      setImportResult({ created: data.created, updated: data.updated, errors: data.errors ?? [] });
+      load();
+    } catch (err) {
+      setToast({ ok: false, msg: err instanceof Error ? err.message : 'Import failed' });
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this charter listing?')) return;
     setDeletingId(id);
@@ -925,13 +988,48 @@ export default function AdminCharterTab() {
           <h2 className="text-xl font-bold text-gray-900">Charter Listings</h2>
           <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
         </div>
-        <button
-          onClick={() => setModal('create')}
-          className="flex items-center gap-2 bg-[#10214F] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1a3570] transition-colors"
-        >
-          <Plus size={15} /> New Charter
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownloadTemplate}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            title="Download a CSV template with the North Wind example pre-filled"
+          >
+            CSV Template
+          </button>
+          <button
+            onClick={handleExportCsv}
+            disabled={exporting}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+          <label className={`flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Upload size={14} /> {importing ? 'Importing…' : 'Import CSV'}
+            <input type="file" accept=".csv" className="hidden" onChange={handleImportCsv} disabled={importing} />
+          </label>
+          <button
+            onClick={() => setModal('create')}
+            className="flex items-center gap-2 bg-[#10214F] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1a3570] transition-colors"
+          >
+            <Plus size={15} /> New Charter
+          </button>
+        </div>
       </div>
+
+      {importResult && (
+        <div className={`flex items-start justify-between gap-3 px-4 py-3 rounded-lg text-sm ${importResult.errors.length ? 'bg-yellow-50 border border-yellow-200 text-yellow-800' : 'bg-green-50 border border-green-200 text-green-800'}`}>
+          <div>
+            <p className="font-medium">Import complete: {importResult.created} created, {importResult.updated} updated{importResult.errors.length ? `, ${importResult.errors.length} errors` : ''}.</p>
+            {importResult.errors.length > 0 && (
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {importResult.errors.slice(0, 10).map((err, i) => <li key={i}>• {err}</li>)}
+                {importResult.errors.length > 10 && <li>… and {importResult.errors.length - 10} more</li>}
+              </ul>
+            )}
+          </div>
+          <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-700 flex-shrink-0"><X size={14} /></button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

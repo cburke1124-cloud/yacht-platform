@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, String
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import date, datetime
+from io import StringIO
+import csv
 import re
 import logging
 import os
@@ -437,6 +440,130 @@ def admin_list_all_charters(
         "limit": limit,
         "results": [_serialize(c) for c in results],
     }
+
+
+# ---------------------------------------------------------------------------
+# CSV import / export — registered before the "/{charter_id}" routes below so
+# the static "/import" and "/export" paths aren't swallowed by the dynamic one.
+# ---------------------------------------------------------------------------
+
+CSV_COLUMNS = [
+    "id", "title", "vessel_name", "make", "model", "year", "boat_type", "hull_material",
+    "length_feet", "beam_feet", "draft_feet", "cabins", "berths", "heads", "max_guests",
+    "crew_included", "crew_count", "home_port_city", "home_port_state", "home_port_country",
+    "operating_regions", "day_rate", "half_day_rate", "week_rate", "currency",
+    "min_charter_days", "max_charter_days", "apa_percentage", "security_deposit",
+    "amenities", "included_items", "excluded_items", "description",
+    "charter_company_name", "charter_company_email", "charter_company_phone",
+    "charter_company_website", "booking_url", "status",
+]
+
+# Columns that are stored as JSON lists — comma-separated in the CSV
+_LIST_COLUMNS = {"amenities", "included_items", "excluded_items"}
+_INT_COLUMNS = {"year", "cabins", "berths", "heads", "max_guests", "crew_count", "min_charter_days", "max_charter_days"}
+_FLOAT_COLUMNS = {"length_feet", "beam_feet", "draft_feet", "day_rate", "half_day_rate", "week_rate", "apa_percentage", "security_deposit"}
+_BOOL_COLUMNS = {"crew_included"}
+
+
+@router.post("/import")
+def import_charters(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Bulk import charter listings from CSV. Include 'id' to update an existing listing."""
+    content = file.file.read()
+    text = content.decode("utf-8-sig")
+    reader = csv.DictReader(StringIO(text))
+
+    created = 0
+    updated = 0
+    errors: list = []
+    is_admin = getattr(current_user, "is_admin", False)
+
+    for row_index, row in enumerate(reader, start=2):
+        try:
+            title = (row.get("title") or "").strip()
+            vessel_name = (row.get("vessel_name") or title).strip()
+            if not title or not vessel_name:
+                errors.append(f"Row {row_index}: title and vessel_name are required")
+                continue
+
+            payload: Dict = {"title": title, "vessel_name": vessel_name}
+            for col in CSV_COLUMNS:
+                if col in ("id", "title", "vessel_name"):
+                    continue
+                raw_val = row.get(col)
+                if raw_val is None or raw_val.strip() == "":
+                    continue
+                val = raw_val.strip()
+                if col in _LIST_COLUMNS:
+                    payload[col] = [v.strip() for v in val.split(",") if v.strip()]
+                elif col in _INT_COLUMNS:
+                    payload[col] = int(float(val))
+                elif col in _FLOAT_COLUMNS:
+                    payload[col] = float(val)
+                elif col in _BOOL_COLUMNS:
+                    payload[col] = val.lower() in ("1", "true", "yes", "y")
+                else:
+                    payload[col] = val
+
+            charter_id_raw = (row.get("id") or "").strip()
+            charter = None
+            if charter_id_raw:
+                charter = db.query(CharterListing).filter(CharterListing.id == int(charter_id_raw)).first()
+                if charter and charter.user_id != current_user.id and not is_admin:
+                    errors.append(f"Row {row_index}: not authorised to update charter id {charter_id_raw}")
+                    continue
+
+            if charter:
+                for key, val in payload.items():
+                    setattr(charter, key, val)
+                db.commit()
+                updated += 1
+            else:
+                slug = _make_unique_slug(vessel_name or title, db)
+                charter = CharterListing(user_id=current_user.id, slug=slug, status=payload.pop("status", "draft"), **payload)
+                db.add(charter)
+                db.commit()
+                created += 1
+
+        except Exception as exc:
+            db.rollback()
+            errors.append(f"Row {row_index}: {str(exc)}")
+
+    return {"success": True, "created": created, "updated": updated, "errors": errors}
+
+
+@router.get("/export")
+def export_charters(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export charter listings to CSV. Admins get all listings; dealers get their own."""
+    is_admin = getattr(current_user, "is_admin", False)
+    query = db.query(CharterListing)
+    if not is_admin:
+        query = query.filter(CharterListing.user_id == current_user.id)
+    charters = query.all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(CSV_COLUMNS)
+    for c in charters:
+        row = []
+        for col in CSV_COLUMNS:
+            val = getattr(c, col, None)
+            if col in _LIST_COLUMNS and isinstance(val, list):
+                val = ", ".join(val)
+            row.append(val)
+        writer.writerow(row)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=charter-listings-export.csv"},
+    )
 
 
 @router.get("/{charter_id}")

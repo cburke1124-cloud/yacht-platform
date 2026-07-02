@@ -562,6 +562,89 @@ def test_scrape_single(
 
 
 # -----------------------------------------------------------------------
+# CHARTER: scrape a single charter listing URL and return a mapped preview
+# (no DB write — the admin reviews/edits the preview, then POSTs it to the
+# existing POST /charter endpoint to actually create the listing)
+# -----------------------------------------------------------------------
+
+def _map_scraped_to_charter(raw: Dict, url: str) -> Dict:
+    """Map the generic scraper's extracted fields onto the CharterListing shape.
+
+    The scraper is tuned for for-sale listings, so a few fields don't have a
+    reliable 1:1 mapping for charters (e.g. it can't tell day-rate from
+    week-rate). Those are surfaced as hints for the admin to confirm rather
+    than guessed at silently.
+    """
+    from app.services.scraper import OptimizedYachtScraper
+
+    city, state, country = OptimizedYachtScraper.normalize_location(
+        raw.get("city"), raw.get("state"), raw.get("country")
+    )
+
+    payload = {
+        "title": raw.get("title") or "",
+        "vessel_name": raw.get("title") or "",
+        "make": raw.get("make"),
+        "model": raw.get("model"),
+        "year": raw.get("year"),
+        "boat_type": raw.get("boat_type"),
+        "hull_material": raw.get("hull_material"),
+        "length_feet": raw.get("length_feet"),
+        "beam_feet": raw.get("beam_feet"),
+        "draft_feet": raw.get("draft_feet"),
+        "cabins": raw.get("cabins"),
+        "berths": raw.get("berths"),
+        "heads": raw.get("heads"),
+        "engine_make": raw.get("engine_make"),
+        "engine_count": raw.get("engine_count"),
+        "max_speed_knots": raw.get("max_speed_knots"),
+        "cruising_speed_knots": raw.get("cruising_speed_knots"),
+        "home_port_city": city,
+        "home_port_state": state,
+        "home_port_country": country,
+        "description": raw.get("description"),
+        "images": raw.get("images") or [],
+        "status": "draft",
+        "currency": raw.get("currency") or "USD",
+    }
+    # Strip empty/None so the frontend preview only shows fields it actually found
+    payload = {k: v for k, v in payload.items() if v not in (None, "", [])}
+
+    return {
+        "charter": payload,
+        "scraped_price_hint": raw.get("price"),
+        "detected_agent_name": raw.get("detected_agent_name"),
+        "source_url": url,
+    }
+
+
+@router.post("/scraper/charter-preview")
+def scrape_charter_preview(
+    data: SingleScrapeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    if not data.url:
+        raise ValidationException("URL is required")
+    from app.services.scraper import OptimizedYachtScraper
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
+    scraper = OptimizedYachtScraper(api_key=api_key)
+    with _LogCapture() as cap:
+        result = scraper.scrape_single_listing(data.url)
+    if "error" in result:
+        return {"success": False, "error": result["error"], "logs": cap.lines}
+    if not result.get("title"):
+        return {
+            "success": False,
+            "error": "Could not extract listing data from this page. The page may be blocked, require JavaScript rendering, or returned no content.",
+            "logs": cap.lines,
+        }
+    mapped = _map_scraped_to_charter(result, data.url)
+    return {"success": True, **mapped, "logs": cap.lines}
+
+
+# -----------------------------------------------------------------------
 # TEST: discover listing URLs on an inventory page + preview first N
 # -----------------------------------------------------------------------
 

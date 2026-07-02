@@ -1570,10 +1570,202 @@ function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeader
   );
 }
 
+// ─── Charter Scraper Section (single URL, manual) ─────────────────────────────
+
+interface CharterPreview {
+  title?: string;
+  vessel_name?: string;
+  make?: string;
+  model?: string;
+  year?: number;
+  boat_type?: string;
+  hull_material?: string;
+  length_feet?: number;
+  beam_feet?: number;
+  draft_feet?: number;
+  cabins?: number;
+  berths?: number;
+  heads?: number;
+  home_port_city?: string;
+  home_port_state?: string;
+  home_port_country?: string;
+  description?: string;
+  images?: string[];
+  status?: string;
+  currency?: string;
+  day_rate?: string;
+  week_rate?: string;
+  charter_company_name?: string;
+  charter_company_email?: string;
+  charter_company_phone?: string;
+}
+
+function CharterScraperSection({ apiUrl: _apiUrl, authHeaders: _authHeaders }: { apiUrl: (p: string) => string; authHeaders: () => Record<string, string> }) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [logs, setLogs] = useState<string[]>([]);
+  const [preview, setPreview] = useState<CharterPreview | null>(null);
+  const [priceHint, setPriceHint] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500';
+  const lbl = 'block text-xs font-medium text-gray-600 mb-1';
+
+  const set = (k: keyof CharterPreview, v: unknown) => setPreview(p => (p ? { ...p, [k]: v } : p));
+
+  async function handleScrape() {
+    if (!url.trim()) { setError('Please enter a URL'); return; }
+    setLoading(true); setError(''); setPreview(null); setPriceHint(null); setLogs([]); setSaveMsg(null);
+    try {
+      const res = await fetch(_apiUrl('/scraper/charter-preview'), {
+        method: 'POST', headers: _authHeaders(), body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      setLogs(data.logs || []);
+      if (!data.success) { setError(data.error || 'Failed to scrape this page'); return; }
+      setPreview({ ...data.charter, day_rate: '', week_rate: '', currency: data.charter.currency || 'USD' });
+      setPriceHint(data.scraped_price_hint ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreate() {
+    if (!preview) return;
+    setSaving(true); setSaveMsg(null);
+    try {
+      const payload: Record<string, unknown> = { ...preview };
+      // Empty rate fields shouldn't overwrite as "0" — strip them
+      if (!payload.day_rate) delete payload.day_rate; else payload.day_rate = Number(payload.day_rate);
+      if (!payload.week_rate) delete payload.week_rate; else payload.week_rate = Number(payload.week_rate);
+      const res = await fetch(_apiUrl('/charter'), {
+        method: 'POST',
+        headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to create listing');
+      setSaveMsg({ ok: true, text: `Created charter listing #${data.id} — ${data.title}` });
+      setPreview(null);
+      setUrl('');
+    } catch (err) {
+      setSaveMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed to create listing' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="p-6">
+      <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <p className="text-sm text-amber-900">
+          <strong>Manual charter scrape.</strong> Paste a single charter listing URL — it reuses the same page-fetch and extraction engine as the for-sale scraper, then maps the result onto the charter schema. Rates couldn&apos;t reliably be classified as day vs. week automatically, so confirm those manually below before creating the listing.
+        </p>
+      </div>
+
+      <div className="flex gap-2 mb-5">
+        <input
+          type="url"
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          placeholder="https://example.com/charter/north-wind"
+          className={inp}
+        />
+        <button
+          onClick={handleScrape}
+          disabled={loading}
+          className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 flex-shrink-0"
+        >
+          {loading ? 'Scraping…' : 'Scrape & Preview'}
+        </button>
+      </div>
+
+      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>}
+
+      {logs.length > 0 && (
+        <details className="mb-4">
+          <summary className="text-xs text-gray-500 cursor-pointer">Scrape logs ({logs.length})</summary>
+          <pre className="mt-2 bg-gray-900 text-green-300 text-xs rounded-lg p-3 overflow-auto max-h-48">{logs.join('\n')}</pre>
+        </details>
+      )}
+
+      {preview && (
+        <div className="rounded-xl border border-gray-200 p-5 space-y-4">
+          <h4 className="text-sm font-semibold text-gray-800">Review before creating</h4>
+
+          {priceHint != null && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              Found a price of <strong>{priceHint.toLocaleString()}</strong> on the page — enter it as either Day Rate or Week Rate below (whichever it represents).
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className={lbl}>Title</label>
+              <input className={inp} value={preview.title ?? ''} onChange={e => { set('title', e.target.value); set('vessel_name', e.target.value); }} />
+            </div>
+            <div><label className={lbl}>Make</label><input className={inp} value={preview.make ?? ''} onChange={e => set('make', e.target.value)} /></div>
+            <div><label className={lbl}>Model</label><input className={inp} value={preview.model ?? ''} onChange={e => set('model', e.target.value)} /></div>
+            <div><label className={lbl}>Year</label><input type="number" className={inp} value={preview.year ?? ''} onChange={e => set('year', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div><label className={lbl}>Boat Type</label><input className={inp} value={preview.boat_type ?? ''} onChange={e => set('boat_type', e.target.value)} /></div>
+            <div><label className={lbl}>Length (ft)</label><input type="number" className={inp} value={preview.length_feet ?? ''} onChange={e => set('length_feet', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div><label className={lbl}>Cabins</label><input type="number" className={inp} value={preview.cabins ?? ''} onChange={e => set('cabins', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div><label className={lbl}>Berths</label><input type="number" className={inp} value={preview.berths ?? ''} onChange={e => set('berths', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div><label className={lbl}>Heads</label><input type="number" className={inp} value={preview.heads ?? ''} onChange={e => set('heads', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div><label className={lbl}>Home Port City</label><input className={inp} value={preview.home_port_city ?? ''} onChange={e => set('home_port_city', e.target.value)} /></div>
+            <div><label className={lbl}>Home Port Country</label><input className={inp} value={preview.home_port_country ?? ''} onChange={e => set('home_port_country', e.target.value)} /></div>
+
+            <div>
+              <label className={lbl}>Currency</label>
+              <select className={inp} value={preview.currency ?? 'USD'} onChange={e => set('currency', e.target.value)}>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+            </div>
+            <div />
+            <div><label className={lbl}>Day Rate</label><input type="number" className={inp} value={preview.day_rate ?? ''} onChange={e => set('day_rate', e.target.value)} placeholder="Leave blank if not applicable" /></div>
+            <div><label className={lbl}>Week Rate</label><input type="number" className={inp} value={preview.week_rate ?? ''} onChange={e => set('week_rate', e.target.value)} placeholder="Leave blank if not applicable" /></div>
+
+            <div className="col-span-2"><label className={lbl}>Charter Company Name</label><input className={inp} value={preview.charter_company_name ?? ''} onChange={e => set('charter_company_name', e.target.value)} /></div>
+            <div className="col-span-2">
+              <label className={lbl}>Description</label>
+              <textarea rows={4} className={inp + ' resize-none'} value={preview.description ?? ''} onChange={e => set('description', e.target.value)} />
+            </div>
+          </div>
+
+          {preview.images && preview.images.length > 0 && (
+            <p className="text-xs text-gray-500">{preview.images.length} image(s) found and will be attached automatically.</p>
+          )}
+
+          {saveMsg && (
+            <div className={`p-3 rounded-lg text-sm ${saveMsg.ok ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+              {saveMsg.text}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={handleCreate} disabled={saving} className="px-5 py-2 bg-[#10214F] text-white rounded-lg text-sm font-medium hover:bg-[#1a3570] disabled:opacity-50">
+              {saving ? 'Creating…' : 'Create Charter Listing (as Draft)'}
+            </button>
+            <button onClick={() => { setPreview(null); setSaveMsg(null); }} className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminScraperTab() {
-  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt' | 'feeds' | 'enrich'>('jobs');
+  const [section, setSection] = useState<'jobs' | 'test' | 'review' | 'specs' | 'manual' | 'prompt' | 'feeds' | 'enrich' | 'charters'>('jobs');
 
   // ── Jobs state ──
   const [jobs, setJobs] = useState<ScraperJob[]>([]);
@@ -2032,6 +2224,9 @@ export default function AdminScraperTab() {
           </button>
           <button onClick={() => setSection('enrich')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'enrich' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             AI Enrich
+          </button>
+          <button onClick={() => setSection('charters')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${section === 'charters' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            Charters
           </button>
         </div>
       </div>
@@ -2849,6 +3044,9 @@ export default function AdminScraperTab() {
 
       {/* ══ AI ENRICH ══════════════════════════════════════════════════════ */}
       {section === 'enrich' && <BulkEnrichSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
+
+      {/* ══ CHARTERS — single-URL scrape for charter listings ═══════════════ */}
+      {section === 'charters' && <CharterScraperSection apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (
