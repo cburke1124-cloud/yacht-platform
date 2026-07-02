@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
+import { CHARTER_FEATURES } from '@/app/lib/charterFeatures';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -42,6 +43,7 @@ interface CharterListing {
   charter_company_phone?: string;
   charter_company_website?: string;
   amenities?: string[];
+  crew_profiles?: CrewProfile[];
   min_charter_days?: number;
   max_charter_days?: number;
   operating_regions?: string;
@@ -58,6 +60,12 @@ interface CharterListing {
   images?: (string | { url: string })[];
   availability_blocks?: AvailabilityBlock[];
   seasonal_rates?: SeasonalRate[];
+}
+
+interface CrewProfile {
+  name: string;
+  role: string;
+  bio?: string;
 }
 
 interface SeasonalRate {
@@ -96,6 +104,7 @@ const BLANK_CHARTER: Partial<CharterListing> = {
   home_port_city: '', home_port_state: '', home_port_country: 'USA',
   operating_regions: '', description: '', booking_url: '',
   embarkation_ports: [], disembarkation_ports: [], included_items: [], excluded_items: [],
+  amenities: [], crew_profiles: [],
 };
 
 function CharterModal({ initial, onSave, onClose }: {
@@ -116,6 +125,9 @@ function CharterModal({ initial, onSave, onClose }: {
   // Controlled text states for comma-separated fields — only parsed on blur/submit
   const [includedText, setIncludedText] = useState((initial?.included_items ?? []).join(', '));
   const [excludedText, setExcludedText] = useState((initial?.excluded_items ?? []).join(', '));
+  // Optional crew profiles — only appear on the listing if at least one is added
+  const [crewProfiles, setCrewProfiles] = useState<CrewProfile[]>(initial?.crew_profiles ?? []);
+  const [crewDraft, setCrewDraft] = useState<CrewProfile>({ name: '', role: '', bio: '' });
   // Image management
   const [charterImages, setCharterImages] = useState<string[]>(
     (initial?.images ?? []).map((img) => (typeof img === 'string' ? img : img.url)),
@@ -141,6 +153,24 @@ function CharterModal({ initial, onSave, onClose }: {
 
   const set = (k: keyof CharterListing, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
+  const toggleAmenity = (feature: string) => {
+    setForm(f => {
+      const current = f.amenities ?? [];
+      const next = current.includes(feature) ? current.filter(a => a !== feature) : [...current, feature];
+      return { ...f, amenities: next };
+    });
+  };
+
+  const addCrewProfile = () => {
+    if (!crewDraft.name.trim() || !crewDraft.role.trim()) return;
+    setCrewProfiles(current => [...current, { ...crewDraft, name: crewDraft.name.trim(), role: crewDraft.role.trim(), bio: crewDraft.bio?.trim() || undefined }]);
+    setCrewDraft({ name: '', role: '', bio: '' });
+  };
+
+  const removeCrewProfile = (index: number) => {
+    setCrewProfiles(current => current.filter((_, i) => i !== index));
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -161,6 +191,7 @@ function CharterModal({ initial, onSave, onClose }: {
         setSeasonalRates(data.seasonal_rates ?? []);
         setIncludedText((data.included_items ?? []).join(', '));
         setExcludedText((data.excluded_items ?? []).join(', '));
+        setCrewProfiles(data.crew_profiles ?? []);
         setCharterImages(
           (data.images ?? []).map((img: string | { url: string }) =>
             typeof img === 'string' ? img : img.url,
@@ -187,6 +218,7 @@ function CharterModal({ initial, onSave, onClose }: {
       ...form,
       included_items: includedText.split(',').map(v => v.trim()).filter(Boolean),
       excluded_items: excludedText.split(',').map(v => v.trim()).filter(Boolean),
+      crew_profiles: crewProfiles,
     });
     setSaving(false);
   };
@@ -417,10 +449,54 @@ function CharterModal({ initial, onSave, onClose }: {
             </div>
           </div>
 
+          {/* Crew Profiles — fully optional; only rendered on the listing page if at least one is added */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Crew Profiles (optional)</p>
+            <p className="text-xs text-gray-400 mb-2">Add a captain, chef, or mate to show a "Meet the Crew" section on the listing. Leave empty to hide it entirely.</p>
+            {crewProfiles.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {crewProfiles.map((crew, i) => (
+                  <div key={i} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{crew.name} <span className="text-gray-400 font-normal">— {crew.role}</span></p>
+                      {crew.bio && <p className="text-xs text-gray-500 mt-0.5">{crew.bio}</p>}
+                    </div>
+                    <button type="button" onClick={() => removeCrewProfile(i)} className="text-xs font-medium text-red-600 hover:text-red-700 flex-shrink-0">Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              <input className={inp} placeholder="Name" value={crewDraft.name} onChange={e => setCrewDraft(d => ({ ...d, name: e.target.value }))} />
+              <input className={inp} placeholder="Role (e.g. Captain)" value={crewDraft.role} onChange={e => setCrewDraft(d => ({ ...d, role: e.target.value }))} />
+              <input className={inp} placeholder="Short bio (optional)" value={crewDraft.bio ?? ''} onChange={e => setCrewDraft(d => ({ ...d, bio: e.target.value }))} />
+            </div>
+            <button type="button" onClick={addCrewProfile} disabled={!crewDraft.name.trim() || !crewDraft.role.trim()} className="mt-2 px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 disabled:opacity-40">
+              + Add crew member
+            </button>
+          </div>
+
           {/* Operation region */}
           <div>
             <label className={lbl}>Operating Regions</label>
             <input className={inp} value={form.operating_regions ?? ''} onChange={e => set('operating_regions', e.target.value)} placeholder="Caribbean, Bahamas, Florida Keys" />
+          </div>
+
+          {/* Amenities & Features — same tags shown in the public /charter filter bar */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Amenities &amp; Features</p>
+            <p className="text-xs text-gray-400 mb-2">Checked items appear on the listing page and let this charter show up when guests filter by that feature.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {CHARTER_FEATURES.map(feature => {
+                const checked = (form.amenities ?? []).includes(feature);
+                return (
+                  <label key={feature} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm cursor-pointer transition-colors ${checked ? 'border-[#10214F] bg-[#10214F]/5 text-[#10214F]' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleAmenity(feature)} className="w-4 h-4 accent-[#10214F]" />
+                    {feature}
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {/* Charter inclusions */}

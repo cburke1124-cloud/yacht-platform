@@ -44,6 +44,7 @@ class CharterListing(Base):
     max_guests = Column(Integer)
     crew_included = Column(Boolean, default=True)
     crew_count = Column(Integer)
+    crew_profiles = Column(JSON, default=list)  # optional: [{name, role, bio}]
 
     # Location
     home_port = Column(String)

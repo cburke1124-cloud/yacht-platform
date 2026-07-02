@@ -97,6 +97,7 @@ def _serialize(c: CharterListing) -> dict:
         "max_guests": c.max_guests,
         "crew_included": c.crew_included,
         "crew_count": c.crew_count,
+        "crew_profiles": c.crew_profiles or [],
         "home_port": c.home_port,
         "home_port_city": c.home_port_city,
         "home_port_state": c.home_port_state,

@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, X, SlidersHorizontal,
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { CHARTER_FEATURES } from '@/app/lib/charterFeatures';
 
 interface CharterListing {
   id: number;
@@ -37,12 +38,6 @@ interface CharterListing {
 }
 
 const CHARTER_TYPES = ['Sailboat', 'Catamaran', 'Yacht'] as const;
-
-const CHARTER_FEATURES = [
-  'Air Conditioning', 'Generator', 'Watermaker', 'WiFi', 'Stabilizers',
-  'Tender', 'Jet Ski', 'Water Slide', 'Kayaks', 'Snorkel Gear',
-  'Fishing Gear', 'Dive Equipment', 'BBQ', 'Jacuzzi',
-];
 
 const PAGE_SIZE = 24;
 

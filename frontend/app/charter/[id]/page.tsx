@@ -34,6 +34,7 @@ interface CharterListing {
   max_guests?: number;
   crew_included: boolean;
   crew_count?: number;
+  crew_profiles?: Array<{ name: string; role: string; bio?: string }>;
   home_port?: string;
   home_port_city?: string;
   home_port_state?: string;
@@ -79,8 +80,6 @@ interface CharterListing {
   security_deposit?: number;
   tax_notes?: string;
   cancellation_policy?: string;
-  one_way_allowed?: boolean;
-  turnaround_days?: number;
 }
 
 function formatRate(amount?: number, currency = 'USD', period?: string) {
@@ -500,6 +499,22 @@ export default function CharterDetailPage() {
                 <SectionHeading>About This Vessel</SectionHeading>
                 <div className="text-[15px] leading-[1.8] text-[#10214F] whitespace-pre-line" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {charter.description}
+                </div>
+              </div>
+            )}
+
+            {/* CREW — optional, only shown when at least one crew profile has been added */}
+            {charter.crew_profiles && charter.crew_profiles.length > 0 && (
+              <div>
+                <SectionHeading>Meet the Crew</SectionHeading>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {charter.crew_profiles.map((crew, i) => (
+                    <div key={i} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                      <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{crew.name}</p>
+                      <p className="text-xs text-[#01BBDC] font-medium uppercase tracking-wide mb-2">{crew.role}</p>
+                      {crew.bio && <p className="text-sm text-gray-600 leading-relaxed">{crew.bio}</p>}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
