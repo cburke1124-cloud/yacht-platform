@@ -916,7 +916,10 @@ def get_my_listings(
         query = db.query(Listing).filter(*filters)
     if status:
         query = query.filter(Listing.status == status)
-    listings = query.order_by(Listing.created_at.desc()).all()
+    # Same safety cap as /listings/admin-list — the frontend fetches once and
+    # paginates/filters client-side, so this just guards against an unbounded
+    # query rather than changing normal behavior (no dealer/team has 2000+ listings today).
+    listings = query.order_by(Listing.created_at.desc()).limit(2000).all()
     listing_ids = [l.id for l in listings]
     media_map = _get_primary_images_for_listings(db, listing_ids)
 

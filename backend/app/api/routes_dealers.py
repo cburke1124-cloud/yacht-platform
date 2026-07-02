@@ -55,16 +55,27 @@ def get_all_dealers(
     
     # Apply pagination
     results = query.offset(skip).limit(limit).all()
-    
+
+    # Batch listing stats for this page of dealers in one query instead of one per dealer
+    dealer_ids = [user.id for user, _ in results]
+    stats_by_dealer: dict[int, tuple[int, int]] = {}
+    if dealer_ids:
+        stats_rows = (
+            db.query(
+                Listing.user_id,
+                func.count(Listing.id).label('total'),
+                func.count(case((Listing.status == 'active', 1))).label('active'),
+            )
+            .filter(Listing.user_id.in_(dealer_ids))
+            .group_by(Listing.user_id)
+            .all()
+        )
+        stats_by_dealer = {row.user_id: (row.total, row.active) for row in stats_rows}
+
     dealers = []
     for user, profile in results:
-        # Get listing stats
-        listing_stats = db.query(
-            func.count(Listing.id).label('total'),
-            func.count(case((Listing.status == 'active', 1))).label('active')
-        ).filter(Listing.user_id == user.id).first()
+        total_listings, active_listings = stats_by_dealer.get(user.id, (0, 0))
 
-        
         dealers.append({
             "id": user.id,
             "name": f"{user.first_name} {user.last_name}" if user.first_name else user.email,
@@ -80,8 +91,8 @@ def get_all_dealers(
             "state": profile.state,
             "country": profile.country,
             "postal_code": profile.postal_code,
-            "total_listings": listing_stats.total or 0,
-            "active_listings": listing_stats.active or 0,
+            "total_listings": total_listings or 0,
+            "active_listings": active_listings or 0,
             "subscription_tier": user.subscription_tier,
             "created_at": user.created_at.isoformat() if user.created_at else None
         })

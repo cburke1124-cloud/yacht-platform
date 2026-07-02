@@ -12,7 +12,7 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"))
     assigned_salesman_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     guest_salesman_id = Column(Integer, ForeignKey('guest_brokers.id'), nullable=True)
@@ -76,7 +76,7 @@ class Listing(Base):
     # Condition & Status
     condition = Column(String, default="used")
     previous_owners = Column(Integer)
-    status = Column(String, default="active")
+    status = Column(String, default="active", index=True)
 
     # Co-Brokering / API Access
     # When True (default), this listing is accessible via the public co-brokering API.
@@ -95,10 +95,10 @@ class Listing(Base):
     views = Column(Integer, default=0)
     inquiries = Column(Integer, default=0)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     published_at = Column(DateTime)
-    deleted_at = Column(DateTime, nullable=True)  # soft-delete timestamp; NULL = not deleted
+    deleted_at = Column(DateTime, nullable=True, index=True)  # soft-delete timestamp; NULL = not deleted
 
     owner = relationship("User", back_populates="listings", foreign_keys=[user_id])
     creator = relationship("User", foreign_keys=[created_by_user_id], overlaps="created_listings")
