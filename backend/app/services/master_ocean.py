@@ -59,6 +59,29 @@ def _normalize_boat_type(raw: Optional[str]) -> Optional[str]:
     return _BOAT_TYPE_MAP.get(raw.strip().lower(), raw.strip())
 
 
+_COUNTRY_ABBR = {"US": "United States", "USA": "United States", "UK": "United Kingdom"}
+
+
+def _parse_location(location: Optional[str], flag: Optional[str] = None):
+    """Master Ocean's API exposes a single free-text `location` string (e.g.
+    "Bodrum, Turkey") and a separate `flag` field — there is no distinct
+    country/region/homePort field to read, unlike what the mapper previously
+    assumed (which silently left every listing's location blank)."""
+    city: Optional[str] = None
+    country: Optional[str] = None
+    if location:
+        parts = [p.strip() for p in location.split(",") if p.strip()]
+        if len(parts) >= 2:
+            city, country = parts[0], parts[-1]
+        elif parts:
+            city = parts[0]
+    if not country and flag:
+        country = flag.strip() or None
+    if country:
+        country = _COUNTRY_ABBR.get(country.upper(), country)
+    return city, country
+
+
 def _m_to_ft(meters: Optional[float]) -> Optional[float]:
     if meters is None:
         return None
@@ -89,23 +112,32 @@ class MasterOceanClient:
             "User-Agent": "YachtPlatform/1.0",
         }
 
+    def _get_yachts_page_raw(
+        self,
+        listing_type: str = "Charter",
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict:
+        """Fetch one page and return the full response envelope (yachts + total)."""
+        url = f"{_BASE_URL}/api/public/yachts"
+        params = {"for": listing_type, "limit": limit, "offset": offset}
+        resp = requests.get(url, headers=self._headers, params=params, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+
     def get_yachts(
         self,
         listing_type: str = "Charter",
-        limit: int = 50,
+        limit: int = 100,
         offset: int = 0,
     ) -> List[Dict]:
         """Fetch one page of yachts from the list endpoint."""
-        url = f"{_BASE_URL}/api/public/yachts"
-        params = {"for": listing_type, "limit": limit, "offset": offset}
         try:
-            resp = requests.get(url, headers=self._headers, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
+            data = self._get_yachts_page_raw(listing_type, limit=limit, offset=offset)
             if isinstance(data, list):
                 return data
             if isinstance(data, dict):
-                return data.get("data") or data.get("yachts") or data.get("items") or []
+                return data.get("yachts") or data.get("data") or data.get("items") or []
             return []
         except Exception as exc:
             logger.error(f"MasterOcean get_yachts({listing_type}, offset={offset}): {exc}")
@@ -117,24 +149,45 @@ class MasterOceanClient:
         try:
             resp = requests.get(url, headers=self._headers, timeout=30)
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            return data.get("yacht") if isinstance(data, dict) and "yacht" in data else data
         except Exception as exc:
             logger.warning(f"MasterOcean get_yacht_detail({yacht_id}): {exc}")
             return None
 
-    def paginate_all(self, listing_type: str, page_size: int = 50) -> List[Dict]:
-        """Return every yacht of a given listing_type, paginating automatically."""
+    def paginate_all(self, listing_type: str, page_size: int = 100) -> List[Dict]:
+        """Return every yacht of a given listing_type, paginating automatically.
+
+        The API's `limit` param is a request, not a guarantee — a server-side cap
+        can silently return fewer records than asked for. Relying on
+        "returned fewer than requested => last page" undercounts in that case
+        (this is exactly why a prior sync only pulled in 30 of ~130 listings).
+        The response's `total` field is authoritative, so page by offset until
+        offset >= total instead.
+        """
         results: List[Dict] = []
         offset = 0
+        total: Optional[int] = None
         while True:
-            page = self.get_yachts(listing_type, limit=page_size, offset=offset)
+            try:
+                data = self._get_yachts_page_raw(listing_type, limit=page_size, offset=offset)
+            except Exception as exc:
+                logger.error(f"MasterOcean paginate_all({listing_type}, offset={offset}): {exc}")
+                break
+            page = data.get("yachts") or data.get("data") or data.get("items") or [] if isinstance(data, dict) else (data or [])
+            if total is None and isinstance(data, dict):
+                total = data.get("total")
             if not page:
                 break
             results.extend(page)
-            if len(page) < page_size:
+            offset += len(page)
+            if total is not None:
+                if offset >= total:
+                    break
+            elif len(page) < page_size:
+                # No `total` field to trust — fall back to the old heuristic.
                 break
-            offset += page_size
-        logger.info(f"MasterOcean paginate_all({listing_type}): fetched {len(results)} yachts")
+        logger.info(f"MasterOcean paginate_all({listing_type}): fetched {len(results)} yachts (total reported: {total})")
         return results
 
 
@@ -178,11 +231,8 @@ def _map_charter(basic: Dict, detail: Optional[Dict]) -> Dict:
     day_rate = float(price) if price and price_unit == "day" else None
     week_rate = float(price) if price and price_unit == "week" else None
 
-    # Location
-    country_raw = merged.get("country") or ""
-    # Normalize common abbreviations
-    _COUNTRY_ABBR = {"US": "United States", "USA": "United States", "UK": "United Kingdom"}
-    country = _COUNTRY_ABBR.get(country_raw.upper(), country_raw) if country_raw else None
+    # Location — API gives one free-text "location" string ("Bodrum, Turkey") + "flag"
+    city, country = _parse_location(merged.get("location"), merged.get("flag"))
 
     return {
         "vessel_name": (merged.get("name") or "").strip() or None,
@@ -201,9 +251,10 @@ def _map_charter(basic: Dict, detail: Optional[Dict]) -> Dict:
         "day_rate": day_rate,
         "week_rate": week_rate,
         "currency": (merged.get("currency") or "USD").upper(),
-        "home_port": (merged.get("homePort") or "").strip() or None,
+        "home_port": (merged.get("location") or "").strip() or None,
+        "home_port_city": city,
         "home_port_country": country,
-        "home_port_state": (merged.get("region") or "").strip() or None,
+        "operating_regions": (merged.get("location") or "").strip() or None,
         "description": description,
         "amenities": amenities or [],
         "images": images,
@@ -235,9 +286,7 @@ def _map_sale(basic: Dict, detail: Optional[Dict]) -> Dict:
         description_parts.append(extra_notes)
     description = "\n\n".join(p for p in description_parts if p).strip() or None
 
-    country_raw = merged.get("country") or ""
-    _COUNTRY_ABBR = {"US": "United States", "USA": "United States", "UK": "United Kingdom"}
-    country = _COUNTRY_ABBR.get(country_raw.upper(), country_raw) if country_raw else None
+    city, country = _parse_location(merged.get("location"), merged.get("flag"))
 
     make = (merged.get("make") or "").strip() or None
     model = (merged.get("model") or "").strip() or None
@@ -261,9 +310,8 @@ def _map_sale(basic: Dict, detail: Optional[Dict]) -> Dict:
         "max_speed_knots": None,
         "fuel_capacity_gallons": _liters_to_gal(d.get("fuelCapacity")),
         "engine_count": None,
-        "city": (merged.get("homePort") or "").strip() or None,
+        "city": city,
         "country": country,
-        "state": (merged.get("region") or "").strip() or None,
         "description": description,
         "features": features_text,
         "feature_bullets": features_list[:8] if features_list else None,
@@ -414,8 +462,8 @@ def _apply_charter_fields(charter: "CharterListing", title: str, vessel_name: st
     for field in (
         "make", "model", "year", "boat_type", "length_feet", "beam_feet", "draft_feet",
         "cabins", "max_guests", "crew_count", "crew_included", "engine_make",
-        "day_rate", "week_rate", "currency", "home_port", "home_port_country",
-        "home_port_state", "description", "amenities", "images",
+        "day_rate", "week_rate", "currency", "home_port", "home_port_city",
+        "home_port_country", "operating_regions", "description", "amenities", "images",
     ):
         val = mapped.get(field)
         if val is not None:

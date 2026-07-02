@@ -2409,11 +2409,16 @@ def test_master_ocean_connection(
 
     from app.services.master_ocean import MasterOceanClient
     client = MasterOceanClient(api_key)
-    yachts = client.get_yachts("Charter", limit=10, offset=0)
+    try:
+        raw = client._get_yachts_page_raw("Charter", limit=10, offset=0)
+    except Exception as exc:
+        return {"success": False, "message": f"Connection failed: {exc}"}
+    yachts = raw.get("yachts") or raw.get("data") or raw.get("items") or []
     sample = [y.get("name") or y.get("id") for y in yachts[:3]]
     return {
         "success": True,
         "count_on_first_page": len(yachts),
+        "total_found": raw.get("total"),
         "sample_names": sample,
     }
 
