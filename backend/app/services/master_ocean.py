@@ -355,6 +355,7 @@ def run_master_ocean_sync(job_id: int, job, template: Dict, db) -> Dict:
     # Archive listings that were not seen in this run
     stats["archived"] += _archive_disappeared(job_id, seen_source_urls, db)
 
+    stats["log"] = run_log
     return stats
 
 

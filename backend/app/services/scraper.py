@@ -2928,10 +2928,11 @@ def run_scraper_job(job_id: int, db) -> Dict:
                 job.listings_created = mo_stats.get("created", 0)
                 job.listings_updated = mo_stats.get("updated", 0)
                 job.listings_removed = mo_stats.get("archived", 0)
+                job.last_run_log = mo_stats.get("log", [])
                 job.total_runs = (job.total_runs or 0) + 1
                 job.last_run_at = datetime.utcnow()
                 from datetime import timedelta
-                job.next_run_at = datetime.utcnow() + timedelta(hours=job.schedule_hours or 24)
+                job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
             job.completed_at = datetime.utcnow()
             db.commit()
         except Exception as exc:

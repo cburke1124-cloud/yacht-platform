@@ -1370,6 +1370,16 @@ function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeader
   const [runningId, setRunningId] = useState<number | null>(null);
   const [runMsg, setRunMsg] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showLog, setShowLog] = useState(false);
+  const [logEntries, setLogEntries] = useState<Array<{ url?: string; outcome?: string; error?: string; listing_id?: number }>>([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
+  const [rawData, setRawData] = useState<unknown>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({ schedule_hours: '24', enabled: true });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editMsg, setEditMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -1440,6 +1450,63 @@ function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeader
     } catch (e: any) { setRunMsg(e.message); setRunningId(null); }
   }
 
+  async function handleViewLog() {
+    if (!moJob) return;
+    if (showLog) { setShowLog(false); return; }
+    setShowLog(true); setShowRaw(false); setLogLoading(true);
+    try {
+      const r = await fetch(_apiUrl(`/scraper/jobs/${moJob.id}`), { headers: _authHeaders() });
+      const d = await r.json();
+      setLogEntries(d.success ? (d.job?.last_run_log ?? []) : []);
+    } catch { setLogEntries([]); } finally { setLogLoading(false); }
+  }
+
+  async function handleViewRaw() {
+    if (!moJob) return;
+    if (showRaw) { setShowRaw(false); return; }
+    setShowRaw(true); setShowLog(false);
+    try {
+      const r = await fetch(_apiUrl(`/scraper/jobs/${moJob.id}`), { headers: _authHeaders() });
+      const d = await r.json();
+      setRawData(d.success ? d.job : d);
+    } catch (e: any) { setRawData({ error: e.message }); }
+  }
+
+  function handleStartEdit() {
+    if (!moJob) return;
+    setEditForm({ schedule_hours: String(moJob.schedule_hours ?? 24), enabled: moJob.enabled });
+    setEditMsg(null);
+    setShowEdit(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!moJob) return;
+    setEditSaving(true); setEditMsg(null);
+    try {
+      const r = await fetch(_apiUrl(`/scraper/jobs/${moJob.id}`), {
+        method: 'PUT', headers: _authHeaders(),
+        body: JSON.stringify({ schedule_hours: Number(editForm.schedule_hours), enabled: editForm.enabled }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.detail || 'Failed to save');
+      setEditMsg({ ok: true, text: 'Saved' });
+      setShowEdit(false);
+      loadMoJob();
+    } catch (e: any) { setEditMsg({ ok: false, text: e.message }); } finally { setEditSaving(false); }
+  }
+
+  async function handleDelete() {
+    if (!moJob) return;
+    if (!confirm('Delete the Master Ocean sync job? This will not remove already-imported listings.')) return;
+    setDeleting(true);
+    try {
+      const r = await fetch(_apiUrl(`/scraper/jobs/${moJob.id}`), { method: 'DELETE', headers: _authHeaders() });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.detail || 'Failed to delete');
+      setMoJob(null); setShowLog(false); setShowRaw(false); setShowEdit(false);
+    } catch (e: any) { alert(e.message); } finally { setDeleting(false); }
+  }
+
   const fmtDate = (s?: string) => s ? new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
   return (
@@ -1492,8 +1559,82 @@ function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeader
                   ? <><span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Running…</>
                   : <>▶ Run</>}
               </button>
+              <button onClick={handleViewLog} title="View last run log" className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">
+                {logLoading ? '…' : 'Log'}
+              </button>
+              <button onClick={handleStartEdit} title="Edit schedule / enabled" className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium">Edit</button>
+              <button onClick={handleViewRaw} title="View raw job record" className="px-3 py-1.5 text-xs bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 font-medium">Raw</button>
+              <button onClick={handleDelete} disabled={deleting} title="Delete" className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium disabled:opacity-50">
+                {deleting ? '…' : 'Delete'}
+              </button>
             </div>
           </div>
+
+          {/* Log panel */}
+          {showLog && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <p className="text-xs font-semibold text-gray-600 mb-2">Last run log</p>
+              {logLoading ? (
+                <p className="text-xs text-gray-400">Loading…</p>
+              ) : logEntries.length === 0 ? (
+                <p className="text-xs text-gray-400">No log entries yet — run the job to populate this.</p>
+              ) : (
+                <div className="max-h-64 overflow-auto space-y-1">
+                  {logEntries.map((entry, i) => (
+                    <div key={i} className="text-xs px-2 py-1 rounded bg-gray-50 flex items-start gap-2">
+                      <span className={`font-medium flex-shrink-0 ${entry.outcome === 'error' ? 'text-red-600' : entry.outcome === 'created' ? 'text-green-700' : entry.outcome === 'updated' ? 'text-blue-700' : 'text-gray-500'}`}>
+                        {entry.outcome ?? '—'}
+                      </span>
+                      <span className="text-gray-600 truncate">{entry.error || entry.url || (entry.listing_id ? `listing #${entry.listing_id}` : '')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Raw panel */}
+          {showRaw && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <p className="text-xs font-semibold text-purple-800 mb-2">Raw job record</p>
+              <pre className="bg-gray-900 text-green-300 text-xs rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all">{JSON.stringify(rawData, null, 2)}</pre>
+            </div>
+          )}
+
+          {/* Edit panel */}
+          {showEdit && (
+            <div className="mt-3 border-t border-gray-100 pt-3 space-y-3">
+              <p className="text-xs font-semibold text-gray-600">Edit Master Ocean job</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Sync schedule</label>
+                  <select value={editForm.schedule_hours} onChange={e => setEditForm(f => ({ ...f, schedule_hours: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                    <option value="6">Every 6 hours</option>
+                    <option value="12">Every 12 hours</option>
+                    <option value="24">Daily</option>
+                    <option value="48">Every 2 days</option>
+                    <option value="168">Weekly</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button type="button" onClick={() => setEditForm(f => ({ ...f, enabled: !f.enabled }))} className="flex items-center gap-2 text-sm text-gray-700 pb-2">
+                    <span className={`inline-block w-10 h-5 rounded-full transition-colors ${editForm.enabled ? 'bg-green-500' : 'bg-gray-300'} relative`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${editForm.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </span>
+                    {editForm.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+              </div>
+              {editMsg && <p className={`text-xs ${editMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{editMsg.text}</p>}
+              <div className="flex gap-2">
+                <button onClick={handleSaveEdit} disabled={editSaving} className="px-4 py-1.5 bg-blue-700 text-white rounded-lg text-xs font-medium hover:bg-blue-800 disabled:opacity-50">
+                  {editSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => setShowEdit(false)} className="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200">Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
