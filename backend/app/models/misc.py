@@ -173,10 +173,10 @@ class ScrapedListing(Base):
     __tablename__ = "scraped_listings"
 
     id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("scraper_jobs.id"))
-    listing_id = Column(Integer, ForeignKey("listings.id"))
+    job_id = Column(Integer, ForeignKey("scraper_jobs.id"), index=True)
+    listing_id = Column(Integer, ForeignKey("listings.id"), index=True)
 
-    source_url = Column(String, nullable=False)
+    source_url = Column(String, nullable=False, index=True)
     last_seen = Column(DateTime, default=datetime.utcnow)
     still_active = Column(Boolean, default=True)
 

@@ -135,7 +135,7 @@ class ListingImage(Base):
     __tablename__ = "listing_images"
 
     id = Column(Integer, primary_key=True, index=True)
-    listing_id = Column(Integer, ForeignKey("listings.id"))
+    listing_id = Column(Integer, ForeignKey("listings.id"), index=True)
     url = Column(Text, nullable=False)
     thumbnail_url = Column(Text)
     filename = Column(String)

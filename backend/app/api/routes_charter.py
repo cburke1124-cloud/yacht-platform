@@ -54,6 +54,14 @@ class SeasonalRateRequest(BaseModel):
     notes: Optional[str] = None
 
 
+def _is_admin(user: User) -> bool:
+    # NOTE: User has no `is_admin` column — admin-ness is user_type == "admin"
+    # everywhere else in the codebase. The old getattr(user, "is_admin", False)
+    # checks here always returned False, locking real admins out of
+    # /charter/admin/all (the UI then fell back to the public list, hiding drafts).
+    return (user.user_type or "").lower() == "admin"
+
+
 def _slugify(text: str) -> str:
     text = text.lower().strip()
     text = re.sub(r'[^\w\s-]', '', text)
@@ -420,7 +428,7 @@ def admin_list_all_charters(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not getattr(current_user, "is_admin", False):
+    if not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Admin only")
     query = db.query(CharterListing)
     if q:
@@ -479,7 +487,7 @@ def import_charters(
     created = 0
     updated = 0
     errors: list = []
-    is_admin = getattr(current_user, "is_admin", False)
+    is_admin = _is_admin(current_user)
 
     for row_index, row in enumerate(reader, start=2):
         try:
@@ -541,7 +549,7 @@ def export_charters(
     current_user: User = Depends(get_current_user),
 ):
     """Export charter listings to CSV. Admins get all listings; dealers get their own."""
-    is_admin = getattr(current_user, "is_admin", False)
+    is_admin = _is_admin(current_user)
     query = db.query(CharterListing)
     if not is_admin:
         query = query.filter(CharterListing.user_id == current_user.id)
@@ -599,7 +607,7 @@ def create_charter_availability_block(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+    if charter.user_id != current_user.id and not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Not authorised")
     if data.end_date < data.start_date:
         raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
@@ -646,7 +654,7 @@ def delete_charter_availability_block(
     if not block:
         raise HTTPException(status_code=404, detail="Availability block not found")
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
-    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+    if charter.user_id != current_user.id and not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Not authorised")
     db.delete(block)
     db.commit()
@@ -674,7 +682,7 @@ def create_charter_seasonal_rate(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+    if charter.user_id != current_user.id and not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Not authorised")
     rate = CharterSeasonalRate(
         charter_id=charter_id,
@@ -711,7 +719,7 @@ def delete_charter_seasonal_rate(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    if charter.user_id != current_user.id and not getattr(current_user, "is_admin", False):
+    if charter.user_id != current_user.id and not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     db.delete(rate)
@@ -842,7 +850,7 @@ def update_charter(
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
 
-    is_admin = getattr(current_user, "is_admin", False)
+    is_admin = _is_admin(current_user)
     if charter.user_id != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorised")
 
@@ -866,7 +874,7 @@ def delete_charter(
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
 
-    is_admin = getattr(current_user, "is_admin", False)
+    is_admin = _is_admin(current_user)
     if charter.user_id != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorised")
 
@@ -882,7 +890,7 @@ def admin_hard_delete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not getattr(current_user, "is_admin", False):
+    if not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Admin only")
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
