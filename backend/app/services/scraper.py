@@ -1694,50 +1694,67 @@ except Exception as e:
             (r"(?:A\$|AUD)\s*(\d[\d,.\s]*)", "AUD"),
             # NZD explicit labels
             (r"(?:NZ\$|NZD)\s*(\d[\d,.\s]*)", "NZD"),
-            # EUR — also handle trailing symbol (e.g. "33.000€", "45.000 €")
+            # EUR — also handle trailing symbol (e.g. "33.000€", "45.000 €").
+            # NB: \b must only follow the alphabetic code — after "€" (a non-word
+            # char) a word boundary never matches before space/EOL, which silently
+            # broke trailing-symbol extraction for the exact case it was added for.
             (r"(?:€|EUR)\s*(\d[\d,.\s]*)", "EUR"),
-            (r"(\d[\d,.\s]*)\s*(?:€|EUR)\b", "EUR"),
+            (r"(\d[\d,.\s]*)\s*(?:€|EUR\b)", "EUR"),
             # GBP — also handle trailing symbol
             (r"(?:£|GBP)\s*(\d[\d,.\s]*)", "GBP"),
-            (r"(\d[\d,.\s]*)\s*(?:£|GBP)\b", "GBP"),
+            (r"(\d[\d,.\s]*)\s*(?:£|GBP\b)", "GBP"),
             # Trailing currency label: "150,000 CAD", "150,000 USD", "150,000 EUR"
             (r"(\d[\d,.\s]+)\s*\b(CAD|USD|EUR|GBP|AUD|NZD)\b", None),
             # Bare $ — ambiguous; treat as CAD if page has CAD context, else USD
             (r"\$\s*(\d[\d,.\s]*)", "CAD" if cad_context else "USD"),
         ]
-        for pat, currency in patterns:
-            m = re.search(pat, text, re.IGNORECASE)
-            if not m:
-                continue
-            if currency is None:
-                # Trailing-label pattern — group 1 is digits, group 2 is currency
-                raw_num = m.group(1)
-                currency = m.group(2).upper()
-            else:
-                raw_num = m.group(1)
-            # Normalise European number formatting where "." is the thousands separator
-            # and "," is the decimal separator (e.g. "45.000" = 45 000, "145.000,50" = 145 000.50).
-            # Rule: if the string contains "," after a ".", it's European (comma = decimal).
-            # Also: if the number ends with exactly ".XXX" (3 digits) and has no comma at all,
-            # assume the dot is a thousands separator (covers "45.000€" → 45000).
-            cleaned = raw_num.strip()
-            if re.search(r'\.[0-9]{3}', cleaned) and ',' not in cleaned:
-                # European thousands-dot(s): remove all dots → integer
-                cleaned = cleaned.replace('.', '').replace(' ', '')
-            elif ',' in cleaned and '.' in cleaned and cleaned.index('.') < cleaned.index(','):
-                # European: "145.000,50" → "145000.50"
-                cleaned = cleaned.replace('.', '').replace(',', '.').replace(' ', '')
-            else:
-                cleaned = re.sub(r'[,\s]', '', cleaned)
-            cleaned = cleaned.rstrip('.')
-            try:
-                val = float(cleaned)
-                if val < 1000:  # sanity — no yacht for under $1000
+        def _scan(segment: str) -> Optional[tuple]:
+            for pat, currency in patterns:
+                m = re.search(pat, segment, re.IGNORECASE)
+                if not m:
                     continue
-                return val, currency
-            except ValueError:
-                continue
-        return None
+                if currency is None:
+                    # Trailing-label pattern — group 1 is digits, group 2 is currency
+                    raw_num = m.group(1)
+                    currency = m.group(2).upper()
+                else:
+                    raw_num = m.group(1)
+                # Normalise European number formatting where "." is the thousands separator
+                # and "," is the decimal separator (e.g. "45.000" = 45 000, "145.000,50" = 145 000.50).
+                # Rule: if the string contains "," after a ".", it's European (comma = decimal).
+                # Also: if the number ends with exactly ".XXX" (3 digits) and has no comma at all,
+                # assume the dot is a thousands separator (covers "45.000€" → 45000).
+                cleaned = raw_num.strip()
+                if re.search(r'\.[0-9]{3}', cleaned) and ',' not in cleaned:
+                    # European thousands-dot(s): remove all dots → integer
+                    cleaned = cleaned.replace('.', '').replace(' ', '')
+                elif ',' in cleaned and '.' in cleaned and cleaned.index('.') < cleaned.index(','):
+                    # European: "145.000,50" → "145000.50"
+                    cleaned = cleaned.replace('.', '').replace(',', '.').replace(' ', '')
+                else:
+                    cleaned = re.sub(r'[,\s]', '', cleaned)
+                cleaned = cleaned.rstrip('.')
+                try:
+                    val = float(cleaned)
+                    if val < 1000:  # sanity — no yacht for under $1000
+                        continue
+                    return val, currency
+                except ValueError:
+                    continue
+            return None
+
+        # Prefer a number sitting next to an explicit price label — the first
+        # bare currency match on a page is often a related listing's price, a
+        # deposit, or a financing figure, not this boat's asking price.
+        for label_match in re.finditer(
+            r"(?:asking\s+price|list\s+price|price|prezzo|prix|preis)\s*[:\-]?\s?.{0,60}",
+            text, re.IGNORECASE,
+        ):
+            hit = _scan(label_match.group(0))
+            if hit:
+                return hit
+
+        return _scan(text)
 
     def extract_specs_from_text(self, text: str) -> Dict:
         specs = {}
@@ -2130,7 +2147,17 @@ except Exception as e:
                 response_text = _json_match.group(0)
             yacht_data = json.loads(response_text)
             if partial_data:
-                yacht_data = {**partial_data, **yacht_data}
+                # AI fills gaps only — deterministic extraction (JSON-LD, spec
+                # tables, labeled regex) must not be overwritten by model output,
+                # which works from truncated text and can hallucinate. Exceptions:
+                # location fields (the regex source is the flakiest extractor we
+                # have) and description (AI reliably finds prose the regex misses).
+                _ai_may_override = {"city", "state", "country", "description"}
+                deterministic = {
+                    k: v for k, v in partial_data.items()
+                    if v not in (None, "", []) and k not in _ai_may_override
+                }
+                yacht_data = {**partial_data, **yacht_data, **deterministic}
             # Normalize location from AI output
             nc, ns, nco = self.normalize_location(
                 yacht_data.get("city"), yacht_data.get("state"), yacht_data.get("country")
@@ -2688,23 +2715,30 @@ except Exception as e:
             if _rebuilt:
                 yacht_data['title'] = _rebuilt
 
-                # Reconstruct title as 'YEAR MAKE MODEL' whenever we have make/model data.
-        # Length is displayed separately on listing cards, so it is excluded from title.
-        _t_year  = yacht_data.get('year')
-        _t_make  = yacht_data.get('make')
-        _t_model = yacht_data.get('model')
-        if _t_make or _t_model:
-            _rebuilt = ' '.join(filter(None, [
-                str(_t_year) if _t_year else '',
-                _t_make or '',
-                _t_model or '',
-            ])).strip()
-            if _rebuilt:
-                yacht_data['title'] = _rebuilt
-
-                # Description fallback: if AI still didn't return one, use deterministic extract
+        # Description fallback: if AI still didn't return one, use deterministic extract
         if not yacht_data.get("description") and partial.get("description"):
             yacht_data["description"] = partial["description"]
+
+        # ── Field sanity bounds ──────────────────────────────────────────────
+        # Regex extraction can grab a bare year from prose ("founded in 1985")
+        # or a length that's actually a beam/road-frontage figure. Reject values
+        # that are physically implausible for a yacht listing rather than
+        # storing them.
+        _this_year = datetime.now().year
+        _y = yacht_data.get("year")
+        if _y is not None:
+            try:
+                if not (1900 <= int(_y) <= _this_year + 2):
+                    yacht_data.pop("year", None)
+            except (TypeError, ValueError):
+                yacht_data.pop("year", None)
+        _lf = yacht_data.get("length_feet")
+        if _lf is not None:
+            try:
+                if not (8 <= float(_lf) <= 600):
+                    yacht_data.pop("length_feet", None)
+            except (TypeError, ValueError):
+                yacht_data.pop("length_feet", None)
 
         images = self.extract_images(html, url)
 
