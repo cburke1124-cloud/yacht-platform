@@ -205,8 +205,9 @@ function RegisterContent() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">First Name *</label>
+                  <label htmlFor="reg-first-name" className="block text-sm font-medium text-dark mb-1.5">First Name *</label>
                   <input
+                    id="reg-first-name"
                     type="text" required
                     value={formData.first_name}
                     onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
@@ -214,8 +215,9 @@ function RegisterContent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">Last Name *</label>
+                  <label htmlFor="reg-last-name" className="block text-sm font-medium text-dark mb-1.5">Last Name *</label>
                   <input
+                    id="reg-last-name"
                     type="text" required
                     value={formData.last_name}
                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
@@ -225,8 +227,9 @@ function RegisterContent() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-dark mb-1.5">Brokerage / Company Name *</label>
+                <label htmlFor="reg-company" className="block text-sm font-medium text-dark mb-1.5">Brokerage / Company Name *</label>
                 <input
+                  id="reg-company"
                   type="text" required
                   value={formData.company_name}
                   onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
@@ -236,8 +239,9 @@ function RegisterContent() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-dark mb-1.5">Email Address *</label>
+                <label htmlFor="reg-email" className="block text-sm font-medium text-dark mb-1.5">Email Address *</label>
                 <input
+                  id="reg-email"
                   type="email" required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -247,8 +251,9 @@ function RegisterContent() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-dark mb-1.5">Phone Number</label>
+                <label htmlFor="reg-phone" className="block text-sm font-medium text-dark mb-1.5">Phone Number</label>
                 <input
+                  id="reg-phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -259,8 +264,9 @@ function RegisterContent() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">Password *</label>
+                  <label htmlFor="reg-password" className="block text-sm font-medium text-dark mb-1.5">Password *</label>
                   <input
+                    id="reg-password"
                     type="password" required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -269,8 +275,9 @@ function RegisterContent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark mb-1.5">Confirm Password *</label>
+                  <label htmlFor="reg-confirm-password" className="block text-sm font-medium text-dark mb-1.5">Confirm Password *</label>
                   <input
+                    id="reg-confirm-password"
                     type="password" required
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}

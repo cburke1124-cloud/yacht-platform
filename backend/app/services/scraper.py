@@ -55,6 +55,7 @@ except Exception:
     _PLAYWRIGHT_AVAILABLE = False
 
 import hashlib
+import bleach
 
 from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, FieldSynonym, BoatModelSpecs
@@ -3555,6 +3556,23 @@ def run_scraper_job(job_id: int, db) -> Dict:
         return {"success": False, "error": str(e)}
 
 
+# Scraped listing content originates from untrusted external broker sites, so
+# it's sanitized here at ingestion — not just at render time — since the raw
+# value also gets served back out through the API and admin tools.
+_RICH_TEXT_ALLOWED_TAGS = ["b", "strong", "i", "em", "p", "br", "ul", "ol", "li", "a"]
+_RICH_TEXT_ALLOWED_ATTRS = {"a": ["href", "title"]}
+
+
+def _sanitize_plain_text(value: str) -> str:
+    """Strip all HTML, leaving plain text only — for short identifier-like fields."""
+    return bleach.clean(value, tags=[], attributes={}, strip=True).strip()
+
+
+def _sanitize_rich_text(value: str) -> str:
+    """Allow a small safe-tag allowlist — for long free-text fields like descriptions."""
+    return bleach.clean(value, tags=_RICH_TEXT_ALLOWED_TAGS, attributes=_RICH_TEXT_ALLOWED_ATTRS, strip=True).strip()
+
+
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     """Copy scraped fields onto a Listing object, preserving manually-set overrides."""
     str_fields = ["title", "make", "model", "boat_type",
@@ -3569,13 +3587,17 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
 
     for f in str_fields:
         if raw.get(f):
-            setattr(listing, f, str(raw[f])[:500] if isinstance(raw[f], str) else str(raw[f]))
+            value = str(raw[f])[:500] if isinstance(raw[f], str) else str(raw[f])
+            setattr(listing, f, _sanitize_plain_text(value))
     for f in text_fields:
         if raw.get(f):
-            setattr(listing, f, str(raw[f]))
+            setattr(listing, f, _sanitize_rich_text(str(raw[f])))
     # Store feature_bullets as JSON array if provided
     if raw.get("feature_bullets") and isinstance(raw["feature_bullets"], list):
-        listing.feature_bullets = raw["feature_bullets"]
+        listing.feature_bullets = [
+            _sanitize_plain_text(str(item)) if isinstance(item, str) else item
+            for item in raw["feature_bullets"]
+        ]
     for f in float_fields:
         if raw.get(f) is not None:
             try:

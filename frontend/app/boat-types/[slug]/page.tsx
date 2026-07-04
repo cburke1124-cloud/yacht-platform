@@ -1,11 +1,38 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { getBoatTypeBySlug } from '@/app/lib/boatTypeData';
 import BoatTypeHero from '@/app/components/boat-types/BoatTypeHero';
 import BoatTypeInfo from '@/app/components/boat-types/BoatTypeInfo';
 import BoatTypeMakes from '@/app/components/boat-types/BoatTypeMakes';
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
 interface BoatTypeDetailProps {
   params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({ params }: BoatTypeDetailProps): Promise<Metadata> {
+  const { slug } = await params;
+  const boatType = getBoatTypeBySlug(slug);
+  if (!boatType) return { title: 'Boat Type Not Found' };
+
+  return {
+    title: boatType.displayName,
+    description: boatType.shortDescription,
+    alternates: { canonical: `${SITE_URL}/boat-types/${slug}` },
+    openGraph: {
+      title: boatType.displayName,
+      description: boatType.shortDescription,
+      url: `${SITE_URL}/boat-types/${slug}`,
+      images: [{ url: boatType.heroImage }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: boatType.displayName,
+      description: boatType.shortDescription,
+      images: [boatType.heroImage],
+    },
+  };
 }
 
 export default async function BoatTypeDetail({ params }: BoatTypeDetailProps) {
@@ -16,8 +43,21 @@ export default async function BoatTypeDetail({ params }: BoatTypeDetailProps) {
     notFound();
   }
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Boat Types', item: `${SITE_URL}/boat-types` },
+      { '@type': 'ListItem', position: 2, name: boatType.name, item: `${SITE_URL}/boat-types/${slug}` },
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-soft">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero Section */}
       <BoatTypeHero boatType={boatType} />
 

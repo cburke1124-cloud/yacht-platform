@@ -139,10 +139,11 @@ export default function ContactPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="form-row">
                   <style>{`@media (max-width: 520px) { .form-row { grid-template-columns: 1fr !important; } }`}</style>
                   <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                    <label htmlFor="contact-name" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                       Full Name <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
+                      id="contact-name"
                       type="text"
                       value={name}
                       onChange={e => setName(e.target.value)}
@@ -152,10 +153,11 @@ export default function ContactPage() {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                    <label htmlFor="contact-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                       Email Address <span style={{ color: '#ef4444' }}>*</span>
                     </label>
                     <input
+                      id="contact-email"
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
@@ -169,10 +171,11 @@ export default function ContactPage() {
                 {/* Company + Phone row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="form-row">
                   <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                    <label htmlFor="contact-company" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                       Company <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span>
                     </label>
                     <input
+                      id="contact-company"
                       type="text"
                       value={company}
                       onChange={e => setCompany(e.target.value)}
@@ -181,10 +184,11 @@ export default function ContactPage() {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                    <label htmlFor="contact-phone" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                       Phone <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span>
                     </label>
                     <input
+                      id="contact-phone"
                       type="tel"
                       value={phone}
                       onChange={e => setPhone(e.target.value)}
@@ -196,10 +200,11 @@ export default function ContactPage() {
 
                 {/* Subject */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  <label htmlFor="contact-subject" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                     Subject
                   </label>
                   <select
+                    id="contact-subject"
                     value={subject}
                     onChange={e => setSubject(e.target.value)}
                     style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', backgroundColor: '#fff', fontFamily: 'inherit' }}
@@ -210,10 +215,11 @@ export default function ContactPage() {
 
                 {/* Message */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  <label htmlFor="contact-message" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                     Message <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <textarea
+                    id="contact-message"
                     value={message}
                     onChange={e => setMessage(e.target.value)}
                     placeholder="Tell us how we can help..."

@@ -1,4 +1,6 @@
 import { MetadataRoute } from 'next';
+import { getBoatTypes } from '@/app/lib/boatTypeData';
+import { getDestinations } from '@/app/lib/destinationData';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') || 'https://www.yachtversal.com';
 const API_ROOT = (process.env.NEXT_PUBLIC_API_URL || 'https://yacht-platform.onrender.com/api').replace(/\/+$/, '');
@@ -12,6 +14,9 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/about`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
   { url: `${SITE_URL}/contact`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
   { url: `${SITE_URL}/blog`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.6 },
+  { url: `${SITE_URL}/boat-types`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
+  { url: `${SITE_URL}/makes`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
+  { url: `${SITE_URL}/charter-destinations`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
   { url: `${SITE_URL}/register`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.4 },
   { url: `${SITE_URL}/login`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.3 },
   { url: `${SITE_URL}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.2 },
@@ -96,5 +101,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }));
 
-  return [...STATIC_PAGES, ...listingEntries, ...dealerEntries, ...blogEntries];
+  const boatTypeEntries: MetadataRoute.Sitemap = getBoatTypes().map(({ slug }) => ({
+    url: `${SITE_URL}/boat-types/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly',
+    priority: 0.6,
+  }));
+
+  const destinations = getDestinations();
+  const destinationEntries: MetadataRoute.Sitemap = destinations.map((d) => ({
+    url:
+      d.type === 'region'
+        ? `${SITE_URL}/charter-destinations/${d.slug}`
+        : `${SITE_URL}/charter-destinations/${d.parentRegion}/${d.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly',
+    priority: d.type === 'region' ? 0.6 : 0.5,
+  }));
+
+  return [
+    ...STATIC_PAGES,
+    ...listingEntries,
+    ...dealerEntries,
+    ...blogEntries,
+    ...boatTypeEntries,
+    ...destinationEntries,
+  ];
 }

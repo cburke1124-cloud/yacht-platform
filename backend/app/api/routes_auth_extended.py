@@ -1,13 +1,14 @@
 import logging
 import re
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import secrets
 import pyotp
 
 from app.db.session import get_db
 from app.api.deps import get_current_user
+from app.core.limiter import limiter
 from app.models.user import User
 from app.models.dealer import EmailVerification, TwoFactorAuth, TwoFactorCode, PasswordReset
 from app.models.partner_growth import ReferralSignup, AffiliateAccount
@@ -16,6 +17,8 @@ from app.exceptions import ValidationException, AuthenticationException
 from app.security.auth import get_password_hash
 
 router = APIRouter()
+
+MAX_2FA_ATTEMPTS = 5
 
 
 # ==================== EMAIL VERIFICATION ====================
@@ -208,54 +211,65 @@ async def send_2fa_code(
 
 
 @router.post("/2fa/verify-code")
+@limiter.limit("10/minute")
 async def verify_2fa_code(
+    request: Request,
     data: dict,
     db: Session = Depends(get_db)
 ):
     """Verify 2FA code"""
     email = data.get("email")
     code = data.get("code")
-    
+
     if not email or not code:
         raise ValidationException("Email and code are required")
-    
+
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise AuthenticationException("Invalid credentials")
-    
-    # Check code
-    twofa_code = db.query(TwoFactorCode).filter(
+
+    # The active (most recent) code for this user, regardless of whether the
+    # submitted code matches it — used to track/lock out failed attempts.
+    active_code = db.query(TwoFactorCode).filter(
         TwoFactorCode.user_id == user.id,
-        TwoFactorCode.code == code,
         TwoFactorCode.used == False
-    ).first()
-    
+    ).order_by(TwoFactorCode.created_at.desc()).first()
+
+    if active_code and active_code.attempts >= MAX_2FA_ATTEMPTS:
+        raise AuthenticationException("Too many failed attempts. Please request a new code.")
+
+    # Check code
+    twofa_code = active_code if (active_code and active_code.code == code) else None
+
     if not twofa_code:
         # Check if it's a backup code
         twofa = db.query(TwoFactorAuth).filter(
             TwoFactorAuth.user_id == user.id
         ).first()
-        
+
         if twofa and code in twofa.backup_codes:
             # Remove used backup code
             twofa.backup_codes.remove(code)
             db.commit()
-            
+
             return {
                 "success": True,
                 "verified": True,
                 "message": "Backup code accepted"
             }
         else:
+            if active_code:
+                active_code.attempts += 1
+                db.commit()
             raise AuthenticationException("Invalid verification code")
-    
+
     if twofa_code.expires_at < datetime.utcnow():
         raise AuthenticationException("Verification code has expired")
-    
+
     # Mark code as used
     twofa_code.used = True
     db.commit()
-    
+
     return {
         "success": True,
         "verified": True,

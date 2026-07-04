@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Contact Us | YachtVersal',
+  title: 'Contact Us',
   description: 'Get in touch with the YachtVersal team. Questions about buying, selling, or listing a yacht? We\'re here to help.',
 };
 

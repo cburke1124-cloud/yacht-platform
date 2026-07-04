@@ -1,5 +1,14 @@
+import type { Metadata } from 'next';
 import { getDestinations, getAllSubregions, Destination } from '@/app/lib/destinationData';
 import DestinationCard from '@/app/components/charter-destinations/DestinationCard';
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
+export const metadata: Metadata = {
+  title: 'Yacht Charter Destinations',
+  description: 'Pick a region to explore available yachts, plan your route, and learn what makes each destination special.',
+  alternates: { canonical: `${SITE_URL}/charter-destinations` },
+};
 
 export default function DestinationsBrowse() {
   const destinations = getDestinations();

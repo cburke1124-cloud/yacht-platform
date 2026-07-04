@@ -94,8 +94,28 @@ export default function DealerProfilePage() {
     : null;
   const location = [dealer.city, dealer.state].filter(Boolean).join(', ');
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: dealer.business_name,
+    description: dealer.bio,
+    image: dealer.logo_url ? mediaUrl(dealer.logo_url) : undefined,
+    telephone: dealer.phone,
+    email: dealer.email,
+    url: dealer.website,
+    address: (dealer.city || dealer.state) ? {
+      '@type': 'PostalAddress',
+      addressLocality: dealer.city,
+      addressRegion: dealer.state,
+    } : undefined,
+  };
+
   return (
     <div className="min-h-screen section-light">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero Cover */}
       <div className="relative h-80 overflow-hidden bg-secondary">
         {dealer.cover_image_url ? (

@@ -17,9 +17,28 @@ const poppins = Poppins({
   display: 'swap',
 });
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
 export const metadata: Metadata = {
-  title: "YachtVersal - Yacht Marketplace",
-  description: "Buy and sell luxury yachts",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "YachtVersal - Yacht Marketplace",
+    template: "%s | YachtVersal",
+  },
+  description: "Buy and sell luxury yachts. Browse listings from trusted brokers and private sellers, explore boat types, makes, and charter destinations.",
+  openGraph: {
+    type: "website",
+    siteName: "YachtVersal",
+    title: "YachtVersal - Yacht Marketplace",
+    description: "Buy and sell luxury yachts. Browse listings from trusted brokers and private sellers, explore boat types, makes, and charter destinations.",
+    images: [{ url: "/images/hero-yacht2.png", width: 1200, height: 630, alt: "YachtVersal" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "YachtVersal - Yacht Marketplace",
+    description: "Buy and sell luxury yachts. Browse listings from trusted brokers and private sellers, explore boat types, makes, and charter destinations.",
+    images: ["/images/hero-yacht2.png"],
+  },
 };
 
 export default function RootLayout({

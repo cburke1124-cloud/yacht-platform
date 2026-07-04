@@ -1,5 +1,14 @@
+import type { Metadata } from 'next';
 import { getBoatTypes } from '@/app/lib/boatTypeData';
 import BoatTypeCard from '@/app/components/boat-types/BoatTypeCard';
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
+export const metadata: Metadata = {
+  title: 'Find Your Type of Boat',
+  description: "Not sure what kind of boat is right for you? Learn what each type is built for, who it suits best, and which builders make it — then browse makes, models, and boats for sale.",
+  alternates: { canonical: `${SITE_URL}/boat-types` },
+};
 
 export default function BoatTypesBrowse() {
   const boatTypes = getBoatTypes();

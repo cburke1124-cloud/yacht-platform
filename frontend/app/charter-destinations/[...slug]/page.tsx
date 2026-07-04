@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import {
   getDestinationBySlug,
   getSubregionsForRegion,
@@ -10,8 +11,50 @@ import DestinationInfo from '@/app/components/charter-destinations/DestinationIn
 import DestinationListings from '@/app/components/charter-destinations/DestinationListings';
 import SubRegionNavigation from '@/app/components/charter-destinations/SubRegionNavigation';
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
 interface DestinationDetailProps {
   params: Promise<{ slug: string[] | string }>;
+}
+
+function resolveDestination(slugArray: string[]): Destination | undefined {
+  if (slugArray.length === 1) {
+    return getDestinationBySlug(slugArray[0]);
+  }
+  if (slugArray.length === 2) {
+    const destination = getDestinationBySlug(slugArray[1]);
+    if (destination?.type === 'subregion' && destination.parentRegion === slugArray[0]) {
+      return destination;
+    }
+  }
+  return undefined;
+}
+
+export async function generateMetadata({ params }: DestinationDetailProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const slugArray = Array.isArray(resolvedParams.slug) ? resolvedParams.slug : [resolvedParams.slug];
+  const destination = resolveDestination(slugArray);
+  if (!destination) return { title: 'Destination Not Found' };
+
+  const url = `${SITE_URL}/charter-destinations/${slugArray.join('/')}`;
+
+  return {
+    title: destination.displayName,
+    description: destination.shortDescription,
+    alternates: { canonical: url },
+    openGraph: {
+      title: destination.displayName,
+      description: destination.shortDescription,
+      url,
+      images: [{ url: destination.heroImage }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: destination.displayName,
+      description: destination.shortDescription,
+      images: [destination.heroImage],
+    },
+  };
 }
 
 export default async function DestinationDetail({ params }: DestinationDetailProps) {
@@ -51,8 +94,23 @@ export default async function DestinationDetail({ params }: DestinationDetailPro
     notFound();
   }
 
+  const breadcrumbItems = [
+    { '@type': 'ListItem', position: 1, name: 'Charter Destinations', item: `${SITE_URL}/charter-destinations` },
+    ...(parentRegion ? [{ '@type': 'ListItem', position: 2, name: parentRegion.name, item: `${SITE_URL}/charter-destinations/${parentRegion.slug}` }] : []),
+    { '@type': 'ListItem', position: parentRegion ? 3 : 2, name: destination.name, item: `${SITE_URL}/charter-destinations/${slugArray.join('/')}` },
+  ];
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: breadcrumbItems,
+  };
+
   return (
     <div className="min-h-screen bg-soft">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero Section */}
       <DestinationHero
         destination={destination}

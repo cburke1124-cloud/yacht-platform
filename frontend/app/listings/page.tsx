@@ -353,6 +353,7 @@ function BrowseContent() {
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [searchType, setSearchType] = useState<'basic' | 'ai'>('basic');
   const [aiQuery, setAiQuery] = useState('');
   const [aiSearchContext, setAiSearchContext] = useState<{ no_exact_make?: string; exact_make?: string; showing_similar?: boolean } | null>(null);
@@ -410,7 +411,7 @@ function BrowseContent() {
     fetch(apiUrl('/currencies/rates'))
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data?.rates) setExchangeRates(data.rates); })
-      .catch(() => {});
+      .catch((err) => console.error('Failed to load currency rates:', err));
     const saved = localStorage.getItem('preferredCurrency');
     if (saved) {
       setCurrency(saved);
@@ -427,7 +428,7 @@ function BrowseContent() {
     fetch(apiUrl('/listings/makes'))
       .then((r) => r.ok ? r.json() : [])
       .then((d: string[]) => setMakes(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch((err) => console.error('Failed to load makes:', err));
   }, []);
 
   // Models when make changes
@@ -436,7 +437,7 @@ function BrowseContent() {
     fetch(apiUrl(`/listings/models?make=${encodeURIComponent(filters.make)}`))
       .then((r) => r.ok ? r.json() : [])
       .then((d: string[]) => setModels(Array.isArray(d) ? d : []))
-      .catch(() => {});
+      .catch((err) => console.error('Failed to load models:', err));
   }, [filters.make]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Geolocation
@@ -457,6 +458,7 @@ function BrowseContent() {
     abortRef.current = controller;
 
     setLoading(true);
+    setFetchError(false);
     try {
       let url: string;
       if (isAI && aiQuery) {
@@ -493,6 +495,7 @@ function BrowseContent() {
       if (err?.name === 'AbortError') return; // Ignore cancelled fetches
       setListings([]);
       setTotal(0);
+      setFetchError(true);
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -999,7 +1002,7 @@ function BrowseContent() {
             className="flex flex-col items-center justify-center py-32 rounded-2xl"
             style={{ backgroundColor: '#FFFFFF', border: '1px solid rgba(16,33,79,0.08)' }}
           >
-            <Search size={52} style={{ color: '#d1d5db', marginBottom: 16 }} />
+            <Search size={52} style={{ color: fetchError ? '#dc2626' : '#d1d5db', marginBottom: 16 }} />
             <h3
               style={{
                 color: '#10214F',
@@ -1008,11 +1011,22 @@ function BrowseContent() {
                 marginBottom: 8,
               }}
             >
-              No yachts found
+              {fetchError ? 'Something went wrong' : 'No yachts found'}
             </h3>
             <p style={{ color: 'rgba(16,33,79,0.55)', fontFamily: 'Poppins, sans-serif', fontSize: 14 }}>
-              Try adjusting your filters or switch to AI search.
+              {fetchError
+                ? 'We couldn\'t load listings right now. Please try again in a moment.'
+                : 'Try adjusting your filters or switch to AI search.'}
             </p>
+            {fetchError && (
+              <button
+                onClick={() => fetchListings(searchType === 'ai', page, sort, pageSize)}
+                className="mt-4 px-5 py-2 rounded-lg font-medium"
+                style={{ backgroundColor: '#01BBDC', color: 'white' }}
+              >
+                Retry
+              </button>
+            )}
           </div>
         ) : (
           <>

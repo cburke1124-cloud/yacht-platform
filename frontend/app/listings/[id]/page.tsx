@@ -471,8 +471,29 @@ export default function ListingDetailPage() {
 
   // ── render ─────────────────────────────────────────────────────────────────
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: listing.title || [listing.year, listing.make, listing.model].filter(Boolean).join(' '),
+    description: listing.title,
+    image: media.length > 0 ? media.map((m: any) => mediaUrl(m.url)) : undefined,
+    brand: listing.make ? { '@type': 'Brand', name: listing.make } : undefined,
+    ...(listing.price ? {
+      offers: {
+        '@type': 'Offer',
+        price: listing.price,
+        priceCurrency: listing.currency || 'USD',
+        availability: listing.status === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+      },
+    } : {}),
+  };
+
   return (
     <div className="min-h-screen bg-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       {/* ══ LIGHTBOX ════════════════════════════════════════════════════════ */}
       {lightbox !== null && imageLightboxItems.length > 0 && (

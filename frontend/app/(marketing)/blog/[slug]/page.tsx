@@ -108,8 +108,22 @@ export default function BlogPostPage() {
     );
   }
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.meta_description || post.excerpt,
+    image: post.featured_image ? [post.featured_image] : undefined,
+    datePublished: post.published_at,
+    author: post.author ? { '@type': 'Person', name: post.author } : undefined,
+  };
+
   return (
     <div className="min-h-screen section-light">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb Navigation */}
       <div className="bg-white border-b">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
