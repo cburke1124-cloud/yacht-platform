@@ -83,6 +83,7 @@ def list_makes(
             "slug": m.slug,
             "country": m.country,
             "propulsion": m.propulsion,
+            "notes": m.notes,
             "active": m.active,
         }
         for m in makes

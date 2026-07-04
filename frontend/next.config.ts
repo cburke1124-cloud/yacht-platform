@@ -3,6 +3,8 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/charter-destinations': ['./public/data/charter_destinations.json'],
     '/charter-destinations/[...slug]': ['./public/data/charter_destinations.json'],
+    '/boat-types': ['./public/data/boat_types.json'],
+    '/boat-types/[slug]': ['./public/data/boat_types.json'],
   },
   images: {
     remotePatterns: [

@@ -1,0 +1,245 @@
+[
+  {
+    "id": "motor-yacht",
+    "slug": "motor-yachts",
+    "name": "Motor Yachts",
+    "boatType": "Motor Yacht",
+    "displayName": "Motor Yachts",
+    "subtitle": "Power, comfort, and effortless cruising",
+    "heroImage": "/images/boat-types/motor-yacht-hero.jpg",
+    "heroImageAlt": "A motor yacht cruising near the coast",
+    "shortDescription": "Flybridge and express motor yachts built for comfortable cruising, entertaining, and covering miles quickly.",
+    "longDescription": "Motor yachts are the most popular category of boat for sale, and for good reason: they combine speed, creature comforts, and low-maintenance operation into a single package. Most range from 40 to 90+ feet and are powered by twin diesel inboards, giving owners the range to cruise coastally or cross open water without the learning curve that comes with sail.\n\nInside, motor yachts typically prioritize living space over performance — full-beam salons, multiple staterooms, a flybridge for entertaining, and increasingly sophisticated electronics and stabilization systems that make them comfortable even in a chop. They're the natural choice for owners who want to host guests, entertain at the dock, or take extended trips without sacrificing air conditioning and hot showers.",
+    "whatToExpect": [
+      "Twin diesel engines with cruising speeds of 20-30+ knots",
+      "Spacious salons, multiple staterooms, and full galleys",
+      "Flybridge or upper helm stations for entertaining underway",
+      "Bow and stern thrusters that make docking approachable for owner-operators",
+      "A broad range of builders from production (Sea Ray, Bayliner) to Italian luxury (Azimut, Ferretti, Sunseeker)"
+    ],
+    "bestFor": [
+      "Families who want space and comfort",
+      "Owners who plan to entertain at the dock or underway",
+      "First-time yacht owners who want easier handling than a sailboat",
+      "Coastal cruising and weekend getaways"
+    ],
+    "order": 1,
+    "published": true
+  },
+  {
+    "id": "sailing-yacht",
+    "slug": "sailing-yachts",
+    "name": "Sailing Yachts",
+    "boatType": "Sailing Yacht",
+    "displayName": "Sailing Yachts",
+    "subtitle": "Classic seamanship, wind-powered range, and quiet passages",
+    "heroImage": "/images/boat-types/sailing-yacht-hero.jpg",
+    "heroImageAlt": "A sailing yacht under full sail",
+    "shortDescription": "Monohull cruisers designed for bluewater passages, coastal cruising, and the satisfaction of sailing under your own power.",
+    "longDescription": "Sailing yachts remain the boat of choice for owners who value seamanship, efficiency, and the ability to cover long distances without burning fuel. Production builders like Beneteau, Jeanneau, and Bavaria dominate the volume end of the market with comfortable, easy-to-handle cruisers, while brands like Oyster and Hallberg-Rassy build premium bluewater yachts meant for ocean crossings.\n\nModern sailing yachts have closed much of the comfort gap with motor yachts — think in-mast furling, electric winches, bow thrusters, and generously appointed interiors — while still rewarding owners with the lower operating costs and range that only sail can offer. They tend to have a shallower learning curve than people expect, especially with in-mast or in-boom furling systems that simplify sail handling for a shorthanded crew.",
+    "whatToExpect": [
+      "Monohull designs from 30 to 60+ feet, most with a single mast (sloop rig)",
+      "Auxiliary diesel engines for maneuvering and calm-wind passages",
+      "Lower fuel costs and longer range than comparable motor yachts",
+      "A learning curve around sail trim, points of sail, and docking under wind",
+      "Strong resale and a large, active community of owners and clubs"
+    ],
+    "bestFor": [
+      "Owners who want to learn or practice traditional seamanship",
+      "Bluewater cruising and long-distance passages",
+      "Lower long-term fuel and operating costs",
+      "Sailors moving up from dinghies or club racing"
+    ],
+    "order": 2,
+    "published": true
+  },
+  {
+    "id": "catamaran",
+    "slug": "catamarans",
+    "name": "Catamarans",
+    "boatType": "Catamaran",
+    "displayName": "Catamarans",
+    "subtitle": "Stability, space, and shallow-draft freedom",
+    "heroImage": "/images/boat-types/catamaran-hero.jpg",
+    "heroImageAlt": "A sailing catamaran anchored near a beach",
+    "shortDescription": "Twin-hull sail and power boats known for their stability, wide-open living spaces, and popularity in the charter market.",
+    "longDescription": "Catamarans have grown from a niche category into one of the fastest-growing segments of the boat-for-sale market, driven largely by charter operators and owners who want the stability and space a twin-hull design provides. Because the hulls sit apart rather than heeling under sail, catamarans stay level at anchor and underway — a major draw for families, first-time owners, and anyone prone to seasickness.\n\nBuilders like Lagoon, Fountaine Pajot, and Leopard (built by Robertson & Caine) dominate the sailing catamaran market, while a growing number of power catamarans offer the same stability with the convenience of twin diesel engines and no sails to manage. The tradeoff for that stability and space is typically a higher purchase price and wider beam, which can limit marina and haul-out options.",
+    "whatToExpect": [
+      "Wide, stable decks with minimal heeling under sail or power",
+      "Expansive interior volume relative to length — often more living space than a monohull of the same size",
+      "Shallow draft that opens up anchorages monohulls can't reach",
+      "Higher purchase price and wider beam that can limit slip availability",
+      "Strong charter market demand, which supports resale value"
+    ],
+    "bestFor": [
+      "Families and groups who prioritize stability and space",
+      "Owners considering putting the boat into charter",
+      "Shallow-water cruising in the Bahamas, Caribbean, or Gulf Coast",
+      "Anyone sensitive to the heel and motion of a monohull"
+    ],
+    "order": 3,
+    "published": true
+  },
+  {
+    "id": "sport-fisher",
+    "slug": "sport-fishers",
+    "name": "Sport Fishers",
+    "boatType": "Sport Fisher",
+    "displayName": "Sport Fishing Yachts",
+    "subtitle": "Built to chase fish offshore, then come home in comfort",
+    "heroImage": "/images/boat-types/sport-fisher-hero.jpg",
+    "heroImageAlt": "A sport fishing yacht running offshore",
+    "shortDescription": "Convertible sportfishing boats with deep-V hulls, tournament-ready cockpits, and enough range to reach the canyons and beyond.",
+    "longDescription": "Sport fishers are purpose-built for serious offshore anglers, combining a deep-V hull for rough-water handling with a spacious cockpit designed around fighting chairs, tackle centers, and outriggers. Legacy builders like Hatteras and Bertram helped define the category, and it remains one of the most tradition-rich corners of the boat-for-sale market.\n\nMost sport fishers are \"convertibles,\" meaning the below-deck accommodations rival a motor yacht's, so owners can fish hard during the day and sleep comfortably at night. Twin diesel inboards and generous fuel capacity give them the range to reach canyon edges and blue-water grounds, and a raised tower or flybridge improves the ability to spot fish from a distance.",
+    "whatToExpect": [
+      "Deep-V hulls optimized for rough offshore water and following seas",
+      "Large cockpits with fighting chairs, transom doors, and tackle/bait centers",
+      "Towers or tuna towers for spotting fish and trolling visibility",
+      "Twin diesels with the range and fuel capacity to reach offshore canyons",
+      "Convertible layouts that combine fishing capability with cruising accommodations"
+    ],
+    "bestFor": [
+      "Serious offshore and tournament anglers",
+      "Owners who want a boat capable of both fishing and overnight cruising",
+      "Rough-water performance and following-sea handling",
+      "Buyers drawn to legacy American boatbuilding (Hatteras, Bertram, Viking)"
+    ],
+    "order": 4,
+    "published": true
+  },
+  {
+    "id": "trawler",
+    "slug": "trawlers",
+    "name": "Trawlers",
+    "boatType": "Trawler",
+    "displayName": "Trawlers",
+    "subtitle": "Slow, efficient, long-range passagemakers",
+    "heroImage": "/images/boat-types/trawler-hero.jpg",
+    "heroImageAlt": "A trawler yacht at anchor in a calm harbor",
+    "shortDescription": "Full-displacement passagemakers built for efficient, long-range cruising rather than speed.",
+    "longDescription": "Trawlers trade speed for range and efficiency, running at 7-10 knot displacement speeds that sip fuel compared to a planing motor yacht. That efficiency, paired with heavy-displacement hulls and large fuel tanks, makes trawlers the boat of choice for owners planning extended cruises — up the coast, along the Great Loop, or across an ocean on a passagemaker like a Nordhavn.\n\nThe slower pace comes with real advantages: a smoother, more stable ride, lower running costs, and layouts built around comfortable long-term living rather than day-tripping. Builders like Grand Banks, Kadey-Krogen, and Nordhavn have each built loyal followings around this style of cruising, and used trawlers hold their value well thanks to steady demand from cruisers who know exactly what they want.",
+    "whatToExpect": [
+      "Full-displacement hulls with cruising speeds around 7-10 knots",
+      "Excellent fuel efficiency and long range compared to planing hulls",
+      "Stable, comfortable motion in a seaway",
+      "Layouts optimized for extended liveaboard cruising",
+      "A dedicated resale market of experienced long-range cruisers"
+    ],
+    "bestFor": [
+      "Extended cruising and liveaboard trips (Great Loop, coastal, offshore passages)",
+      "Owners who prioritize fuel efficiency and range over speed",
+      "Retirees and full-time cruisers",
+      "Buyers who want a smoother ride in rough conditions"
+    ],
+    "order": 5,
+    "published": true
+  },
+  {
+    "id": "mega-yacht",
+    "slug": "mega-yachts",
+    "name": "Mega Yachts",
+    "boatType": "Mega Yacht",
+    "displayName": "Mega Yachts",
+    "subtitle": "Superyacht-scale luxury, crew, and range",
+    "heroImage": "/images/boat-types/mega-yacht-hero.jpg",
+    "heroImageAlt": "A large mega yacht at anchor",
+    "shortDescription": "Large-scale motor yachts, typically 80 feet and up, built with full crew quarters and superyacht-level systems and finish.",
+    "longDescription": "Mega yachts sit at the top of the market — generally 80 feet and longer, with the volume, range, and systems complexity that require a professional crew rather than an owner-operator. Builders like Azimut Grande, Ferretti, Sunseeker, and Benetti compete at this end with custom or semi-custom interiors, multiple decks, and amenities like beach clubs, tenders, and dedicated crew quarters.\n\nOwning at this scale is a different proposition than a mid-size motor yacht: budgets typically include a captain and crew, dockage at facilities that can handle the draft and beam, and maintenance programs closer to commercial vessel standards. In exchange, owners get a genuinely different level of comfort, range, and entertaining space — the kind of yacht built to host, not just to cruise.",
+    "whatToExpect": [
+      "Length generally starting around 80 feet and scaling to 150+ feet",
+      "Professional crew required for operation, navigation, and maintenance",
+      "Multiple decks, tender garages, and dedicated crew quarters",
+      "Significantly higher acquisition and annual operating costs",
+      "Custom or semi-custom interiors from major European builders"
+    ],
+    "bestFor": [
+      "Owners planning to run a crewed, full-service yacht",
+      "Large-scale entertaining and extended guest stays",
+      "Buyers considering a charter program to offset ownership costs",
+      "Long-range, multi-region cruising (Mediterranean, Caribbean, Bahamas)"
+    ],
+    "order": 6,
+    "published": true
+  },
+  {
+    "id": "express-cruiser",
+    "slug": "express-cruisers",
+    "name": "Express Cruisers",
+    "boatType": "Express Cruiser",
+    "displayName": "Express Cruisers",
+    "subtitle": "Sporty, single-level cruising for day trips and weekends",
+    "heroImage": "/images/boat-types/express-cruiser-hero.jpg",
+    "heroImageAlt": "An express cruiser running at speed",
+    "shortDescription": "Compact, single-deck cruisers built for fast day trips, weekending, and easy trailering or slip storage.",
+    "longDescription": "Express cruisers fill the space between a bowrider and a full flybridge motor yacht — a single-level cabin design, planing hull, and enough speed to make quick work of a day on the water. They typically range from the low 20s up to about 45 feet, with a small cabin below offering a berth, head, and galley for overnighting without the size or cost of a larger yacht.\n\nBecause they're simpler to operate and maintain than a flybridge yacht, express cruisers are a popular entry point for boaters moving up from a runabout, and a popular second boat for owners who want something quick and low-maintenance for weekend trips. Builders like Sea Ray, Formula, and Chaparral are well represented in this category.",
+    "whatToExpect": [
+      "Single-level layout with a small cabin below for overnighting",
+      "Planing hulls with strong performance and fuel-efficient cruising speeds",
+      "Lower purchase price and easier maintenance than flybridge motor yachts",
+      "Good fit for trailering or standard-size slips",
+      "Popular as a step-up boat or a simpler second yacht"
+    ],
+    "bestFor": [
+      "Day trips, watersports, and weekend getaways",
+      "Owners moving up from a smaller runabout or bowrider",
+      "Buyers who want performance without a large crew or budget",
+      "Coastal and inland lake cruising"
+    ],
+    "order": 7,
+    "published": true
+  },
+  {
+    "id": "center-console",
+    "slug": "center-consoles",
+    "name": "Center Consoles",
+    "boatType": "Center Console",
+    "displayName": "Center Console Boats",
+    "subtitle": "Open-deck versatility for fishing, diving, and days on the water",
+    "heroImage": "/images/boat-types/center-console-hero.jpg",
+    "heroImageAlt": "A center console boat running offshore",
+    "shortDescription": "Open, walk-around boats built around a center helm — the most versatile platform for fishing, diving, and casual day boating.",
+    "longDescription": "The center console is the do-everything boat of the modern market: an open deck wrapped around 360 degrees of the helm, room to fish from any angle, and enough beam and horsepower on the bigger models to handle real offshore conditions. Builders like Boston Whaler, Regulator, and Everglades have pushed the category well past its inshore-skiff roots into 40+ foot offshore boats with triple or quadruple outboards.\n\nBecause there's no fixed cabin structure to work around, center consoles are prized for their versatility — rig one for tournament fishing, another for diving and watersports, another as a fast, comfortable family day boat. Smaller models trailer easily and store cheaply; larger ones compete directly with sport fishers for serious offshore capability.",
+    "whatToExpect": [
+      "Open, unobstructed deck space usable from every angle",
+      "Outboard power, often twin, triple, or quadruple engines on larger models",
+      "Strong resale value and a very active used market",
+      "Easy trailering and storage on smaller (20-30ft) models",
+      "Larger models (35ft+) capable of serious offshore fishing and cruising"
+    ],
+    "bestFor": [
+      "Inshore and offshore fishing",
+      "Diving, watersports, and casual family day trips",
+      "Owners who want one boat that can do several jobs well",
+      "Buyers who prioritize easy trailering or simple storage"
+    ],
+    "order": 8,
+    "published": true
+  },
+  {
+    "id": "sloop",
+    "slug": "sloops",
+    "name": "Sloops",
+    "boatType": "Sloop",
+    "displayName": "Sloops",
+    "subtitle": "The classic single-masted rig for cruising and racing alike",
+    "heroImage": "/images/boat-types/sloop-hero.jpg",
+    "heroImageAlt": "A sloop-rigged sailboat sailing close-hauled",
+    "shortDescription": "Single-masted sailboats with a mainsail and single headsail — the simplest, most common rig in modern sailing.",
+    "longDescription": "The sloop rig — one mast, a mainsail, and a single headsail — is the most common configuration in modern sailboats, and for good reason: it's efficient upwind, straightforward to trim, and easier to handle shorthanded than rigs with more sails to manage. Most production sailing yachts you'll find for sale, from compact daysailers to 40-foot cruisers, use some variation of the sloop rig.\n\nWithin the category there's a wide range, from lighter, race-oriented sloops like the Beneteau First series to heavier, cruising-focused designs meant for long passages. Because the rig is so widely used, parts, rigging knowledge, and sailmakers are easy to find, which keeps ownership costs and complexity lower than more specialized rigs like a ketch or schooner.",
+    "whatToExpect": [
+      "Single mast with mainsail and one headsail (jib or genoa)",
+      "The most common and best-understood rig — easy to find parts, rigging support, and sailmakers",
+      "Efficient upwind performance compared to multi-masted rigs",
+      "Sizes ranging from small daysailers to 40+ foot cruisers and racers",
+      "A large used market with strong parts and community support"
+    ],
+    "bestFor": [
+      "New sailors learning fundamentals on a simple, well-understood rig",
+      "Club racing and one-design competition",
+      "Coastal and weekend cruising",
+      "Owners who want easy access to parts, rigging, and local sailing knowledge"
+    ],
+    "order": 9,
+    "published": true
+  }
+]
