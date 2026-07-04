@@ -69,7 +69,11 @@ class BlogPost(Base):
     meta_keywords = Column(Text)
     
     # Status & Publishing
-    status = Column(Enum(PostStatus), default=PostStatus.DRAFT, nullable=False)
+    status = Column(
+        Enum(PostStatus, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+        default=PostStatus.DRAFT,
+        nullable=False,
+    )
     published_at = Column(DateTime)
     scheduled_for = Column(DateTime)
     
