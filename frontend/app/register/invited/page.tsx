@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedIn } from '@/app/lib/apiRoot';
 
 interface InvitationData {
   email: string;
@@ -86,7 +86,7 @@ function InvitedSignupContent() {
 
       if (response.ok) {
         const data = await response.json();
-        localStorage.setItem('token', data.access_token);
+        markLoggedIn();
         window.dispatchEvent(new Event('authChange'));
         router.push('/dashboard');
       } else {

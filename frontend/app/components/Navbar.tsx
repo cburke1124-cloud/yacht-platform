@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { apiUrl, mediaUrl } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, markLoggedOut } from '@/app/lib/apiRoot';
 import {
   Menu, X, Ship, User, PlusCircle, Bell, Mail,
   Heart, Search, Settings, ChevronDown, DollarSign, BarChart3
@@ -241,7 +241,7 @@ export default function Navbar() {
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
+      markLoggedOut();
       setIsLoggedIn(false);
       setUser(null);
     } finally {
@@ -273,7 +273,8 @@ export default function Navbar() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    markLoggedOut();
+    fetch(apiUrl('/auth/logout'), { method: 'POST' }).catch(() => {});
     setIsLoggedIn(false);
     setUser(null);
     setShowUserMenu(false);

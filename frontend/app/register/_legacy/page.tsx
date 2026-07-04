@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Check, Loader2, ChevronLeft, Tag } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedIn } from '@/app/lib/apiRoot';
 
 // --- Fallback broker tiers ---
 const BROKER_TIERS: Record<string, any> = {
@@ -203,7 +203,7 @@ function RegisterContent() {
 
       const regData = await regRes.json();
       if (!regRes.ok) throw new Error(regData.detail || regData.error || 'Registration failed');
-      localStorage.setItem('token', regData.access_token);
+      markLoggedIn();
       window.dispatchEvent(new Event('authChange'));
 
       if (formData.subscription_tier) {

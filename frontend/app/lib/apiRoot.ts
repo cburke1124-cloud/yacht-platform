@@ -49,3 +49,19 @@ export function onImgError(e: React.SyntheticEvent<HTMLImageElement>): void {
     img.src = FALLBACK_IMAGE;
   }
 }
+
+/**
+ * The real session credential is an httpOnly cookie the browser manages
+ * automatically — this localStorage flag is NOT a secret and can't be used
+ * to authenticate on its own. It exists purely so existing UI code that
+ * checks `localStorage.getItem('token')` for "is the user logged in?"
+ * keeps working without being rewritten everywhere.
+ */
+export function markLoggedIn(): void {
+  localStorage.setItem('token', '1');
+}
+
+export function markLoggedOut(): void {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+}

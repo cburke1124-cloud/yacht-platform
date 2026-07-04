@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Bell, Mail } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -73,7 +73,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       setUser(userData);
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
+      markLoggedOut();
       router.push('/login');
     } finally {
       setLoading(false);
@@ -81,7 +81,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    markLoggedOut();
+    fetch(apiUrl('/auth/logout'), { method: 'POST' }).catch(() => {});
     router.push('/');
   };
 

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Check, Loader2, ChevronLeft, ShieldCheck, Zap, Users } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedIn } from '@/app/lib/apiRoot';
 
 // --- One-time signup fee ------------------------------------------------------
 const SIGNUP_FEE = 199;
@@ -89,7 +89,7 @@ function RegisterContent() {
       const regData = await regRes.json();
       if (!regRes.ok) throw new Error(regData.detail || regData.error || 'Registration failed');
 
-      localStorage.setItem('token', regData.access_token);
+      markLoggedIn();
       window.dispatchEvent(new Event('authChange'));
 
       setRedirecting(true);

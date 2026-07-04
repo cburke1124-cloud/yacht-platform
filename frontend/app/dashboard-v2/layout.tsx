@@ -9,7 +9,7 @@ import {
   ChevronRight, Bell, Search, Menu, X, LogOut, User, Anchor,
   HelpCircle, Zap, ChevronDown, Globe
 } from 'lucide-react';
-import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { apiUrl, mediaUrl, onImgError, markLoggedOut } from '@/app/lib/apiRoot';
 
 interface NavItem {
   href: string;
@@ -81,7 +81,8 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
   }));
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    markLoggedOut();
+    fetch(apiUrl('/auth/logout'), { method: 'POST' }).catch(() => {});
     router.replace('/login');
   };
 

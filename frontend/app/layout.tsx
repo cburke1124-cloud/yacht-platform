@@ -67,6 +67,9 @@ export default function RootLayout({
         {/* Google Tag Manager (noscript) */}
         <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PC4GRQR2" height="0" width="0" style={{display:'none',visibility:'hidden'}}></iframe></noscript>
         {/* End Google Tag Manager (noscript) */}
+        {/* Mounted first so its effect patches window.fetch before any other
+            component's mount-time fetch calls (e.g. Navbar's auth check) run. */}
+        <AuthGuard />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-primary focus:text-white focus:rounded-lg focus:text-sm focus:font-medium"
@@ -79,8 +82,7 @@ export default function RootLayout({
           </main>
         </LayoutShell>
         <CookieConsentBanner />
-        <AuthGuard />
-        <Script 
+        <Script
           src="https://widgets.leadconnectorhq.com/loader.js"
           strategy="afterInteractive"
           data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"

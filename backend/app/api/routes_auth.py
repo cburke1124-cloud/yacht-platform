@@ -3,7 +3,7 @@ import secrets
 import logging
 from types import SimpleNamespace
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import func, text, inspect
@@ -14,6 +14,8 @@ from app.security.auth import (
     create_access_token,
     get_password_hash,
     verify_password,
+    set_auth_cookie,
+    clear_auth_cookie,
 )
 from app.models.user import User, UserPreferences
 from app.models.dealer import DealerProfile, EmailVerification
@@ -78,7 +80,7 @@ def _apply_deal_price(base_price: float, deal: PartnerDeal) -> float:
 
 @router.post("/register", response_model=Token)
 @limiter.limit("5/minute")
-async def register(request: Request, user_data: UserRegister, db: Session = Depends(get_db)):
+async def register(request: Request, response: Response, user_data: UserRegister, db: Session = Depends(get_db)):
     try:
         # If an authenticated admin or dealer is creating this account, skip terms check
         caller_is_privileged = False
@@ -389,6 +391,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
             data={"sub": user.email},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         )
+        set_auth_cookie(response, access_token)
 
         return {"access_token": access_token, "token_type": "bearer"}
     except HTTPException:
@@ -403,7 +406,7 @@ async def register(request: Request, user_data: UserRegister, db: Session = Depe
 
 @router.post("/login")
 @limiter.limit("10/minute")
-async def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
+async def login(request: Request, response: Response, user_data: UserLogin, db: Session = Depends(get_db)):
     try:
         row = db.execute(
             text("SELECT id, email, password_hash, COALESCE(active, true) AS active FROM users WHERE email = :email LIMIT 1"),
@@ -452,13 +455,21 @@ async def login(request: Request, user_data: UserLogin, db: Session = Depends(ge
         data={"sub": row.get("email")},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    set_auth_cookie(response, access_token)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@router.post("/logout")
+async def logout(response: Response):
+    """Clear the httpOnly session cookie. Safe to call even if not logged in."""
+    clear_auth_cookie(response)
+    return {"success": True}
+
+
 @router.post("/2fa/complete-login")
 @limiter.limit("10/minute")
-async def complete_2fa_login(request: Request, data: dict, db: Session = Depends(get_db)):
+async def complete_2fa_login(request: Request, response: Response, data: dict, db: Session = Depends(get_db)):
     """Complete login after 2FA code is verified. Returns the access token."""
     email = data.get("email", "").strip().lower()
     code = str(data.get("code", "")).strip()
@@ -495,6 +506,7 @@ async def complete_2fa_login(request: Request, data: dict, db: Session = Depends
         data={"sub": user.email},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    set_auth_cookie(response, access_token)
     return {"access_token": access_token, "token_type": "bearer"}
 
 

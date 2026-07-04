@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Send, Clock, CheckCircle, AlertCircle, Trash2, Archive } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
 
 // Type definitions
 type Message = {
@@ -93,7 +93,7 @@ export default function MessagesPage() {
       await fetchInquiries(token);
     } catch (error) {
       console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
+      markLoggedOut();
       router.push('/login');
     } finally {
       setLoading(false);

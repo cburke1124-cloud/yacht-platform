@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 import secrets
 import pyotp
@@ -326,13 +326,14 @@ async def regenerate_backup_codes(
 @router.post("/register-invited")
 async def register_with_invitation(
     data: dict,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """Register dealer with invitation token"""
     from app.models.api_keys import DealerInvitation
     from app.models.dealer import DealerProfile
     from app.utils.slug import create_slug
-    from app.security.auth import create_access_token
+    from app.security.auth import create_access_token, set_auth_cookie
     
     token = data.get("invitation_token")
     
@@ -426,7 +427,8 @@ async def register_with_invitation(
         data={"sub": user.email},
         expires_delta=timedelta(minutes=60 * 24 * 7)
     )
-    
+    set_auth_cookie(response, access_token)
+
     return {
         "access_token": access_token,
         "token_type": "bearer",

@@ -74,8 +74,8 @@ class TeamMember(Base):
     __tablename__ = "team_members"
 
     id = Column(Integer, primary_key=True, index=True)
-    dealer_id = Column(Integer, ForeignKey("dealer_profiles.id"))
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    dealer_id = Column(Integer, ForeignKey("dealer_profiles.id"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     name = Column(String, nullable=False)
     title = Column(String)

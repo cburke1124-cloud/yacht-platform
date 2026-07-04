@@ -65,6 +65,18 @@ from app.api.routes_charter import router as charter_router
 
 setup_logging()
 
+from app.core.config import settings
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.1,
+    )
+
 app = FastAPI(title="YachtVersal API")
 
 # Wire the global rate-limiter into the app so slowapi can read it

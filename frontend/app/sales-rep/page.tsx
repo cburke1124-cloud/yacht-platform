@@ -8,7 +8,7 @@ import {
   Handshake, UserPlus, Activity, Check, ChevronDown, Star, Shield,
   Zap, Crown,
 } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
 import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
 
@@ -232,7 +232,7 @@ export default function SalesRepDashboard() {
         fetchAnalytics(token), fetchDeals(token), fetchOffers(token),
         fetchDocs(token), fetchDemo(token), fetchTiers(token),
       ]);
-    } catch (e) { console.error('Auth check failed:', e); localStorage.removeItem('token'); router.push('/login'); }
+    } catch (e) { console.error('Auth check failed:', e); markLoggedOut(); router.push('/login'); }
     finally { setLoading(false); }
   };
 

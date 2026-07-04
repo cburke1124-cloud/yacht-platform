@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedIn, markLoggedOut } from '@/app/lib/apiRoot';
 import { Loader2 } from 'lucide-react';
 import TermsAcceptanceModal from '@/app/components/TermsAcceptanceModal';
 
@@ -32,7 +32,7 @@ function SellerLoginContent() {
   }, []);
 
   const finishLogin = async (accessToken: string) => {
-    localStorage.setItem('token', accessToken);
+    markLoggedIn();
     window.dispatchEvent(new Event('authChange'));
 
     const userResponse = await fetch(apiUrl('/auth/me'), {
@@ -141,7 +141,8 @@ function SellerLoginContent() {
   const handleTermsAccepted = () => { setShowTermsModal(false); router.push(pendingRedirect); };
   const handleTermsDecline = () => {
     setShowTermsModal(false);
-    localStorage.removeItem('token');
+    markLoggedOut();
+    fetch(apiUrl('/auth/logout'), { method: 'POST' }).catch(() => {});
     setError('You must accept the terms to continue.');
   };
 

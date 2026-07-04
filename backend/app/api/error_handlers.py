@@ -43,6 +43,13 @@ async def pydantic_validation_exception_handler(request: Request, exc: RequestVa
 
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
+    try:
+        from app.core.config import settings
+        if settings.SENTRY_DSN:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+    except Exception:
+        pass
     origin = request.headers.get("origin", "")
     response = JSONResponse(
         status_code=500,

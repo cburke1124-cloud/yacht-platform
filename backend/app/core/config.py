@@ -2,6 +2,8 @@ import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    SENTRY_DSN: str | None = os.getenv("SENTRY_DSN")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:admin123@localhost:5432/yacht_db")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "admin123")
     ALGORITHM: str = "HS256"
