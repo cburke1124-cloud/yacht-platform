@@ -222,6 +222,7 @@ export default function ImageGalleryModal({
               disabled={zoom <= 1}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
               title="Zoom Out (-)"
+              aria-label="Zoom out"
             >
               <ZoomOut size={20} />
             </button>
@@ -231,6 +232,7 @@ export default function ImageGalleryModal({
               disabled={zoom >= 3}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white"
               title="Zoom In (+)"
+              aria-label="Zoom in"
             >
               <ZoomIn size={20} />
             </button>
@@ -239,6 +241,7 @@ export default function ImageGalleryModal({
               onClick={toggleFullscreen}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white"
               title="Fullscreen"
+              aria-label="Toggle fullscreen"
             >
               <Maximize2 size={20} />
             </button>
@@ -247,6 +250,7 @@ export default function ImageGalleryModal({
               onClick={handleDownload}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white"
               title="Download"
+              aria-label="Download image"
             >
               <Download size={20} />
             </button>
@@ -255,6 +259,7 @@ export default function ImageGalleryModal({
               onClick={handleShare}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white"
               title="Share"
+              aria-label="Share image"
             >
               <Share2 size={20} />
             </button>
@@ -265,6 +270,7 @@ export default function ImageGalleryModal({
               onClick={onClose}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white"
               title="Close (Esc)"
+              aria-label="Close gallery"
             >
               <X size={24} />
             </button>
@@ -304,6 +310,7 @@ export default function ImageGalleryModal({
             onClick={goToPrevious}
             className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white backdrop-blur-sm"
             title="Previous (←)"
+            aria-label="Previous image"
             style={{ zIndex: 50 }}
           >
             <ChevronLeft size={32} />
@@ -313,6 +320,7 @@ export default function ImageGalleryModal({
             onClick={goToNext}
             className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-white backdrop-blur-sm"
             title="Next (→)"
+            aria-label="Next image"
             style={{ zIndex: 50 }}
           >
             <ChevronRight size={32} />

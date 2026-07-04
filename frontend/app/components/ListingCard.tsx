@@ -210,9 +210,10 @@ export default function ListingCard({
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-300'
               }`}
               title={saved ? 'Remove from saved' : 'Save this yacht'}
+              aria-label={saved ? 'Remove from saved' : 'Save this yacht'}
             >
-              <Heart 
-                size={14} 
+              <Heart
+                size={14}
                 fill={saved ? 'currentColor' : 'none'}
                 className={loading ? 'animate-pulse' : ''}
               />
@@ -227,6 +228,7 @@ export default function ListingCard({
                 }}
                 className="p-1.5 bg-white text-gray-600 hover:bg-gray-100 border border-gray-300 rounded-full transition-all"
                 title="Share this yacht"
+                aria-label="Share this yacht"
               >
                 <Share2 size={14} />
               </button>

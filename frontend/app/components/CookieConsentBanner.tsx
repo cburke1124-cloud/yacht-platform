@@ -150,6 +150,7 @@ export default function CookieConsentBanner() {
               <button
                 onClick={() => setShowSettings(false)}
                 className="p-2 text-secondary/40 hover:text-secondary/60 rounded-lg hover:bg-secondary/5"
+                aria-label="Close cookie preferences"
               >
                 <X size={24} />
               </button>

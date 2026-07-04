@@ -103,6 +103,7 @@ export default function PriceAlertButton({
               <button
                 onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-600"
+                aria-label="Close price alert modal"
               >
                 <X size={24} />
               </button>

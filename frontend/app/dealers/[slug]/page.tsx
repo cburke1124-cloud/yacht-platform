@@ -23,6 +23,7 @@ export default function DealerProfilePage() {
   const [listingsLoading, setListingsLoading] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   const LISTINGS_LIMIT = 100;
 
@@ -31,8 +32,11 @@ export default function DealerProfilePage() {
   }, [params.slug]);
 
   const fetchDealerProfile = async () => {
+    setLoading(true);
+    setFetchError(false);
     try {
       const response = await fetch(apiUrl(`/dealers/${params.slug}?skip=0&limit=${LISTINGS_LIMIT}`));
+      if (!response.ok && response.status !== 404) throw new Error(`Request failed: ${response.status}`);
       const data = await response.json();
       setDealer(data.dealer);
       setListings(data.listings);
@@ -48,6 +52,7 @@ export default function DealerProfilePage() {
       }
     } catch (error) {
       console.error('Error fetching dealer:', error);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -80,10 +85,24 @@ export default function DealerProfilePage() {
       <div className="min-h-screen flex items-center justify-center section-light">
         <div className="glass-card rounded-3xl p-12 max-w-md text-center">
           <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-            <Building2 size={40} className="text-primary" />
+            <Building2 size={40} className={fetchError ? 'text-red-500' : 'text-primary'} />
           </div>
-          <h2 className="text-2xl font-bold text-secondary mb-2">Broker Not Found</h2>
-          <p className="text-dark/70">This broker profile does not exist.</p>
+          <h2 className="text-2xl font-bold text-secondary mb-2">
+            {fetchError ? 'Something went wrong' : 'Broker Not Found'}
+          </h2>
+          <p className="text-dark/70 mb-6">
+            {fetchError
+              ? "We couldn't load this broker profile right now. Please try again in a moment."
+              : 'This broker profile does not exist.'}
+          </p>
+          {fetchError && (
+            <button
+              onClick={fetchDealerProfile}
+              className="px-6 py-2.5 bg-primary text-light rounded-xl font-semibold hover:bg-primary/90 transition-all"
+            >
+              Retry
+            </button>
+          )}
         </div>
       </div>
     );
