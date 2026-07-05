@@ -179,7 +179,7 @@ export default function ListingCard({
 
   return (
     <Link href={`/listings/${id}`} className="block group h-full">
-      <div className="hover-lift bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full">
+      <div className="hover-rise bg-white border border-gray-200 hover:border-primary overflow-hidden flex flex-col h-full transition-all duration-200">
         {/* Image with Featured Badge and Action Buttons */}
         <div className="relative aspect-[16/9] bg-gray-200 overflow-hidden flex-shrink-0">
           <img
@@ -190,7 +190,8 @@ export default function ListingCard({
               e.currentTarget.src = '/images/listing-fallback.png';
             }}
           />
-          
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+
           {featured && (
             <div className="absolute top-3 left-3 z-10">
               <span className="px-2.5 py-0.5 bg-[#01BBDC] text-white text-xs font-medium rounded-full">

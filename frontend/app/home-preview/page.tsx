@@ -135,10 +135,19 @@ export default function HomePreviewPage() {
       .then((data) => { if (data?.total != null) setStats((s) => ({ ...s, brokers: data.total })); })
       .catch(() => {});
 
-    // Locations (used for both the "Popular Locations" section and the countries stat)
+    // Locations for the "Popular Locations" tiles — SEO-page threshold applies
+    // here (a location only gets its own tile once it has enough inventory).
     fetchLocationNodes()
-      .then((nodes) => {
-        setLocations(nodes);
+      .then((nodes) => setLocations(nodes))
+      .catch(() => {});
+
+    // Countries stat — deliberately bypasses the SEO-page threshold (min_count=5)
+    // used above, since a country with real listings should still count toward
+    // this trust stat even if it doesn't yet have enough inventory for its own page.
+    fetch(`${API_ROOT}/listings/locations?min_count=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const nodes: LocationNode[] = data?.locations ?? [];
         const countryCount = nodes.filter((n) => n.type === 'country').length;
         setStats((s) => ({ ...s, countries: countryCount || null }));
       })
