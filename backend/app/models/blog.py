@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Boolean, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -58,7 +58,14 @@ class BlogPost(Base):
     slug = Column(String(300), unique=True, nullable=False, index=True)
     excerpt = Column(Text)
     content = Column(Text, nullable=False)
-    
+
+    # Block editor content: content_blocks is the authoritative BlockNote
+    # document (JSON string), content_html is sanitized HTML derived from it
+    # at save time. Both nullable so legacy plain-text posts (content only)
+    # keep rendering via the old pre-wrap path untouched.
+    content_blocks = Column(Text)
+    content_html = Column(Text)
+
     # Media
     featured_image = Column(String(500))
     featured_image_alt = Column(String(255))
@@ -99,6 +106,36 @@ class BlogPost(Base):
     category = relationship("BlogCategory", back_populates="posts")
     tags = relationship("BlogTag", secondary="blog_post_tags")
     comments = relationship("BlogComment", back_populates="post")
+
+
+class BlogPostRevision(Base):
+    __tablename__ = "blog_post_revisions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("blog_posts.id"), nullable=False, index=True)
+    editor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Snapshot of the content-bearing fields at the time of the save this
+    # revision precedes, so restoring reapplies exactly what was there before.
+    title = Column(String(255), nullable=False)
+    excerpt = Column(Text)
+    content = Column(Text)
+    content_blocks = Column(Text)
+    content_html = Column(Text)
+    featured_image = Column(String(500))
+    featured_image_alt = Column(String(255))
+    meta_title = Column(String(255))
+    meta_description = Column(Text)
+    meta_keywords = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    post = relationship("BlogPost", backref="revisions")
+    editor = relationship("User")
+
+    __table_args__ = (
+        Index("idx_revision_post_created", "post_id", "created_at"),
+    )
 
 
 class BlogPostTag(Base):

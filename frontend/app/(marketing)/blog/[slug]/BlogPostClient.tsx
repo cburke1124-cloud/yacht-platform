@@ -4,11 +4,23 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, Eye, Calendar, Tag, Share2, User } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 interface BlogPostClientProps {
   initialPost?: any | null;
   initialRelatedPosts?: any[];
+}
+
+// dompurify's server bundle exports the bare createDOMPurify factory (no
+// window to bind to), while its browser bundle exports a ready-to-use
+// instance. This component is a client component but still gets rendered
+// once server-side for the initial HTML, so guard the server pass — the
+// stored HTML is already bleach-sanitized at save time; DOMPurify here is an
+// additional client-side-only defense-in-depth layer.
+function sanitizeHtml(html: string): string {
+  if (typeof window === 'undefined') return html;
+  return DOMPurify.sanitize(html);
 }
 
 export default function BlogPostClient({ initialPost = null, initialRelatedPosts = [] }: BlogPostClientProps) {
@@ -197,16 +209,24 @@ export default function BlogPostClient({ initialPost = null, initialRelatedPosts
 
           {/* Article Content */}
           <div className="prose prose-lg max-w-none mb-12">
-            <div
-              className="text-dark/80 leading-relaxed"
-              style={{
-                fontSize: '1.125rem',
-                lineHeight: '1.875',
-                whiteSpace: 'pre-wrap'
-              }}
-            >
-              {post.content}
-            </div>
+            {post.content_html ? (
+              <div
+                className="text-dark/80 leading-relaxed"
+                style={{ fontSize: '1.125rem', lineHeight: '1.875' }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content_html) }}
+              />
+            ) : (
+              <div
+                className="text-dark/80 leading-relaxed"
+                style={{
+                  fontSize: '1.125rem',
+                  lineHeight: '1.875',
+                  whiteSpace: 'pre-wrap'
+                }}
+              >
+                {post.content}
+              </div>
+            )}
           </div>
 
           {/* Tags */}

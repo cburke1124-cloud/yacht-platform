@@ -4,11 +4,12 @@ from sqlalchemy import or_, and_, desc, func
 from datetime import datetime
 from typing import Optional, List
 import re
+import bleach
 
 from app.db.session import get_db
 from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
-from app.models.blog import BlogPost, BlogCategory, BlogTag, BlogComment, PostStatus, BlogPostTag
+from app.models.blog import BlogPost, BlogCategory, BlogTag, BlogComment, PostStatus, BlogPostTag, BlogPostRevision
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -16,6 +17,73 @@ from app.exceptions import (
 )
 
 router = APIRouter()
+
+# Blog post content_html originates from the admin block editor. It's sanitized
+# here at save time (in addition to client-side DOMPurify at render time) since
+# the stored value is also served back out through the public API. This
+# allowlist is broader than the scraper's rich-text allowlist because it needs
+# to cover block-editor output (headings, images, blockquotes, code).
+_BLOG_HTML_ALLOWED_TAGS = [
+    "p", "br", "b", "strong", "i", "em", "u", "s", "a",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "ul", "ol", "li", "blockquote", "code", "pre", "hr",
+    "img", "figure", "figcaption",
+]
+_BLOG_HTML_ALLOWED_ATTRS = {
+    "a": ["href", "title", "target", "rel"],
+    "img": ["src", "alt", "width", "height"],
+}
+
+# Cap how many past revisions are retained per post to bound table growth.
+_MAX_REVISIONS_PER_POST = 50
+
+
+def _sanitize_blog_html(html: str) -> str:
+    """Sanitize block-editor HTML before storage."""
+    return bleach.clean(html, tags=_BLOG_HTML_ALLOWED_TAGS, attributes=_BLOG_HTML_ALLOWED_ATTRS, strip=True).strip()
+
+
+def _html_to_plain_text(html: str) -> str:
+    """Strip tags to derive the flat text used for search and reading-time calc."""
+    return bleach.clean(html, tags=[], attributes={}, strip=True).strip()
+
+
+def _snapshot_revision(post: BlogPost, editor_id: int, db: Session):
+    """Snapshot the post's current content-bearing fields before they're overwritten."""
+    revision = BlogPostRevision(
+        post_id=post.id,
+        editor_id=editor_id,
+        title=post.title,
+        excerpt=post.excerpt,
+        content=post.content,
+        content_blocks=post.content_blocks,
+        content_html=post.content_html,
+        featured_image=post.featured_image,
+        featured_image_alt=post.featured_image_alt,
+        meta_title=post.meta_title,
+        meta_description=post.meta_description,
+        meta_keywords=post.meta_keywords,
+    )
+    db.add(revision)
+    db.flush()
+
+    # Prune oldest revisions beyond the cap.
+    revision_ids = [
+        r.id for r in db.query(BlogPostRevision.id)
+        .filter(BlogPostRevision.post_id == post.id)
+        .order_by(desc(BlogPostRevision.created_at))
+        .offset(_MAX_REVISIONS_PER_POST)
+        .all()
+    ]
+    if revision_ids:
+        db.query(BlogPostRevision).filter(BlogPostRevision.id.in_(revision_ids)).delete(synchronize_session=False)
+
+
+# Fields that, if present in an update payload, trigger a revision snapshot.
+_REVISION_TRIGGER_FIELDS = {
+    "title", "excerpt", "content", "content_blocks", "content_html",
+    "featured_image", "featured_image_alt", "meta_title", "meta_description", "meta_keywords",
+}
 
 
 def require_admin_or_editor(current_user: User = Depends(get_current_user)):
@@ -162,6 +230,8 @@ def get_blog_post(
         "slug": post.slug,
         "excerpt": post.excerpt,
         "content": post.content,
+        "content_blocks": post.content_blocks,
+        "content_html": post.content_html,
         "featured_image": post.featured_image,
         "featured_image_alt": post.featured_image_alt,
         "category": post.category.slug if post.category else None,
@@ -198,14 +268,24 @@ def create_blog_post(
     
     # Generate slug if not provided
     slug = data.get("slug", generate_slug(data["title"], db))
-    
+
     # Check if slug exists
     if db.query(BlogPost).filter(BlogPost.slug == slug).first():
         raise ValidationException("A post with this slug already exists")
-    
+
+    # Block-editor posts submit content_blocks + content_html; content itself
+    # is then derived as plain text so search/reading-time keep working
+    # unmodified. Classic-editor/legacy posts submit content only.
+    content_html = None
+    content_blocks = data.get("content_blocks")
+    content = data["content"]
+    if data.get("content_html"):
+        content_html = _sanitize_blog_html(data["content_html"])
+        content = _html_to_plain_text(content_html)
+
     # Calculate reading time
-    reading_time = calculate_reading_time(data["content"])
-    
+    reading_time = calculate_reading_time(content)
+
     # Get category
     category_id = None
     if data.get("category"):
@@ -214,13 +294,15 @@ def create_blog_post(
         ).first()
         if category:
             category_id = category.id
-    
+
     # Create post
     post = BlogPost(
         title=data["title"],
         slug=slug,
         excerpt=data.get("excerpt", ""),
-        content=data["content"],
+        content=content,
+        content_blocks=content_blocks,
+        content_html=content_html,
         featured_image=data.get("featured_image"),
         featured_image_alt=data.get("featured_image_alt"),
         meta_title=data.get("meta_title", data["title"]),
@@ -274,16 +356,33 @@ def update_blog_post(
 ):
     """Update a blog post."""
     post = db.query(BlogPost).filter(BlogPost.id == post_id).first()
-    
+
     if not post:
         raise ResourceNotFoundException("Blog post", post_id)
-    
+
+    # Snapshot the pre-update state so it can be restored later, but only for
+    # edits that actually touch content-bearing fields (avoids revision spam
+    # from e.g. toggling `featured`).
+    if _REVISION_TRIGGER_FIELDS & data.keys():
+        _snapshot_revision(post, current_user.id, db)
+
     # Update basic fields
     if "title" in data:
         post.title = data["title"]
     if "excerpt" in data:
         post.excerpt = data["excerpt"]
-    if "content" in data:
+    if "content_html" in data:
+        if data["content_html"]:
+            post.content_html = _sanitize_blog_html(data["content_html"])
+            post.content_blocks = data.get("content_blocks", post.content_blocks)
+            post.content = _html_to_plain_text(post.content_html)
+        else:
+            post.content_html = None
+            post.content_blocks = None
+            if "content" in data:
+                post.content = data["content"]
+        post.reading_time_minutes = calculate_reading_time(post.content)
+    elif "content" in data:
         post.content = data["content"]
         post.reading_time_minutes = calculate_reading_time(data["content"])
     if "featured_image" in data:
@@ -358,8 +457,108 @@ def delete_blog_post(
     
     post.deleted_at = datetime.utcnow()
     db.commit()
-    
+
     return {"success": True, "message": "Blog post deleted"}
+
+
+# ============= REVISIONS =============
+
+@router.get("/admin/blog/posts/{post_id}/revisions")
+def list_blog_post_revisions(
+    post_id: int,
+    current_user: User = Depends(require_admin_or_editor),
+    db: Session = Depends(get_db)
+):
+    """List revisions for a post, newest first (lightweight — no full content)."""
+    post = db.query(BlogPost).filter(BlogPost.id == post_id).first()
+    if not post:
+        raise ResourceNotFoundException("Blog post", post_id)
+
+    revisions = db.query(BlogPostRevision).filter(
+        BlogPostRevision.post_id == post_id
+    ).order_by(desc(BlogPostRevision.created_at)).all()
+
+    return [
+        {
+            "id": rev.id,
+            "title": rev.title,
+            "editor": f"{rev.editor.first_name} {rev.editor.last_name}" if rev.editor else "Unknown",
+            "created_at": rev.created_at.isoformat() if rev.created_at else None,
+        }
+        for rev in revisions
+    ]
+
+
+@router.get("/admin/blog/posts/{post_id}/revisions/{revision_id}")
+def get_blog_post_revision(
+    post_id: int,
+    revision_id: int,
+    current_user: User = Depends(require_admin_or_editor),
+    db: Session = Depends(get_db)
+):
+    """Get full detail of a single revision, for preview before restore."""
+    revision = db.query(BlogPostRevision).filter(
+        BlogPostRevision.id == revision_id,
+        BlogPostRevision.post_id == post_id
+    ).first()
+    if not revision:
+        raise ResourceNotFoundException("Blog post revision", revision_id)
+
+    return {
+        "id": revision.id,
+        "title": revision.title,
+        "excerpt": revision.excerpt,
+        "content": revision.content,
+        "content_blocks": revision.content_blocks,
+        "content_html": revision.content_html,
+        "featured_image": revision.featured_image,
+        "featured_image_alt": revision.featured_image_alt,
+        "meta_title": revision.meta_title,
+        "meta_description": revision.meta_description,
+        "meta_keywords": revision.meta_keywords,
+        "editor": f"{revision.editor.first_name} {revision.editor.last_name}" if revision.editor else "Unknown",
+        "created_at": revision.created_at.isoformat() if revision.created_at else None,
+    }
+
+
+@router.post("/admin/blog/posts/{post_id}/revisions/{revision_id}/restore")
+def restore_blog_post_revision(
+    post_id: int,
+    revision_id: int,
+    current_user: User = Depends(require_admin_or_editor),
+    db: Session = Depends(get_db)
+):
+    """Restore a post to a past revision. Non-destructive: the pre-restore
+    state is itself snapshotted first, so a restore can always be undone."""
+    post = db.query(BlogPost).filter(BlogPost.id == post_id).first()
+    if not post:
+        raise ResourceNotFoundException("Blog post", post_id)
+
+    revision = db.query(BlogPostRevision).filter(
+        BlogPostRevision.id == revision_id,
+        BlogPostRevision.post_id == post_id
+    ).first()
+    if not revision:
+        raise ResourceNotFoundException("Blog post revision", revision_id)
+
+    _snapshot_revision(post, current_user.id, db)
+
+    post.title = revision.title
+    post.excerpt = revision.excerpt
+    post.content = revision.content
+    post.content_blocks = revision.content_blocks
+    post.content_html = revision.content_html
+    post.featured_image = revision.featured_image
+    post.featured_image_alt = revision.featured_image_alt
+    post.meta_title = revision.meta_title
+    post.meta_description = revision.meta_description
+    post.meta_keywords = revision.meta_keywords
+    post.reading_time_minutes = calculate_reading_time(post.content or "")
+
+    db.commit()
+    db.refresh(post)
+
+    return {"success": True, "post": {"id": post.id, "slug": post.slug}}
 
 
 # ============= CATEGORIES =============

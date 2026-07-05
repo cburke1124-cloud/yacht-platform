@@ -50,7 +50,8 @@ from app.models.blog import (
     BlogCategory,
     BlogTag,
     BlogComment,
-    BlogPostTag
+    BlogPostTag,
+    BlogPostRevision
 )
 
 from app.models.guest_broker import GuestBroker

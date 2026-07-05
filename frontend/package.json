@@ -11,6 +11,9 @@
     "images:destinations": "node scripts/sync-destination-images.mjs"
   },
   "dependencies": {
+    "@blocknote/ariakit": "^0.51.4",
+    "@blocknote/core": "^0.51.4",
+    "@blocknote/react": "^0.51.4",
     "@sentry/nextjs": "^10.63.0",
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.6.1",
