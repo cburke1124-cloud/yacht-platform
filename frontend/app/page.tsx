@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import StructuredSearchTabs from '@/app/components/StructuredSearchTabs';
+import HomeSearchTabs from '@/app/components/HomeSearchTabs';
 import ListingCard from '@/app/components/ListingCard';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
@@ -42,161 +41,6 @@ type Listing = {
     logo_url?: string;
   };
 };
-
-// --- AI Search Box ---
-
-function AISearchBox() {
-  const [query, setQuery] = useState('');
-  const router = useRouter();
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    router.push(`/ai-search?q=${encodeURIComponent(query.trim())}`);
-  };
-
-  return (
-    <div
-      style={{
-        background: '#FFFFFF',
-        borderRadius: '24px 24px 0 0',
-        padding: '22px 16px 18px 16px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Logomark watermark */}
-      <Image
-        src="/logo/wave-only.png"
-        alt=""
-        aria-hidden={true}
-        width={650}
-        height={650}
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          opacity: 0.18,
-          pointerEvents: 'none',
-          userSelect: 'none',
-        }}
-      />
-
-      <h2
-        className="text-center font-normal"
-        style={{
-          color: '#10214F',
-          fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-          fontSize: 'clamp(26px, 2.5vw, 40px)',
-          lineHeight: '48px',
-          fontWeight: 400,
-          marginBottom: 10,
-        }}
-      >
-        Skip the Filters - Find the Yacht
-      </h2>
-
-      <p
-        className="text-center"
-        style={{
-          color: '#10214F',
-          fontFamily: 'Poppins, sans-serif',
-          fontSize: 16,
-          lineHeight: '24px',
-          marginBottom: 22,
-          opacity: 0.7,
-        }}
-      >
-        Our AI-powered search goes beyond basic filters.<br />
-        Tell us what you want—size, lifestyle, budget, destination—whether you're buying or booking a charter, YachtVersal AI matches you with yachts that fit your vision.
-      </p>
-
-      <form
-        onSubmit={handleSearch}
-        className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mx-auto"
-        style={{ maxWidth: 799, paddingLeft: 0, paddingRight: 0 }}
-        role="search"
-        aria-label="Yacht search"
-      >
-        <label htmlFor="yacht-search" className="sr-only">
-          Describe your ideal yacht
-        </label>
-
-        <div className="relative flex-1">
-          <input
-            id="yacht-search"
-            type="search"
-            placeholder="70–90 ft yacht under $3M, or a week in the BVI for 8 people"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full focus:outline-none"
-            style={{
-              height: 56,
-              border: '1.5px solid #E2E8F0',
-              borderRadius: 999,
-              backgroundColor: '#F8FAFC',
-              paddingLeft: 24,
-              paddingRight: 52,
-              fontSize: 14,
-              lineHeight: '21px',
-              fontFamily: 'Poppins, sans-serif',
-              color: '#10214F',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            }}
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
-            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-              <path d="M15 3C15 3 17.25 10.5 22.5 12.75C17.25 15 15 22.5 15 22.5C15 22.5 12.75 15 7.5 12.75C12.75 10.5 15 3 15 3Z" fill="#01BBDC" />
-              <path d="M23.5 17.5C23.5 17.5 24.5 21 26.5 22C24.5 23 23.5 26.5 23.5 26.5C23.5 26.5 22.5 23 20.5 22C22.5 21 23.5 17.5 23.5 17.5Z" fill="#01BBDC" opacity="0.6" />
-              <path d="M6 4C6 4 6.75 6.75 8.5 7.5C6.75 8.25 6 11 6 11C6 11 5.25 8.25 3.5 7.5C5.25 6.75 6 4 6 4Z" fill="#01BBDC" opacity="0.4" />
-            </svg>
-          </span>
-        </div>
-
-        <button
-          type="submit"
-          aria-label="Search for yachts"
-          className="text-white font-medium transition-opacity hover:opacity-90 whitespace-nowrap w-full sm:w-auto"
-          style={{
-            backgroundColor: '#01BBDC',
-            fontFamily: 'Poppins, sans-serif',
-            fontSize: 16,
-            lineHeight: '24px',
-            fontWeight: 500,
-            borderRadius: 999,
-            width: undefined,
-            height: 56,
-            flexShrink: 0,
-            paddingLeft: 24,
-            paddingRight: 24,
-          }}
-        >
-          Quick Search
-        </button>
-      </form>
-
-      <p
-        className="text-center flex items-center justify-center gap-2"
-        style={{
-          color: '#10214F',
-          fontFamily: 'Poppins, sans-serif',
-          fontSize: 16,
-          lineHeight: '24px',
-          marginTop: 20,
-          opacity: 0.7,
-        }}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 2C12 2 13.5 7 17 8.5C13.5 10 12 15 12 15C12 15 10.5 10 7 8.5C10.5 7 12 2 12 2Z" fill="#01BBDC" />
-          <path d="M19 14C19 14 19.75 16.5 21.5 17.25C19.75 18 19 20.5 19 20.5C19 20.5 18.25 18 16.5 17.25C18.25 16.5 19 14 19 14Z" fill="#01BBDC" opacity="0.6" />
-          <path d="M5 3C5 3 5.5 4.75 7 5.5C5.5 6.25 5 8 5 8C5 8 4.5 6.25 3 5.5C4.5 4.75 5 3 5 3Z" fill="#01BBDC" opacity="0.4" />
-        </svg>
-        AI powered search matching lifestyle, size &amp; budget.
-      </p>
-    </div>
-  );
-}
 
 // --- Main Page ---
 
@@ -323,8 +167,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* AI SEARCH BOX */}
-      <section className="relative z-20" style={{ marginTop: 0 }}>
+      {/* SEARCH — AI Search / Yacht Search / Charter Search tabs */}
+      <section className="relative z-20 bg-white" style={{ marginTop: 0, paddingTop: 32, paddingBottom: 32 }}>
         <div
           className="mx-auto"
           style={{
@@ -333,25 +177,37 @@ export default function HomePage() {
             paddingRight: 'clamp(16px, 2vw, 0px)',
           }}
         >
-          <AISearchBox />
-          {/* Structured filter search (Yacht / Charter tabs) — hidden on mobile (too wide), replaced with links */}
-          <div className="hidden sm:flex justify-center pb-5">
-            <StructuredSearchTabs />
-          </div>
-          <div className="sm:hidden px-4 pb-5 flex gap-3">
-            <Link
-              href="/listings"
-              className="flex items-center justify-center flex-1 text-sm font-medium text-[#10214F] border border-gray-200 rounded-xl py-3 bg-white hover:bg-gray-50 transition-colors"
-            >
-              Browse yachts →
-            </Link>
-            <Link
-              href="/charter"
-              className="flex items-center justify-center flex-1 text-sm font-medium text-[#10214F] border border-gray-200 rounded-xl py-3 bg-white hover:bg-gray-50 transition-colors"
-            >
-              Browse charters →
-            </Link>
-          </div>
+          <h2
+            className="text-center font-normal"
+            style={{
+              color: '#10214F',
+              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+              fontSize: 'clamp(26px, 2.5vw, 40px)',
+              lineHeight: '48px',
+              fontWeight: 400,
+              marginBottom: 10,
+            }}
+          >
+            Skip the Filters - Find the Yacht
+          </h2>
+
+          <p
+            className="text-center mx-auto"
+            style={{
+              color: '#10214F',
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: 16,
+              lineHeight: '24px',
+              marginBottom: 28,
+              maxWidth: 720,
+              opacity: 0.7,
+            }}
+          >
+            Our AI-powered search goes beyond basic filters.<br />
+            Tell us what you want—size, lifestyle, budget, destination—whether you're buying or booking a charter, YachtVersal AI matches you with yachts that fit your vision.
+          </p>
+
+          <HomeSearchTabs />
         </div>
       </section>
 
