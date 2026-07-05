@@ -113,12 +113,18 @@ const FALLBACK_LISTING_IMAGE = '/images/listing-fallback1.png';
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
-function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
+function SpecRow({ label, value, href }: { label: string; value: string | null | undefined; href?: string }) {
   if (!value) return null;
   return (
     <div className="flex justify-between items-baseline py-2 border-b border-gray-200/60 last:border-0">
       <span className="text-sm text-[#10214F]/55 font-poppins">{label}</span>
-      <span className="text-sm text-[#10214F] text-right font-semibold font-poppins">{value}</span>
+      {href ? (
+        <Link href={href} className="text-sm text-[#01BBDC] text-right font-semibold font-poppins hover:underline">
+          {value}
+        </Link>
+      ) : (
+        <span className="text-sm text-[#10214F] text-right font-semibold font-poppins">{value}</span>
+      )}
     </div>
   );
 }
@@ -135,16 +141,25 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+interface CatalogLink {
+  href: string;
+  label: string;
+}
+
 interface ListingDetailClientProps {
   initialListing?: Listing | null;
   initialMedia?: MediaItem[];
   initialContact?: ContactInfo | null;
+  makeLink?: CatalogLink | null;
+  boatTypeLink?: CatalogLink | null;
 }
 
 export default function ListingDetailClient({
   initialListing = null,
   initialMedia = [],
   initialContact = null,
+  makeLink = null,
+  boatTypeLink = null,
 }: ListingDetailClientProps) {
   const params = useParams();
   const router = useRouter();
@@ -1066,8 +1081,8 @@ export default function ListingDetailClient({
                   { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: fmtLength(listing.length_feet, displayUnits) },
                   { icon: <Users size={20} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
                   { icon: <Bed size={20} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
-                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type },
-                  { icon: <Wrench size={20} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make },
+                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type, href: boatTypeLink?.href },
+                  { icon: <Wrench size={20} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make, href: makeLink?.href },
                   { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
                   { icon: <Waves size={20} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
                   { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
@@ -1082,7 +1097,13 @@ export default function ListingDetailClient({
                     </div>
                     <div>
                       <p className="text-xs text-[#10214F]/55 uppercase tracking-wide font-bahnschrift">{s.label}</p>
-                      <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
+                      {s.href ? (
+                        <Link href={s.href} className="font-semibold text-[#01BBDC] font-bahnschrift text-sm hover:underline">
+                          {s.value}
+                        </Link>
+                      ) : (
+                        <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1236,10 +1257,10 @@ export default function ListingDetailClient({
               <SpecRow label="Stock #"         value={id} />
               <SpecRow label="BIN"             value={listing.bin} />
               <SpecRow label="Status"          value={listing.status === 'active' ? 'Available' : listing.status === 'sold' ? 'Sold' : listing.status || null} />
-              <SpecRow label="Make"            value={listing.make} />
+              <SpecRow label="Make"            value={listing.make} href={makeLink?.href} />
               <SpecRow label="Model"           value={listing.model} />
               <SpecRow label="Year"            value={listing.year ? String(listing.year) : null} />
-              <SpecRow label="Type"            value={listing.boat_type} />
+              <SpecRow label="Type"            value={listing.boat_type} href={boatTypeLink?.href} />
               <SpecRow label="Condition"       value={listing.condition ? (listing.condition.charAt(0).toUpperCase() + listing.condition.slice(1)) : null} />
               <SpecRow label="Previous Owners" value={listing.previous_owners != null ? String(listing.previous_owners) : null} />
             </div>

@@ -1,6 +1,7 @@
 import { MetadataRoute } from 'next';
 import { getBoatTypes } from '@/app/lib/boatTypeData';
 import { getDestinations } from '@/app/lib/destinationData';
+import { fetchLocationNodes } from '@/app/lib/listingLocationsData';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') || 'https://www.yachtversal.com';
 const API_ROOT = (process.env.NEXT_PUBLIC_API_URL || 'https://yacht-platform.onrender.com/api').replace(/\/+$/, '');
@@ -17,6 +18,7 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/boat-types`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
   { url: `${SITE_URL}/makes`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
   { url: `${SITE_URL}/charter-destinations`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.6 },
+  { url: `${SITE_URL}/yachts-for-sale`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.6 },
   { url: `${SITE_URL}/charter`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.7 },
   { url: `${SITE_URL}/dealers`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.6 },
   { url: `${SITE_URL}/faq`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.5 },
@@ -79,10 +81,11 @@ async function fetchAllBlogSlugs(): Promise<{ slug: string; updated_at?: string 
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [listings, dealers, blogPosts] = await Promise.all([
+  const [listings, dealers, blogPosts, locationNodes] = await Promise.all([
     fetchAllListings(),
     fetchAllDealers(),
     fetchAllBlogSlugs(),
+    fetchLocationNodes(),
   ]);
 
   const listingEntries: MetadataRoute.Sitemap = listings.map(({ id, updated_at }) => ({
@@ -124,6 +127,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: d.type === 'region' ? 0.6 : 0.5,
   }));
 
+  const locationEntries: MetadataRoute.Sitemap = locationNodes.map((node) => ({
+    url: `${SITE_URL}/yachts-for-sale/${node.path.join('/')}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly',
+    priority: node.type === 'country' ? 0.6 : node.type === 'state' ? 0.55 : 0.5,
+  }));
+
   return [
     ...STATIC_PAGES,
     ...listingEntries,
@@ -131,5 +141,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...blogEntries,
     ...boatTypeEntries,
     ...destinationEntries,
+    ...locationEntries,
   ];
 }

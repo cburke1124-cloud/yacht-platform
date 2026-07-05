@@ -158,7 +158,7 @@ export default function DealersPage() {
                   <Link
                     key={dealer.id}
                     href={`/dealers/${dealer.slug}`}
-                    className="group bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl hover:border-primary/30 transition-all overflow-hidden"
+                    className="hover-lift group bg-white rounded-2xl shadow-sm border border-gray-200 hover:border-primary/30 transition-all overflow-hidden"
                   >
                     {/* Logo/Header */}
                     <div className="bg-gradient-to-br from-primary/10 to-primary/5 h-40 flex items-center justify-center relative p-6">

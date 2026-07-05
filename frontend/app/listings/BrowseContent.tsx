@@ -7,6 +7,7 @@ import {
   SlidersHorizontal, MapPin, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import ListingCard from '../components/ListingCard';
+import { ListingGridSkeleton } from '../components/LoadingSkeletons';
 import { apiUrl } from '@/app/lib/apiRoot';
 import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 import { detectLocaleDefaults } from '@/app/lib/locale';
@@ -994,15 +995,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32">
-            <div
-              className="animate-spin rounded-full border-b-2"
-              style={{ width: 44, height: 44, borderColor: '#01BBDC' }}
-            />
-            <p className="mt-4 text-sm" style={{ color: 'rgba(16,33,79,0.5)', fontFamily: 'Poppins, sans-serif' }}>
-              Searching…
-            </p>
-          </div>
+          <ListingGridSkeleton count={9} />
         ) : sorted.length === 0 ? (
           <div
             className="flex flex-col items-center justify-center py-32 rounded-2xl"
@@ -1111,7 +1104,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
             )}
 
             {/* 4-across grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4" style={{ gap: 16 }}>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4" style={{ gap: 20 }}>
               {paged.map((l) => (
                 <div key={l.id} className="relative">
                   {l.match_score !== undefined && (

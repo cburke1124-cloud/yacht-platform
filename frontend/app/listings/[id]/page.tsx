@@ -1,8 +1,33 @@
 import { notFound } from 'next/navigation';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
+import { getBoatTypes } from '@/app/lib/boatTypeData';
 import ListingDetailClient from './ListingDetailClient';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
+interface CatalogLink {
+  href: string;
+  label: string;
+}
+
+async function fetchMakeLink(make: string | undefined | null): Promise<CatalogLink | null> {
+  if (!make) return null;
+  try {
+    const res = await fetch(`${API_ROOT}/catalog/makes`, { next: { revalidate: 3600 } });
+    if (!res.ok) return null;
+    const makes: Array<{ name: string; slug: string }> = await res.json();
+    const match = makes.find((m) => m.name?.toLowerCase() === make.toLowerCase());
+    return match ? { href: `/makes/${match.slug}`, label: match.name } : null;
+  } catch {
+    return null;
+  }
+}
+
+function findBoatTypeLink(boatType: string | undefined | null): CatalogLink | null {
+  if (!boatType) return null;
+  const match = getBoatTypes().find((b) => b.boatType?.toLowerCase() === boatType.toLowerCase());
+  return match ? { href: `/boat-types/${match.slug}`, label: match.displayName } : null;
+}
 
 interface ListingDetailPageProps {
   params: Promise<{ id: string }>;
@@ -52,6 +77,10 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
     notFound();
   }
 
+  const [makeLink, boatTypeLink] = listing
+    ? await Promise.all([fetchMakeLink(listing.make), Promise.resolve(findBoatTypeLink(listing.boat_type))])
+    : [null, null];
+
   const jsonLd = listing ? {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -93,7 +122,13 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
           dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
         />
       )}
-      <ListingDetailClient initialListing={listing} initialMedia={media} initialContact={contact} />
+      <ListingDetailClient
+        initialListing={listing}
+        initialMedia={media}
+        initialContact={contact}
+        makeLink={makeLink}
+        boatTypeLink={boatTypeLink}
+      />
     </>
   );
 }

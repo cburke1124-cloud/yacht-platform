@@ -1281,6 +1281,110 @@ def get_recently_deleted(
     ]
 
 
+# ─── Location landing pages: live aggregation, no static curation ────────────
+# Threshold-gated so a location only gets a page once it has enough inventory,
+# and automatically stops appearing if it later drops below the threshold —
+# no manual list to maintain as the catalog grows into new markets.
+
+import re as _re
+
+
+def _location_slugify(name: str) -> str:
+    return _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+@router.get("/locations")
+def get_listing_locations(min_count: int = 5, db: Session = Depends(get_db)):
+    """Aggregate active listings by country/state/city for location landing pages."""
+    _PAID_TIERS = [
+        "basic", "plus", "pro", "premium",
+        "private_basic", "private_plus", "private_pro",
+    ]
+    rows = db.query(
+        Listing.country, Listing.state, Listing.city, func.count(Listing.id).label("cnt")
+    ).join(User, Listing.user_id == User.id).filter(
+        Listing.status == "active",
+        Listing.deleted_at.is_(None),
+        Listing.country.isnot(None),
+        Listing.country != "",
+        User.is_demo != True,
+        # Match the visibility rule in the main GET /listings endpoint — a
+        # location's count must reflect what a visitor actually sees, or the
+        # page would advertise listings the browse page then fails to return.
+        or_(
+            User.always_free == True,
+            User.subscription_tier.in_(_PAID_TIERS),
+        ),
+    ).group_by(Listing.country, Listing.state, Listing.city).all()
+
+    country_counts: dict[str, int] = {}
+    state_counts: dict[tuple[str, str], int] = {}
+    city_rows: list[tuple[str, Optional[str], str, int]] = []
+
+    for country, state, city, cnt in rows:
+        country_counts[country] = country_counts.get(country, 0) + cnt
+        if state:
+            key = (country, state)
+            state_counts[key] = state_counts.get(key, 0) + cnt
+        if city:
+            city_rows.append((country, state, city, cnt))
+
+    locations = []
+
+    for country, count in country_counts.items():
+        if count < min_count:
+            continue
+        country_slug = _location_slugify(country)
+        locations.append({
+            "type": "country",
+            "path": [country_slug],
+            "label": country,
+            "count": count,
+            "filters": {"country": country},
+        })
+
+    for (country, state), count in state_counts.items():
+        if count < min_count:
+            continue
+        country_slug = _location_slugify(country)
+        state_slug = _location_slugify(state)
+        locations.append({
+            "type": "state",
+            "path": [country_slug, state_slug],
+            "label": state,
+            "count": count,
+            "filters": {"country": country, "state": state},
+            "parentPath": [country_slug],
+        })
+
+    for country, state, city, count in city_rows:
+        if count < min_count:
+            continue
+        country_slug = _location_slugify(country)
+        city_slug = _location_slugify(city)
+        filters = {"country": country, "city": city}
+        if state:
+            state_slug = _location_slugify(state)
+            path = [country_slug, state_slug, city_slug]
+            parent_path = [country_slug, state_slug]
+            filters["state"] = state
+            label = f"{city}, {state}"
+        else:
+            path = [country_slug, city_slug]
+            parent_path = [country_slug]
+            label = city
+        locations.append({
+            "type": "city",
+            "path": path,
+            "label": label,
+            "count": count,
+            "filters": filters,
+            "parentPath": parent_path,
+        })
+
+    return {"locations": locations}
+
+
 # ─── GET single listing (FULL detail) ─────────────────────────────────────────
 
 @router.get("/{listing_id}")
@@ -1381,7 +1485,7 @@ def get_listing_media(listing_id: int, db: Session = Depends(get_db)):
                     "caption": img.caption,
                     "width": None,
                     "height": None,
-                    "alt_text": None,
+                    "alt_text": img.alt_text,
                 }
             )
 

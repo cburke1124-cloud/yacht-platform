@@ -3437,12 +3437,19 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             r'placeholder|no.image|no_image|spinner|pixel|tracking',
                             re.IGNORECASE,
                         )
+                        photo_position = 0
                         for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
                             if _SKIP_IMAGE_RE.search(img_url):
                                 continue
                             if _EXTERNAL_CDN_DOMAINS.search(img_url):
                                 img_url = _rehost_image(img_url)
-                            db.add(ListingImage(listing_id=listing.id, url=img_url))
+                            db.add(ListingImage(
+                                listing_id=listing.id,
+                                url=img_url,
+                                display_order=photo_position,
+                                alt_text=_generate_image_alt_text(listing, photo_position),
+                            ))
+                            photo_position += 1
 
                         # Track in ScrapedListing
                         scraped_record = ScrapedListing(
@@ -3571,6 +3578,13 @@ def _sanitize_plain_text(value: str) -> str:
 def _sanitize_rich_text(value: str) -> str:
     """Allow a small safe-tag allowlist — for long free-text fields like descriptions."""
     return bleach.clean(value, tags=_RICH_TEXT_ALLOWED_TAGS, attributes=_RICH_TEXT_ALLOWED_ATTRS, strip=True).strip()
+
+
+def _generate_image_alt_text(listing: Listing, photo_position: int) -> str:
+    """Descriptive alt text for a scraped photo, from the listing's own fields plus its
+    position in the gallery — scraped source sites rarely provide usable alt text."""
+    descriptor = " ".join(str(part) for part in (listing.year, listing.make, listing.model) if part) or listing.title or "Yacht"
+    return f"{descriptor} for sale — photo {photo_position + 1}"
 
 
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):

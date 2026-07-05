@@ -142,6 +142,7 @@ class ListingImage(Base):
     display_order = Column(Integer, default=0)
     is_primary = Column(Boolean, default=False)
     caption = Column(Text)
+    alt_text = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     listing = relationship("Listing", back_populates="images")
