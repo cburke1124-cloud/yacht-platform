@@ -331,6 +331,7 @@ export default function Navbar() {
   const resourceItems = [
     { label: 'How Buying Works / Buyer\'s Guide', href: '/resources/how-buying-works' },
     { label: 'Financing', href: '/resources/financing' },
+    { label: 'FAQ', href: '/faq' },
   ];
 
   const signInItems = [

@@ -41,6 +41,38 @@ export const metadata: Metadata = {
   },
 };
 
+// Sitewide structured data: Organization (identity, logo, socials) and
+// WebSite with a SearchAction, which is what makes Google eligible to show a
+// sitelinks search box for the domain.
+const ORGANIZATION_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'YachtVersal',
+  url: SITE_URL,
+  logo: `${SITE_URL}/logo/logo-full.png`,
+  email: 'info@yachtversal.com',
+  sameAs: [
+    'https://www.facebook.com/profile.php?id=61579522401665',
+    'https://www.instagram.com/yachtversal/',
+    'https://www.linkedin.com/company/112766298/',
+  ],
+};
+
+const WEBSITE_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'YachtVersal',
+  url: SITE_URL,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${SITE_URL}/listings?search={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -67,6 +99,14 @@ export default function RootLayout({
         {/* Google Tag Manager (noscript) */}
         <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PC4GRQR2" height="0" width="0" style={{display:'none',visibility:'hidden'}}></iframe></noscript>
         {/* End Google Tag Manager (noscript) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSON_LD) }}
+        />
         {/* Mounted first so its effect patches window.fetch before any other
             component's mount-time fetch calls (e.g. Navbar's auth check) run. */}
         <AuthGuard />

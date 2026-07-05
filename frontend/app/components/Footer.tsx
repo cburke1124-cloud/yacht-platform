@@ -12,6 +12,7 @@ export default function Footer() {
   const resources = [
     { href: '/resources/how-buying-works', label: 'How Buying Works' },
     { href: '/resources/financing', label: 'Financing' },
+    { href: '/faq', label: 'FAQ' },
     { href: '/contact', label: 'Contact' },
   ];
 

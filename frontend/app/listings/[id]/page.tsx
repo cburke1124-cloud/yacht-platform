@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import ListingDetailClient from './ListingDetailClient';
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
 interface ListingDetailPageProps {
   params: Promise<{ id: string }>;
 }
@@ -67,12 +69,28 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
     } : {}),
   } : null;
 
+  const breadcrumbJsonLd = listing ? {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Yachts for Sale', item: `${SITE_URL}/listings` },
+      { '@type': 'ListItem', position: 3, name: listing.title, item: `${SITE_URL}/listings/${id}` },
+    ],
+  } : null;
+
   return (
     <>
       {jsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
         />
       )}
       <ListingDetailClient initialListing={listing} initialMedia={media} initialContact={contact} />

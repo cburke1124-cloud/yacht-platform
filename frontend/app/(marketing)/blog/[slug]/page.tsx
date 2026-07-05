@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { API_ROOT } from '@/app/lib/apiRoot';
 import BlogPostClient from './BlogPostClient';
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
 interface BlogPostPageProps {
   params: Promise<{ slug: string }>;
 }
@@ -46,12 +48,28 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     author: post.author ? { '@type': 'Person', name: post.author } : undefined,
   } : null;
 
+  const breadcrumbJsonLd = post ? {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+      { '@type': 'ListItem', position: 3, name: post.title, item: `${SITE_URL}/blog/${slug}` },
+    ],
+  } : null;
+
   return (
     <>
       {jsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
         />
       )}
       <BlogPostClient initialPost={post} initialRelatedPosts={relatedPosts} />

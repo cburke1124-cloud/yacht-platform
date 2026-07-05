@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import DealerProfileClient from './DealerProfileClient';
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+
 interface DealerPageProps {
   params: Promise<{ slug: string }>;
 }
@@ -58,12 +60,28 @@ export default async function DealerPage({ params }: DealerPageProps) {
     } : undefined,
   } : null;
 
+  const breadcrumbJsonLd = dealer ? {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Yacht Brokers', item: `${SITE_URL}/dealers` },
+      { '@type': 'ListItem', position: 3, name: dealer.business_name, item: `${SITE_URL}/dealers/${slug}` },
+    ],
+  } : null;
+
   return (
     <>
       {jsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
         />
       )}
       <DealerProfileClient
