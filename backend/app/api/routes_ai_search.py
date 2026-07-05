@@ -14,6 +14,8 @@ from app.models.listing import Listing
 from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.api.routes_listings import _get_primary_images_for_listings
+from app.models.charter import CharterListing
+from app.api.routes_charter import _serialize as _serialize_charter
 
 router = APIRouter()
 
@@ -459,6 +461,162 @@ async def ai_search_get(
     return await ai_search(request, db)
 
 
+def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results: int, db: Session) -> dict:
+    """Body of the original /ai handler, extracted verbatim (only request.query/
+    request.max_results renamed to parameters) so it can be called both by /ai
+    (after its own extract_search_criteria call) and by /ai/smart-search's
+    for_sale branch (criteria already extracted via the unified prompt) —
+    avoiding a second, redundant Claude API call for every for-sale query
+    routed through the unified endpoint."""
+    broker_user_ids: list[int] = []
+    broker_query_applied = False
+    if _looks_like_broker_query(query_text):
+        broker_user_ids = _find_broker_listing_user_ids(query_text, db)
+        broker_query_applied = len(broker_user_ids) > 0
+
+    # Step 2: Build database query — inner-join User so orphaned listings
+    # are excluded, and eager-load all relationships to prevent lazy-load 500s.
+    from sqlalchemy.orm import joinedload as jl
+    query = (
+        db.query(Listing)
+        .join(User, Listing.user_id == User.id)
+        .filter(Listing.status == "active", Listing.deleted_at.is_(None), User.is_demo != True)
+        .options(
+            jl(Listing.owner).joinedload(User.dealer_profile),
+            jl(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
+            jl(Listing.images),
+        )
+    )
+
+    # If query looks like a broker/dealer name, narrow to that broker's inventory first.
+    if broker_query_applied:
+        query = query.filter(Listing.user_id.in_(broker_user_ids))
+
+    # Apply hard filters (must-haves)
+    if criteria.min_price:
+        query = query.filter(Listing.price >= criteria.min_price)
+    if criteria.max_price:
+        query = query.filter(Listing.price <= criteria.max_price)
+
+    if criteria.min_length:
+        query = query.filter(Listing.length_feet >= criteria.min_length)
+    if criteria.max_length:
+        query = query.filter(Listing.length_feet <= criteria.max_length)
+
+    if criteria.min_year:
+        query = query.filter(Listing.year >= criteria.min_year)
+
+    if criteria.boat_types:
+        query = query.filter(Listing.boat_type.in_(criteria.boat_types))
+
+    # Check if exact make exists in inventory before filtering
+    exact_make_exists = False
+    if criteria.make:
+        exact_make_exists = db.query(Listing.id).filter(
+            Listing.status == "active",
+            Listing.deleted_at.is_(None),
+            func.lower(Listing.make) == criteria.make.strip().lower()
+        ).first() is not None
+
+    # If an exact make match exists, filter down to it; otherwise cast wider net
+    if criteria.make and exact_make_exists:
+        candidates_query = query.filter(func.lower(Listing.make) == criteria.make.strip().lower())
+    else:
+        candidates_query = query
+
+    # Check if any listings exist in the requested location(s).
+    # If they do, constrain the candidate pool to that location so a Sarasota
+    # boat doesn't beat a Mexico boat just because most fields are unspecified.
+    location_exists_in_db = False
+    location_filter_clauses: list = []
+    if criteria.locations and not broker_query_applied:
+        for loc in criteria.locations:
+            loc_like = f"%{loc.lower()}%"
+            location_filter_clauses.append(
+                or_(
+                    func.lower(Listing.city).like(loc_like),
+                    func.lower(Listing.state).like(loc_like),
+                    func.lower(Listing.country).like(loc_like),
+                    func.lower(func.coalesce(Listing.continent, "")).like(loc_like),
+                )
+            )
+        if location_filter_clauses:
+            location_exists_in_db = (
+                db.query(Listing.id)
+                .filter(
+                    Listing.status == "active",
+                    Listing.deleted_at.is_(None),
+                    or_(*location_filter_clauses),
+                )
+                .first() is not None
+            )
+
+    if location_filter_clauses and location_exists_in_db:
+        candidates_query = candidates_query.filter(or_(*location_filter_clauses))
+
+    # Get candidate listings (cast wider net for scoring)
+    candidates = candidates_query.limit(50).all()
+
+    if not candidates:
+        return {
+            "query": query_text,
+            "understood_criteria": criteria.dict(),
+            "search_context": {
+                "no_exact_make": criteria.make if criteria.make and not exact_make_exists else None,
+                "showing_similar": False,
+            },
+            "results": [],
+            "message": "No yachts found matching your criteria. Try broadening your search."
+        }
+
+    # Step 3: Score each listing (skip any that fail to avoid single bad record tanking all results)
+    scored_listings = []
+    for listing in candidates:
+        try:
+            scored = score_listing(listing, criteria, query_text, db)
+            scored_listings.append(scored)
+        except Exception:
+            pass
+
+    # Step 4: Sort by score and return top results
+    scored_listings.sort(key=lambda x: x.score, reverse=True)
+    top_results = scored_listings[:max_results]
+
+    # Build search context message for the frontend banner
+    search_context: Dict[str, Any] = {}
+    if broker_query_applied:
+        search_context["broker_match"] = query_text
+        search_context["broker_filtered"] = True
+    if criteria.make and not exact_make_exists:
+        search_context["no_exact_make"] = criteria.make
+        search_context["showing_similar"] = True
+    elif criteria.make and exact_make_exists:
+        search_context["exact_make"] = criteria.make
+        search_context["showing_similar"] = False
+    if criteria.locations:
+        if location_exists_in_db:
+            search_context["location_filtered"] = criteria.locations
+        else:
+            search_context["no_location_match"] = criteria.locations
+            search_context["showing_all_locations"] = True
+
+    return {
+        "query": query_text,
+        "understood_criteria": criteria.dict(),
+        "search_context": search_context,
+        "total_found": len(candidates),
+        "results": [
+            {
+                "listing": result.listing,
+                "match_score": result.score,
+                "match_reasons": result.match_reasons,
+                "warnings": result.warnings
+            }
+            for result in top_results
+        ]
+    }
+
+
 @router.post("/ai")
 async def ai_search(
     request: AISearchRequest,
@@ -466,165 +624,15 @@ async def ai_search(
 ):
     """
     AI-powered natural language yacht search with scoring
-    
+
     Example queries:
     - "I need a yacht for 10 people for parties"
     - "Fishing boat under $500k in Florida"
     - "Luxury sailing yacht 60+ feet, Mediterranean"
     """
-    
     try:
-        # Step 1: Extract search criteria using Claude
         criteria = extract_search_criteria(request.query)
-
-        broker_user_ids: list[int] = []
-        broker_query_applied = False
-        if _looks_like_broker_query(request.query):
-            broker_user_ids = _find_broker_listing_user_ids(request.query, db)
-            broker_query_applied = len(broker_user_ids) > 0
-        
-        # Step 2: Build database query — inner-join User so orphaned listings
-        # are excluded, and eager-load all relationships to prevent lazy-load 500s.
-        from sqlalchemy.orm import joinedload as jl
-        query = (
-            db.query(Listing)
-            .join(User, Listing.user_id == User.id)
-            .filter(Listing.status == "active", Listing.deleted_at.is_(None), User.is_demo != True)
-            .options(
-                jl(Listing.owner).joinedload(User.dealer_profile),
-                jl(Listing.owner).joinedload(User.parent_dealer).joinedload(User.dealer_profile),
-                jl(Listing.images),
-            )
-        )
-
-        # If query looks like a broker/dealer name, narrow to that broker's inventory first.
-        if broker_query_applied:
-            query = query.filter(Listing.user_id.in_(broker_user_ids))
-        
-        # Apply hard filters (must-haves)
-        if criteria.min_price:
-            query = query.filter(Listing.price >= criteria.min_price)
-        if criteria.max_price:
-            query = query.filter(Listing.price <= criteria.max_price)
-        
-        if criteria.min_length:
-            query = query.filter(Listing.length_feet >= criteria.min_length)
-        if criteria.max_length:
-            query = query.filter(Listing.length_feet <= criteria.max_length)
-        
-        if criteria.min_year:
-            query = query.filter(Listing.year >= criteria.min_year)
-        
-        if criteria.boat_types:
-            query = query.filter(Listing.boat_type.in_(criteria.boat_types))
-
-        # Check if exact make exists in inventory before filtering
-        exact_make_exists = False
-        if criteria.make:
-            exact_make_exists = db.query(Listing.id).filter(
-                Listing.status == "active",
-                Listing.deleted_at.is_(None),
-                func.lower(Listing.make) == criteria.make.strip().lower()
-            ).first() is not None
-
-        # If an exact make match exists, filter down to it; otherwise cast wider net
-        if criteria.make and exact_make_exists:
-            candidates_query = query.filter(func.lower(Listing.make) == criteria.make.strip().lower())
-        else:
-            candidates_query = query
-
-        # Check if any listings exist in the requested location(s).
-        # If they do, constrain the candidate pool to that location so a Sarasota
-        # boat doesn't beat a Mexico boat just because most fields are unspecified.
-        location_exists_in_db = False
-        location_filter_clauses: list = []
-        if criteria.locations and not broker_query_applied:
-            for loc in criteria.locations:
-                loc_like = f"%{loc.lower()}%"
-                location_filter_clauses.append(
-                    or_(
-                        func.lower(Listing.city).like(loc_like),
-                        func.lower(Listing.state).like(loc_like),
-                        func.lower(Listing.country).like(loc_like),
-                        func.lower(func.coalesce(Listing.continent, "")).like(loc_like),
-                    )
-                )
-            if location_filter_clauses:
-                location_exists_in_db = (
-                    db.query(Listing.id)
-                    .filter(
-                        Listing.status == "active",
-                        Listing.deleted_at.is_(None),
-                        or_(*location_filter_clauses),
-                    )
-                    .first() is not None
-                )
-
-        if location_filter_clauses and location_exists_in_db:
-            candidates_query = candidates_query.filter(or_(*location_filter_clauses))
-
-        # Get candidate listings (cast wider net for scoring)
-        candidates = candidates_query.limit(50).all()
-        
-        if not candidates:
-            return {
-                "query": request.query,
-                "understood_criteria": criteria.dict(),
-                "search_context": {
-                    "no_exact_make": criteria.make if criteria.make and not exact_make_exists else None,
-                    "showing_similar": False,
-                },
-                "results": [],
-                "message": "No yachts found matching your criteria. Try broadening your search."
-            }
-        
-        # Step 3: Score each listing (skip any that fail to avoid single bad record tanking all results)
-        scored_listings = []
-        for listing in candidates:
-            try:
-                scored = score_listing(listing, criteria, request.query, db)
-                scored_listings.append(scored)
-            except Exception:
-                pass
-        
-        # Step 4: Sort by score and return top results
-        scored_listings.sort(key=lambda x: x.score, reverse=True)
-        top_results = scored_listings[:request.max_results]
-
-        # Build search context message for the frontend banner
-        search_context: Dict[str, Any] = {}
-        if broker_query_applied:
-            search_context["broker_match"] = request.query
-            search_context["broker_filtered"] = True
-        if criteria.make and not exact_make_exists:
-            search_context["no_exact_make"] = criteria.make
-            search_context["showing_similar"] = True
-        elif criteria.make and exact_make_exists:
-            search_context["exact_make"] = criteria.make
-            search_context["showing_similar"] = False
-        if criteria.locations:
-            if location_exists_in_db:
-                search_context["location_filtered"] = criteria.locations
-            else:
-                search_context["no_location_match"] = criteria.locations
-                search_context["showing_all_locations"] = True
-        
-        return {
-            "query": request.query,
-            "understood_criteria": criteria.dict(),
-            "search_context": search_context,
-            "total_found": len(candidates),
-            "results": [
-                {
-                    "listing": result.listing,
-                    "match_score": result.score,
-                    "match_reasons": result.match_reasons,
-                    "warnings": result.warnings
-                }
-                for result in top_results
-            ]
-        }
-        
+        return _run_for_sale_search(criteria, request.query, request.max_results, db)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -647,3 +655,535 @@ async def get_ai_suggestions():
             "Catamaran with 4 cabins for charter business"
         ]
     }
+
+
+# =============================================================================
+# Unified (buy vs charter) AI search — additive only. Everything above this
+# line (extract_search_criteria, SearchCriteria, score_listing, /ai, /ai/search)
+# is left completely untouched so existing callers (AISearchComponent.tsx's
+# POST /ai, and BrowseContent.tsx's GET /ai/search ai_query flow) keep working
+# byte-for-byte identically.
+# =============================================================================
+
+class UnifiedSearchCriteria(BaseModel):
+    """Extracted search criteria from natural language, covering both
+    yacht-for-sale and charter intents in a single schema."""
+    intent: str = "for_sale"  # "for_sale" | "charter"
+
+    # Shared / for-sale fields (same semantics as SearchCriteria)
+    make: Optional[str] = None
+    model: Optional[str] = None
+    boat_types: Optional[List[str]] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_length: Optional[float] = None
+    max_length: Optional[float] = None
+    min_year: Optional[int] = None
+    max_year: Optional[int] = None
+    min_cabins: Optional[int] = None
+    min_berths: Optional[int] = None
+    locations: Optional[List[str]] = None
+    features: Optional[List[str]] = None
+    use_case: Optional[str] = None
+
+    # Charter-specific fields
+    min_guests: Optional[int] = None
+    max_guests: Optional[int] = None
+    min_day_rate: Optional[float] = None
+    max_day_rate: Optional[float] = None
+    min_week_rate: Optional[float] = None
+    max_week_rate: Optional[float] = None
+    crew_included: Optional[bool] = None
+    trip_length_days: Optional[int] = None
+    min_charter_days: Optional[int] = None
+    charter_use_case: Optional[str] = None  # honeymoon | family_reunion | dive_trip | fishing_charter | corporate_event | bareboat_sailing | crewed_luxury
+
+
+class ScoredCharter(BaseModel):
+    charter: Dict[str, Any]
+    score: int
+    match_reasons: List[str]
+    warnings: Optional[List[str]] = None
+
+
+_UNIFIED_SEARCH_PROMPT = """You are a yacht marketplace search assistant. This platform has two kinds of inventory:
+1. Yachts FOR SALE (purchase)
+2. Yacht CHARTERS (renting a crewed or bareboat vessel for a trip, by the day/week)
+
+First, classify the user's intent, then extract structured search criteria for that intent.
+
+Query: "{query}"
+
+Classify intent as "charter" if the query mentions or implies: renting, chartering, a trip/vacation with a date range or duration ("a week", "long weekend", "5 days"), number of guests/people for a vacation, crewed vs bareboat, day/week rates, destinations framed as a vacation ("in the BVI", "in Greece for a family of 6"), or occasions like honeymoon, family reunion, dive trip, fishing charter, corporate event, bachelor/bachelorette party trip. Classify intent as "for_sale" if the query mentions or implies: buying, purchasing, owning, price/budget framed as a purchase, make/model/year of a boat to own, or has no rental/trip framing at all. Default to "for_sale" if genuinely ambiguous.
+
+Return ONLY a JSON object with these fields (use null for unspecified, and leave charter-only or for-sale-only fields null when they do not apply to the classified intent):
+{{
+  "intent": "for_sale" | "charter",
+  "make": "exact brand/manufacturer name" or null,
+  "model": "exact model name" or null,
+  "boat_types": ["Motor Yacht", "Sailing Yacht", "Catamaran"] or null,
+  "min_price": number or null,
+  "max_price": number or null,
+  "min_length": number (feet) or null,
+  "max_length": number (feet) or null,
+  "min_year": number or null,
+  "max_year": number or null,
+  "min_cabins": number or null,
+  "min_berths": number (sleeping capacity) or null,
+  "locations": ["Florida", "Caribbean", "BVI", "Greece", "Croatia"] or null,
+  "features": ["fishing equipment", "party deck", "entertainment system"] or null,
+  "use_case": "party" | "fishing" | "cruising" | "racing" | "living" | null,
+  "min_guests": number or null,
+  "max_guests": number or null,
+  "min_day_rate": number or null,
+  "max_day_rate": number or null,
+  "min_week_rate": number or null,
+  "max_week_rate": number or null,
+  "crew_included": true | false | null,
+  "trip_length_days": number or null,
+  "min_charter_days": number or null,
+  "charter_use_case": "honeymoon" | "family_reunion" | "dive_trip" | "fishing_charter" | "corporate_event" | "bareboat_sailing" | "crewed_luxury" | null
+}}
+
+IMPORTANT — make/model extraction:
+- If the query mentions a brand name (e.g. "Cheoy Lee", "Azimut", "Hatteras", "Sunseeker", "Ferretti", "Beneteau", "Lagoon", "Fountaine Pajot"), set "make" to that exact brand name.
+- If the query mentions a specific model (e.g. "68 Evolution", "Convertible 60"), set "model" to that model name.
+- Do NOT put brand or model names into "features" — they belong in "make"/"model".
+
+Key conversions:
+- "10 people" / "party of 8" / "family of 6" = min_guests (charter) or min_berths (for_sale), whichever matches the classified intent
+- "week in the BVI" → intent=charter, trip_length_days=7, locations=["BVI"]
+- "long weekend" → intent=charter, trip_length_days=3
+- "under $50k" for a charter query → max_week_rate if trip framing is a week, otherwise max_day_rate if a day/few days, otherwise set both to the same value as a fallback
+- "bareboat" / "bareboat sailing" → intent=charter, crew_included=false, charter_use_case="bareboat_sailing"
+- "crewed" → intent=charter, crew_included=true
+- "dive trip" / "diving" → intent=charter, charter_use_case="dive_trip"
+- "fishing charter" (rental framing) → intent=charter, charter_use_case="fishing_charter"; but "fishing boat under $500k" (purchase framing, has a purchase price) → intent=for_sale, use_case="fishing"
+- "party" = for_sale spacious/entertainment features UNLESS framed as a trip/rental, in which case treat as charter with charter_use_case reflecting the occasion
+- "luxury" = higher price/rate range, premium features
+- "family" = 3+ cabins, safe, comfortable
+- Location mentions = add to locations array; use country names ("Mexico", "Greece", "Croatia"), regional names ("Caribbean", "BVI", "Mediterranean", "Pacific Coast"), and US state names as needed
+- Cruising-area context like "marina nearby", "resort", "anchorage" describes where the boat operates, NOT the boat itself — do NOT add those to features
+
+Examples:
+- "week in the BVI for 8 people under $50k" → intent=charter, locations=["BVI"], trip_length_days=7, min_guests=8, max_week_rate=50000
+- "crewed catamaran in Greece for a family of 6" → intent=charter, boat_types=["Catamaran"], locations=["Greece"], min_guests=6, crew_included=true
+- "bareboat sailing charter in Croatia" → intent=charter, boat_types=["Sailing Yacht"], locations=["Croatia"], crew_included=false, charter_use_case="bareboat_sailing"
+- "long weekend near Miami" → intent=charter, locations=["Miami", "Florida"], trip_length_days=3
+- "Fishing boat under $500k in Florida" → intent=for_sale, use_case="fishing", max_price=500000, locations=["Florida"]
+
+Return ONLY valid JSON, no markdown or explanations."""
+
+
+def extract_unified_criteria(query: str) -> UnifiedSearchCriteria:
+    """Use Claude to classify buy-vs-charter intent and extract structured criteria in one call."""
+
+    prompt = _UNIFIED_SEARCH_PROMPT.format(query=query)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
+    if not api_key:
+        return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+
+    try:
+        response = _requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-5",
+                "max_tokens": 1200,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=20,
+        )
+        if not response.ok:
+            return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+        payload = response.json()
+        content_list = payload.get("content", [])
+        # Some models emit a leading "thinking" block before the actual text
+        # block — find the first block that actually has text rather than
+        # assuming index 0.
+        text_block = next((b for b in content_list if b.get("type") == "text"), None)
+        if not text_block:
+            return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+        content = text_block.get("text", "").strip()
+        content = re.sub(r"^```json\s*|\s*```$", "", content).strip()
+        criteria_dict = json.loads(content)
+        if criteria_dict.get("intent") not in ("for_sale", "charter"):
+            criteria_dict["intent"] = "for_sale"
+        return UnifiedSearchCriteria(**criteria_dict)
+    except Exception:
+        return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+
+
+def _to_legacy_criteria(u: UnifiedSearchCriteria) -> SearchCriteria:
+    """Adapter so the for_sale branch can reuse score_listing() unmodified."""
+    return SearchCriteria(
+        make=u.make,
+        model=u.model,
+        boat_types=u.boat_types,
+        min_price=u.min_price,
+        max_price=u.max_price,
+        min_length=u.min_length,
+        max_length=u.max_length,
+        min_year=u.min_year,
+        max_year=u.max_year,
+        min_cabins=u.min_cabins,
+        min_berths=u.min_berths,
+        locations=u.locations,
+        features=u.features,
+        use_case=u.use_case,
+    )
+
+
+def score_charter(charter: CharterListing, criteria: UnifiedSearchCriteria, query: str, db: Session = None) -> ScoredCharter:
+    """Score a charter listing against extracted criteria — mirrors score_listing's
+    weighting philosophy, adapted to charter-specific fields (rates, guests, crew)."""
+
+    score = 0
+    max_score = 0
+    match_reasons = []
+    warnings = []
+
+    # Make match (30 points)
+    max_score += 30
+    if criteria.make:
+        charter_make = (charter.make or "").strip().lower()
+        wanted_make = criteria.make.strip().lower()
+        if charter_make == wanted_make:
+            score += 30
+            match_reasons.append(f"✓ Exact make match: {charter.make}")
+        elif wanted_make in charter_make or charter_make in wanted_make:
+            score += 18
+            match_reasons.append(f"✓ Make match: {charter.make}")
+        else:
+            score += 0
+            warnings.append(f"Different make: {charter.make} (searched for {criteria.make})")
+    else:
+        score += 30
+
+    # Model match (15 points)
+    max_score += 15
+    if criteria.model:
+        charter_model = (charter.model or "").strip().lower()
+        wanted_model = criteria.model.strip().lower()
+        if charter_model == wanted_model or wanted_model in charter_model or charter_model in wanted_model:
+            score += 15
+            match_reasons.append(f"✓ Model match: {charter.model}")
+        else:
+            score += 0
+            warnings.append(f"Different model: {charter.model}")
+    else:
+        score += 15
+
+    # Boat type match (15 points)
+    max_score += 15
+    if criteria.boat_types:
+        if charter.boat_type and charter.boat_type in criteria.boat_types:
+            score += 15
+            match_reasons.append(f"✓ Exact boat type match: {charter.boat_type}")
+        else:
+            score += 3
+            warnings.append(f"Different boat type: {charter.boat_type}")
+    else:
+        score += 15
+
+    # Rate match (10 points) — prefer day_rate, fall back to week_rate if day_rate is null
+    max_score += 10
+    wants_rate = criteria.min_day_rate or criteria.max_day_rate or criteria.min_week_rate or criteria.max_week_rate
+    if wants_rate:
+        rate = charter.day_rate if charter.day_rate is not None else charter.week_rate
+        min_rate = criteria.min_day_rate if charter.day_rate is not None else criteria.min_week_rate
+        max_rate = criteria.max_day_rate if charter.day_rate is not None else criteria.max_week_rate
+        if rate is not None:
+            in_range = True
+            if min_rate and rate < min_rate:
+                in_range = False
+            if max_rate and rate > max_rate:
+                in_range = False
+                warnings.append(f"Above desired rate (${rate:,.0f} > ${max_rate:,.0f})")
+            if in_range:
+                score += 10
+                match_reasons.append(f"✓ Within budget: ${rate:,.0f}")
+            else:
+                score += 2
+        else:
+            score += 5
+    else:
+        score += 10
+
+    # Length match (10 points)
+    max_score += 10
+    if criteria.min_length or criteria.max_length:
+        if charter.length_feet:
+            in_range = True
+            if criteria.min_length and charter.length_feet < criteria.min_length:
+                in_range = False
+            if criteria.max_length and charter.length_feet > criteria.max_length:
+                in_range = False
+            if in_range:
+                score += 10
+                match_reasons.append(f"✓ Perfect size: {charter.length_feet} feet")
+            else:
+                score += 3
+        else:
+            score += 5
+    else:
+        score += 10
+
+    # Cabins (10 points)
+    max_score += 10
+    if criteria.min_cabins:
+        if charter.cabins and charter.cabins >= criteria.min_cabins:
+            score += 10
+            match_reasons.append(f"✓ Has {charter.cabins} cabins (need {criteria.min_cabins}+)")
+        elif charter.cabins:
+            score += 3
+            warnings.append(f"Only {charter.cabins} cabins (wanted {criteria.min_cabins}+)")
+        else:
+            score += 5
+    else:
+        score += 10
+
+    # Guest capacity (10 points) — replaces score_listing's berths criterion
+    max_score += 10
+    wanted_guests = criteria.min_guests or criteria.min_berths
+    if wanted_guests:
+        if charter.max_guests and charter.max_guests >= wanted_guests:
+            score += 10
+            match_reasons.append(f"✓ Fits {charter.max_guests} guests (need {wanted_guests}+)")
+        elif charter.max_guests:
+            score += 3
+            warnings.append(f"Only fits {charter.max_guests} guests (wanted {wanted_guests}+)")
+        else:
+            score += 5
+    else:
+        score += 10
+
+    # Year (5 points)
+    max_score += 5
+    if criteria.min_year or criteria.max_year:
+        if charter.year:
+            in_range = True
+            if criteria.min_year and charter.year < criteria.min_year:
+                in_range = False
+            if criteria.max_year and charter.year > criteria.max_year:
+                in_range = False
+            if in_range:
+                score += 5
+                match_reasons.append(f"✓ Year: {charter.year}")
+            else:
+                score += 1
+        else:
+            score += 2
+    else:
+        score += 5
+
+    # Location match (20 points) — home port fields + embarkation/disembarkation JSON arrays
+    max_score += 20
+    if criteria.locations:
+        location_match = False
+        embark = json.dumps(charter.embarkation_ports or []).lower()
+        disembark = json.dumps(charter.disembarkation_ports or []).lower()
+        for loc in criteria.locations:
+            loc_lower = loc.lower()
+            if (
+                (charter.home_port_city and loc_lower in charter.home_port_city.lower())
+                or (charter.home_port_state and loc_lower in charter.home_port_state.lower())
+                or (charter.home_port_country and loc_lower in charter.home_port_country.lower())
+                or (charter.operating_regions and loc_lower in charter.operating_regions.lower())
+                or (loc_lower in embark)
+                or (loc_lower in disembark)
+            ):
+                location_match = True
+                match_reasons.append(f"✓ Location: {charter.home_port_city or charter.operating_regions}")
+                break
+        if location_match:
+            score += 20
+        else:
+            score += 0
+            warnings.append(f"Different location: {charter.home_port_city or charter.operating_regions}")
+    else:
+        score += 20
+
+    # Crew preference
+    if criteria.crew_included is not None:
+        if bool(charter.crew_included) == criteria.crew_included:
+            score += 5
+            match_reasons.append("✓ Crewed" if criteria.crew_included else "✓ Bareboat")
+        else:
+            warnings.append("Crewed" if charter.crew_included else "Bareboat, not crewed" if criteria.crew_included else "Comes with crew")
+
+    # Trip length fit
+    if criteria.trip_length_days and charter.min_charter_days:
+        if criteria.trip_length_days >= charter.min_charter_days:
+            score += 5
+            match_reasons.append(f"✓ Accepts {criteria.trip_length_days}-day trips")
+        else:
+            warnings.append(f"Requires minimum {charter.min_charter_days}-day booking (you want {criteria.trip_length_days})")
+
+    # Charter use-case bonus
+    if criteria.charter_use_case:
+        if criteria.charter_use_case == "bareboat_sailing" and charter.crew_included is False:
+            score += 5
+            match_reasons.append("✓ Bareboat sailing")
+        elif criteria.charter_use_case == "crewed_luxury" and charter.crew_included is True:
+            score += 5
+            match_reasons.append("✓ Fully crewed")
+        elif criteria.charter_use_case == "family_reunion" and charter.cabins and charter.cabins >= 3:
+            score += 5
+            match_reasons.append("✓ Spacious for a family group")
+        elif criteria.charter_use_case == "dive_trip":
+            amenities_text = json.dumps(charter.amenities or []).lower() + " " + (charter.description or "").lower()
+            if "dive" in amenities_text:
+                score += 5
+                match_reasons.append("✓ Dive-friendly")
+
+    final_score = min(100, int((score / max_score) * 100)) if max_score else 0
+
+    return ScoredCharter(
+        charter=_serialize_charter(charter),
+        score=final_score,
+        match_reasons=match_reasons,
+        warnings=warnings if warnings else None,
+    )
+
+
+@router.post("/ai/smart-search")
+async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db)):
+    """
+    Unified AI search: classifies buy-vs-charter intent from natural language,
+    then searches the appropriate inventory (Listing or CharterListing).
+    """
+    try:
+        criteria = extract_unified_criteria(request.query)
+
+        if criteria.intent == "charter":
+            query = db.query(CharterListing).filter(CharterListing.status == "active")
+
+            if criteria.min_day_rate is not None:
+                query = query.filter(CharterListing.day_rate >= criteria.min_day_rate)
+            if criteria.max_day_rate is not None:
+                query = query.filter(
+                    or_(CharterListing.day_rate.is_(None), CharterListing.day_rate <= criteria.max_day_rate)
+                )
+            if criteria.min_week_rate is not None:
+                query = query.filter(CharterListing.week_rate >= criteria.min_week_rate)
+            if criteria.max_week_rate is not None:
+                query = query.filter(
+                    or_(CharterListing.week_rate.is_(None), CharterListing.week_rate <= criteria.max_week_rate)
+                )
+            if criteria.min_length:
+                query = query.filter(CharterListing.length_feet >= criteria.min_length)
+            if criteria.max_length:
+                query = query.filter(CharterListing.length_feet <= criteria.max_length)
+            if criteria.min_year:
+                query = query.filter(CharterListing.year >= criteria.min_year)
+            if criteria.boat_types:
+                query = query.filter(CharterListing.boat_type.in_(criteria.boat_types))
+
+            # Exact make existence check (avoid zeroing results on a made-up/rare make)
+            exact_make_exists = False
+            if criteria.make:
+                exact_make_exists = db.query(CharterListing.id).filter(
+                    CharterListing.status == "active",
+                    func.lower(CharterListing.make) == criteria.make.strip().lower(),
+                ).first() is not None
+
+            if criteria.make and exact_make_exists:
+                candidates_query = query.filter(func.lower(CharterListing.make) == criteria.make.strip().lower())
+            else:
+                candidates_query = query
+
+            # Location existence check, same narrowing philosophy as /ai
+            location_exists_in_db = False
+            location_filter_clauses: list = []
+            if criteria.locations:
+                for loc in criteria.locations:
+                    loc_like = f"%{loc.lower()}%"
+                    location_filter_clauses.append(
+                        or_(
+                            func.lower(func.coalesce(CharterListing.home_port_city, "")).like(loc_like),
+                            func.lower(func.coalesce(CharterListing.home_port_state, "")).like(loc_like),
+                            func.lower(func.coalesce(CharterListing.home_port_country, "")).like(loc_like),
+                            func.lower(func.coalesce(CharterListing.operating_regions, "")).like(loc_like),
+                        )
+                    )
+                if location_filter_clauses:
+                    location_exists_in_db = db.query(CharterListing.id).filter(
+                        CharterListing.status == "active",
+                        or_(*location_filter_clauses),
+                    ).first() is not None
+
+            if location_filter_clauses and location_exists_in_db:
+                candidates_query = candidates_query.filter(or_(*location_filter_clauses))
+
+            candidates = candidates_query.limit(50).all()
+
+            if not candidates:
+                return {
+                    "intent": "charter",
+                    "query": request.query,
+                    "understood_criteria": criteria.dict(),
+                    "search_context": {
+                        "no_exact_make": criteria.make if criteria.make and not exact_make_exists else None,
+                        "showing_similar": False,
+                    },
+                    "total_found": 0,
+                    "results": [],
+                    "message": "No charters found matching your criteria. Try broadening your search.",
+                }
+
+            scored = []
+            for c in candidates:
+                try:
+                    scored.append(score_charter(c, criteria, request.query, db))
+                except Exception:
+                    pass
+            scored.sort(key=lambda x: x.score, reverse=True)
+            top_results = scored[: request.max_results]
+
+            search_context: Dict[str, Any] = {}
+            if criteria.make and not exact_make_exists:
+                search_context["no_exact_make"] = criteria.make
+                search_context["showing_similar"] = True
+            elif criteria.make and exact_make_exists:
+                search_context["exact_make"] = criteria.make
+                search_context["showing_similar"] = False
+            if criteria.locations:
+                if location_exists_in_db:
+                    search_context["location_filtered"] = criteria.locations
+                else:
+                    search_context["no_location_match"] = criteria.locations
+                    search_context["showing_all_locations"] = True
+
+            return {
+                "intent": "charter",
+                "query": request.query,
+                "understood_criteria": criteria.dict(),
+                "search_context": search_context,
+                "total_found": len(candidates),
+                "results": [
+                    {
+                        "charter": r.charter,
+                        "match_score": r.score,
+                        "match_reasons": r.match_reasons,
+                        "warnings": r.warnings,
+                    }
+                    for r in top_results
+                ],
+            }
+
+        # for_sale branch: reuse the existing /ai handler's query-building + scoring
+        # logic via _run_for_sale_search, using the criteria already extracted above
+        # (converted through _to_legacy_criteria) — no second Claude call.
+        legacy_criteria = _to_legacy_criteria(criteria)
+        response = _run_for_sale_search(legacy_criteria, request.query, request.max_results, db)
+        response["intent"] = "for_sale"
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI search failed: {str(e)}")

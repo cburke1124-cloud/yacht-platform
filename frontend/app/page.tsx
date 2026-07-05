@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import SearchBar from '@/app/components/SearchBar';
+import StructuredSearchTabs from '@/app/components/StructuredSearchTabs';
 import ListingCard from '@/app/components/ListingCard';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
@@ -51,9 +51,8 @@ function AISearchBox() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-    if (query.trim()) params.append('search', query.trim());
-    router.push(`/listings?${params.toString()}`);
+    if (!query.trim()) return;
+    router.push(`/ai-search?q=${encodeURIComponent(query.trim())}`);
   };
 
   return (
@@ -110,7 +109,7 @@ function AISearchBox() {
         }}
       >
         Our AI-powered search goes beyond basic filters.<br />
-        Tell us what you want—size, lifestyle, budget, cruising plans—and YachtVersal AI matches you with yachts that fit your vision.
+        Tell us what you want—size, lifestyle, budget, destination—whether you're buying or booking a charter, YachtVersal AI matches you with yachts that fit your vision.
       </p>
 
       <form
@@ -128,7 +127,7 @@ function AISearchBox() {
           <input
             id="yacht-search"
             type="search"
-            placeholder="I want a 70–90 ft yacht for Bahamas cruising under $3M"
+            placeholder="70–90 ft yacht under $3M, or a week in the BVI for 8 people"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full focus:outline-none"
@@ -335,16 +334,22 @@ export default function HomePage() {
           }}
         >
           <AISearchBox />
-          {/* Full filter bar — hidden on mobile (too wide), replaced with a link */}
-          <div className="hidden sm:block">
-            <SearchBar showAIOption={false} />
+          {/* Structured filter search (Yacht / Charter tabs) — hidden on mobile (too wide), replaced with links */}
+          <div className="hidden sm:flex justify-center pb-5">
+            <StructuredSearchTabs />
           </div>
-          <div className="sm:hidden px-4 pb-5">
+          <div className="sm:hidden px-4 pb-5 flex gap-3">
             <Link
               href="/listings"
-              className="flex items-center justify-center w-full text-sm font-medium text-[#10214F] border border-gray-200 rounded-xl py-3 bg-white hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center flex-1 text-sm font-medium text-[#10214F] border border-gray-200 rounded-xl py-3 bg-white hover:bg-gray-50 transition-colors"
             >
-              Browse with filters →
+              Browse yachts →
+            </Link>
+            <Link
+              href="/charter"
+              className="flex items-center justify-center flex-1 text-sm font-medium text-[#10214F] border border-gray-200 rounded-xl py-3 bg-white hover:bg-gray-50 transition-colors"
+            >
+              Browse charters →
             </Link>
           </div>
         </div>

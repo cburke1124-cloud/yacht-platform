@@ -5,13 +5,14 @@ import { Search, Mic, MicOff, Sparkles, X, Volume2, Star, AlertTriangle } from '
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import CharterCard, { CharterListing } from '@/app/components/CharterCard';
 
 interface MatchReason {
   text: string;
   isWarning: boolean;
 }
 
-interface SearchResult {
+interface ForSaleResult {
   listing: {
     id: number;
     title: string;
@@ -34,6 +35,19 @@ interface SearchResult {
   warnings: string[] | null;
 }
 
+interface CharterResult {
+  charter: CharterListing;
+  match_score: number;
+  match_reasons: string[];
+  warnings: string[] | null;
+}
+
+type SearchResult = ForSaleResult | CharterResult;
+
+function isCharterResult(result: SearchResult): result is CharterResult {
+  return 'charter' in result;
+}
+
 interface SearchContext {
   broker_filtered?: boolean;
   broker_match?: string;
@@ -46,6 +60,7 @@ interface SearchContext {
 }
 
 interface AISearchResponse {
+  intent: 'for_sale' | 'charter';
   query: string;
   understood_criteria: any;
   search_context?: SearchContext;
@@ -137,7 +152,7 @@ export default function AISearchComponent() {
     setShowSuggestions(false);
 
     try {
-      const response = await fetch(apiUrl('/ai'), {
+      const response = await fetch(apiUrl('/ai/smart-search'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,8 +183,12 @@ export default function AISearchComponent() {
   };
 
   const viewInListings = () => {
-    if (searchResults) {
-      // Navigate to listings page with AI query
+    if (!searchResults) return;
+    if (searchResults.intent === 'charter') {
+      // charter/page.tsx doesn't read URL search params today — land on the
+      // plain browse page rather than pretending to pre-fill filters.
+      router.push('/charter');
+    } else {
       router.push(`/listings?ai_query=${encodeURIComponent(searchResults.query)}`);
     }
   };
@@ -203,8 +222,8 @@ export default function AISearchComponent() {
     "Fishing boat under $500k in Florida",
     "Luxury motor yacht 80+ feet for Mediterranean cruising",
     "Family-friendly sailboat with 3 cabins under $300k",
-    "Fast sport fishing boat in the Caribbean",
-    "Budget-friendly cruiser for coastal trips, under $200k"
+    "Week in the BVI for 8 people, crewed, under $50k",
+    "Bareboat sailing charter in Croatia"
   ];
 
   return (
@@ -348,9 +367,9 @@ export default function AISearchComponent() {
                   Max: ${searchResults.understood_criteria.max_price.toLocaleString()}
                 </span>
               )}
-              {searchResults.understood_criteria.min_berths && (
+              {(searchResults.understood_criteria.min_berths || searchResults.understood_criteria.min_guests) && (
                 <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">
-                  Capacity: {searchResults.understood_criteria.min_berths}+ people
+                  Capacity: {searchResults.understood_criteria.min_guests || searchResults.understood_criteria.min_berths}+ people
                 </span>
               )}
               {searchResults.understood_criteria.min_length && (
@@ -368,6 +387,35 @@ export default function AISearchComponent() {
                   📍 {loc}
                 </span>
               ))}
+              {searchResults.intent === 'charter' && (
+                <>
+                  {searchResults.understood_criteria.crew_included !== null && searchResults.understood_criteria.crew_included !== undefined && (
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                      {searchResults.understood_criteria.crew_included ? 'Crewed' : 'Bareboat'}
+                    </span>
+                  )}
+                  {searchResults.understood_criteria.max_day_rate && (
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                      Up to ${searchResults.understood_criteria.max_day_rate.toLocaleString()}/day
+                    </span>
+                  )}
+                  {searchResults.understood_criteria.max_week_rate && (
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                      Up to ${searchResults.understood_criteria.max_week_rate.toLocaleString()}/week
+                    </span>
+                  )}
+                  {searchResults.understood_criteria.trip_length_days && (
+                    <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                      {searchResults.understood_criteria.trip_length_days}-day trip
+                    </span>
+                  )}
+                  {searchResults.understood_criteria.charter_use_case && (
+                    <span className="px-3 py-1 bg-pink-100 text-pink-800 rounded-full text-sm">
+                      {searchResults.understood_criteria.charter_use_case.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Location filter status banner */}
@@ -397,106 +445,143 @@ export default function AISearchComponent() {
               <>
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Found {searchResults.total_found} yachts - Top {searchResults.results.length} matches:
+                    Found {searchResults.total_found} {searchResults.intent === 'charter' ? 'charters' : 'yachts'} - Top {searchResults.results.length} matches:
                   </h2>
                 </div>
 
                 <div className="space-y-6">
-                  {searchResults.results.map((result, idx) => (
-                    <div
-                      key={result.listing.id}
-                      className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow"
-                    >
-                      <div className="p-6">
-                        {/* Score Badge */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`px-4 py-2 rounded-lg font-bold text-lg border-2 ${getScoreColor(result.match_score)}`}>
-                              {result.match_score}%
-                            </div>
-                            <div>
-                              <p className="font-semibold text-gray-900">
-                                #{idx + 1} {getScoreBadge(result.match_score)}
-                              </p>
-                              {result.match_score >= 90 && (
-                                <p className="text-sm text-green-600 flex items-center gap-1">
-                                  <Star size={14} fill="currentColor" />
-                                  Highly recommended
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => speakText(`${getScoreBadge(result.match_score)}. ${result.listing.title}. ${result.match_reasons.join('. ')}`)}
-                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                            title="Read aloud"
-                          >
-                            <Volume2 size={20} />
-                          </button>
-                        </div>
-
-                        <div className="grid md:grid-cols-3 gap-6">
-                          {/* Image */}
-                          <div className="md:col-span-1">
-                            {result.listing.images && result.listing.images.length > 0 ? (
-                              <img
-                                src={mediaUrl(result.listing.images[0].url)}
-                                alt={result.listing.title}
-                                className="w-full h-48 object-cover rounded-lg"
-                                onError={onImgError}
-                              />
-                            ) : (
-                              <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <Search className="text-gray-400" size={48} />
+                  {searchResults.results.map((result, idx) => {
+                    const title = isCharterResult(result) ? result.charter.title : result.listing.title;
+                    const detailHref = isCharterResult(result) ? `/charter/${result.charter.id}` : `/listings/${result.listing.id}`;
+                    return (
+                      <div
+                        key={isCharterResult(result) ? `charter-${result.charter.id}` : `listing-${result.listing.id}`}
+                        className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow"
+                      >
+                        <div className="p-6">
+                          {/* Score Badge */}
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`px-4 py-2 rounded-lg font-bold text-lg border-2 ${getScoreColor(result.match_score)}`}>
+                                {result.match_score}%
                               </div>
-                            )}
-                          </div>
-
-                          {/* Details */}
-                          <div className="md:col-span-2">
-                            <Link href={`/listings/${result.listing.id}`}>
-                              <h3 className="text-xl font-bold text-gray-900 hover:text-blue-600 mb-2">
-                                {result.listing.title}
-                              </h3>
-                            </Link>
-                            
-                            <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
-                              <div><span className="text-gray-600">Price:</span> <span className="font-semibold">${result.listing.price?.toLocaleString()}</span></div>
-                              <div><span className="text-gray-600">Year:</span> <span className="font-semibold">{result.listing.year}</span></div>
-                              <div><span className="text-gray-600">Length:</span> <span className="font-semibold">{result.listing.length_feet} ft</span></div>
-                              <div><span className="text-gray-600">Type:</span> <span className="font-semibold">{result.listing.boat_type}</span></div>
-                              <div><span className="text-gray-600">Cabins:</span> <span className="font-semibold">{result.listing.cabins || 'N/A'}</span></div>
-                              <div><span className="text-gray-600">Sleeps:</span> <span className="font-semibold">{result.listing.berths || 'N/A'}</span></div>
-                            </div>
-
-                            {/* Match Reasons */}
-                            <div className="space-y-2">
-                              <p className="font-semibold text-sm text-gray-700">Why this matches:</p>
-                              {result.match_reasons.map((reason, i) => (
-                                <p key={i} className="text-sm text-green-700 flex items-start gap-2">
-                                  <span className="text-green-500">✓</span>
-                                  {reason.replace('✓ ', '')}
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  #{idx + 1} {getScoreBadge(result.match_score)}
                                 </p>
-                              ))}
-                              {result.warnings && result.warnings.map((warning, i) => (
-                                <p key={i} className="text-sm text-yellow-700 flex items-start gap-2">
-                                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-                                  {warning}
-                                </p>
-                              ))}
+                                {result.match_score >= 90 && (
+                                  <p className="text-sm text-green-600 flex items-center gap-1">
+                                    <Star size={14} fill="currentColor" />
+                                    Highly recommended
+                                  </p>
+                                )}
+                              </div>
                             </div>
-
-                            <Link
-                              href={`/listings/${result.listing.id}`}
-                              className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            <button
+                              onClick={() => speakText(`${getScoreBadge(result.match_score)}. ${title}. ${result.match_reasons.join('. ')}`)}
+                              className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Read aloud"
                             >
-                              View Details
-                            </Link>
+                              <Volume2 size={20} />
+                            </button>
                           </div>
+
+                          {isCharterResult(result) ? (
+                            <div className="grid md:grid-cols-3 gap-6">
+                              <div className="md:col-span-1">
+                                <CharterCard charter={result.charter} />
+                              </div>
+                              <div className="md:col-span-2">
+                                {/* Match Reasons */}
+                                <div className="space-y-2">
+                                  <p className="font-semibold text-sm text-gray-700">Why this matches:</p>
+                                  {result.match_reasons.map((reason, i) => (
+                                    <p key={i} className="text-sm text-green-700 flex items-start gap-2">
+                                      <span className="text-green-500">✓</span>
+                                      {reason.replace('✓ ', '')}
+                                    </p>
+                                  ))}
+                                  {result.warnings && result.warnings.map((warning, i) => (
+                                    <p key={i} className="text-sm text-yellow-700 flex items-start gap-2">
+                                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                                      {warning}
+                                    </p>
+                                  ))}
+                                </div>
+
+                                <Link
+                                  href={detailHref}
+                                  className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                  View Details
+                                </Link>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="grid md:grid-cols-3 gap-6">
+                              {/* Image */}
+                              <div className="md:col-span-1">
+                                {result.listing.images && result.listing.images.length > 0 ? (
+                                  <img
+                                    src={mediaUrl(result.listing.images[0].url)}
+                                    alt={result.listing.title}
+                                    className="w-full h-48 object-cover rounded-lg"
+                                    onError={onImgError}
+                                  />
+                                ) : (
+                                  <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
+                                    <Search className="text-gray-400" size={48} />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Details */}
+                              <div className="md:col-span-2">
+                                <Link href={detailHref}>
+                                  <h3 className="text-xl font-bold text-gray-900 hover:text-blue-600 mb-2">
+                                    {result.listing.title}
+                                  </h3>
+                                </Link>
+
+                                <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
+                                  <div><span className="text-gray-600">Price:</span> <span className="font-semibold">${result.listing.price?.toLocaleString()}</span></div>
+                                  <div><span className="text-gray-600">Year:</span> <span className="font-semibold">{result.listing.year}</span></div>
+                                  <div><span className="text-gray-600">Length:</span> <span className="font-semibold">{result.listing.length_feet} ft</span></div>
+                                  <div><span className="text-gray-600">Type:</span> <span className="font-semibold">{result.listing.boat_type}</span></div>
+                                  <div><span className="text-gray-600">Cabins:</span> <span className="font-semibold">{result.listing.cabins || 'N/A'}</span></div>
+                                  <div><span className="text-gray-600">Sleeps:</span> <span className="font-semibold">{result.listing.berths || 'N/A'}</span></div>
+                                </div>
+
+                                {/* Match Reasons */}
+                                <div className="space-y-2">
+                                  <p className="font-semibold text-sm text-gray-700">Why this matches:</p>
+                                  {result.match_reasons.map((reason, i) => (
+                                    <p key={i} className="text-sm text-green-700 flex items-start gap-2">
+                                      <span className="text-green-500">✓</span>
+                                      {reason.replace('✓ ', '')}
+                                    </p>
+                                  ))}
+                                  {result.warnings && result.warnings.map((warning, i) => (
+                                    <p key={i} className="text-sm text-yellow-700 flex items-start gap-2">
+                                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                                      {warning}
+                                    </p>
+                                  ))}
+                                </div>
+
+                                <Link
+                                  href={detailHref}
+                                  className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                  View Details
+                                </Link>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
