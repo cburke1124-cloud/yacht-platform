@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Search, Anchor,
+  Search,
   ChevronLeft, ChevronRight, ChevronDown, X, SlidersHorizontal,
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
@@ -38,6 +38,7 @@ function DateRangePicker({
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
   const ref = useRef<HTMLDivElement>(null);
+  const { btnRef, panelRef, pos, measure } = useFixedDropdown(open, () => setOpen(false), 280);
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -110,7 +111,8 @@ function DateRangePicker({
   return (
     <div ref={ref} className="relative" style={{ display: 'inline-block' }}>
       <button
-        onClick={() => setOpen(o => !o)}
+        ref={btnRef}
+        onClick={() => { if (!open) measure(); setOpen(o => !o); }}
         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap"
         style={{
           fontFamily: 'Poppins, sans-serif',
@@ -133,8 +135,9 @@ function DateRangePicker({
 
       {open && (
         <div
-          className="absolute z-50 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 select-none"
-          style={{ minWidth: 280, left: 0 }}
+          ref={panelRef}
+          className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 select-none"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 50, minWidth: 280 }}
         >
           {/* header */}
           <div className="flex items-center justify-between mb-3">
@@ -196,9 +199,49 @@ function DateRangePicker({
   );
 }
 
+/**
+ * Positions a dropdown panel with `position: fixed` so it can escape the
+ * filter row's `overflow-x-auto` scroll container (absolute panels inside a
+ * scroll container get clipped). Returns coords computed from the trigger's
+ * rect at open time; closes the dropdown on outside scroll or resize so the
+ * panel never drifts away from its trigger.
+ */
+function useFixedDropdown(open: boolean, close: () => void, panelWidth: number) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  const measure = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({
+      top: r.bottom + 6,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - panelWidth - 8)),
+    });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = (e: Event) => {
+      // Scrolling inside the panel itself (e.g. a long option list) is fine
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      close();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open, close]);
+
+  return { btnRef, panelRef, pos, measure };
+}
+
 function FilterDropdown({ label, active, children }: { label: string; active?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { btnRef, panelRef, pos, measure } = useFixedDropdown(open, () => setOpen(false), 220);
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', h);
@@ -207,8 +250,9 @@ function FilterDropdown({ label, active, children }: { label: string; active?: b
   return (
     <div ref={ref} className="relative">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { if (!open) measure(); setOpen(v => !v); }}
         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
         style={{
           fontFamily: 'Poppins, sans-serif',
@@ -222,8 +266,9 @@ function FilterDropdown({ label, active, children }: { label: string; active?: b
       </button>
       {open && (
         <div
-          className="absolute left-0 top-full mt-1.5 z-50 rounded-2xl overflow-hidden"
-          style={{ backgroundColor: '#FFFFFF', border: '1px solid rgba(16,33,79,0.12)', boxShadow: '0 8px 32px rgba(16,33,79,0.14)', minWidth: 220 }}
+          ref={panelRef}
+          className="rounded-2xl overflow-hidden"
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 50, backgroundColor: '#FFFFFF', border: '1px solid rgba(16,33,79,0.12)', boxShadow: '0 8px 32px rgba(16,33,79,0.14)', minWidth: 220 }}
         >
           <div className="p-4">{children}</div>
         </div>
@@ -736,9 +781,9 @@ export default function CharterPage() {
           </div>
         ) : charters.length === 0 ? (
           <div className="text-center py-24">
-            <Anchor className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-gray-500 font-medium text-lg mb-1">No charter vessels found</h3>
-            <p className="text-gray-400 text-sm mb-4">Try a different destination or adjust your filters.</p>
+            <img src="/logo/logo-icon.png" alt="YachtVersal" className="w-16 h-16 object-contain mx-auto mb-4 opacity-60" />
+            <h3 className="text-gray-500 font-medium text-lg mb-1">The fleet is out to sea</h3>
+            <p className="text-gray-400 text-sm mb-4">No yachts match your search yet—try a different destination or adjust your filters.</p>
             {hasActiveFilters && (
               <button onClick={clearFilters} className="text-[#01BBDC] hover:underline text-sm">Clear all filters</button>
             )}
