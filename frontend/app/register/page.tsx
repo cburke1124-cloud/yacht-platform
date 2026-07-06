@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Check, Loader2, ChevronLeft, ShieldCheck, Zap, Users } from 'lucide-react';
@@ -22,8 +22,18 @@ const INCLUDED_FEATURES = [
   'Full platform access',
 ];
 
+const BUYER_FEATURES = [
+  'Save unlimited favorite yachts',
+  'Message sellers and brokers directly',
+  'AI-powered search matched to your needs',
+  'Price-drop and new-listing alerts',
+  'Full access to every listing on the platform',
+];
+
 function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isBuyer = searchParams.get('user_type') === 'buyer';
 
   const [formData, setFormData] = useState({
     email: '',
@@ -58,7 +68,7 @@ function RegisterContent() {
       setError('You must agree to the Terms and Privacy Policy');
       return;
     }
-    if (!formData.agree_broker_terms) {
+    if (!isBuyer && !formData.agree_broker_terms) {
       setError('You must read and agree to the Broker Services Agreement');
       return;
     }
@@ -78,9 +88,9 @@ function RegisterContent() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone: formData.phone,
-          user_type: 'dealer',
+          user_type: isBuyer ? 'buyer' : 'dealer',
           company_name: formData.company_name,
-          subscription_tier: 'pro',
+          subscription_tier: isBuyer ? 'free' : 'pro',
           agree_terms: formData.agree_terms,
           agree_communications: formData.agree_communications,
         }),
@@ -91,6 +101,11 @@ function RegisterContent() {
 
       markLoggedIn();
       window.dispatchEvent(new Event('authChange'));
+
+      if (isBuyer) {
+        router.push('/account');
+        return;
+      }
 
       setRedirecting(true);
       setLoading(false);
@@ -128,6 +143,8 @@ function RegisterContent() {
     ? 'Redirecting to payment...'
     : loading
     ? 'Creating account...'
+    : isBuyer
+    ? 'Create Free Account'
     : 'Register Account';
 
   return (
@@ -145,24 +162,46 @@ function RegisterContent() {
 
           {/* -- Left: value prop ------------------------------------------- */}
           <div>
-            <div className="inline-block mb-3 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-semibold text-amber-700 uppercase tracking-wide">
-              Founding Member Offer
-            </div>
-            <h1 className="text-3xl font-bold text-secondary mb-2">Join YachtVersal</h1>
+            {isBuyer ? (
+              <div className="inline-block mb-3 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-xs font-semibold text-primary uppercase tracking-wide">
+                Always Free
+              </div>
+            ) : (
+              <div className="inline-block mb-3 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                Founding Member Offer
+              </div>
+            )}
+            <h1 className="text-3xl font-bold text-secondary mb-2">
+              {isBuyer ? 'Find Your Next Yacht' : 'Join YachtVersal'}
+            </h1>
             <p className="text-dark/60 mb-8 text-lg">
-              Get started with a single setup fee and full access to every tool on the platform.
+              {isBuyer
+                ? 'Create a free buyer account to save listings, message sellers, and get alerts — no fees, ever.'
+                : 'Get started with a single setup fee and full access to every tool on the platform.'}
             </p>
 
-            {/* Pricing card */}
+            {/* Pricing / features card */}
             <div className="bg-white border border-gray-100 shadow-xl rounded-2xl p-8 mb-8">
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-5xl font-extrabold text-primary">${SIGNUP_FEE}</span>
-                <span className="text-dark/50 text-lg font-medium">setup fee</span>
-              </div>
-              <p className="text-dark/60 text-sm mb-6">One-time payment. Full platform access from day one.</p>
+              {isBuyer ? (
+                <>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-5xl font-extrabold text-primary">$0</span>
+                    <span className="text-dark/50 text-lg font-medium">forever</span>
+                  </div>
+                  <p className="text-dark/60 text-sm mb-6">No credit card required.</p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-5xl font-extrabold text-primary">${SIGNUP_FEE}</span>
+                    <span className="text-dark/50 text-lg font-medium">setup fee</span>
+                  </div>
+                  <p className="text-dark/60 text-sm mb-6">One-time payment. Full platform access from day one.</p>
+                </>
+              )}
 
               <ul className="space-y-3">
-                {INCLUDED_FEATURES.map((f, i) => (
+                {(isBuyer ? BUYER_FEATURES : INCLUDED_FEATURES).map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-dark/80">
                     <Check size={16} className="text-primary mt-0.5 shrink-0" />
                     {f}
@@ -175,8 +214,8 @@ function RegisterContent() {
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <ShieldCheck size={22} className="text-primary mx-auto mb-1.5" />
-                <p className="text-xs font-semibold text-secondary">Secure Checkout</p>
-                <p className="text-xs text-dark/50">Powered by Stripe</p>
+                <p className="text-xs font-semibold text-secondary">{isBuyer ? 'Secure Account' : 'Secure Checkout'}</p>
+                <p className="text-xs text-dark/50">{isBuyer ? 'Data protected' : 'Powered by Stripe'}</p>
               </div>
               <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <Zap size={22} className="text-primary mx-auto mb-1.5" />
@@ -185,8 +224,8 @@ function RegisterContent() {
               </div>
               <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <Users size={22} className="text-primary mx-auto mb-1.5" />
-                <p className="text-xs font-semibold text-secondary">Team Support</p>
-                <p className="text-xs text-dark/50">Add salesmen free</p>
+                <p className="text-xs font-semibold text-secondary">{isBuyer ? 'No Commitment' : 'Team Support'}</p>
+                <p className="text-xs text-dark/50">{isBuyer ? 'Cancel anytime' : 'Add salesmen free'}</p>
               </div>
             </div>
           </div>
@@ -226,17 +265,19 @@ function RegisterContent() {
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="reg-company" className="block text-sm font-medium text-dark mb-1.5">Brokerage / Company Name *</label>
-                <input
-                  id="reg-company"
-                  type="text" required
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  placeholder="Your brokerage or company name"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
+              {!isBuyer && (
+                <div>
+                  <label htmlFor="reg-company" className="block text-sm font-medium text-dark mb-1.5">Brokerage / Company Name *</label>
+                  <input
+                    id="reg-company"
+                    type="text" required
+                    value={formData.company_name}
+                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                    placeholder="Your brokerage or company name"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              )}
 
               <div>
                 <label htmlFor="reg-email" className="block text-sm font-medium text-dark mb-1.5">Email Address *</label>
@@ -245,7 +286,7 @@ function RegisterContent() {
                   type="email" required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="you@brokerage.com"
+                  placeholder={isBuyer ? 'you@example.com' : 'you@brokerage.com'}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
@@ -304,19 +345,21 @@ function RegisterContent() {
                   </label>
                 </div>
 
-                <div className="flex items-start gap-2">
-                  <input
-                    id="broker-terms" type="checkbox"
-                    checked={formData.agree_broker_terms}
-                    onChange={(e) => setFormData({ ...formData, agree_broker_terms: e.target.checked })}
-                    className="h-4 w-4 text-primary border-gray-300 rounded mt-0.5"
-                  />
-                  <label htmlFor="broker-terms" className="text-sm text-dark">
-                    I have read and agree to the{' '}
-                    <Link href="/terms/broker" target="_blank" className="text-primary hover:underline">Broker Services Agreement</Link>
-                    , including data import authorization, API co-brokering rights, and media licensing terms. *
-                  </label>
-                </div>
+                {!isBuyer && (
+                  <div className="flex items-start gap-2">
+                    <input
+                      id="broker-terms" type="checkbox"
+                      checked={formData.agree_broker_terms}
+                      onChange={(e) => setFormData({ ...formData, agree_broker_terms: e.target.checked })}
+                      className="h-4 w-4 text-primary border-gray-300 rounded mt-0.5"
+                    />
+                    <label htmlFor="broker-terms" className="text-sm text-dark">
+                      I have read and agree to the{' '}
+                      <Link href="/terms/broker" target="_blank" className="text-primary hover:underline">Broker Services Agreement</Link>
+                      , including data import authorization, API co-brokering rights, and media licensing terms. *
+                    </label>
+                  </div>
+                )}
 
                 <div className="flex items-start gap-2">
                   <input
@@ -332,13 +375,22 @@ function RegisterContent() {
               </div>
 
               {/* Payment note */}
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
-                <p className="font-medium mb-0.5">Secure payment via Stripe</p>
-                <p className="text-blue-600">
-                  After creating your account you will be taken to Stripe checkout to pay the{' '}
-                  <strong>${SIGNUP_FEE} setup fee</strong>. Your account activates immediately after payment.
-                </p>
-              </div>
+              {isBuyer ? (
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
+                  <p className="font-medium mb-0.5">Buyer accounts are always free</p>
+                  <p className="text-blue-600">
+                    Your account activates immediately after you sign up — no payment, no card required.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
+                  <p className="font-medium mb-0.5">Secure payment via Stripe</p>
+                  <p className="text-blue-600">
+                    After creating your account you will be taken to Stripe checkout to pay the{' '}
+                    <strong>${SIGNUP_FEE} setup fee</strong>. Your account activates immediately after payment.
+                  </p>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -350,7 +402,7 @@ function RegisterContent() {
               </button>
 
               <Link
-                href="/login/seller"
+                href={isBuyer ? '/login/buyer' : '/login/seller'}
                 className="w-full flex items-center justify-center gap-1 text-sm text-dark/60 hover:text-dark transition-colors"
               >
                 <ChevronLeft size={14} /> Already have an account? Sign in
