@@ -126,7 +126,8 @@ export default function RootLayout({
           src="https://widgets.leadconnectorhq.com/loader.js"
           strategy="afterInteractive"
           data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js"
-          data-widget-id="69cd7a636925f04180877cc6"
+          data-widget-id="6a4addc71951dd80c1d10cbe"
+          data-source="WEB_USER"
         />
       </body>
     </html>
