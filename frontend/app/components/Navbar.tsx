@@ -157,6 +157,7 @@ export default function Navbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [mobileSellOpen, setMobileSellOpen] = useState(false);
+  const [mobileCharterOpen, setMobileCharterOpen] = useState(false);
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
   const [mobileSignInOpen, setMobileSignInOpen] = useState(false);
   const [mobileCreateOpen, setMobileCreateOpen] = useState(false);
@@ -328,6 +329,11 @@ export default function Navbar() {
     { label: 'Private Sellers', href: '/sell/private' },
   ];
 
+  const charterItems = [
+    { label: 'Search Charters', href: '/charter' },
+    { label: 'Browse Destinations', href: '/charter-destinations' },
+  ];
+
   const resourceItems = [
     { label: 'How Buying Works / Buyer\'s Guide', href: '/resources/how-buying-works' },
     { label: 'Financing', href: '/resources/financing' },
@@ -384,7 +390,8 @@ export default function Navbar() {
 
           {/* ── Desktop Nav Links ── */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/listings" className="hover:text-primary transition-colors" style={navLinkStyle}>Search Listings</Link>
+            <Link href="/listings" className="hover:text-primary transition-colors" style={navLinkStyle}>For Sale</Link>
+            <NavDropdown label="For Charter" items={charterItems} />
             <NavDropdown label="Sell / List" items={sellItems} />
             <NavDropdown label="Resources" items={resourceItems} />
             <Link href="/contact" className="hover:text-primary transition-colors" style={navLinkStyle}>Contact Us</Link>
@@ -597,14 +604,29 @@ export default function Navbar() {
             {isDashboard ? (
               // Broker portal mobile nav — keep public links plus portal shortcuts
               <>
-                <Link href="/listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
+                <Link href="/listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }} onClick={() => setMobileMenuOpen(false)}>For Sale</Link>
                 <Link href="/dashboard?tab=listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }} onClick={() => setMobileMenuOpen(false)}>My Dashboard</Link>
               </>
             ) : (
               // Public mobile nav
               <>
-                {/* Search Listings */}
-                <Link href="/listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }} onClick={() => setMobileMenuOpen(false)}>Search Listings</Link>
+                {/* For Sale */}
+                <Link href="/listings" className="block text-dark/80 hover:text-primary py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }} onClick={() => setMobileMenuOpen(false)}>For Sale</Link>
+
+                {/* For Charter accordion */}
+                <div>
+                  <button onClick={() => setMobileCharterOpen((v) => !v)} className="w-full flex items-center justify-between text-dark/80 py-2.5 px-2" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 300, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    For Charter
+                    <ChevronDown size={16} className={`transition-transform ${mobileCharterOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {mobileCharterOpen && (
+                    <div className="pl-4 space-y-1 pb-2">
+                      {charterItems.map((item) => (
+                        <Link key={item.href} href={item.href} className="block py-2 px-2 text-sm text-dark/70 hover:text-primary" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }} onClick={() => setMobileMenuOpen(false)}>{item.label}</Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Sell / List accordion */}
                 <div>
