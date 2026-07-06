@@ -454,16 +454,59 @@ export default function CharterPage() {
       <div className="bg-[#10214F] text-white py-10 px-4">
         <div className="max-w-5xl mx-auto text-center">
           <h1 className="text-4xl font-bold mb-6" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Search Charters</h1>
-          <div className="max-w-xl mx-auto">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name, make, or model..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="w-full pl-11 pr-4 py-3.5 rounded-xl text-gray-900 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C] shadow-lg"
-              />
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-lg p-2 flex flex-col sm:flex-row items-stretch gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, make, or model..."
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  className="w-full h-full pl-11 pr-4 py-3 rounded-xl text-gray-900 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1 sm:flex-none">
+                  <select
+                    value={minGuests}
+                    onChange={e => { setMinGuests(e.target.value); setPage(1); }}
+                    className="appearance-none w-full sm:w-auto pl-3 pr-8 py-3 rounded-xl text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: '#F5F7FA', color: minGuests ? '#01BBDC' : '#10214F', fontWeight: minGuests ? 600 : 400 }}
+                  >
+                    <option value="">Guests</option>
+                    {[2, 4, 6, 8, 10, 12].map(n => <option key={n} value={n}>{n}+ guests</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#10214F]" />
+                </div>
+                <div className="relative flex-1 sm:flex-none">
+                  <select
+                    value={minCabins}
+                    onChange={e => { setMinCabins(e.target.value); setPage(1); }}
+                    className="appearance-none w-full sm:w-auto pl-3 pr-8 py-3 rounded-xl text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: '#F5F7FA', color: minCabins ? '#01BBDC' : '#10214F', fontWeight: minCabins ? 600 : 400 }}
+                  >
+                    <option value="">Cabins</option>
+                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}+ cabins</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#10214F]" />
+                </div>
+                <div className="relative flex-1 sm:flex-none">
+                  <select
+                    value={maxPrice}
+                    onChange={e => { setMaxPrice(e.target.value); setPage(1); }}
+                    className="appearance-none w-full sm:w-auto pl-3 pr-8 py-3 rounded-xl text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+                    style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: '#F5F7FA', color: maxPrice ? '#01BBDC' : '#10214F', fontWeight: maxPrice ? 600 : 400 }}
+                  >
+                    <option value="">Max Price</option>
+                    {(priceMode === 'day'
+                      ? [2500, 5000, 10000, 25000, 50000]
+                      : [10000, 25000, 50000, 100000, 250000]
+                    ).map(n => <option key={n} value={n}>≤ ${n.toLocaleString()}/{priceMode}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#10214F]" />
+                </div>
+              </div>
             </div>
           </div>
         </div>

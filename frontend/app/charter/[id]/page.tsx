@@ -84,9 +84,43 @@ interface CharterListing {
 
 function formatRate(amount?: number, currency = 'USD', period?: string) {
   if (!amount) return null;
-  const symbol = currency === 'USD' ? '$' : currency;
+  const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency;
   return `${symbol}${amount.toLocaleString()}${period ? ` / ${period}` : ''}`;
 }
+
+// Categorize flat amenity tags into equipment groups (Master Ocean-style display).
+// Matching is keyword-based so both our fixed CHARTER_FEATURES tags and free-form
+// amenities from feeds/scrapes land in a sensible group.
+const EQUIPMENT_GROUPS: Array<{ name: string; keywords: string[] }> = [
+  { name: 'Navigation & Technical', keywords: ['gps', 'autopilot', 'radar', 'chartplotter', 'vhf', 'compass', 'watermaker', 'generator', 'inverter', 'stabilizer', 'thruster', 'battery', 'shore power', 'solar', 'depth', 'wind instrument', 'navigation'] },
+  { name: 'Comfort & Interior', keywords: ['air conditioning', 'a/c', 'heating', 'wifi', 'wi-fi', 'washing', 'dryer', 'dishwasher', 'ice maker', 'freezer', 'fridge', 'refrigerator', 'linen', 'towel', 'cabin', 'wardrobe'] },
+  { name: 'Deck & Water Toys', keywords: ['tender', 'jet ski', 'seabob', 'paddleboard', 'paddle board', 'kayak', 'snorkel', 'dive', 'diving', 'fishing', 'water slide', 'floating', 'wakeboard', 'water ski', 'bbq', 'grill', 'bimini', 'swim platform', 'deck shower', 'jacuzzi', 'anchor', 'windlass'] },
+  { name: 'Entertainment', keywords: ['tv', 'television', 'audio', 'speaker', 'sound', 'bluetooth', 'satellite', 'streaming', 'game', 'projector', 'stereo'] },
+  { name: 'Safety', keywords: ['life raft', 'life jacket', 'liferaft', 'epirb', 'fire', 'first aid', 'flare', 'alarm', 'medical', 'smoke', 'safety'] },
+  { name: 'Galley', keywords: ['oven', 'stove', 'microwave', 'coffee', 'wine cooler', 'bar ', 'cooktop', 'galley'] },
+];
+
+function groupAmenities(amenities: string[]): Array<{ name: string; items: string[] }> {
+  const groups: Record<string, string[]> = {};
+  const other: string[] = [];
+  for (const a of amenities) {
+    const lower = a.toLowerCase();
+    const group = EQUIPMENT_GROUPS.find(g => g.keywords.some(k => lower.includes(k)));
+    if (group) (groups[group.name] ??= []).push(a);
+    else other.push(a);
+  }
+  const result = EQUIPMENT_GROUPS.filter(g => groups[g.name]?.length).map(g => ({ name: g.name, items: groups[g.name] }));
+  if (other.length) result.push({ name: 'Other Equipment', items: other });
+  return result;
+}
+
+const CHARTER_FAQS = [
+  { q: 'How do I book this yacht?', a: 'Send an inquiry with your preferred dates and group size using the Request Charter button. The charter company will confirm availability, answer questions, and walk you through their booking and payment process directly.' },
+  { q: "What's included in the charter rate?", a: 'It varies by vessel. Crewed charters typically include the crew, vessel insurance, and standard water toys — while fuel, food and beverages, dockage away from the home port, taxes, and gratuity are often billed separately. Check the Charter Terms section on this page for what this vessel includes and excludes.' },
+  { q: 'What is APA?', a: 'APA (Advance Provisioning Allowance) is a deposit — commonly 25–35% of the charter fee — collected before departure to cover variable expenses like fuel, food, drinks, and port fees. The captain accounts for spending during the trip and any unused balance is refunded after the charter.' },
+  { q: 'Can I customize the itinerary?', a: 'In most cases, yes. Itineraries are flexible and planned with the captain around your preferences, local conditions, and weather. Share your ideas in the inquiry and the charter company will help shape the trip.' },
+  { q: 'What is the cancellation policy?', a: 'Cancellation terms are set by each charter company and are shown in the Charter Terms section when the operator has published them. Always confirm the current policy before paying a deposit.' },
+];
 
 export default function CharterDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -102,6 +136,8 @@ export default function CharterDetailPage() {
   const [charterStartDate, setCharterStartDate] = useState('');
   const [charterEndDate, setCharterEndDate] = useState('');
   const [showSimpleGuide, setShowSimpleGuide] = useState(true);
+  const [similar, setSimilar] = useState<CharterListing[]>([]);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const charterDays = useMemo(() => {
     if (!charterStartDate || !charterEndDate) return 0;
@@ -141,6 +177,23 @@ export default function CharterDetailPage() {
     };
     fetchCharter();
   }, [id]);
+
+  // Similar yachts — prefer same boat type, fall back to most recent
+  useEffect(() => {
+    if (!charter) return;
+    const fetchSimilar = async () => {
+      try {
+        const res = await fetch(apiUrl('/charter?limit=12'));
+        if (!res.ok) return;
+        const data = await res.json();
+        const all: CharterListing[] = (data.results || []).filter((c: CharterListing) => c.id !== charter.id);
+        const sameType = all.filter(c => charter.boat_type && c.boat_type === charter.boat_type);
+        const rest = all.filter(c => !sameType.includes(c));
+        setSimilar([...sameType, ...rest].slice(0, 3));
+      } catch { /* non-critical */ }
+    };
+    fetchSimilar();
+  }, [charter]);
 
   const images = charter?.images?.map(img => mediaUrl(typeof img === 'string' ? img : img.url)) ?? [];
 
@@ -519,16 +572,23 @@ export default function CharterDetailPage() {
               </div>
             )}
 
-            {/* AMENITIES */}
+            {/* FEATURES & EQUIPMENT — grouped by category */}
             {charter.amenities && charter.amenities.length > 0 && (
               <div>
-                <SectionHeading>Amenities &amp; Features</SectionHeading>
+                <SectionHeading>Features &amp; Equipment</SectionHeading>
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {charter.amenities.map((a, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm text-[#10214F]">
-                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ backgroundColor: '#01BBDC' }}>v</span>
-                        {a}
+                  <div className="grid sm:grid-cols-2 gap-x-8 gap-y-6">
+                    {groupAmenities(charter.amenities).map(group => (
+                      <div key={group.name}>
+                        <p className="text-sm font-bold text-[#10214F] mb-2.5" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{group.name}</p>
+                        <div className="space-y-1.5">
+                          {group.items.map((a, i) => (
+                            <div key={i} className="flex items-center gap-2 text-sm text-[#10214F]">
+                              <Check size={13} className="text-[#01BBDC] flex-shrink-0" />
+                              {a}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -610,7 +670,7 @@ export default function CharterDetailPage() {
           {/* Right sidebar -- 4 cols */}
           <div className="lg:col-span-4 space-y-6">
 
-            {/* Charter policy card */}
+            {/* CHARTER POLICY CARD */}
             {(charter.included_items?.length || charter.excluded_items?.length || charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
               <div className="rounded-3xl border border-gray-200 bg-white p-6">
                 <h4 className="text-lg font-bold text-[#10214F] mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter Terms</h4>
@@ -639,6 +699,64 @@ export default function CharterDetailPage() {
               </div>
             )}
 
+          </div>
+        </div>
+
+        {/* == SIMILAR YACHTS ==================================================== */}
+        {similar.length > 0 && (
+          <div className="mb-12">
+            <SectionHeading>Similar Yachts</SectionHeading>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {similar.map(s => {
+                const img = s.images?.length ? mediaUrl(typeof s.images[0] === 'string' ? s.images[0] : s.images[0].url) : null;
+                const rate = s.day_rate
+                  ? formatRate(s.day_rate, s.currency, 'day')
+                  : s.week_rate ? formatRate(s.week_rate, s.currency, 'week') : null;
+                return (
+                  <Link key={s.id} href={`/charter/${s.id}`} className="group rounded-2xl border border-gray-200 bg-white overflow-hidden hover:border-[#01BBDC] hover:shadow-md transition-all">
+                    <div className="relative h-44 bg-gray-100 overflow-hidden">
+                      {img ? (
+                        <img src={img} alt={s.title} onError={onImgError} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Anchor className="w-10 h-10 text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <p className="font-semibold text-[#10214F] text-sm truncate" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{s.title}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        {s.length_feet ? <span className="flex items-center gap-1"><Ruler size={11} /> {s.length_feet} ft</span> : null}
+                        {s.max_guests ? <span className="flex items-center gap-1"><Users size={11} /> {s.max_guests} guests</span> : null}
+                        {s.cabins ? <span className="flex items-center gap-1"><Bed size={11} /> {s.cabins} cabins</span> : null}
+                      </div>
+                      {rate && <p className="mt-2 text-sm font-bold text-[#01BBDC]">{rate}</p>}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* == FAQ =============================================================== */}
+        <div className="mb-12 max-w-3xl">
+          <SectionHeading>Frequently Asked Questions</SectionHeading>
+          <div className="space-y-2">
+            {CHARTER_FAQS.map((faq, i) => (
+              <div key={i} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
+                >
+                  <span className="text-sm font-semibold text-[#10214F]" style={{ fontFamily: 'Poppins, sans-serif' }}>{faq.q}</span>
+                  <ChevronRight size={16} className={`text-[#01BBDC] flex-shrink-0 transition-transform ${openFaq === i ? 'rotate-90' : ''}`} />
+                </button>
+                {openFaq === i && (
+                  <p className="px-5 pb-4 text-sm text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>{faq.a}</p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
