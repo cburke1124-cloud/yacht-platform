@@ -13,6 +13,7 @@ export default function SecuritySettingsComponent() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
 
   useEffect(() => {
     fetchUserInfo();
@@ -73,19 +74,24 @@ export default function SecuritySettingsComponent() {
 
   const handleResendVerification = async () => {
     setLoading(true);
+    setVerificationError('');
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(apiUrl('/auth/resend-verification'), {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
       if (response.ok) {
         setVerificationSent(true);
         setTimeout(() => setVerificationSent(false), 5000);
+      } else {
+        const data = await response.json().catch(() => null);
+        setVerificationError(data?.detail || 'Failed to send verification email. Please try again.');
       }
     } catch (error) {
       console.error('Failed to resend verification:', error);
+      setVerificationError('Failed to send verification email. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -140,13 +146,18 @@ export default function SecuritySettingsComponent() {
                     ✅ Verification email sent! Check your inbox.
                   </div>
                 ) : (
-                  <button
-                    onClick={handleResendVerification}
-                    disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    {loading ? 'Sending...' : 'Resend Verification Email'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleResendVerification}
+                      disabled={loading}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {loading ? 'Sending...' : 'Resend Verification Email'}
+                    </button>
+                    {verificationError && (
+                      <p className="mt-2 text-sm text-red-600">{verificationError}</p>
+                    )}
+                  </>
                 )}
               </div>
             )}

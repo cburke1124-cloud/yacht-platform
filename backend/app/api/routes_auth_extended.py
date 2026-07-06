@@ -50,15 +50,24 @@ async def send_verification_email(
     
     db.add(verification)
     db.commit()
-    
-    # Send email
+
+    # Send email — guard against SendGrid being unconfigured/unreachable so a
+    # provider hiccup doesn't 500 the request; the token is already saved, so
+    # the verification link itself still works if the user gets it another way.
     user_name = f"{current_user.first_name} {current_user.last_name}" if current_user.first_name else None
-    email_service.send_verification_email(
-        to_email=current_user.email,
-        token=token,
-        user_name=user_name
-    )
-    
+    try:
+        sent = email_service.send_verification_email(
+            to_email=current_user.email,
+            token=token,
+            user_name=user_name
+        )
+    except Exception:
+        logging.exception("Failed to send verification email to %s", current_user.email)
+        sent = False
+
+    if not sent:
+        raise HTTPException(status_code=502, detail="Failed to send verification email. Please try again in a moment.")
+
     return {
         "success": True,
         "message": "Verification email sent"
