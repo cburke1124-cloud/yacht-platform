@@ -48,6 +48,7 @@ from app.api.routes_yachtworld import router as yachtworld_router
 
 
 from app.api.routes_wordpress_sites import router as wp_sites_router
+from app.api.routes_plugin_licenses import router as plugin_licenses_router
 
 
 
@@ -258,6 +259,7 @@ app.include_router(profiles_router, prefix="/api", tags=["profiles"])
 app.include_router(scraper_router, prefix="/api", tags=["scraper"])
 app.include_router(yachtworld_router, prefix="/api", tags=["yachtworld"])
 app.include_router(wp_sites_router, prefix="/api", tags=["wordpress-sites"])
+app.include_router(plugin_licenses_router, prefix="/api", tags=["plugin-licenses"])
 app.include_router(email_inbound_router, tags=["inbound"])
 app.include_router(sms_inbound_router, tags=["inbound"])
 app.include_router(inquiries_router, prefix="/api", tags=["inquiries"])

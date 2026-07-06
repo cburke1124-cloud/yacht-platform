@@ -64,6 +64,7 @@ class User(Base):
     social_links = Column(JSON, default={})
 
     wordpress_sites = relationship("WordPressSite", back_populates="dealer")
+    plugin_licenses = relationship("PluginLicense", back_populates="dealer")
     
     # Demo account fields
     is_demo = Column(Boolean, default=False, index=True)  # Mark as demo account
