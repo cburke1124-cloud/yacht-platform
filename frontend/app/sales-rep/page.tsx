@@ -25,6 +25,8 @@ interface DealerStats {
   total_views: number;
   total_inquiries: number;
   joined_date: string;
+  effective_monthly_price: number;
+  commission_rate: number;
 }
 
 interface AnalyticsData {
@@ -318,10 +320,26 @@ export default function SalesRepDashboard() {
     return prices[tier] ?? 0;
   };
 
+  // Reference-table estimate (Broker Tiers tab) — not tied to a real dealer,
+  // so it uses this rep's own commission rate rather than a specific referral's.
   const getTierCommission = (tier: string) => {
     if (tier === 'ultimate') return 'Custom';
     const price = getTierPrice(tier);
-    return price > 0 ? `$${(price * 0.10).toFixed(2)}/mo` : '$0.00/mo';
+    const rate = analytics?.affiliate?.commission_rate ?? 10;
+    return price > 0 ? `$${(price * (rate / 100)).toFixed(2)}/mo` : '$0.00/mo';
+  };
+
+  // Real per-dealer commission — uses the actual commission_rate and
+  // effective_monthly_price the backend computed for this specific referral
+  // (which may differ from the sales rep's base rate or the tier's list
+  // price, e.g. a custom deal). Previously every dealer row and the detail
+  // modal showed a flat 10% of the generic tier price regardless of what was
+  // actually being paid out.
+  const dealerCommission = (dealer: DealerStats) => {
+    if (dealer.subscription_tier === 'ultimate') return 'Custom';
+    const price = dealer.effective_monthly_price ?? getTierPrice(dealer.subscription_tier);
+    const rate = dealer.commission_rate ?? analytics?.affiliate?.commission_rate ?? 10;
+    return price > 0 ? `$${(price * (rate / 100)).toFixed(2)}/mo` : '$0.00/mo';
   };
 
   const affiliateLink = analytics?.affiliate
@@ -680,7 +698,7 @@ export default function SalesRepDashboard() {
                   <div className="flex items-center gap-2"><MessageSquare size={14} className="text-gray-400" />{dealer.total_inquiries} inquiries</div>
                 </td>
                 <td className="px-5 py-4">
-                  <span className="font-semibold text-primary">{getTierCommission(dealer.subscription_tier)}</span>
+                  <span className="font-semibold text-primary">{dealerCommission(dealer)}</span>
                 </td>
                 <td className="px-5 py-4">
                   <button onClick={() => setSelectedDealer(dealer)} className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1"><BarChart3 size={16} /> Details</button>
@@ -952,6 +970,14 @@ export default function SalesRepDashboard() {
               <div><span className="text-green-700 font-medium">Email:</span> <span className="text-green-900">{brokerResult.email}</span></div>
               {brokerResult.company_name && <div><span className="text-green-700 font-medium">Company:</span> <span className="text-green-900">{brokerResult.company_name}</span></div>}
               <div><span className="text-green-700 font-medium">Tier:</span> <span className="text-green-900 capitalize">{brokerResult.subscription_tier}</span></div>
+              {brokerResult.always_free ? (
+                <div><span className="text-green-700 font-medium">Billing:</span> <span className="text-green-900">Always free</span></div>
+              ) : (
+                <div><span className="text-green-700 font-medium">Effective price:</span> <span className="text-green-900">${Number(brokerResult.effective_monthly_price ?? 0).toFixed(2)}/mo</span></div>
+              )}
+              {brokerResult.trial_active && brokerResult.trial_end_date && (
+                <div><span className="text-green-700 font-medium">Free trial:</span> <span className="text-green-900">until {new Date(brokerResult.trial_end_date).toLocaleDateString()}</span></div>
+              )}
               <div className="pt-2 border-t border-green-200 mt-2">
                 {brokerResult.password_setup_email_sent
                   ? <p className="text-green-700">✓ A password setup email has been sent to the broker at <strong>{brokerResult.email}</strong>.</p>
@@ -1114,7 +1140,7 @@ export default function SalesRepDashboard() {
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-primary/10 rounded-lg p-4"><p className="text-sm text-primary font-medium mb-1">Subscription</p><p className="text-2xl font-bold text-primary capitalize">{selectedDealer.subscription_tier}</p></div>
-                <div className="bg-amber-50 rounded-lg p-4"><p className="text-sm text-amber-600 font-medium mb-1">Your Commission</p><p className="text-2xl font-bold text-amber-700">{getTierCommission(selectedDealer.subscription_tier)}</p></div>
+                <div className="bg-amber-50 rounded-lg p-4"><p className="text-sm text-amber-600 font-medium mb-1">Your Commission</p><p className="text-2xl font-bold text-amber-700">{dealerCommission(selectedDealer)}</p></div>
                 <div className="bg-green-50 rounded-lg p-4"><p className="text-sm text-green-600 font-medium mb-1">Listings</p><p className="text-2xl font-bold text-green-900">{selectedDealer.active_listings} <span className="text-sm font-normal text-green-700">/ {selectedDealer.total_listings}</span></p></div>
                 <div className="bg-blue-50 rounded-lg p-4"><p className="text-sm text-blue-600 font-medium mb-1">Performance</p><p className="text-lg font-bold text-blue-900">{selectedDealer.total_views.toLocaleString()} views</p><p className="text-sm text-blue-700">{selectedDealer.total_inquiries} inquiries</p></div>
               </div>

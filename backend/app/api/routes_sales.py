@@ -565,6 +565,39 @@ def register_broker_for_sales_rep(
     if tier == "ultimate" and custom_price is None and not always_free:
         raise ValidationException("Ultimate tier requires a custom price")
 
+    # --- deal / discount (free trial days + %/$ discount) ----------------- #
+    # Parsed here (before the user/referral are created) because both the
+    # trial fields on `new_user` and `effective_price` used for the referral's
+    # commission basis depend on these values. Previously this block ran
+    # *after* the user and referral were already committed, computed an
+    # unused `has_deal` flag, and never touched trial_active/trial_end_date
+    # or effective_price at all — a sales rep could apply a deal with "14
+    # free trial days + 20% off" in the UI, see a success response, and the
+    # broker's account would be created with no trial and full price.
+    free_days = None
+    if not always_free:
+        try:
+            free_days = int(data.get("free_days")) if data.get("free_days") not in (None, "") else None
+        except (ValueError, TypeError):
+            free_days = None
+
+    discount_type = data.get("discount_type") or None
+    discount_value = None
+    if not always_free:
+        try:
+            discount_value = float(data.get("discount_value")) if data.get("discount_value") not in (None, "") else None
+        except (ValueError, TypeError):
+            discount_value = None
+
+    if discount_value and discount_value > 0:
+        if discount_type == "percentage":
+            effective_price = round(max(0.0, effective_price * (1 - min(discount_value, 100.0) / 100.0)), 2)
+        elif discount_type == "amount":
+            effective_price = round(max(0.0, effective_price - discount_value), 2)
+
+    trial_active = bool(free_days and free_days > 0)
+    trial_end_date = (datetime.utcnow() + timedelta(days=free_days)) if trial_active else None
+
     new_user = User(
         email=email,
         password_hash=hashed,
@@ -580,6 +613,8 @@ def register_broker_for_sales_rep(
         assigned_sales_rep_id=target_sales_rep.id if target_sales_rep else None,
         active=True,
         verified=False,
+        trial_active=trial_active,
+        trial_end_date=trial_end_date,
     )
     db.add(new_user)
     db.flush()  # get new_user.id
@@ -621,26 +656,6 @@ def register_broker_for_sales_rep(
         )
         db.add(referral)
 
-    # Optional deal/trial settings -> create promotional offer for this dealer
-    free_days = None
-    try:
-        free_days = int(data.get("free_days")) if data.get("free_days") not in [None, ""] else None
-    except (ValueError, TypeError):
-        free_days = None
-
-    discount_type = (data.get("discount_type") or None)
-    discount_value = None
-    try:
-        discount_value = float(data.get("discount_value")) if data.get("discount_value") not in [None, ""] else None
-    except (ValueError, TypeError):
-        discount_value = None
-
-    has_deal = False if always_free else ((free_days and free_days > 0) or discount_value not in [None, ""])
-    # TODO: Create promotional offer model if needed
-    # if has_deal:
-    #     offer = PromotionalOffer(...)
-    #     db.add(offer)
-
     db.commit()
     db.refresh(new_user)
 
@@ -665,6 +680,9 @@ def register_broker_for_sales_rep(
         "slug": slug,
         "always_free": new_user.always_free,
         "assigned_sales_rep_id": new_user.assigned_sales_rep_id,
+        "trial_active": new_user.trial_active,
+        "trial_end_date": new_user.trial_end_date.isoformat() if new_user.trial_end_date else None,
+        "effective_monthly_price": effective_price,
     }
 
 
