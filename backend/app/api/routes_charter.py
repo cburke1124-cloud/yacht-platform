@@ -13,6 +13,7 @@ import os
 
 from app.db.session import get_db
 from app.models.charter import CharterListing, CharterAvailabilityBlock, CharterSeasonalRate
+from app.models.media import MediaFile, ListingMediaAttachment
 from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
 
@@ -83,9 +84,24 @@ def _make_unique_slug(base: str, db: Session, exclude_id: Optional[int] = None) 
         n += 1
 
 
+def _charter_images(c: CharterListing) -> list:
+    """Prefer the shared media-gallery attachments over the legacy flat
+    `images` JSON array, so cards/lists reflect photos added via the new
+    gallery. Falls back to the legacy array for charters not yet migrated."""
+    attachments = sorted(
+        (a for a in c.media_attachments if a.media and a.media.deleted_at is None),
+        key=lambda a: (0 if a.is_primary else 1, a.display_order or 0),
+    )
+    if attachments:
+        return [a.media.url for a in attachments]
+    return c.images or []
+
+
 def _serialize(c: CharterListing) -> dict:
     return {
         "id": c.id,
+        "user_id": c.user_id,
+        "assigned_salesman_id": c.assigned_salesman_id,
         "title": c.title,
         "vessel_name": c.vessel_name,
         "slug": c.slug,
@@ -132,7 +148,7 @@ def _serialize(c: CharterListing) -> dict:
         "excluded_items": c.excluded_items or [],
         "description": c.description,
         "amenities": c.amenities or [],
-        "images": c.images or [],
+        "images": _charter_images(c),
         "booking_url": c.booking_url,
         "charter_company_name": c.charter_company_name,
         "charter_company_slug": c.charter_company_slug,
@@ -140,6 +156,7 @@ def _serialize(c: CharterListing) -> dict:
         "charter_company_phone": c.charter_company_phone,
         "charter_company_website": c.charter_company_website,
         "status": c.status,
+        "deleted_at": c.deleted_at.isoformat() if c.deleted_at else None,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
@@ -411,13 +428,62 @@ def my_charters(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    charters = (
-        db.query(CharterListing)
-        .filter(CharterListing.user_id == current_user.id)
-        .order_by(CharterListing.created_at.desc())
-        .all()
-    )
+    """Charter listings owned by, or assigned to, the current user — mirrors
+    /listings/my-listings' team-inclusive scoping for dealer/admin accounts."""
+    if current_user.user_type in ("dealer", "admin"):
+        team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
+        owner_ids = [current_user.id] + team_ids
+        query = db.query(CharterListing).filter(
+            or_(
+                CharterListing.user_id.in_(owner_ids),
+                CharterListing.assigned_salesman_id.in_(owner_ids),
+            ),
+            CharterListing.deleted_at.is_(None),
+        )
+    else:
+        query = db.query(CharterListing).filter(
+            or_(
+                CharterListing.user_id == current_user.id,
+                CharterListing.assigned_salesman_id == current_user.id,
+            ),
+            CharterListing.deleted_at.is_(None),
+        )
+    charters = query.order_by(CharterListing.created_at.desc()).all()
     return [_serialize(c) for c in charters]
+
+
+@router.get("/recently-deleted")
+def get_recently_deleted_charters(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Trash view for charter listings, mirroring /listings/recently-deleted."""
+    is_admin = _is_admin(current_user)
+    query = db.query(CharterListing).filter(CharterListing.deleted_at.isnot(None))
+    if not is_admin:
+        query = query.filter(CharterListing.user_id == current_user.id)
+    charters = query.order_by(CharterListing.deleted_at.desc()).all()
+    return [_serialize(c) for c in charters]
+
+
+@router.post("/{charter_id}/restore")
+def restore_charter(
+    charter_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Not found")
+    is_admin = _is_admin(current_user)
+    if charter.user_id != current_user.id and not is_admin:
+        raise HTTPException(status_code=403, detail="Not authorised")
+    if not charter.deleted_at:
+        return {"success": True, "message": "Charter is not deleted"}
+    charter.deleted_at = None
+    charter.status = "draft"
+    db.commit()
+    return {"success": True}
 
 
 @router.get("/admin/all")
@@ -430,7 +496,8 @@ def admin_list_all_charters(
 ):
     if not _is_admin(current_user):
         raise HTTPException(status_code=403, detail="Admin only")
-    query = db.query(CharterListing)
+    # Deleted charters live in the trash view (/charter/recently-deleted), not here.
+    query = db.query(CharterListing).filter(CharterListing.deleted_at.is_(None))
     if q:
         q_like = f"%{q}%"
         query = query.filter(
@@ -577,7 +644,7 @@ def export_charters(
 @router.get("/{charter_id}")
 def get_charter(charter_id: int, db: Session = Depends(get_db)):
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
-    if not charter or charter.status == "inactive":
+    if not charter or charter.deleted_at is not None or charter.status == "inactive":
         raise HTTPException(status_code=404, detail="Charter listing not found")
     return {
         **_serialize(charter),
@@ -826,12 +893,20 @@ def create_charter(
         raise HTTPException(status_code=400, detail="title and vessel_name are required")
 
     slug = _make_unique_slug(vessel_name or title, db)
+    is_admin = _is_admin(current_user)
+
+    # Admins may attribute the listing to a different dealer account (e.g. when
+    # manually entering or scraping a charter for a specific brokerage) — for
+    # everyone else, ownership is always the creating user.
+    owner_id = current_user.id
+    if is_admin and payload.get("user_id"):
+        owner_id = int(payload["user_id"])
 
     allowed_keys = {col.name for col in CharterListing.__table__.columns}
     charter = CharterListing(
-        user_id=current_user.id,
+        user_id=owner_id,
         slug=slug,
-        **{k: v for k, v in payload.items() if k in allowed_keys and k not in ("id", "slug", "user_id", "created_at", "updated_at")},
+        **{k: v for k, v in payload.items() if k in allowed_keys and k not in ("id", "slug", "user_id", "created_at", "updated_at", "deleted_at")},
     )
     db.add(charter)
     db.commit()
@@ -855,13 +930,222 @@ def update_charter(
         raise HTTPException(status_code=403, detail="Not authorised")
 
     allowed_keys = {col.name for col in CharterListing.__table__.columns}
+    exclude = {"id", "slug", "created_at", "updated_at", "deleted_at"}
+    if not is_admin:
+        exclude.add("user_id")  # only admins may reassign ownership
     for key, val in payload.items():
-        if key in allowed_keys and key not in ("id", "slug", "user_id", "created_at", "updated_at"):
+        if key in allowed_keys and key not in exclude:
             setattr(charter, key, val)
 
     db.commit()
     db.refresh(charter)
     return _serialize(charter)
+
+
+# ---------------------------------------------------------------------------
+# Media gallery — same MediaFile / ListingMediaAttachment system for-sale
+# listings use, instead of the flat `images` JSON array. Mirrors the
+# equivalent endpoints in routes_listings.py exactly (attach/reorder/
+# set-primary/delete), scoped by charter_listing_id instead of listing_id.
+# The legacy `images` array is still read as a fallback for charters that
+# haven't been migrated to attachments yet (see _serialize()/migration script).
+# ---------------------------------------------------------------------------
+
+class CharterMediaAttachRequest(BaseModel):
+    media_ids: List[int]
+
+
+class CharterMediaReorderRequest(BaseModel):
+    attachments: List[dict]
+
+
+@router.get("/{charter_id}/media")
+def get_charter_media(charter_id: int, db: Session = Depends(get_db)):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    items = []
+    attachments = (
+        db.query(ListingMediaAttachment, MediaFile)
+        .join(MediaFile, ListingMediaAttachment.media_id == MediaFile.id)
+        .filter(
+            ListingMediaAttachment.charter_listing_id == charter_id,
+            MediaFile.deleted_at.is_(None),
+        )
+        .order_by(ListingMediaAttachment.is_primary.desc(), ListingMediaAttachment.display_order)
+        .all()
+    )
+
+    if attachments:
+        for attachment, mf in attachments:
+            items.append({
+                "id": mf.id,
+                "url": mf.url,
+                "thumbnail_url": mf.thumbnail_url,
+                "file_type": mf.file_type,
+                "is_primary": attachment.is_primary,
+                "display_order": attachment.display_order,
+                "caption": attachment.caption or mf.caption,
+                "width": mf.width,
+                "height": mf.height,
+                "alt_text": mf.alt_text,
+            })
+        items = sorted(items, key=lambda it: (0 if it.get("is_primary") else 1, it.get("display_order") or 0))
+    else:
+        # Legacy fallback: the flat images JSON array (scraped/manually-entered charters)
+        for idx, img in enumerate(charter.images or []):
+            url = img if isinstance(img, str) else (img.get("url") if isinstance(img, dict) else None)
+            if not url:
+                continue
+            items.append({
+                "id": None, "url": url, "thumbnail_url": None, "file_type": "image",
+                "is_primary": idx == 0, "display_order": idx, "caption": None,
+                "width": None, "height": None, "alt_text": None,
+            })
+
+    return {"charter_id": charter_id, "media": items, "total": len(items)}
+
+
+@router.post("/{charter_id}/media/attach")
+def attach_charter_media(
+    charter_id: int,
+    payload: CharterMediaAttachRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Replace charter media attachments with the provided media IDs (ordered)."""
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Not found")
+    if charter.user_id != current_user.id and not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    media_ids = [mid for mid in payload.media_ids if isinstance(mid, int)]
+
+    # Once the media library is used, the legacy flat array is superseded —
+    # clear it so get_charter_media() doesn't fall back to stale URLs.
+    charter.images = []
+
+    db.query(ListingMediaAttachment).filter(ListingMediaAttachment.charter_listing_id == charter_id).delete()
+
+    if not media_ids:
+        db.commit()
+        return {"success": True, "attached": 0}
+
+    media_files = db.query(MediaFile).filter(MediaFile.id.in_(media_ids), MediaFile.deleted_at.is_(None)).all()
+    media_by_id = {m.id: m for m in media_files}
+
+    display_order = 0
+    attached = 0
+    for media_id in media_ids:
+        mf = media_by_id.get(media_id)
+        if not mf:
+            continue
+        if mf.user_id != current_user.id and not _is_admin(current_user):
+            continue
+        db.add(ListingMediaAttachment(
+            charter_listing_id=charter_id,
+            media_id=media_id,
+            display_order=display_order,
+            is_primary=(attached == 0),
+            caption=mf.caption,
+        ))
+        display_order += 1
+        attached += 1
+
+    db.commit()
+    return {"success": True, "attached": attached}
+
+
+@router.post("/{charter_id}/media/reorder")
+def reorder_charter_media(
+    charter_id: int,
+    payload: CharterMediaReorderRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Not found")
+    if charter.user_id != current_user.id and not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    ids = [a["id"] for a in payload.attachments if "id" in a]
+    attachments = db.query(ListingMediaAttachment).filter(
+        ListingMediaAttachment.charter_listing_id == charter_id,
+        ListingMediaAttachment.id.in_(ids),
+    ).all()
+    att_by_id = {a.id: a for a in attachments}
+    for idx, att in enumerate(payload.attachments):
+        obj = att_by_id.get(att["id"])
+        if obj:
+            obj.display_order = att.get("display_order", idx)
+            obj.is_primary = bool(att.get("is_primary", False))
+    db.commit()
+    return {"success": True, "updated": len(attachments)}
+
+
+@router.post("/{charter_id}/media/{media_id}/set-primary")
+def set_primary_charter_image(
+    charter_id: int,
+    media_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Not found")
+    if charter.user_id != current_user.id and not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    attachments = db.query(ListingMediaAttachment).filter(ListingMediaAttachment.charter_listing_id == charter_id).all()
+    if not attachments:
+        raise HTTPException(status_code=404, detail="No media attachments on this charter")
+    for att in attachments:
+        att.is_primary = att.media_id == media_id
+    db.commit()
+    return {"success": True}
+
+
+@router.delete("/{charter_id}/media/{media_id}")
+def delete_charter_media(
+    charter_id: int,
+    media_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove a single attachment (media_id = MediaFile.id) and auto-promote
+    the next image to primary if the deleted one was the cover."""
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Not found")
+    if charter.user_id != current_user.id and not _is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    target = db.query(ListingMediaAttachment).filter(
+        ListingMediaAttachment.charter_listing_id == charter_id,
+        ListingMediaAttachment.media_id == media_id,
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    was_primary = target.is_primary
+    db.delete(target)
+    db.flush()
+
+    if was_primary:
+        next_att = (
+            db.query(ListingMediaAttachment)
+            .filter(ListingMediaAttachment.charter_listing_id == charter_id)
+            .order_by(ListingMediaAttachment.display_order)
+            .first()
+        )
+        if next_att:
+            next_att.is_primary = True
+
+    db.commit()
+    return {"success": True}
 
 
 @router.delete("/{charter_id}")
@@ -878,10 +1162,13 @@ def delete_charter(
     if charter.user_id != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorised")
 
-    # Soft delete
-    charter.status = "inactive"
+    # Soft delete — moves the listing to the trash view (/charter/recently-deleted)
+    # instead of just flipping status, which was indistinguishable from a
+    # deliberately paused ("inactive") listing and had no restore/purge path.
+    charter.status = "deleted"
+    charter.deleted_at = datetime.utcnow()
     db.commit()
-    return {"success": True}
+    return {"success": True, "message": "Charter moved to Recently Deleted"}
 
 
 @router.delete("/admin/{charter_id}")

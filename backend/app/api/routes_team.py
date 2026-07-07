@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing
+from app.models.charter import CharterListing
 from app.models.misc import Message, Inquiry
 from app.models.guest_broker import GuestBroker
 from app.exceptions import AuthorizationException, ValidationException, ResourceNotFoundException
@@ -74,6 +75,19 @@ def get_team_performance(
             func.coalesce(func.sum(Listing.inquiries), 0).label("inquiries"),
         ).first()
 
+        # Charter listings attributed to this team member — previously omitted
+        # entirely, so a rep working charters showed 0 listings here even with
+        # active inventory. CharterListing has no views/inquiries columns yet.
+        charter_query = db.query(CharterListing).filter(
+            CharterListing.deleted_at.is_(None),
+            or_(
+                CharterListing.user_id == member.id,
+                CharterListing.assigned_salesman_id == member.id,
+            ),
+        )
+        charters_total = charter_query.count()
+        charters_active = charter_query.filter(CharterListing.status == "active").count()
+
         inquiries_total = db.query(func.count(Message.id)).filter(
             Message.parent_message_id.is_(None),
             Message.message_type == "inquiry",
@@ -127,8 +141,10 @@ def get_team_performance(
             "name": f"{member.first_name or ''} {member.last_name or ''}".strip() or member.email,
             "email": member.email,
             "role": member.role,
-            "listings_total": listings_total,
-            "listings_active": listings_active,
+            "listings_total": listings_total + charters_total,
+            "listings_active": listings_active + charters_active,
+            "for_sale_listings_total": listings_total,
+            "charter_listings_total": charters_total,
             "views_total": int(listing_stats.views or 0),
             "listing_inquiries_total": int(listing_stats.inquiries or 0),
             "inquiries_total": inquiries_total,
@@ -509,6 +525,18 @@ def get_member_overview(
     listings_total = listing_q.count()
     listings_active = listing_q.filter(Listing.status == "active").count()
 
+    # Charter listings — previously omitted, so a charter-focused rep's
+    # overview always showed 0 listings regardless of actual inventory.
+    charter_q = db.query(CharterListing).filter(
+        CharterListing.deleted_at.is_(None),
+        or_(
+            CharterListing.user_id == member_id,
+            CharterListing.assigned_salesman_id == member_id,
+        ),
+    )
+    charters_total = charter_q.count()
+    charters_active = charter_q.filter(CharterListing.status == "active").count()
+
     # Inquiries by stage
     stage_counts: dict = {}
     for (stage,), cnt in (
@@ -540,8 +568,10 @@ def get_member_overview(
             "joined_at": member.created_at.isoformat() if member.created_at else None,
         },
         "listings": {
-            "total": listings_total,
-            "active": listings_active,
+            "total": listings_total + charters_total,
+            "active": listings_active + charters_active,
+            "for_sale_total": listings_total,
+            "charter_total": charters_total,
         },
         "inquiries": {
             "total": sum(stage_counts.values()),
@@ -578,15 +608,22 @@ def get_member_listings(
         raise ResourceNotFoundException("Team member", member_id)
 
     listings = db.query(Listing).filter(Listing.user_id == member_id).all()
+    # Charter listings attributed to this member — previously omitted, so they
+    # were invisible during reassignment planning after a member is removed.
+    charters = db.query(CharterListing).filter(
+        CharterListing.deleted_at.is_(None),
+        or_(CharterListing.user_id == member_id, CharterListing.assigned_salesman_id == member_id),
+    ).all()
 
     return {
         "member_id": member.id,
         "member_name": f"{member.first_name or ''} {member.last_name or ''}".strip() or member.email,
         "member_email": member.email,
-        "total_listings": len(listings),
+        "total_listings": len(listings) + len(charters),
         "listings": [
             {
                 "id": listing.id,
+                "type": "for_sale",
                 "title": listing.title,
                 "status": listing.status,
                 "make_model": listing.make_model,
@@ -596,6 +633,19 @@ def get_member_listings(
                 "inquiries": listing.inquiries or 0,
             }
             for listing in listings
+        ] + [
+            {
+                "id": charter.id,
+                "type": "charter",
+                "title": charter.title,
+                "status": charter.status,
+                "make_model": " ".join(filter(None, [charter.make, charter.model])) or None,
+                "price": charter.day_rate or charter.week_rate,
+                "created_at": charter.created_at.isoformat() if charter.created_at else None,
+                "views": 0,
+                "inquiries": 0,
+            }
+            for charter in charters
         ]
     }
 

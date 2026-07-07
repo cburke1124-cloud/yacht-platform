@@ -51,6 +51,17 @@ interface QuickEditDraft {
   status: Listing['status'];
 }
 
+interface CharterListingSummary {
+  id: number;
+  title: string;
+  vessel_name: string;
+  status: string;
+  day_rate?: number;
+  week_rate?: number;
+  currency: string;
+  images: Array<string | { url: string }>;
+}
+
 interface DealerListingsManagerProps {
   onStatsUpdate?: () => void;
 }
@@ -62,6 +73,7 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
   // `allListings` holds the full unfiltered set fetched once from the server.
   // `listings` is derived below as a filtered view based on `statusFilter`.
   const [allListings, setAllListings] = useState<Listing[]>([]);
+  const [charterListings, setCharterListings] = useState<CharterListingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletedLoading, setDeletedLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -97,7 +109,16 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
     fetchTeamMembers();
     fetchGuestBrokers();
     fetchDeletedListings();
+    fetchCharterListings();
   }, []);
+
+  const fetchCharterListings = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/charter/my'), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setCharterListings(await res.json());
+    } catch { /* non-critical — for-sale listings still load independently */ }
+  };
 
   // Reset to page 0 when filter changes (no re-fetch needed).
   useEffect(() => {
@@ -570,6 +591,40 @@ export default function DealerListingsManager({ onStatsUpdate }: DealerListingsM
           </Link>
         </div>
       </div>
+
+      {/* Charter Listings — separate from the for-sale table above since charter
+          listings have their own admin editor; this keeps them visible on the
+          dealer dashboard instead of only living in the admin panel. */}
+      {charterListings.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">Charter Listings</h3>
+            <span className="text-sm text-gray-500">{charterListings.length} total</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {charterListings.map(c => {
+              const img = c.images?.[0];
+              const imgUrl = img ? (typeof img === 'string' ? img : img.url) : null;
+              const rate = c.day_rate ? `${c.currency === 'USD' ? '$' : c.currency}${c.day_rate.toLocaleString()}/day`
+                : c.week_rate ? `${c.currency === 'USD' ? '$' : c.currency}${c.week_rate.toLocaleString()}/wk` : null;
+              return (
+                <Link key={c.id} href={`/charter/${c.id}`} target="_blank" className="flex items-center gap-3 p-2 rounded-lg border border-gray-100 hover:border-primary transition-colors">
+                  <div className="w-14 h-14 rounded-md bg-gray-100 overflow-hidden flex-shrink-0">
+                    {imgUrl && <img src={mediaUrl(imgUrl)} alt={c.title} onError={onImgError} className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{c.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span className="capitalize">{c.status}</span>
+                      {rate && <span className="text-primary font-medium">{rate}</span>}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <BulkActionsBar
         selectedIds={selectedIds}

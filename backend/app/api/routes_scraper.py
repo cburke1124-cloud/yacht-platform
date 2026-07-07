@@ -606,6 +606,9 @@ def _map_scraped_to_charter(raw: Dict, url: str) -> Dict:
         "images": raw.get("images") or [],
         "status": "draft",
         "currency": raw.get("currency") or "USD",
+        # Link back to the source page — previously dropped entirely, so a
+        # manually-scraped charter had no way to trace where it came from.
+        "booking_url": url,
     }
     # Strip empty/None so the frontend preview only shows fields it actually found
     payload = {k: v for k, v in payload.items() if v not in (None, "", [])}

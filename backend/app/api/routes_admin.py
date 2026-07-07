@@ -21,6 +21,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.dealer import DealerProfile, EmailVerification
 from app.models.listing import Listing
+from app.models.charter import CharterListing
 from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.partner_growth import PartnerDeal
@@ -418,14 +419,22 @@ def get_user_details(
         DealerProfile.user_id == user_id
     ).first()
     
-    # Get listing stats
+    # Get listing stats (for-sale)
     listing_stats = db.query(
         func.count(Listing.id).label('total'),
         func.count(Listing.id).filter(Listing.status == 'active').label('active'),
         func.sum(Listing.views).label('total_views'),
         func.sum(Listing.inquiries).label('total_inquiries')
     ).filter(Listing.user_id == user_id).first()
-    
+
+    # Charter listing stats — previously omitted, so a charter-only operator's
+    # admin profile page showed zero listings even with active inventory.
+    # CharterListing has no views/inquiries columns yet, so only counts apply.
+    charter_stats = db.query(
+        func.count(CharterListing.id).label('total'),
+        func.count(CharterListing.id).filter(CharterListing.status == 'active').label('active'),
+    ).filter(CharterListing.user_id == user_id, CharterListing.deleted_at.is_(None)).first()
+
     return {
         "id": user.id,
         "email": user.email,
@@ -450,6 +459,10 @@ def get_user_details(
             "active_listings": listing_stats.active or 0,
             "total_views": listing_stats.total_views or 0,
             "total_inquiries": listing_stats.total_inquiries or 0
+        },
+        "charter_stats": {
+            "total_charters": charter_stats.total or 0,
+            "active_charters": charter_stats.active or 0,
         }
     }
 
@@ -1033,6 +1046,13 @@ def get_all_dealers(
         active_listings = db.query(Listing).filter(
             Listing.user_id == dealer.id, Listing.status == "active"
         ).count()
+        # Charter listings were previously omitted here entirely, so a
+        # charter-only brokerage always showed "0 total listings" in this table.
+        charter_base = db.query(CharterListing).filter(
+            CharterListing.user_id == dealer.id, CharterListing.deleted_at.is_(None)
+        )
+        charter_count = charter_base.count()
+        active_charters = charter_base.filter(CharterListing.status == "active").count()
 
         dealer_list.append({
             "id": dealer.id,
@@ -1050,8 +1070,10 @@ def get_all_dealers(
             "trial_end_date": dealer.trial_end_date.isoformat() if dealer.trial_end_date else None,
             "verified": dealer.verified,
             "active": dealer.active,
-            "total_listings": listing_count,
-            "active_listings": active_listings,
+            "total_listings": listing_count + charter_count,
+            "active_listings": active_listings + active_charters,
+            "total_for_sale_listings": listing_count,
+            "total_charter_listings": charter_count,
             "created_at": dealer.created_at.isoformat() if dealer.created_at else None,
             "assigned_sales_rep_id": dealer.assigned_sales_rep_id,
             "subscription_monthly_price": dealer.subscription_monthly_price,
@@ -2218,18 +2240,27 @@ def get_admin_stats(
         User.active == True
     ).count()
     
-    # Listing stats
+    # Listing stats (for-sale)
     total_listings = db.query(Listing).count()
     active_listings = db.query(Listing).filter(Listing.status == "active").count()
     pending_listings = db.query(Listing).filter(Listing.status == "pending").count()
-    
+
+    # Charter listing stats — previously omitted entirely, silently
+    # undercounting "total/active listings" platform-wide once charters
+    # were added. deleted_at IS NULL excludes trashed charters, matching
+    # Listing's status != 'deleted' semantics above.
+    charter_base = db.query(CharterListing).filter(CharterListing.deleted_at.is_(None))
+    total_charters = charter_base.count()
+    active_charters = charter_base.filter(CharterListing.status == "active").count()
+    draft_charters = charter_base.filter(CharterListing.status == "draft").count()
+
     # Revenue calculation (simple)
     tier_prices = {"free": 0, "basic": 29, "premium": 99, "trial": 0}
     monthly_revenue = sum(
         tier_prices.get(u.subscription_tier, 0)
         for u in db.query(User).filter(User.active == True).all()
     )
-    
+
     return {
         "users": {
             "total": total_users,
@@ -2241,6 +2272,17 @@ def get_admin_stats(
             "total": total_listings,
             "active": active_listings,
             "pending": pending_listings
+        },
+        "charters": {
+            "total": total_charters,
+            "active": active_charters,
+            "draft": draft_charters
+        },
+        # Combined figures for dashboard widgets that want one "total listings"
+        # number across both for-sale and charter inventory.
+        "all_listings": {
+            "total": total_listings + total_charters,
+            "active": active_listings + active_charters
         },
         "revenue": {
             "monthly": monthly_revenue,

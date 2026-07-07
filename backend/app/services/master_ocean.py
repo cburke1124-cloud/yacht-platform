@@ -431,6 +431,13 @@ def _sync_charter(job_id, job, basic: Dict, detail: Optional[Dict], source_url: 
         charter = db.query(CharterListing).filter(CharterListing.id == existing_scraped.listing_id).first()
         if charter:
             _apply_charter_fields(charter, title, vessel_name, mapped)
+            # Heal rows created before this ownership fix (previously created with
+            # no user_id at all, so they were orphaned and invisible under any
+            # dealer's account) without clobbering a deliberate admin reassignment.
+            if not charter.user_id:
+                charter.user_id = job.dealer_id
+            if not charter.assigned_salesman_id and job.salesman_id:
+                charter.assigned_salesman_id = job.salesman_id
             existing_scraped.last_seen = datetime.utcnow()
             existing_scraped.still_active = True
             db.commit()
@@ -438,9 +445,10 @@ def _sync_charter(job_id, job, basic: Dict, detail: Optional[Dict], source_url: 
             run_log.append({"url": source_url, "outcome": "updated"})
             return
 
-    # Create new CharterListing
+    # Create new CharterListing — attributed to the dealer/salesman configured
+    # on the sync job, matching how the for-sale scraper attributes Listing rows.
     slug = _make_charter_slug(vessel_name, db)
-    charter = CharterListing(slug=slug)
+    charter = CharterListing(slug=slug, user_id=job.dealer_id, assigned_salesman_id=job.salesman_id)
     _apply_charter_fields(charter, title, vessel_name, mapped)
     db.add(charter)
     db.flush()

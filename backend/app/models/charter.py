@@ -12,6 +12,10 @@ class CharterListing(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    # Team-member attribution, mirroring Listing.assigned_salesman_id — lets a
+    # charter be attributed to a specific sales rep for dashboard/analytics
+    # purposes, independent of which dealer account owns it (user_id).
+    assigned_salesman_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # Identity
     title = Column(String, nullable=False)
@@ -90,6 +94,7 @@ class CharterListing(Base):
 
     # Status
     status = Column(String, default="active", index=True)  # active, inactive, draft
+    deleted_at = Column(DateTime, nullable=True, index=True)  # soft-delete timestamp; NULL = not deleted
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

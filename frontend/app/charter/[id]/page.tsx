@@ -161,6 +161,8 @@ export default function CharterDetailPage() {
 
   const seasonalRates = useMemo(() => charter?.seasonal_rates ?? [], [charter]);
 
+  const [galleryImages, setGalleryImages] = useState<string[] | null>(null);
+
   useEffect(() => {
     const fetchCharter = async () => {
       try {
@@ -176,6 +178,17 @@ export default function CharterDetailPage() {
       }
     };
     fetchCharter();
+  }, [id]);
+
+  // Prefer the shared media-gallery system (MediaFile/ListingMediaAttachment)
+  // over the legacy flat `images` array — the /media endpoint already falls
+  // back to that array server-side when a charter has no attachments yet.
+  useEffect(() => {
+    if (!id) return;
+    fetch(apiUrl(`/charter/${id}/media`))
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.media) setGalleryImages(data.media.map((m: { url: string }) => mediaUrl(m.url))); })
+      .catch(() => {});
   }, [id]);
 
   // Similar yachts — prefer same boat type, fall back to most recent
@@ -195,7 +208,7 @@ export default function CharterDetailPage() {
     fetchSimilar();
   }, [charter]);
 
-  const images = charter?.images?.map(img => mediaUrl(typeof img === 'string' ? img : img.url)) ?? [];
+  const images = galleryImages ?? charter?.images?.map(img => mediaUrl(typeof img === 'string' ? img : img.url)) ?? [];
 
   const handleInquiry = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing
+from app.models.charter import CharterListing
 from app.models.dealer import DealerProfile
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup, PartnerOffer
 from app.models.documentation import Documentation
@@ -124,12 +125,12 @@ def get_sales_rep_analytics(
         listing_count = db.query(Listing).filter(
             Listing.user_id == dealer.id
         ).count()
-        
+
         active_listings = db.query(Listing).filter(
             Listing.user_id == dealer.id,
             Listing.status == "active"
         ).count()
-        
+
         # Sum views and inquiries
         stats = db.query(
             func.sum(Listing.views).label('total_views'),
@@ -137,15 +138,26 @@ def get_sales_rep_analytics(
         ).filter(
             Listing.user_id == dealer.id
         ).first()
-        
+
+        # Charter listings were previously omitted entirely — a dealer selling
+        # exclusively via charters showed 0 listings/views/inquiries here.
+        # CharterListing has no views/inquiries columns yet, so only counts add.
+        charter_base = db.query(CharterListing).filter(
+            CharterListing.user_id == dealer.id, CharterListing.deleted_at.is_(None)
+        )
+        charter_count = charter_base.count()
+        active_charter_count = charter_base.filter(CharterListing.status == "active").count()
+
         dealer_stats.append({
             "dealer_id": dealer.id,
             "dealer_name": f"{dealer.first_name} {dealer.last_name}",
             "company_name": dealer.company_name,
             "email": dealer.email,
             "subscription_tier": dealer.subscription_tier,
-            "total_listings": listing_count,
-            "active_listings": active_listings,
+            "total_listings": listing_count + charter_count,
+            "active_listings": active_listings + active_charter_count,
+            "total_for_sale_listings": listing_count,
+            "total_charter_listings": charter_count,
             "total_views": stats.total_views or 0,
             "total_inquiries": stats.total_inquiries or 0,
             "joined_date": dealer.created_at.isoformat() if dealer.created_at else None,

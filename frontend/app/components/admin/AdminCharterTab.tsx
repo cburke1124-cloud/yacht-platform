@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Uplo
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 import { CHARTER_FEATURES } from '@/app/lib/charterFeatures';
+import DealerMediaGallery from '@/app/components/DealerMediaGallery';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -14,8 +15,16 @@ const jsonHeaders = () => ({
   ...authHeaders(),
 });
 
+interface Dealer {
+  id: number;
+  company_name?: string;
+  name: string;
+  email: string;
+}
+
 interface CharterListing {
   id: number;
+  user_id?: number;
   title: string;
   vessel_name: string;
   slug?: string;
@@ -31,6 +40,7 @@ interface CharterListing {
   currency: string;
   charter_company_name?: string;
   status: string;
+  deleted_at?: string | null;
   created_at?: string;
   // edit form extras
   make?: string;
@@ -107,8 +117,139 @@ const BLANK_CHARTER: Partial<CharterListing> = {
   amenities: [], crew_profiles: [],
 };
 
-function CharterModal({ initial, onSave, onClose }: {
+interface CharterMediaItem {
+  id: number | null;
+  url: string;
+  thumbnail_url?: string | null;
+  is_primary: boolean;
+  display_order: number;
+  caption?: string | null;
+}
+
+/**
+ * Charter photo gallery, backed by the same MediaFile/ListingMediaAttachment
+ * system for-sale listings use (shared library, primary flag, reorder) instead
+ * of the old flat `images` JSON array with no reorder/primary/confirm-delete.
+ */
+function CharterMediaSection({ charterId }: { charterId: number }) {
+  const [media, setMedia] = useState<CharterMediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/charter/${charterId}/media`), { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setMedia(data.media ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [charterId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handlePicked = async (picked: Array<{ id: number }>) => {
+    setShowPicker(false);
+    // Merge newly-picked media IDs after whatever is already attached (attach
+    // replaces the full ordered set, mirroring routes_listings.py's contract).
+    const existingIds = media.filter(m => m.id != null).map(m => m.id as number);
+    const mergedIds = [...existingIds, ...picked.map(p => p.id).filter(id => !existingIds.includes(id))];
+    await fetch(apiUrl(`/charter/${charterId}/media/attach`), {
+      method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ media_ids: mergedIds }),
+    });
+    load();
+  };
+
+  const handleSetPrimary = async (mediaId: number) => {
+    setBusyId(mediaId);
+    try {
+      await fetch(apiUrl(`/charter/${charterId}/media/${mediaId}/set-primary`), { method: 'POST', headers: authHeaders() });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (mediaId: number) => {
+    if (!confirm('Remove this photo from the listing?')) return;
+    setBusyId(mediaId);
+    try {
+      await fetch(apiUrl(`/charter/${charterId}/media/${mediaId}`), { method: 'DELETE', headers: authHeaders() });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Media Library</p>
+          <h4 className="text-base font-semibold text-gray-900">Charter listing photos</h4>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowPicker(true)}
+          className="flex items-center gap-1.5 rounded-lg bg-[#10214F] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a3570]"
+        >
+          <Upload size={13} /> Add from Media Library
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading photos…</p>
+      ) : media.length === 0 ? (
+        <p className="text-sm text-gray-500">No images yet. Add photos from your shared media library.</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+          {media.map((m, i) => (
+            <div key={m.id ?? m.url} className="group relative aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+              <img src={mediaUrl(m.thumbnail_url || m.url)} alt={`Charter image ${i + 1}`} onError={onImgError} className="h-full w-full object-cover" />
+              {m.is_primary && (
+                <span className="absolute left-1 top-1 rounded-full bg-[#01BBDC] px-2 py-0.5 text-[10px] font-bold text-white">Cover</span>
+              )}
+              {m.id != null && (
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/50 p-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  {!m.is_primary && (
+                    <button type="button" onClick={() => handleSetPrimary(m.id as number)} disabled={busyId === m.id}
+                      className="rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-800 hover:bg-white disabled:opacity-50">
+                      Set cover
+                    </button>
+                  )}
+                  <button type="button" onClick={() => handleDelete(m.id as number)} disabled={busyId === m.id}
+                    className="ml-auto rounded-full bg-black/60 p-1 text-white hover:bg-red-600 disabled:opacity-50" title="Remove photo">
+                    <X size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showPicker && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowPicker(false)}>
+          <div className="max-h-[85vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-4" onClick={e => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-base font-semibold text-gray-900">Choose photos</h4>
+              <button onClick={() => setShowPicker(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+            <DealerMediaGallery mode="picker" selectionMode="multiple" filterType="image" onSelectMedia={handlePicked} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CharterModal({ initial, dealers, onSave, onClose }: {
   initial?: CharterListing;
+  dealers: Dealer[];
   onSave: (data: Partial<CharterListing>) => Promise<void>;
   onClose: () => void;
 }) {
@@ -128,11 +269,6 @@ function CharterModal({ initial, onSave, onClose }: {
   // Optional crew profiles — only appear on the listing if at least one is added
   const [crewProfiles, setCrewProfiles] = useState<CrewProfile[]>(initial?.crew_profiles ?? []);
   const [crewDraft, setCrewDraft] = useState<CrewProfile>({ name: '', role: '', bio: '' });
-  // Image management
-  const [charterImages, setCharterImages] = useState<string[]>(
-    (initial?.images ?? []).map((img) => (typeof img === 'string' ? img : img.url)),
-  );
-  const [uploadingImages, setUploadingImages] = useState(false);
   const [availabilityForm, setAvailabilityForm] = useState({
     start_date: '',
     end_date: '',
@@ -192,11 +328,6 @@ function CharterModal({ initial, onSave, onClose }: {
         setIncludedText((data.included_items ?? []).join(', '));
         setExcludedText((data.excluded_items ?? []).join(', '));
         setCrewProfiles(data.crew_profiles ?? []);
-        setCharterImages(
-          (data.images ?? []).map((img: string | { url: string }) =>
-            typeof img === 'string' ? img : img.url,
-          ),
-        );
       } catch {
         if (!cancelled) {
           setAvailabilityBlocks(initial.availability_blocks ?? []);
@@ -300,50 +431,6 @@ function CharterModal({ initial, onSave, onClose }: {
     } finally {
       setDeletingRateId(null);
     }
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!initial?.id || !e.target.files?.length) return;
-    setUploadingImages(true);
-    const newUrls: string[] = [];
-    try {
-      for (const file of Array.from(e.target.files)) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const res = await fetch(apiUrl('/upload'), {
-          method: 'POST',
-          headers: authHeaders(),
-          body: formData,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          newUrls.push(data.url);
-        }
-      }
-      if (newUrls.length > 0) {
-        const updated = [...charterImages, ...newUrls];
-        const res = await fetch(apiUrl(`/charter/${initial.id}`), {
-          method: 'PUT',
-          headers: jsonHeaders(),
-          body: JSON.stringify({ images: updated }),
-        });
-        if (res.ok) setCharterImages(updated);
-      }
-    } finally {
-      setUploadingImages(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleImageDelete = async (url: string) => {
-    if (!initial?.id) return;
-    const updated = charterImages.filter((u) => u !== url);
-    const res = await fetch(apiUrl(`/charter/${initial.id}`), {
-      method: 'PUT',
-      headers: jsonHeaders(),
-      body: JSON.stringify({ images: updated }),
-    });
-    if (res.ok) setCharterImages(updated);
   };
 
   const inp = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#10214F] focus:border-transparent';
@@ -569,6 +656,16 @@ function CharterModal({ initial, onSave, onClose }: {
             </div>
           </div>
 
+          {/* Ownership — which dealer/brokerage account this listing belongs to.
+              Separate from "Charter Company" below, which is just display text. */}
+          <div>
+            <label className={lbl}>Owning Dealer Account</label>
+            <select className={inp} value={form.user_id ?? ''} onChange={e => set('user_id', e.target.value ? Number(e.target.value) : undefined)}>
+              <option value="">— Unassigned (won&apos;t appear on any dealer dashboard) —</option>
+              {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
+            </select>
+          </div>
+
           {/* Company */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Charter Company</p>
@@ -614,38 +711,8 @@ function CharterModal({ initial, onSave, onClose }: {
 
           {isEdit ? (
             <>
-              {/* Images */}
-              <div className="rounded-xl border border-gray-200 p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Images</p>
-                    <h4 className="text-base font-semibold text-gray-900">Charter listing photos</h4>
-                  </div>
-                  <label className={`flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#10214F] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1a3570] ${uploadingImages ? 'pointer-events-none opacity-50' : ''}`}>
-                    <Upload size={13} />{uploadingImages ? 'Uploading…' : 'Add photos'}
-                    <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} disabled={uploadingImages} />
-                  </label>
-                </div>
-                {charterImages.length === 0 ? (
-                  <p className="text-sm text-gray-500">No images uploaded yet.</p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
-                    {charterImages.map((url, i) => (
-                      <div key={url} className="group relative aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
-                        <img src={mediaUrl(url)} alt={`Charter image ${i + 1}`} onError={onImgError} className="h-full w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => handleImageDelete(url)}
-                          className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
-                          title="Remove image"
-                        >
-                          <X size={11} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* Images — same shared MediaFile/ListingMediaAttachment gallery for-sale listings use */}
+              {initial?.id && <CharterMediaSection charterId={initial.id} />}
 
               {/* Availability Calendar */}
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
@@ -834,6 +901,9 @@ export default function AdminCharterTab() {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
+  const [dealers, setDealers] = useState<Dealer[]>([]);
+  const [trashed, setTrashed] = useState<CharterListing[]>([]);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
   const LIMIT = 25;
 
   const load = useCallback(async () => {
@@ -864,7 +934,36 @@ export default function AdminCharterTab() {
     }
   }, [page, search]);
 
+  const loadTrashed = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/charter/recently-deleted'), { headers: authHeaders() });
+      if (res.ok) setTrashed(await res.json());
+    } catch { /* non-critical */ }
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch(apiUrl('/admin/dealers?limit=200'), { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.dealers) setDealers(data.dealers); })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { if (statusFilter === 'deleted') loadTrashed(); }, [statusFilter, loadTrashed]);
+
+  const handleRestore = async (id: number) => {
+    setRestoringId(id);
+    try {
+      const res = await fetch(apiUrl(`/charter/${id}/restore`), { method: 'POST', headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      setToast({ ok: true, msg: 'Charter restored' });
+      loadTrashed();
+      load();
+    } catch {
+      setToast({ ok: false, msg: 'Restore failed' });
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   const filtered = statusFilter === 'all' ? charters : charters.filter(c => c.status === statusFilter);
 
@@ -1049,10 +1148,55 @@ export default function AdminCharterTab() {
           <option value="active">Active</option>
           <option value="draft">Draft</option>
           <option value="inactive">Inactive</option>
+          <option value="deleted">🗑 Trash</option>
         </select>
       </div>
 
-      {/* Table */}
+      {statusFilter === 'deleted' ? (
+        /* Trash view — deleted charters, restorable within the retention window */
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          {trashed.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+              <Trash2 className="w-10 h-10 mb-3 opacity-40" />
+              <p className="text-sm">Trash is empty.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {['Title', 'Company', 'Deleted', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {trashed.map(c => (
+                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900 truncate max-w-[240px]">{c.title}</div>
+                        <div className="text-xs text-gray-400">{c.vessel_name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 truncate max-w-[180px]">{c.charter_company_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{c.deleted_at ? new Date(c.deleted_at).toLocaleDateString() : '—'}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleRestore(c.id)}
+                          disabled={restoringId === c.id}
+                          className="px-3 py-1.5 text-xs font-medium bg-[#10214F] text-white rounded-lg hover:bg-[#1a3570] disabled:opacity-50"
+                        >
+                          {restoringId === c.id ? 'Restoring…' : 'Restore'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+      /* Table */
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
@@ -1115,9 +1259,10 @@ export default function AdminCharterTab() {
           </div>
         )}
       </div>
+      )}
 
       {/* Pagination */}
-      {total > LIMIT && (
+      {statusFilter !== 'deleted' && total > LIMIT && (
         <div className="flex items-center gap-3 justify-center text-sm text-gray-600">
           <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50">Prev</button>
           <span>Page {page} of {Math.ceil(total / LIMIT)}</span>
@@ -1128,6 +1273,7 @@ export default function AdminCharterTab() {
       {modal && (
         <CharterModal
           initial={modal === 'create' ? undefined : modal}
+          dealers={dealers}
           onSave={handleSave}
           onClose={() => setModal(null)}
         />

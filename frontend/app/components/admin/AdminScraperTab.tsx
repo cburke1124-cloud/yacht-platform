@@ -1741,13 +1741,14 @@ interface CharterPreview {
   charter_company_phone?: string;
 }
 
-function CharterScraperSection({ apiUrl: _apiUrl, authHeaders: _authHeaders }: { apiUrl: (p: string) => string; authHeaders: () => Record<string, string> }) {
+function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }: { dealers: Dealer[]; apiUrl: (p: string) => string; authHeaders: () => Record<string, string> }) {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
   const [preview, setPreview] = useState<CharterPreview | null>(null);
   const [priceHint, setPriceHint] = useState<number | null>(null);
+  const [dealerId, setDealerId] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -1777,9 +1778,10 @@ function CharterScraperSection({ apiUrl: _apiUrl, authHeaders: _authHeaders }: {
 
   async function handleCreate() {
     if (!preview) return;
+    if (!dealerId) { setSaveMsg({ ok: false, text: 'Select which dealer/brokerage account should own this listing' }); return; }
     setSaving(true); setSaveMsg(null);
     try {
-      const payload: Record<string, unknown> = { ...preview };
+      const payload: Record<string, unknown> = { ...preview, user_id: Number(dealerId) };
       // Empty rate fields shouldn't overwrite as "0" — strip them
       if (!payload.day_rate) delete payload.day_rate; else payload.day_rate = Number(payload.day_rate);
       if (!payload.week_rate) delete payload.week_rate; else payload.week_rate = Number(payload.week_rate);
@@ -1844,6 +1846,15 @@ function CharterScraperSection({ apiUrl: _apiUrl, authHeaders: _authHeaders }: {
             </div>
           )}
 
+          <div>
+            <label className={lbl}>Assign to dealer / brokerage account *</label>
+            <select className={inp} value={dealerId} onChange={e => setDealerId(e.target.value)}>
+              <option value="">— Select dealer —</option>
+              {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Without this, the scraped listing won&apos;t show up under any dealer&apos;s account.</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className={lbl}>Title</label>
@@ -1890,7 +1901,7 @@ function CharterScraperSection({ apiUrl: _apiUrl, authHeaders: _authHeaders }: {
           )}
 
           <div className="flex gap-3">
-            <button onClick={handleCreate} disabled={saving} className="px-5 py-2 bg-[#10214F] text-white rounded-lg text-sm font-medium hover:bg-[#1a3570] disabled:opacity-50">
+            <button onClick={handleCreate} disabled={saving || !dealerId} className="px-5 py-2 bg-[#10214F] text-white rounded-lg text-sm font-medium hover:bg-[#1a3570] disabled:opacity-50">
               {saving ? 'Creating…' : 'Create Charter Listing (as Draft)'}
             </button>
             <button onClick={() => { setPreview(null); setSaveMsg(null); }} className="px-5 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
@@ -3203,7 +3214,7 @@ export default function AdminScraperTab() {
       {section === 'enrich' && <BulkEnrichSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ CHARTERS — single-URL scrape for charter listings ═══════════════ */}
-      {section === 'charters' && <CharterScraperSection apiUrl={apiUrl} authHeaders={authHeaders} />}
+      {section === 'charters' && <CharterScraperSection dealers={dealers} apiUrl={apiUrl} authHeaders={authHeaders} />}
 
       {/* ══ TEST TOOLS ═════════════════════════════════════════════════════ */}
       {section === 'test' && (
