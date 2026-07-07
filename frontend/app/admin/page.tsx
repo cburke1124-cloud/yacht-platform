@@ -20,7 +20,7 @@ import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import AdminCatalogTab from '@/app/components/admin/AdminCatalogTab';
 import AdminCharterTab from '@/app/components/admin/AdminCharterTab';
 import AdminFoundingBrokerTab from '@/app/components/admin/AdminFoundingBrokerTab';
-import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3 } from 'lucide-react';
+import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3, Link2, Copy, Check } from 'lucide-react';
 
 function AdminPageContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -189,11 +189,24 @@ function timeAgo(iso?: string): string {
 // "User 1"..."User 5" all "Joined today", etc.), unconnected to any backend
 // call. Now pulls from the same /admin/stats, /admin/users, and
 // /listings/admin-list endpoints the Users/Listings tabs already use.
+interface OutreachAnalytics {
+  total_dealers: number;
+  monthly_commission: number;
+  affiliate?: {
+    code: string;
+    referral_link: string;
+    commission_rate: number;
+    referred_signups: number;
+  };
+}
+
 function AdminDashboardOverview() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [recentListings, setRecentListings] = useState<RecentListing[]>([]);
+  const [outreach, setOutreach] = useState<OutreachAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -202,12 +215,25 @@ function AdminDashboardOverview() {
       fetch(apiUrl('/admin/stats'), { headers }).then(r => r.ok ? r.json() : null),
       fetch(apiUrl('/admin/users?limit=5'), { headers }).then(r => r.ok ? r.json() : null),
       fetch(apiUrl('/listings/admin-list'), { headers }).then(r => r.ok ? r.json() : null),
-    ]).then(([statsData, usersData, listingsData]) => {
+      // Admin outreach — admins doing occasional broker/dealer outreach get the
+      // same lightweight referral tracking sales reps use, without the full
+      // sales-rep dashboard (deals, demo portal, etc. aren't needed here).
+      fetch(apiUrl('/sales-rep/analytics'), { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([statsData, usersData, listingsData, outreachData]) => {
       if (statsData) setStats(statsData);
       if (usersData?.users) setRecentUsers(usersData.users);
       if (Array.isArray(listingsData)) setRecentListings(listingsData.slice(0, 5));
+      if (outreachData) setOutreach(outreachData);
     }).finally(() => setLoading(false));
   }, []);
+
+  const copyReferralLink = () => {
+    if (!outreach?.affiliate) return;
+    const link = `${window.location.origin}${outreach.affiliate.referral_link}`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (loading) {
     return (
@@ -320,6 +346,38 @@ function AdminDashboardOverview() {
           )}
         </div>
       </div>
+
+      {/* My Outreach — lightweight referral tracking for admins doing occasional
+          broker outreach, mirroring what sales reps see (but condensed —
+          admins aren't selling full time, so this skips deals/demo/resources). */}
+      {outreach?.affiliate && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2"><Link2 size={18} className="text-primary" /> My Outreach</h3>
+            <span className="text-xs text-gray-500">{outreach.affiliate.referred_signups} signup{outreach.affiliate.referred_signups === 1 ? '' : 's'}</span>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4 mb-4">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Referral Code</p>
+              <p className="font-mono font-semibold text-gray-900">{outreach.affiliate.code}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Dealers Referred</p>
+              <p className="font-semibold text-gray-900">{outreach.total_dealers}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Commission Rate</p>
+              <p className="font-semibold text-gray-900">{outreach.affiliate.commission_rate}%</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+            <p className="text-sm font-mono text-primary flex-1 truncate">{typeof window !== 'undefined' ? `${window.location.origin}${outreach.affiliate.referral_link}` : outreach.affiliate.referral_link}</p>
+            <button onClick={copyReferralLink} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1">
+              {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

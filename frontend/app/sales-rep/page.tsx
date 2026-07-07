@@ -8,7 +8,7 @@ import {
   Handshake, UserPlus, Activity, Check, ChevronDown, Star, Shield,
   Zap, Crown,
 } from 'lucide-react';
-import { apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
+import { apiUrl, markLoggedIn, markLoggedOut } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
 import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
 
@@ -97,6 +97,7 @@ interface TierData {
   trial_days: number;
   active: boolean;
   is_custom_pricing?: boolean;
+  one_time?: boolean;
 }
 
 type Tab = 'overview' | 'deals' | 'dealers' | 'register' | 'demo' | 'resources' | 'preview';
@@ -147,6 +148,7 @@ export default function SalesRepDashboard() {
   const [docs, setDocs]                     = useState<DocItem[]>([]);
   const [activeDoc, setActiveDoc]           = useState<DocItem | null>(null);
   const [demo, setDemo]                     = useState<DemoAccount | null>(null);
+  const [openingDemo, setOpeningDemo]       = useState(false);
   const [showDealModal, setShowDealModal]   = useState(false);
   const [activeTab, setActiveTab]           = useState<Tab>('overview');
   const [copiedText, setCopiedText]         = useState('');
@@ -160,7 +162,7 @@ export default function SalesRepDashboard() {
 
   const [brokerForm, setBrokerForm] = useState({
     email: '', first_name: '', last_name: '', phone: '',
-    company_name: '', subscription_tier: 'basic',
+    company_name: '', subscription_tier: 'pro',
     custom_price: '',
     free_days: '',
     discount_type: 'percentage',
@@ -239,6 +241,38 @@ export default function SalesRepDashboard() {
   };
 
   /* --- actions -------------------------------------------------- */
+
+  const openDemoDashboard = async () => {
+    // This used to be a plain <a href="/dashboard"> link, which never
+    // actually logged into the demo account — the app's browser auth is a
+    // single httpOnly session cookie, and nothing set it to the demo
+    // account's credentials. POST /auth/demo/access now does that (see
+    // backend), replacing the sales rep's own active session with the
+    // demo account's. There's no way to hold both sessions open in the
+    // same browser at once, so warn before switching.
+    if (!confirm("This will switch your browser session to the demo account. You'll need to log back in as yourself afterward. Continue?")) {
+      return;
+    }
+    setOpeningDemo(true);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(apiUrl('/auth/demo/access'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await r.json();
+      if (!r.ok || !data.success) {
+        alert(data.detail || 'Failed to open demo account');
+        return;
+      }
+      markLoggedIn();
+      window.location.href = '/dashboard';
+    } catch (e) {
+      alert('Failed to open demo account');
+    } finally {
+      setOpeningDemo(false);
+    }
+  };
 
   const copyToClipboard = async (text: string, label?: string) => {
     await navigator.clipboard.writeText(text);
@@ -320,13 +354,16 @@ export default function SalesRepDashboard() {
     return prices[tier] ?? 0;
   };
 
-  // Reference-table estimate (Broker Tiers tab) — not tied to a real dealer,
-  // so it uses this rep's own commission rate rather than a specific referral's.
+  // Reference-table estimate (Register Broker tier cards) — not tied to a
+  // real dealer, so it uses this rep's own commission rate rather than a
+  // specific referral's. Brokers now pay a single one-time setup fee (see
+  // BROKER_SETUP_FEE in routes_sales.py), not a recurring monthly charge,
+  // so this is a one-time commission, not "/mo".
   const getTierCommission = (tier: string) => {
     if (tier === 'ultimate') return 'Custom';
     const price = getTierPrice(tier);
     const rate = analytics?.affiliate?.commission_rate ?? 10;
-    return price > 0 ? `$${(price * (rate / 100)).toFixed(2)}/mo` : '$0.00/mo';
+    return price > 0 ? `$${(price * (rate / 100)).toFixed(2)} one-time` : '$0.00';
   };
 
   // Real per-dealer commission — uses the actual commission_rate and
@@ -745,7 +782,7 @@ export default function SalesRepDashboard() {
                 {t.is_custom_pricing ? (
                   <span className="text-lg font-bold text-secondary">Custom Pricing</span>
                 ) : (
-                  <span className="text-lg font-bold text-secondary">${t.price}<span className="text-sm font-normal text-dark/50">/mo</span></span>
+                  <span className="text-lg font-bold text-secondary">${t.price}<span className="text-sm font-normal text-dark/50">{t.one_time ? ' one-time' : '/mo'}</span></span>
                 )}
               </div>
               <div className="text-xs text-dark/60 space-y-1">
@@ -949,7 +986,7 @@ export default function SalesRepDashboard() {
                   ? `$${Number(brokerForm.custom_price).toFixed(2)}/mo`
                   : tiers[brokerForm.subscription_tier]?.is_custom_pricing
                     ? 'Custom'
-                    : `$${tiers[brokerForm.subscription_tier]?.price ?? 29}/mo`}
+                    : `$${tiers[brokerForm.subscription_tier]?.price ?? 199} one-time`}
               </p>
             </div>
             <button onClick={registerBroker} disabled={brokerSubmitting}
@@ -973,7 +1010,7 @@ export default function SalesRepDashboard() {
               {brokerResult.always_free ? (
                 <div><span className="text-green-700 font-medium">Billing:</span> <span className="text-green-900">Always free</span></div>
               ) : (
-                <div><span className="text-green-700 font-medium">Effective price:</span> <span className="text-green-900">${Number(brokerResult.effective_monthly_price ?? 0).toFixed(2)}/mo</span></div>
+                <div><span className="text-green-700 font-medium">Effective price:</span> <span className="text-green-900">${Number(brokerResult.effective_monthly_price ?? 0).toFixed(2)}{brokerResult.subscription_tier === 'ultimate' ? '/mo' : ' one-time'}</span></div>
               )}
               {brokerResult.trial_active && brokerResult.trial_end_date && (
                 <div><span className="text-green-700 font-medium">Free trial:</span> <span className="text-green-900">until {new Date(brokerResult.trial_end_date).toLocaleDateString()}</span></div>
@@ -986,7 +1023,7 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-green-600 mt-2">The broker will use the link in their email to set their own password.</p>
               </div>
             </div>
-            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'basic', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}
+            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'pro', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}
               className="mt-4 text-sm text-green-700 font-medium hover:text-green-900">Register another &rarr;</button>
           </div>
         )}
@@ -1035,7 +1072,13 @@ export default function SalesRepDashboard() {
               <p className="text-sm text-dark/60 mt-1">Email: <span className="font-mono">{demo.email}</span></p>
               <p className="text-sm text-dark/60">Listings: <span className="font-semibold">{demo.listings || 0} pre-loaded</span></p>
             </div>
-            <a href="/dashboard" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium"><ExternalLink size={14} /> Open Demo Dashboard</a>
+            <button
+              onClick={openDemoDashboard}
+              disabled={openingDemo}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
+            >
+              <ExternalLink size={14} /> {openingDemo ? 'Switching…' : 'Open Demo Dashboard'}
+            </button>
           </div>
         </div>
 

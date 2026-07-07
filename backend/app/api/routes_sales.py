@@ -22,13 +22,22 @@ from app.models.misc import SiteSettings
 
 router = APIRouter()
 
+# Broker/dealer pricing pivoted to a single flat one-time setup fee (see
+# SIGNUP_FEE in frontend/app/register/page.tsx and SETUP_FEE_PRICE_ID /
+# mode="payment" in routes_payments.py) — brokers no longer choose between
+# tiered monthly plans with different feature limits; every broker gets
+# full platform access for one $199 payment. basic/plus below are kept
+# only so historical dealer records that still reference those tier
+# strings don't break, not because they're purchasable plans anymore.
+BROKER_SETUP_FEE = 199.0
+
 TIER_PRICES = {
     "free": 0.0,
     "trial": 0.0,
-    "basic": 199.0,
-    "plus": 299.0,
-    "premium": 499.0,
-    "pro": 499.0,
+    "basic": 199.0,   # legacy tier string — no longer sold, kept for historical records
+    "plus": 299.0,    # legacy tier string — no longer sold, kept for historical records
+    "premium": 499.0, # legacy tier string — no longer sold, kept for historical records
+    "pro": BROKER_SETUP_FEE,  # the one real broker plan: $199 one-time
     "ultimate": 0.0,  # Custom/enterprise pricing — managed manually
     "private_basic": 9.0,
     "private_plus": 19.0,
@@ -37,10 +46,10 @@ TIER_PRICES = {
 
 
 _DEFAULT_BROKER_TIERS = {
-    "basic":    {"name": "Basic",    "price": 199,  "listings": 25,     "images_per_listing": 15,     "videos_per_listing": 1,      "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"],                                                              "trial_days": 14, "active": True},
-    "plus":     {"name": "Plus",     "price": 299,  "listings": 75,     "images_per_listing": 30,     "videos_per_listing": 3,      "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"],                                       "trial_days": 14, "active": True},
-    "pro":      {"name": "Pro",      "price": 499,  "listings": 999999, "images_per_listing": 50,     "videos_per_listing": 5,      "features": ["Unlimited listings", "50 images per listing", "5 videos per listing", "Top search placement", "Featured broker badge", "Dedicated account manager", "Advanced analytics", "AI scraper tools"],            "trial_days": 30, "active": True},
-    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited listings", "Unlimited images & video", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Premium search placement"], "trial_days": 0, "active": True, "is_custom_pricing": True},
+    "basic":    {"name": "Basic",    "price": 199,  "listings": 25,     "images_per_listing": 15,     "videos_per_listing": 1,      "features": ["25 active listings", "15 images per listing", "1 video per listing", "Enhanced search visibility", "Priority email support", "Analytics dashboard"],                                                              "trial_days": 14, "active": False},
+    "plus":     {"name": "Plus",     "price": 299,  "listings": 75,     "images_per_listing": 30,     "videos_per_listing": 3,      "features": ["75 active listings", "30 images per listing", "3 videos per listing", "Priority search placement", "Featured broker badge", "Priority support", "Advanced analytics"],                                       "trial_days": 14, "active": False},
+    "pro":      {"name": "Full Access", "price": BROKER_SETUP_FEE, "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Unlimited active listings", "Unlimited photos & videos per listing", "Full buyer messaging & inquiry management", "AI-powered search placement", "Broker profile page with team roster", "Analytics dashboard", "Data feed sync & bulk import tools", "Co-brokering network access"], "trial_days": 0, "active": True, "one_time": True},
+    "ultimate": {"name": "Ultimate", "price": 0,   "listings": 999999, "images_per_listing": 999999, "videos_per_listing": 999999, "features": ["Everything in Full Access", "White-glove onboarding", "Dedicated account manager", "Custom API integrations", "Negotiated enterprise pricing"], "trial_days": 0, "active": True, "is_custom_pricing": True, "one_time": True},
 }
 
 
@@ -81,9 +90,16 @@ def get_sales_rep_analytics(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get sales rep analytics with dealer details."""
-    if current_user.user_type != "salesman":
-        raise AuthorizationException("Sales rep access required")
+    """Get outreach/referral analytics with dealer details.
+
+    Also usable by admins doing occasional outreach — the underlying
+    AffiliateAccount/ReferralSignup tracking is generic per-user and
+    already works for any caller; this endpoint was just gated to
+    "salesman" only, so admins had no equivalent metrics view even after
+    generating their own affiliate link.
+    """
+    if current_user.user_type not in ("salesman", "admin"):
+        raise AuthorizationException("Sales rep or admin access required")
 
     affiliate_account = _ensure_sales_rep_affiliate_account(current_user, db)
 
@@ -695,7 +711,14 @@ def get_broker_tiers(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get broker subscription tiers with features and pricing."""
+    """Get broker subscription tiers with features and pricing.
+
+    Only returns tiers marked active — brokers now pay a single flat
+    one-time setup fee (see BROKER_SETUP_FEE) rather than choosing between
+    tiered monthly plans, so the deprecated basic/plus tiers are excluded
+    here even if a saved admin config still has them flagged active from
+    before that pivot.
+    """
     if current_user.user_type not in ("salesman", "admin"):
         raise AuthorizationException("Sales rep access required")
 
@@ -706,4 +729,5 @@ def get_broker_tiers(
         saved = site.subscription_config.get("broker_tiers", {})
 
     merged = {**_DEFAULT_BROKER_TIERS, **saved}
-    return {"tiers": merged}
+    active_only = {k: v for k, v in merged.items() if v.get("active", True)}
+    return {"tiers": active_only}

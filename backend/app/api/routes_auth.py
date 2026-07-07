@@ -838,35 +838,46 @@ def send_trial_expiring_notices(
 
 @router.post("/demo/access")
 def access_demo_account(
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Sales rep endpoint to get login credentials for their demo account.
-    Returns a token to directly access the demo dealer account.
+    Sales rep endpoint to switch the current browser session into their demo
+    account. Browser auth is cookie-based (see set_auth_cookie) — this
+    previously only returned a bearer token in the JSON body, a leftover
+    from before that migration. Nothing in the app reads that token for
+    page loads, so clicking "Open Demo Dashboard" never actually logged
+    into the demo account; it silently did nothing.
+
+    This replaces the sales rep's own session cookie with the demo
+    account's, matching the "view as" pattern login/register already use.
+    The rep will need to log back in as themselves afterward — there's
+    only one active session per browser.
     """
     if current_user.user_type != "salesman":
         raise AuthenticationException("Only sales reps can access demo accounts")
-    
+
     # Find the demo account for this sales rep
     demo_account = db.query(User).filter(
         User.demo_owner_sales_rep_id == current_user.id,
         User.is_demo == True,
     ).first()
-    
+
     if not demo_account:
         raise ResourceNotFoundException("Demo account", "not assigned to this sales rep")
-    
-    # Create an access token for the demo account
+
+    # Create an access token for the demo account and set it as the active session
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": demo_account.email},
         expires_delta=access_token_expires
     )
-    
+    set_auth_cookie(response, access_token)
+
     # Get demo account info
     listings = db.query(Listing).filter(Listing.user_id == demo_account.id).count()
-    
+
     return {
         "success": True,
         "access_token": access_token,
@@ -877,7 +888,7 @@ def access_demo_account(
             "company_name": demo_account.company_name,
             "listings": listings,
         },
-        "message": "Use this token to access the demo account dashboard"
+        "message": "Session switched to the demo account.",
     }
 
 
