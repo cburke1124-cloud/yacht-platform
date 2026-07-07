@@ -1074,10 +1074,11 @@ export default function AdminCharterTab() {
   };
 
   const fmtRate = (c: CharterListing) => {
-    if (!c.day_rate && !c.week_rate) return '—';
+    if (!c.day_rate && !c.week_rate && !c.half_day_rate) return '—';
     const sym = c.currency === 'USD' ? '$' : c.currency;
     if (c.day_rate) return `${sym}${c.day_rate.toLocaleString()}/day`;
-    return `${sym}${c.week_rate!.toLocaleString()}/wk`;
+    if (c.week_rate) return `${sym}${c.week_rate.toLocaleString()}/wk`;
+    return `${sym}${c.half_day_rate!.toLocaleString()}/half-day`;
   };
 
   return (

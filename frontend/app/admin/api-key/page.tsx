@@ -21,6 +21,8 @@ type ListingSyndicationSetting = {
   listing_id: number;
   listing_title: string;
   listing_image: string;
+  dealer_id: number;
+  dealer_name: string;
   allow_api_access: boolean;
   blocked_keys: string[];
 };
@@ -273,7 +275,7 @@ export default function AdminAPIKeyManagement() {
                           <button
                             onClick={() => copyToClipboard(key.key)}
                             className="p-1 hover:bg-gray-200 rounded"
-                            title="Copy full key"
+                            title="Copy prefix (the full key is only shown once, at creation)"
                           >
                             <Copy size={16} />
                           </button>
@@ -377,8 +379,7 @@ export default function AdminAPIKeyManagement() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {/* Would show dealer name here */}
-                        Dealer Name
+                        {setting.dealer_name}
                       </td>
                       <td className="px-6 py-4">
                         {setting.allow_api_access ? (

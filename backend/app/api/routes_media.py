@@ -364,6 +364,22 @@ async def bulk_upload_media(
     }
 
 
+def _org_media_ids(current_user: User, db: Session) -> list[int]:
+    """User ids in the caller's organisation (dealer + all their team
+    members) — media is shared org-wide, so any ownership check on a
+    MediaFile must use this, not current_user.id alone."""
+    root_dealer_id = current_user.parent_dealer_id or current_user.id
+    team_ids = (
+        db.query(User.id)
+        .filter(
+            (User.id == root_dealer_id) |
+            (User.parent_dealer_id == root_dealer_id)
+        )
+        .all()
+    )
+    return [row[0] for row in team_ids] or [current_user.id]
+
+
 @router.get("/my-media")
 def get_my_media(
     skip: int = 0,
@@ -375,19 +391,7 @@ def get_my_media(
     db: Session = Depends(get_db)
 ):
     """Get media files for the current user's company (dealer + their team members)."""
-    # Determine the root dealer for this user
-    root_dealer_id = current_user.parent_dealer_id or current_user.id
-
-    # Collect all user IDs in the same organisation
-    team_ids = (
-        db.query(User.id)
-        .filter(
-            (User.id == root_dealer_id) |
-            (User.parent_dealer_id == root_dealer_id)
-        )
-        .all()
-    )
-    org_ids = [row[0] for row in team_ids] or [current_user.id]
+    org_ids = _org_media_ids(current_user, db)
 
     query = db.query(MediaFile).filter(
         MediaFile.user_id.in_(org_ids),
@@ -431,12 +435,19 @@ def delete_media(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete a media file"""
+    """Delete a media file.
+
+    Scoped to the caller's whole organisation (not just current_user.id):
+    /media/my-media intentionally returns dealer + all team members' files
+    as one shared gallery, so a dealer deleting a team member's upload from
+    that same gallery must not 404 just because they aren't the uploader.
+    """
+    org_ids = _org_media_ids(current_user, db)
     media = db.query(MediaFile).filter(
         MediaFile.id == media_id,
-        MediaFile.user_id == current_user.id  # ✅ CHANGED from owner_id
+        MediaFile.user_id.in_(org_ids),
     ).first()
-    
+
     if not media:
         raise ResourceNotFoundException("Media", media_id)
     
@@ -459,7 +470,8 @@ def get_media_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's media statistics"""
+    """Get organisation media statistics (dealer + all team members)."""
+    org_ids = _org_media_ids(current_user, db)
     stats = db.query(
         func.count(MediaFile.id).label('total_files'),
         func.sum(MediaFile.file_size_mb).label('total_size_mb'),
@@ -467,7 +479,7 @@ def get_media_stats(
         func.count(MediaFile.id).filter(MediaFile.file_type == 'video').label('videos'),
         func.count(MediaFile.id).filter(MediaFile.file_type == 'pdf').label('pdfs')
     ).filter(
-        MediaFile.user_id == current_user.id,  # ✅ CHANGED from owner_id
+        MediaFile.user_id.in_(org_ids),
         MediaFile.deleted_at == None
     ).first()
     

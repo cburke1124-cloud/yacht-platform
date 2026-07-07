@@ -101,7 +101,13 @@ class ScrapeRequest(BaseModel):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _require_staff(user: User):
-    if user.user_type not in ("admin", "sales_rep"):
+    # User.user_type uses "salesman" for this role everywhere else in the
+    # codebase (routes_sales.py, routes_auth.py, routes_admin.py, etc.) —
+    # "sales_rep" is only a valid value for the unrelated
+    # AffiliateAccount.account_type field (see _serialize below). This typo
+    # meant every sales rep got a 403 on the preview-listings tool despite
+    # the docstring/UI implying they have access.
+    if user.user_type not in ("admin", "salesman"):
         raise HTTPException(status_code=403, detail="Staff access required")
 
 

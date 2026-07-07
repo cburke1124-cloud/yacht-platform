@@ -20,8 +20,9 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.dealer import DealerProfile, EmailVerification
-from app.models.listing import Listing
+from app.models.listing import Listing, ListingImage
 from app.models.charter import CharterListing
+from app.models.api_keys import APIKey, ListingAPIBlock
 from app.models.media import MediaFile, MediaFolder, ListingMediaAttachment
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.partner_growth import PartnerDeal
@@ -1054,6 +1055,11 @@ def get_all_dealers(
         charter_count = charter_base.count()
         active_charters = charter_base.filter(CharterListing.status == "active").count()
 
+        dealer_view_stats = db.query(
+            func.coalesce(func.sum(Listing.views), 0),
+            func.coalesce(func.sum(Listing.inquiries), 0),
+        ).filter(Listing.user_id == dealer.id).first()
+
         dealer_list.append({
             "id": dealer.id,
             "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip() or dealer.email,
@@ -1074,6 +1080,8 @@ def get_all_dealers(
             "active_listings": active_listings + active_charters,
             "total_for_sale_listings": listing_count,
             "total_charter_listings": charter_count,
+            "total_views": int(dealer_view_stats[0]),
+            "total_inquiries": int(dealer_view_stats[1]),
             "created_at": dealer.created_at.isoformat() if dealer.created_at else None,
             "assigned_sales_rep_id": dealer.assigned_sales_rep_id,
             "subscription_monthly_price": dealer.subscription_monthly_price,
@@ -2230,20 +2238,35 @@ def get_admin_stats(
     db: Session = Depends(get_db)
 ):
     """Get admin dashboard statistics."""
-    
+
+    now = datetime.utcnow()
+    last_30 = now - timedelta(days=30)
+    prior_30 = now - timedelta(days=60)
+
+    def _pct_change(current_period: int, prior_period: int) -> Optional[float]:
+        if prior_period == 0:
+            return None if current_period == 0 else 100.0
+        return round((current_period - prior_period) / prior_period * 100, 1)
+
     # User stats
     total_users = db.query(User).count()
     active_users = db.query(User).filter(User.active == True).count()
+    total_inquiries = db.query(func.sum(Listing.inquiries)).scalar() or 0
     total_dealers = db.query(User).filter(User.user_type == "dealer").count()
     active_dealers = db.query(User).filter(
         User.user_type == "dealer",
         User.active == True
     ).count()
-    
+    users_last_30 = db.query(User).filter(User.created_at >= last_30).count()
+    users_prior_30 = db.query(User).filter(User.created_at >= prior_30, User.created_at < last_30).count()
+
     # Listing stats (for-sale)
     total_listings = db.query(Listing).count()
     active_listings = db.query(Listing).filter(Listing.status == "active").count()
     pending_listings = db.query(Listing).filter(Listing.status == "pending").count()
+    total_views = db.query(func.sum(Listing.views)).scalar() or 0
+    listings_last_30 = db.query(Listing).filter(Listing.created_at >= last_30).count()
+    listings_prior_30 = db.query(Listing).filter(Listing.created_at >= prior_30, Listing.created_at < last_30).count()
 
     # Charter listing stats — previously omitted entirely, silently
     # undercounting "total/active listings" platform-wide once charters
@@ -2253,6 +2276,8 @@ def get_admin_stats(
     total_charters = charter_base.count()
     active_charters = charter_base.filter(CharterListing.status == "active").count()
     draft_charters = charter_base.filter(CharterListing.status == "draft").count()
+    charters_last_30 = charter_base.filter(CharterListing.created_at >= last_30).count()
+    charters_prior_30 = charter_base.filter(CharterListing.created_at >= prior_30, CharterListing.created_at < last_30).count()
 
     # Revenue calculation (simple)
     tier_prices = {"free": 0, "basic": 29, "premium": 99, "trial": 0}
@@ -2266,29 +2291,201 @@ def get_admin_stats(
             "total": total_users,
             "active": active_users,
             "dealers": total_dealers,
-            "active_dealers": active_dealers
+            "active_dealers": active_dealers,
+            "new_last_30d": users_last_30,
+            "pct_change_30d": _pct_change(users_last_30, users_prior_30),
+            "engagement_rate": round(active_users / total_users * 100, 1) if total_users else 0.0,
         },
         "listings": {
             "total": total_listings,
             "active": active_listings,
-            "pending": pending_listings
+            "pending": pending_listings,
+            "total_views": total_views,
+            "pct_change_30d": _pct_change(listings_last_30, listings_prior_30),
         },
         "charters": {
             "total": total_charters,
             "active": active_charters,
-            "draft": draft_charters
+            "draft": draft_charters,
+            "pct_change_30d": _pct_change(charters_last_30, charters_prior_30),
         },
         # Combined figures for dashboard widgets that want one "total listings"
         # number across both for-sale and charter inventory.
         "all_listings": {
             "total": total_listings + total_charters,
-            "active": active_listings + active_charters
+            "active": active_listings + active_charters,
+            "total_views": total_views,
+            "pct_change_30d": _pct_change(listings_last_30 + charters_last_30, listings_prior_30 + charters_prior_30),
         },
         "revenue": {
             "monthly": monthly_revenue,
             "annual": monthly_revenue * 12
-        }
+        },
+        "total_inquiries": int(total_inquiries),
     }
+
+
+# ============= API KEYS & LISTING SYNDICATION (admin) =============
+# frontend/app/admin/api-key/page.tsx previously called /admin/api-keys,
+# /admin/api-keys/generate, /admin/api-keys/{id}/revoke, and
+# /admin/syndication-settings + /admin/listings/{id}/syndication — none of
+# which existed anywhere in the backend (the only real API-key endpoints,
+# in routes_api_keys.py, are dealer-scoped to `current_user.id` and mounted
+# at plain /api-keys, not /admin/api-keys). The entire page silently failed
+# every fetch. These are the actual admin-scoped endpoints it needs.
+
+@router.get("/api-keys")
+def admin_list_api_keys(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """List API keys for every dealer (admin view), unlike the dealer-scoped
+    GET /api-keys in routes_api_keys.py."""
+    rows = (
+        db.query(APIKey, User)
+        .join(User, APIKey.dealer_id == User.id)
+        .order_by(APIKey.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": k.id,
+            "dealer_id": k.dealer_id,
+            "dealer_name": u.company_name or f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email,
+            # The real key is only ever returned once, at creation time (it's
+            # stored as a one-way hash) — this is a masked preview, not a
+            # copyable secret. The frontend's "copy full key" action for
+            # existing rows was never something the backend could support.
+            "key_preview": f"{k.key_prefix}{'•' * 24}",
+            "key": f"{k.key_prefix}{'•' * 24}",
+            "created_at": k.created_at.isoformat() if k.created_at else None,
+            "last_used": k.last_used_at.isoformat() if k.last_used_at else None,
+            "request_count": 0,  # not tracked by the APIKey model today
+            "active": k.is_active,
+            "rate_limit": k.rate_limit,
+        }
+        for k, u in rows
+    ]
+
+
+@router.post("/api-keys/generate")
+def admin_generate_api_key(
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Generate a new API key on behalf of a chosen dealer."""
+    import secrets as _secrets
+    import hashlib as _hashlib
+
+    dealer_id = data.get("dealer_id")
+    if not dealer_id:
+        raise ValidationException("dealer_id is required")
+    dealer = db.query(User).filter(User.id == dealer_id, User.user_type == "dealer").first()
+    if not dealer:
+        raise ResourceNotFoundException("Dealer", dealer_id)
+
+    key = f"yvk_{_secrets.token_urlsafe(32)}"
+    key_hash = _hashlib.sha256(key.encode()).hexdigest()
+    api_key = APIKey(
+        dealer_id=dealer_id,
+        key_hash=key_hash,
+        key_prefix=key[:8],
+        name=data.get("name") or f"Admin-issued key for {dealer.company_name or dealer.email}",
+        rate_limit=data.get("rate_limit", 1000),
+    )
+    db.add(api_key)
+    db.commit()
+    db.refresh(api_key)
+
+    return {
+        "id": api_key.id,
+        "api_key": key,  # only returned once
+        "dealer_id": dealer_id,
+        "message": "Save this key securely — it won't be shown again.",
+    }
+
+
+@router.post("/api-keys/{key_id}/revoke")
+def admin_revoke_api_key(
+    key_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    api_key = db.query(APIKey).filter(APIKey.id == key_id).first()
+    if not api_key:
+        raise ResourceNotFoundException("API key", key_id)
+    api_key.is_active = False
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/syndication-settings")
+def get_syndication_settings(
+    search: Optional[str] = None,
+    limit: int = 200,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Per-listing API syndication access — a listing is blocked from API
+    access if it has a ListingAPIBlock row."""
+    query = db.query(Listing).filter(Listing.deleted_at.is_(None))
+    if search:
+        query = query.filter(Listing.title.ilike(f"%{search}%"))
+    listings = query.order_by(Listing.created_at.desc()).limit(limit).all()
+    listing_ids = [l.id for l in listings]
+
+    blocked_ids = {
+        row[0] for row in db.query(ListingAPIBlock.listing_id).filter(ListingAPIBlock.listing_id.in_(listing_ids)).all()
+    } if listing_ids else set()
+
+    dealer_names = {
+        u.id: (u.company_name or f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email)
+        for u in db.query(User).filter(User.id.in_({l.user_id for l in listings})).all()
+    } if listings else {}
+
+    primary_images = (
+        db.query(ListingImage.listing_id, ListingImage.url)
+        .filter(ListingImage.listing_id.in_(listing_ids), ListingImage.is_primary.is_(True))
+        .all()
+    ) if listing_ids else []
+    image_map = {row[0]: row[1] for row in primary_images}
+
+    return [
+        {
+            "listing_id": l.id,
+            "listing_title": l.title,
+            "listing_image": image_map.get(l.id),
+            "dealer_id": l.user_id,
+            "dealer_name": dealer_names.get(l.user_id, "Unknown"),
+            "allow_api_access": l.id not in blocked_ids,
+            "blocked_keys": [],
+        }
+        for l in listings
+    ]
+
+
+@router.put("/listings/{listing_id}/syndication")
+def update_listing_syndication(
+    listing_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    listing = db.query(Listing).filter(Listing.id == listing_id).first()
+    if not listing:
+        raise ResourceNotFoundException("Listing", listing_id)
+
+    allow = bool(data.get("allow_api_access", True))
+    existing_block = db.query(ListingAPIBlock).filter(ListingAPIBlock.listing_id == listing_id).first()
+
+    if allow and existing_block:
+        db.delete(existing_block)
+    elif not allow and not existing_block:
+        db.add(ListingAPIBlock(listing_id=listing_id, dealer_id=listing.user_id, created_by=current_user.id))
+
+    db.commit()
+    return {"success": True, "listing_id": listing_id, "allow_api_access": allow}
 
 
 # ============= SYSTEM / DIAGNOSTICS =============
@@ -3648,57 +3845,15 @@ def register_broker_admin(
 
 # ============= SUBSCRIPTION TIER CONFIGURATION =============
 
-@router.get("/subscription-config")
-def get_subscription_config(
-    current_user: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
-    """Get current subscription tier configuration."""
-    site = db.query(SiteSettings).first()
-    if not site or not site.subscription_config:
-        # Return merged defaults
-        return {
-            "broker_tiers": _DEFAULT_BROKER_TIERS,
-        }
-    
-    config = site.subscription_config
-    broker_tiers = {**_DEFAULT_BROKER_TIERS, **config.get("broker_tiers", {})}
-    
-    return {
-        "broker_tiers": broker_tiers,
-    }
-
-
-@router.put("/subscription-config")
-def update_subscription_config(
-    data: dict,
-    current_user: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
-    """Update subscription tier configuration."""
-    site = db.query(SiteSettings).first()
-    if not site:
-        site = SiteSettings()
-        db.add(site)
-    
-    if not site.subscription_config:
-        site.subscription_config = {}
-    
-    # Update broker tiers if provided
-    if "broker_tiers" in data:
-        site.subscription_config["broker_tiers"] = data["broker_tiers"]
-    
-    db.commit()
-    db.refresh(site)
-    
-    broker_tiers = {**_DEFAULT_BROKER_TIERS, **site.subscription_config.get("broker_tiers", {})}
-    
-    return {
-        "success": True,
-        "message": "Subscription configuration updated",
-        "broker_tiers": broker_tiers,
-    }
-
+# NOTE: a second GET/PUT /subscription-config pair used to be defined here
+# with a different response contract ({"broker_tiers": ...} vs the live
+# handler's {"tiers": ...} above). FastAPI/Starlette registers routes in file
+# order, so that duplicate was always dead/unreachable — it only appeared to
+# be "the real one" to a reader scanning top-to-bottom. Its only frontend
+# caller, AdminSubscriptionTab.tsx, is itself never imported by any page, so
+# nothing was actually broken in production; removed to stop it from
+# silently becoming live (and corrupting saved data) if these routes are
+# ever reordered during a future refactor.
 
 # ── Resend / regenerate broker setup link ─────────────────────────────────────
 
@@ -3753,52 +3908,13 @@ def resend_broker_setup_email(
 # Manual subscription tier override (support tool — bypasses Stripe)
 # ---------------------------------------------------------------------------
 
-VALID_TIERS = {"free", "basic", "plus", "pro", "ultimate"}
-
-
-@router.post("/admin/users/{user_id}/set-tier")
-def admin_set_user_tier(
-    user_id: int,
-    body: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """
-    Manually override a user's subscription tier without going through Stripe.
-    Use this to fix billing issues, grant comps, or unblock users on launch day.
-
-    Body: { "tier": "basic" | "plus" | "pro" | "ultimate" | "free", "note": "optional reason" }
-    """
-    new_tier = (body.get("tier") or "").strip().lower()
-    if new_tier not in VALID_TIERS:
-        raise ValidationException(f"Invalid tier '{new_tier}'. Must be one of: {', '.join(sorted(VALID_TIERS))}")
-
-    target = db.query(User).filter(User.id == user_id).first()
-    if not target:
-        raise ResourceNotFoundException(f"User {user_id} not found")
-
-    old_tier = target.subscription_tier
-    target.subscription_tier = new_tier
-    db.commit()
-
-    logger.info(
-        "Admin %s manually set user %s (%s) tier: %s → %s. Note: %s",
-        current_user.email,
-        target.id,
-        target.email,
-        old_tier,
-        new_tier,
-        body.get("note", ""),
-    )
-
-    return {
-        "success": True,
-        "user_id": target.id,
-        "email": target.email,
-        "old_tier": old_tier,
-        "new_tier": new_tier,
-    }
-
+# NOTE: a second, less-capable /users/{user_id}/set-tier handler used to be
+# defined here as "/admin/users/{user_id}/set-tier" — but this router is
+# already mounted at prefix /api/admin, so that path actually resolved to
+# /api/admin/admin/users/{id}/set-tier and was never reachable. The working
+# handler (with always_free support, matching AdminUsersTab.tsx) is above,
+# near the top of this file. Removed to avoid the doubled-prefix path being
+# mistaken for a real, working endpoint.
 
 # ---------------------------------------------------------------------------
 # Scraped listing review queue — admin-only

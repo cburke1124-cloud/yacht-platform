@@ -19,6 +19,21 @@ from app.services.email_service import email_service
 router = APIRouter()
 
 
+def _dealer_id_for(user: User) -> int:
+    """Resolve the actual dealer/brokerage id a MANAGE_TEAM action should be
+    scoped to. A dealer/admin caller IS the dealer (their own id). But a
+    team_member with an owner/manager role also passes has_permission(...,
+    MANAGE_TEAM) — for them, every team query below must be scoped to
+    `parent_dealer_id`, not their own id, or it silently operates on "the
+    team member's own team" (which is empty) instead of the real
+    brokerage's team. This mirrors the pattern already used correctly in
+    the guest-broker endpoints further down this file.
+    """
+    if user.user_type in ("dealer", "admin"):
+        return user.id
+    return user.parent_dealer_id
+
+
 @router.get("/performance")
 def get_team_performance(
     days: int = 30,
@@ -29,18 +44,22 @@ def get_team_performance(
     if not has_permission(current_user, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission")
 
+    dealer_id = _dealer_id_for(current_user)
+    if not dealer_id:
+        raise AuthorizationException("No dealer account associated with this user")
+
     days = max(7, min(days, 180))
     now = datetime.utcnow()
     period_start = now - timedelta(days=days)
     previous_start = period_start - timedelta(days=days)
 
     members = db.query(User).filter(
-        User.parent_dealer_id == current_user.id,
+        User.parent_dealer_id == dealer_id,
         User.active == True,
     ).all()
 
     member_ids = [member.id for member in members]
-    dealer_and_team_ids = [current_user.id] + member_ids
+    dealer_and_team_ids = [dealer_id] + member_ids
 
     def inquiry_count_between(start: datetime, end: datetime) -> int:
         return db.query(func.count(Message.id)).filter(
@@ -200,6 +219,10 @@ def invite_team_member(
     if not has_permission(current_user, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission to manage team")
 
+    dealer_id = _dealer_id_for(current_user)
+    if not dealer_id:
+        raise AuthorizationException("No dealer account associated with this user")
+
     email = data.get("email")
     if db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first():
         raise ValidationException("User already exists")
@@ -217,6 +240,11 @@ def invite_team_member(
 
     temp_password = secrets.token_urlsafe(12)
 
+    # The actual dealer/brokerage — needed for company_name in the invite email
+    # and to inherit the real subscription_tier when the inviter is a
+    # team_member (their own subscription_tier field isn't meaningful).
+    dealer = current_user if current_user.user_type in ("dealer", "admin") else db.query(User).filter(User.id == dealer_id).first()
+
     member = User(
         email=email,
         password_hash=get_password_hash(temp_password, skip_validation=True),
@@ -224,10 +252,10 @@ def invite_team_member(
         last_name=data.get("last_name"),
         phone=data.get("phone"),
         user_type="team_member",
-        parent_dealer_id=current_user.id,
+        parent_dealer_id=dealer_id,
         role=role,
         permissions=permissions,
-        subscription_tier=current_user.subscription_tier,
+        subscription_tier=dealer.subscription_tier if dealer else current_user.subscription_tier,
         active=True,
     )
 
@@ -261,7 +289,7 @@ def invite_team_member(
         to_email=email,
         subject="Team Invitation - YachtVersal",
         html_content=f"""
-        <h2>You've been invited to join {current_user.company_name or 'a team'} on YachtVersal!</h2>
+        <h2>You've been invited to join {(dealer.company_name if dealer else current_user.company_name) or 'a team'} on YachtVersal!</h2>
         <p>Your temporary password is: <code>{temp_password}</code></p>
         <p>Please log in at <a href="https://yachtversal.com/login">https://yachtversal.com/login</a> and change your password.</p>
         {verify_section}
@@ -280,8 +308,9 @@ def get_team_members(
     if not has_permission(current_user, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission")
 
+    dealer_id = _dealer_id_for(current_user)
     members = db.query(User).filter(
-        User.parent_dealer_id == current_user.id,
+        User.parent_dealer_id == dealer_id,
         User.active == True
     ).all()
 
@@ -315,7 +344,7 @@ def update_member_permissions(
 
     member = (
         db.query(User)
-        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .filter(User.id == member_id, User.parent_dealer_id == _dealer_id_for(current_user))
         .first()
     )
 
@@ -361,9 +390,10 @@ def remove_team_member(
     if not has_permission(current_user, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission")
 
+    dealer_id = _dealer_id_for(current_user)
     member = (
         db.query(User)
-        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .filter(User.id == member_id, User.parent_dealer_id == dealer_id)
         .first()
     )
 
@@ -373,14 +403,19 @@ def remove_team_member(
     # Transfer listings to dealer
     from app.models.listing import Listing
     listing_count = db.query(Listing).filter(Listing.user_id == member_id).count()
-    
+
     db.query(Listing).filter(Listing.user_id == member_id).update(
-        {"user_id": current_user.id}
+        {"user_id": dealer_id}
     )
 
-    # Soft-delete the team member (90-day recovery window)
+    # Soft-delete the team member (90-day recovery window). Also clear `active`
+    # — previously left True, so a removed member still passed GET
+    # /team/members' `User.active == True` filter until the ORM session
+    # happened to reload it, and the frontend's "Active Members" count never
+    # reflected removals.
     member.deleted_at = datetime.utcnow()
     member.recovery_deadline = datetime.utcnow() + timedelta(days=90)
+    member.active = False
     db.commit()
 
     return {
@@ -397,12 +432,18 @@ def remove_team_member(
 # ── Dealer oversight: read a team member's messages (no alerts, safety view) ──
 
 def _assert_dealer_owns_member(dealer: User, member_id: int, db: Session) -> User:
-    """Raise if `member_id` is not a team member of `dealer`."""
+    """Raise if `member_id` is not a team member of `dealer`'s brokerage.
+
+    `dealer` here is really "the calling user" — a team_member with an
+    owner/manager role also passes the MANAGE_TEAM check, so this resolves
+    to the real brokerage id via _dealer_id_for() rather than assuming the
+    caller's own id is the dealer id.
+    """
     if not has_permission(dealer, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission")
     member = (
         db.query(User)
-        .filter(User.id == member_id, User.parent_dealer_id == dealer.id)
+        .filter(User.id == member_id, User.parent_dealer_id == _dealer_id_for(dealer))
         .first()
     )
     if not member:
@@ -600,7 +641,7 @@ def get_member_listings(
 
     member = (
         db.query(User)
-        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .filter(User.id == member_id, User.parent_dealer_id == _dealer_id_for(current_user))
         .first()
     )
 
@@ -659,13 +700,13 @@ def reassign_listing_owner(
 ):
     """
     Reassign a listing to a different team member or dealer.
-    Can only be done by dealer owners or admins.
+    Can only be done by dealer owners, manager/owner-role team members, or admins.
     """
     listing = db.query(Listing).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
 
-    # Check if current user owns this listing or is an admin/dealer
+    # Check if current user owns this listing or is an admin/dealer/team manager
     if listing.user_id != current_user.id:
         if not has_permission(current_user, Permission.MANAGE_TEAM):
             raise AuthorizationException("Not authorized to reassign this listing")
@@ -678,11 +719,16 @@ def reassign_listing_owner(
     if not new_owner:
         raise ResourceNotFoundException("New owner", new_owner_id)
 
-    # Verify new owner is part of the same organization
-    if current_user.user_type == "dealer":
-        # Can only assign to own team members or self
-        if new_owner_id != current_user.id:
-            if new_owner.parent_dealer_id != current_user.id:
+    # Verify new owner is part of the same organization. Previously gated on
+    # `current_user.user_type == "dealer"`, so a manager/owner-role
+    # team_member calling this (they pass the MANAGE_TEAM check above) hit no
+    # org check at all and could reassign any listing to any arbitrary
+    # user_id. Now always verified via the resolved dealer id, for admins too
+    # only skipped for actual platform admins.
+    if current_user.user_type != "admin":
+        dealer_id = _dealer_id_for(current_user)
+        if new_owner_id != dealer_id:
+            if new_owner.parent_dealer_id != dealer_id:
                 raise AuthorizationException("New owner must be part of your team")
 
     # Reassign
@@ -715,9 +761,10 @@ def bulk_reassign_team_member_listings(
     if not has_permission(current_user, Permission.MANAGE_TEAM):
         raise AuthorizationException("No permission")
 
+    dealer_id = _dealer_id_for(current_user)
     member = (
         db.query(User)
-        .filter(User.id == member_id, User.parent_dealer_id == current_user.id)
+        .filter(User.id == member_id, User.parent_dealer_id == dealer_id)
         .first()
     )
 
@@ -738,8 +785,8 @@ def bulk_reassign_team_member_listings(
         raise ResourceNotFoundException("New owner", new_owner_id)
 
     # Verify new owner is dealer or part of same team
-    if new_owner_id != current_user.id:
-        if new_owner.parent_dealer_id != current_user.id:
+    if new_owner_id != dealer_id:
+        if new_owner.parent_dealer_id != dealer_id:
             raise AuthorizationException("New owner must be part of your team or be the dealer")
 
     # Reassign all listings
