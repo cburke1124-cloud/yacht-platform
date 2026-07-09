@@ -63,6 +63,24 @@ def _is_admin(user: User) -> bool:
     return (user.user_type or "").lower() == "admin"
 
 
+def _can_manage_charter(charter: CharterListing, current_user: User, db: Session) -> bool:
+    """True if current_user may edit/delete this charter: the owner, an admin,
+    the dealer whose team member owns it, or the salesman it's assigned to.
+
+    Mirrors routes_listings.py's team-inclusive ownership check — without this,
+    a broker could see their team member's charter in /charter/my (which is
+    already team-scoped) but get 403'd on every actual edit/delete/media/
+    availability action against it, since those endpoints here only compared
+    charter.user_id to current_user.id.
+    """
+    if _is_admin(current_user):
+        return True
+    if charter.user_id == current_user.id or charter.assigned_salesman_id == current_user.id:
+        return True
+    owner = db.query(User).filter(User.id == charter.user_id).first()
+    return bool(owner and owner.parent_dealer_id == current_user.id)
+
+
 def _slugify(text: str) -> str:
     text = text.lower().strip()
     text = re.sub(r'[^\w\s-]', '', text)
@@ -461,7 +479,14 @@ def get_recently_deleted_charters(
     is_admin = _is_admin(current_user)
     query = db.query(CharterListing).filter(CharterListing.deleted_at.isnot(None))
     if not is_admin:
-        query = query.filter(CharterListing.user_id == current_user.id)
+        team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
+        owner_ids = [current_user.id] + team_ids
+        query = query.filter(
+            or_(
+                CharterListing.user_id.in_(owner_ids),
+                CharterListing.assigned_salesman_id.in_(owner_ids),
+            )
+        )
     charters = query.order_by(CharterListing.deleted_at.desc()).all()
     return [_serialize(c) for c in charters]
 
@@ -475,8 +500,7 @@ def restore_charter(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
-    is_admin = _is_admin(current_user)
-    if charter.user_id != current_user.id and not is_admin:
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
     if not charter.deleted_at:
         return {"success": True, "message": "Charter is not deleted"}
@@ -587,7 +611,7 @@ def import_charters(
             charter = None
             if charter_id_raw:
                 charter = db.query(CharterListing).filter(CharterListing.id == int(charter_id_raw)).first()
-                if charter and charter.user_id != current_user.id and not is_admin:
+                if charter and not _can_manage_charter(charter, current_user, db):
                     errors.append(f"Row {row_index}: not authorised to update charter id {charter_id_raw}")
                     continue
 
@@ -615,11 +639,18 @@ def export_charters(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Export charter listings to CSV. Admins get all listings; dealers get their own."""
+    """Export charter listings to CSV. Admins get all listings; dealers get their team's."""
     is_admin = _is_admin(current_user)
     query = db.query(CharterListing)
     if not is_admin:
-        query = query.filter(CharterListing.user_id == current_user.id)
+        team_ids = [u.id for u in db.query(User).filter(User.parent_dealer_id == current_user.id).all()]
+        owner_ids = [current_user.id] + team_ids
+        query = query.filter(
+            or_(
+                CharterListing.user_id.in_(owner_ids),
+                CharterListing.assigned_salesman_id.in_(owner_ids),
+            )
+        )
     charters = query.all()
 
     output = StringIO()
@@ -674,7 +705,7 @@ def create_charter_availability_block(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
     if data.end_date < data.start_date:
         raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
@@ -721,7 +752,7 @@ def delete_charter_availability_block(
     if not block:
         raise HTTPException(status_code=404, detail="Availability block not found")
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
     db.delete(block)
     db.commit()
@@ -749,7 +780,7 @@ def create_charter_seasonal_rate(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
     rate = CharterSeasonalRate(
         charter_id=charter_id,
@@ -786,7 +817,7 @@ def delete_charter_seasonal_rate(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Charter listing not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     db.delete(rate)
@@ -892,8 +923,26 @@ def create_charter(
     if not title or not vessel_name:
         raise HTTPException(status_code=400, detail="title and vessel_name are required")
 
-    slug = _make_unique_slug(vessel_name or title, db)
     is_admin = _is_admin(current_user)
+
+    # Charter listings are a broker (dealer) feature bundled into the same
+    # account/subscription as for-sale listings — no separate charter paywall
+    # yet. Mirrors the for-sale gating in routes_listings.py:create_listing.
+    # If a standalone charter plan is introduced later, this is the check to
+    # change.
+    user_type = (current_user.user_type or "").lower()
+    subscription_tier = (current_user.subscription_tier or "").lower()
+    permissions = current_user.permissions or {}
+    paid_dealer_tiers = {"basic", "plus", "pro", "premium"}
+
+    has_create_permission = bool(permissions.get("can_create_listings"))
+    is_paid_dealer = user_type == "dealer" and subscription_tier in paid_dealer_tiers
+    is_always_free = bool(getattr(current_user, "always_free", False))
+
+    if not (is_admin or has_create_permission or is_paid_dealer or is_always_free):
+        raise HTTPException(status_code=403, detail="Charter listing creation requires an active broker account")
+
+    slug = _make_unique_slug(vessel_name or title, db)
 
     # Admins may attribute the listing to a different dealer account (e.g. when
     # manually entering or scraping a charter for a specific brokerage) — for
@@ -926,7 +975,7 @@ def update_charter(
         raise HTTPException(status_code=404, detail="Not found")
 
     is_admin = _is_admin(current_user)
-    if charter.user_id != current_user.id and not is_admin:
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     allowed_keys = {col.name for col in CharterListing.__table__.columns}
@@ -1018,7 +1067,7 @@ def attach_charter_media(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     media_ids = [mid for mid in payload.media_ids if isinstance(mid, int)]
@@ -1068,7 +1117,7 @@ def reorder_charter_media(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     ids = [a["id"] for a in payload.attachments if "id" in a]
@@ -1096,7 +1145,7 @@ def set_primary_charter_image(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     attachments = db.query(ListingMediaAttachment).filter(ListingMediaAttachment.charter_listing_id == charter_id).all()
@@ -1120,7 +1169,7 @@ def delete_charter_media(
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
-    if charter.user_id != current_user.id and not _is_admin(current_user):
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     target = db.query(ListingMediaAttachment).filter(
@@ -1158,8 +1207,7 @@ def delete_charter(
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
 
-    is_admin = _is_admin(current_user)
-    if charter.user_id != current_user.id and not is_admin:
+    if not _can_manage_charter(charter, current_user, db):
         raise HTTPException(status_code=403, detail="Not authorised")
 
     # Soft delete — moves the listing to the trash view (/charter/recently-deleted)
