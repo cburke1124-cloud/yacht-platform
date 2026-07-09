@@ -1008,8 +1008,13 @@ export default function AdminCharterTab() {
   };
 
   const handleDownloadTemplate = () => {
-    const header = 'title,vessel_name,make,model,year,boat_type,hull_material,length_feet,beam_feet,draft_feet,cabins,berths,heads,max_guests,crew_included,crew_count,home_port_city,home_port_state,home_port_country,operating_regions,day_rate,half_day_rate,week_rate,currency,min_charter_days,max_charter_days,apa_percentage,security_deposit,amenities,included_items,excluded_items,description,charter_company_name,charter_company_email,charter_company_phone,charter_company_website,booking_url,status';
-    const example = ',North Wind,Custom,Gulet,2023,Sailing Yacht,Wood,144,31.2,10.5,5,10,5,10,true,8,Bodrum,,Turkey,"Turkey, Bodrum, Marmaris",,,149188,EUR,,,35,,"Air Conditioning, Generator, Watermaker, WiFi","Crew","Fuel, Beverages, VAT","44m luxury gulet available for charter in Turkey.",Master Ocean Yacht Brokerage,,,,,draft';
+    // user_id is optional but important: leave it blank to import as unowned
+    // (shows the charter's own charter_company_* fields, no dealer profile
+    // fallback), or set it to a dealer's user ID (see Admin > Dealers) so the
+    // listing's contact card correctly falls back to that dealer's profile
+    // instead of rendering empty or, worse, defaulting to whoever ran the import.
+    const header = 'id,user_id,title,vessel_name,make,model,year,boat_type,hull_material,length_feet,beam_feet,draft_feet,cabins,berths,heads,max_guests,crew_included,crew_count,home_port_city,home_port_state,home_port_country,operating_regions,day_rate,half_day_rate,week_rate,currency,min_charter_days,max_charter_days,apa_percentage,security_deposit,amenities,included_items,excluded_items,description,charter_company_name,charter_company_email,charter_company_phone,charter_company_website,booking_url,status';
+    const example = ',,North Wind,Custom,Gulet,2023,Sailing Yacht,Wood,144,31.2,10.5,5,10,5,10,true,8,Bodrum,,Turkey,"Turkey, Bodrum, Marmaris",,,149188,EUR,,,35,,"Air Conditioning, Generator, Watermaker, WiFi","Crew","Fuel, Beverages, VAT","44m luxury gulet available for charter in Turkey.",Master Ocean Yacht Brokerage,,,,,draft';
     const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

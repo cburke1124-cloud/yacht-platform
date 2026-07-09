@@ -600,7 +600,7 @@ def admin_list_all_charters(
 # ---------------------------------------------------------------------------
 
 CSV_COLUMNS = [
-    "id", "title", "vessel_name", "make", "model", "year", "boat_type", "hull_material",
+    "id", "user_id", "title", "vessel_name", "make", "model", "year", "boat_type", "hull_material",
     "length_feet", "beam_feet", "draft_feet", "cabins", "berths", "heads", "max_guests",
     "crew_included", "crew_count", "home_port_city", "home_port_state", "home_port_country",
     "operating_regions", "day_rate", "half_day_rate", "week_rate", "currency",
@@ -643,7 +643,7 @@ def import_charters(
 
             payload: Dict = {"title": title, "vessel_name": vessel_name}
             for col in CSV_COLUMNS:
-                if col in ("id", "title", "vessel_name"):
+                if col in ("id", "user_id", "title", "vessel_name"):
                     continue
                 raw_val = row.get(col)
                 if raw_val is None or raw_val.strip() == "":
@@ -660,6 +660,17 @@ def import_charters(
                 else:
                     payload[col] = val
 
+            # Explicit ownership column — only admins may set/reassign it; a
+            # non-admin dealer importing their own CSV always owns the rows
+            # they create, regardless of what (if anything) is in this column.
+            owner_id_raw = (row.get("user_id") or "").strip()
+            explicit_owner_id: Optional[int] = None
+            if owner_id_raw and is_admin:
+                if not db.query(User.id).filter(User.id == int(owner_id_raw)).first():
+                    errors.append(f"Row {row_index}: user_id {owner_id_raw} does not exist")
+                    continue
+                explicit_owner_id = int(owner_id_raw)
+
             charter_id_raw = (row.get("id") or "").strip()
             charter = None
             if charter_id_raw:
@@ -671,11 +682,20 @@ def import_charters(
             if charter:
                 for key, val in payload.items():
                     setattr(charter, key, val)
+                if explicit_owner_id is not None:
+                    charter.user_id = explicit_owner_id
                 db.commit()
                 updated += 1
             else:
                 slug = _make_unique_slug(vessel_name or title, db)
-                charter = CharterListing(user_id=current_user.id, slug=slug, status=payload.pop("status", "draft"), **payload)
+                # Admins importing on behalf of a dealer must say so explicitly via
+                # the user_id column — leaving a row unowned (rather than silently
+                # attributing it to the admin's own account) matches how the
+                # Master Ocean sync and other unassigned-import paths behave, and
+                # keeps the listing's company card from showing the admin's own
+                # profile instead of the real broker's.
+                owner_id = explicit_owner_id if explicit_owner_id is not None else (None if is_admin else current_user.id)
+                charter = CharterListing(user_id=owner_id, slug=slug, status=payload.pop("status", "draft"), **payload)
                 db.add(charter)
                 db.commit()
                 created += 1
