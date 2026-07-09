@@ -76,6 +76,14 @@ def _with_company_fallback(data: dict, charter: CharterListing, db: Session) -> 
     even though the owning dealer has a fully populated profile, exactly
     the same gap the for-sale listing page had before its dealer-profile
     section was fleshed out.
+
+    charter.user_id can also be a team member/salesman rather than the
+    top-level dealer account — team members have no DealerProfile of their
+    own (only the parent dealer account does), so a direct lookup finds
+    nothing and the profile-only fields (bio, logo, socials) silently stay
+    blank even though the dealer's profile is fully configured. Mirrors
+    routes_listings.py's get_listing_contact_info, which resolves through
+    owner.parent_dealer_id for exactly this case.
     """
     if not charter.user_id:
         return data
@@ -85,7 +93,12 @@ def _with_company_fallback(data: dict, charter: CharterListing, db: Session) -> 
     owner = db.query(User).filter(User.id == charter.user_id).first()
     if not owner:
         return data
-    profile = db.query(DealerProfile).filter(DealerProfile.user_id == owner.id).first()
+    profile_owner = owner
+    if owner.parent_dealer_id:
+        parent = db.query(User).filter(User.id == owner.parent_dealer_id).first()
+        if parent:
+            profile_owner = parent
+    profile = db.query(DealerProfile).filter(DealerProfile.user_id == profile_owner.id).first()
 
     data["charter_company_name"] = data.get("charter_company_name") or (profile.company_name if profile else None) or getattr(owner, "company_name", None)
     data["charter_company_email"] = data.get("charter_company_email") or (profile.email if profile else None) or owner.email
