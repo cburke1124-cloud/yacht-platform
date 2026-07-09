@@ -6,7 +6,8 @@ import Link from 'next/link';
 import {
   ArrowLeft, MapPin, Anchor, Users, Ruler, Calendar, X,
   Mail, Phone, ChevronLeft, ChevronRight,
-  Ship, Zap, Bed, Waves, Check, ExternalLink
+  Ship, Zap, Bed, Waves, Check, ExternalLink,
+  Facebook, Instagram, Twitter, Linkedin
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
@@ -59,6 +60,15 @@ interface CharterListing {
   charter_company_email?: string;
   charter_company_phone?: string;
   charter_company_website?: string;
+  charter_company_logo_url?: string;
+  charter_company_description?: string;
+  charter_company_city?: string;
+  charter_company_state?: string;
+  charter_company_country?: string;
+  charter_company_facebook_url?: string;
+  charter_company_instagram_url?: string;
+  charter_company_twitter_url?: string;
+  charter_company_linkedin_url?: string;
   booking_url?: string;
   created_at?: string;
   availability_blocks?: AvailabilityBlock[];
@@ -405,9 +415,15 @@ export default function CharterDetailPage() {
             <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden sticky top-5">
               <div className="p-6 text-center">
                 <div className="flex justify-center mb-4">
-                  <div className="w-20 h-20 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
-                    <Anchor className="w-10 h-10 text-[#01BBDC]" />
-                  </div>
+                  {charter.charter_company_logo_url ? (
+                    <img src={mediaUrl(charter.charter_company_logo_url)} alt={charter.charter_company_name || 'Charter company'}
+                      className="w-20 h-20 rounded-full object-contain bg-gray-50 p-2 border border-gray-100"
+                      onError={onImgError} />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
+                      <Anchor className="w-10 h-10 text-[#01BBDC]" />
+                    </div>
+                  )}
                 </div>
                 {charter.charter_company_name && (
                   <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4 }}>
@@ -415,9 +431,44 @@ export default function CharterDetailPage() {
                   </p>
                 )}
                 {charter.charter_company_phone && (
-                  <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-4" style={{ color: '#10214F' }}>
+                  <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2" style={{ color: '#10214F' }}>
                     <Phone size={13} /> {charter.charter_company_phone}
                   </a>
+                )}
+                {(charter.charter_company_city || charter.charter_company_state || charter.charter_company_country) && (
+                  <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-3">
+                    <MapPin size={10} />
+                    {[charter.charter_company_city, charter.charter_company_state, charter.charter_company_country].filter(Boolean).join(', ')}
+                  </p>
+                )}
+                {charter.charter_company_description && (
+                  <p className="text-xs text-gray-500 leading-relaxed mb-4 line-clamp-4 text-left">
+                    {charter.charter_company_description}
+                  </p>
+                )}
+                {(charter.charter_company_facebook_url || charter.charter_company_instagram_url || charter.charter_company_twitter_url || charter.charter_company_linkedin_url) && (
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    {charter.charter_company_facebook_url && (
+                      <a href={charter.charter_company_facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                        <Facebook size={16} className="text-[#1877F2]" />
+                      </a>
+                    )}
+                    {charter.charter_company_instagram_url && (
+                      <a href={charter.charter_company_instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                        <Instagram size={16} className="text-[#E4405F]" />
+                      </a>
+                    )}
+                    {charter.charter_company_twitter_url && (
+                      <a href={charter.charter_company_twitter_url} target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+                        <Twitter size={16} className="text-[#1DA1F2]" />
+                      </a>
+                    )}
+                    {charter.charter_company_linkedin_url && (
+                      <a href={charter.charter_company_linkedin_url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                        <Linkedin size={16} className="text-[#0A66C2]" />
+                      </a>
+                    )}
+                  </div>
                 )}
 
                 {/* Rates */}

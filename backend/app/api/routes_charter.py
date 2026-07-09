@@ -63,6 +63,46 @@ def _is_admin(user: User) -> bool:
     return (user.user_type or "").lower() == "admin"
 
 
+def _with_company_fallback(data: dict, charter: CharterListing, db: Session) -> dict:
+    """Fill in charter_company_* display fields from the owning dealer's
+    DealerProfile when the charter itself has none set.
+
+    Charter listings created via admin import/scraper assignment often have
+    an owning dealer (charter.user_id) but nobody filled in the "Charter
+    Company" fields in the admin modal — those are just free-text display
+    fields on the CharterListing row, never linked to the dealer's actual
+    profile. Without this fallback the public listing page's contact card
+    renders completely empty (no name, phone, email, logo, bio, socials)
+    even though the owning dealer has a fully populated profile, exactly
+    the same gap the for-sale listing page had before its dealer-profile
+    section was fleshed out.
+    """
+    if not charter.user_id:
+        return data
+
+    from app.models.dealer import DealerProfile
+
+    owner = db.query(User).filter(User.id == charter.user_id).first()
+    if not owner:
+        return data
+    profile = db.query(DealerProfile).filter(DealerProfile.user_id == owner.id).first()
+
+    data["charter_company_name"] = data.get("charter_company_name") or (profile.company_name if profile else None) or getattr(owner, "company_name", None)
+    data["charter_company_email"] = data.get("charter_company_email") or (profile.email if profile else None) or owner.email
+    data["charter_company_phone"] = data.get("charter_company_phone") or (profile.phone if profile else None) or getattr(owner, "phone", None)
+    data["charter_company_website"] = data.get("charter_company_website") or (profile.website if profile else None)
+    data["charter_company_logo_url"] = profile.logo_url if profile else None
+    data["charter_company_description"] = profile.description if profile else None
+    data["charter_company_city"] = profile.city if profile else None
+    data["charter_company_state"] = profile.state if profile else None
+    data["charter_company_country"] = profile.country if profile else None
+    data["charter_company_facebook_url"] = profile.facebook_url if profile else None
+    data["charter_company_instagram_url"] = profile.instagram_url if profile else None
+    data["charter_company_twitter_url"] = profile.twitter_url if profile else None
+    data["charter_company_linkedin_url"] = profile.linkedin_url if profile else None
+    return data
+
+
 def _can_manage_charter(charter: CharterListing, current_user: User, db: Session) -> bool:
     """True if current_user may edit/delete this charter: the owner, an admin,
     the dealer whose team member owns it, or the salesman it's assigned to.
@@ -678,7 +718,7 @@ def get_charter(charter_id: int, db: Session = Depends(get_db)):
     if not charter or charter.deleted_at is not None or charter.status == "inactive":
         raise HTTPException(status_code=404, detail="Charter listing not found")
     return {
-        **_serialize(charter),
+        **_with_company_fallback(_serialize(charter), charter, db),
         "availability_blocks": [_serialize_block(b) for b in charter.availability_blocks],
         "seasonal_rates": [_serialize_rate(r) for r in charter.seasonal_rates],
     }
