@@ -904,6 +904,7 @@ export default function AdminCharterTab() {
   const [dealers, setDealers] = useState<Dealer[]>([]);
   const [trashed, setTrashed] = useState<CharterListing[]>([]);
   const [restoringId, setRestoringId] = useState<number | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const LIMIT = 25;
 
   const load = useCallback(async () => {
@@ -1045,6 +1046,24 @@ export default function AdminCharterTab() {
     }
   };
 
+  const handleStatusChange = async (id: number, status: string) => {
+    setUpdatingStatusId(id);
+    try {
+      const res = await fetch(apiUrl(`/charter/${id}`), {
+        method: 'PUT',
+        headers: jsonHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error();
+      setCharters(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+      setToast({ ok: true, msg: `Status changed to ${status}` });
+    } catch {
+      setToast({ ok: false, msg: 'Status update failed' });
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this charter listing?')) return;
     setDeletingId(id);
@@ -1058,19 +1077,6 @@ export default function AdminCharterTab() {
     } finally {
       setDeletingId(null);
     }
-  };
-
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      active: 'bg-green-100 text-green-700',
-      draft: 'bg-yellow-100 text-yellow-700',
-      inactive: 'bg-gray-100 text-gray-500',
-    };
-    return (
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? 'bg-gray-100 text-gray-600'}`}>
-        {status}
-      </span>
-    );
   };
 
   const fmtRate = (c: CharterListing) => {
@@ -1234,7 +1240,21 @@ export default function AdminCharterTab() {
                     <td className="px-4 py-3 text-gray-600">{c.max_guests ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-700 font-medium">{fmtRate(c)}</td>
                     <td className="px-4 py-3 text-gray-600 truncate max-w-[140px]">{c.charter_company_name || '—'}</td>
-                    <td className="px-4 py-3">{statusBadge(c.status)}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={c.status}
+                        disabled={updatingStatusId === c.id}
+                        onChange={e => handleStatusChange(c.id, e.target.value)}
+                        className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer disabled:opacity-50 ${
+                          { active: 'bg-green-100 text-green-700', draft: 'bg-yellow-100 text-yellow-700', inactive: 'bg-gray-100 text-gray-500' }[c.status] ?? 'bg-gray-100 text-gray-600'
+                        }`}
+                        title="Change status"
+                      >
+                        <option value="active">active</option>
+                        <option value="draft">draft</option>
+                        <option value="inactive">inactive</option>
+                      </select>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <a href={`/charter/${c.id}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#10214F]" title="View listing">
