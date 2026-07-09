@@ -11,6 +11,8 @@ import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import os as _os
+import random
+import time
 import traceback
 from bs4 import BeautifulSoup
 import json
@@ -106,6 +108,30 @@ def _apply_boat_specs_lookup(data: Dict, db) -> None:
         return
     if not spec:
         return
+
+    # Cross-check against a length_feet the page itself already gave us before
+    # trusting this spec-DB match. _find_boat_specs does an exact (if
+    # case-insensitive) make+model match, but the make/model that got us here
+    # can still be wrong (mis-parsed title, hallucinated by the AI fallback) and
+    # happen to collide with a real, unrelated boat's spec row. A backfilled
+    # length that's wildly different from what the listing itself reported is a
+    # strong signal of exactly that — skip the whole backfill rather than
+    # overwrite/contradict data the page actually gave us with a different
+    # boat's specs (which would look "more complete" and score higher
+    # confidence despite being wrong).
+    _known_length = data.get("length_feet")
+    if _known_length and spec.length_feet:
+        try:
+            _delta = abs(float(spec.length_feet) - float(_known_length)) / float(_known_length)
+            if _delta > 0.25:
+                logger.warning(
+                    f"boat_specs_lookup: skipping backfill for {make} {model} {year or ''} — "
+                    f"DB length_feet={spec.length_feet} disagrees with scraped length_feet="
+                    f"{_known_length} by {_delta:.0%}, likely a wrong make/model match"
+                )
+                return
+        except (TypeError, ValueError):
+            pass
 
     _FILLABLE = [
         ("boat_type",     spec.boat_type),
@@ -336,6 +362,21 @@ class OptimizedYachtScraper:
         # Populated by _discover_from_json_proxy().
         # Maps synthetic_url → pre-built listing data dict.
         self._json_api_cache: Dict[str, Dict] = {}
+        # Tracks consecutive blocked/rate-limited fetches (403/429/TCP-RST/etc.)
+        # within this scraper instance's lifetime (one job run). Reset to 0 on
+        # any successful fetch. run_scraper_job uses this to short-circuit a job
+        # once it's clear every remaining URL will fail the same way, instead of
+        # burning through the whole discovered list on guaranteed failures.
+        self._consecutive_blocks = 0
+        # Job-level wall-clock budget for headless-browser fetches. Each
+        # individual fetch_page_headless call can legitimately take up to ~360s
+        # (a fresh deploy's one-time Playwright install), but with no overall
+        # cap a broker site where every listing falls back to headless
+        # rendering could turn one job into a multi-hour hang. Once this budget
+        # is exhausted, fetch_page_headless stops spawning new subprocesses for
+        # the rest of this job and falls straight back to the static fetcher.
+        self._headless_time_budget_seconds = 20 * 60
+        self._headless_time_used_seconds = 0.0
 
         # Known site patterns for fast structured extraction
         self.site_patterns = {
@@ -393,37 +434,76 @@ class OptimizedYachtScraper:
             pass
         return any(sig in s for sig in self._BLOCKED_ERRORS)
 
+    _MAX_TRANSIENT_RETRIES = 2  # total attempts for a non-blocked transient failure
+    _RETRY_BACKOFF_SECONDS = 1.5
+
+    def _fetch_page_once(self, url: str, timeout: int) -> "requests.Response":
+        """Single fetch attempt — raises on any failure. Split out of fetch_page
+        so the retry loop can wrap it without duplicating the curl-cffi/HTTP-1.1
+        fallback logic."""
+        if self._curl_session is not None:
+            try:
+                resp = self._curl_session.get(url, timeout=timeout, allow_redirects=True)
+            except Exception as curl_exc:
+                # curl: (16) = HTTP/2 framing error — site only supports HTTP/1.1.
+                # Retry the same URL with HTTP/1.1 forced before giving up.
+                if 'curl: (16)' in str(curl_exc) or 'CURLE_HTTP2' in str(curl_exc):
+                    logger.info(f"fetch_page: HTTP/2 error for {url}, retrying with HTTP/1.1")
+                    resp = self._curl_session.get(
+                        url, timeout=timeout, allow_redirects=True,
+                        http_version=1,  # force HTTP/1.1
+                    )
+                else:
+                    raise
+        else:
+            resp = self._session.get(url, timeout=timeout, allow_redirects=True)
+        resp.raise_for_status()
+        return resp
+
     def fetch_page(self, url: str, timeout: int = 15) -> Optional[str]:
         """Fetch a page. Uses curl-cffi Chrome TLS impersonation when installed,
         so Cloudflare's JA3 fingerprint check passes. Falls back to plain requests.
-        If the direct connection is IP-blocked (TCP RST or HTTP/2 error), retries
-        via SCRAPER_PROXY_URL when configured."""
-        try:
-            if self._curl_session is not None:
-                try:
-                    resp = self._curl_session.get(url, timeout=timeout, allow_redirects=True)
-                except Exception as curl_exc:
-                    # curl: (16) = HTTP/2 framing error — site only supports HTTP/1.1.
-                    # Retry the same URL with HTTP/1.1 forced before giving up.
-                    if 'curl: (16)' in str(curl_exc) or 'CURLE_HTTP2' in str(curl_exc):
-                        logger.info(f"fetch_page: HTTP/2 error for {url}, retrying with HTTP/1.1")
-                        resp = self._curl_session.get(
-                            url, timeout=timeout, allow_redirects=True,
-                            http_version=1,  # force HTTP/1.1
-                        )
-                    else:
-                        raise
-            else:
-                resp = self._session.get(url, timeout=timeout, allow_redirects=True)
-            resp.raise_for_status()
-            return resp.text
-        except Exception as exc:
-            # If blocked at the IP/TCP level and a proxy is configured, route through it
-            if self._is_blocked_error(exc) and _SCRAPER_PROXY_URL:
-                logger.info(f"fetch_page: direct connection blocked for {url}, retrying via proxy")
-                return self._proxy_fetch(url, timeout)
-            logger.warning(f"fetch_page failed for {url}: {exc}")
-            return None
+
+        A transient failure (dropped connection, momentary 503/timeout — anything
+        NOT recognized as a block) gets a couple of quick retries with a short
+        backoff before giving up, instead of permanently dropping that listing
+        for the whole run on a single blip.
+
+        If the failure IS recognized as a block (TCP RST, 403/429, HTTP/2 framing
+        error, etc.), retrying the same direct connection is pointless — it fails
+        via SCRAPER_PROXY_URL when configured, and either way increments
+        self._consecutive_blocks so the job loop can detect "we're being blocked,
+        not just missing pages" and short-circuit instead of guaranteeing failure
+        on every remaining URL.
+        """
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, self._MAX_TRANSIENT_RETRIES + 1):
+            try:
+                resp = self._fetch_page_once(url, timeout)
+                self._consecutive_blocks = 0
+                return resp.text
+            except Exception as exc:
+                last_exc = exc
+                if self._is_blocked_error(exc):
+                    self._consecutive_blocks += 1
+                    if _SCRAPER_PROXY_URL:
+                        logger.info(f"fetch_page: direct connection blocked for {url}, retrying via proxy")
+                        proxied = self._proxy_fetch(url, timeout)
+                        if proxied is not None:
+                            self._consecutive_blocks = 0
+                        return proxied
+                    logger.warning(f"fetch_page: blocked fetching {url} (no proxy configured): {exc}")
+                    return None
+                # Transient, non-blocked failure — short backoff, try again.
+                if attempt < self._MAX_TRANSIENT_RETRIES:
+                    logger.info(
+                        f"fetch_page: transient error for {url} "
+                        f"(attempt {attempt}/{self._MAX_TRANSIENT_RETRIES}): {exc} — retrying"
+                    )
+                    time.sleep(self._RETRY_BACKOFF_SECONDS)
+                    continue
+        logger.warning(f"fetch_page failed for {url} after {self._MAX_TRANSIENT_RETRIES} attempts: {last_exc}")
+        return None
 
     def _proxy_fetch(self, url: str, timeout: int = 15, render: bool = False) -> Optional[str]:
         """Fetch via proxy.  For ScraperAPI we call their direct REST API
@@ -596,54 +676,69 @@ except Exception as e:
             logger.debug("Playwright not available, falling back to fetch_page()")
             return self.fetch_page(url)
 
+        if self._headless_time_used_seconds >= self._headless_time_budget_seconds:
+            logger.warning(
+                f"fetch_page_headless: job's headless time budget "
+                f"({self._headless_time_budget_seconds}s) exhausted — falling back to "
+                f"static fetch for {url} instead of spawning another subprocess"
+            )
+            return self.fetch_page(url)
+
         import subprocess, json as _json, sys as _sys, tempfile, os
 
+        _headless_started_at = time.monotonic()
         try:
-            # Write the inline script to a temp file to avoid shell-quoting issues
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", delete=False, encoding="utf-8"
-            ) as tf:
-                tf.write(self._HEADLESS_SCRIPT)
-                script_path = tf.name
-
-            # On a fresh deploy the first call may trigger a ~2 min self-install;
-            # allow up to 360 s total (300 s install + 60 s page fetch overhead).
-            effective_timeout = max(timeout + 15, 360)
             try:
-                result = subprocess.run(
-                    [
-                        _sys.executable, script_path,
-                        url,
-                        wait_selector or "__none__",
-                        str(timeout),
-                        _SCRAPER_PROXY_URL or "__none__",
-                    ],
-                    capture_output=True, text=True, timeout=effective_timeout,
-                )
-            finally:
+                # Write the inline script to a temp file to avoid shell-quoting issues
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".py", delete=False, encoding="utf-8"
+                ) as tf:
+                    tf.write(self._HEADLESS_SCRIPT)
+                    script_path = tf.name
+
+                # On a fresh deploy the first call may trigger a ~2 min self-install;
+                # allow up to 360 s total (300 s install + 60 s page fetch overhead).
+                effective_timeout = max(timeout + 15, 360)
                 try:
-                    os.unlink(script_path)
-                except OSError:
-                    pass
+                    result = subprocess.run(
+                        [
+                            _sys.executable, script_path,
+                            url,
+                            wait_selector or "__none__",
+                            str(timeout),
+                            _SCRAPER_PROXY_URL or "__none__",
+                        ],
+                        capture_output=True, text=True, timeout=effective_timeout,
+                    )
+                finally:
+                    try:
+                        os.unlink(script_path)
+                    except OSError:
+                        pass
 
-            stdout = result.stdout.strip()
-            if not stdout:
-                logger.warning(f"fetch_page_headless: empty output for {url}; stderr={result.stderr[-300:]}")
+                stdout = result.stdout.strip()
+                if not stdout:
+                    logger.warning(f"fetch_page_headless: empty output for {url}; stderr={result.stderr[-300:]}")
+                    return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
+
+                data = _json.loads(stdout)
+                if data.get("ok"):
+                    return data["html"]
+                else:
+                    logger.warning(f"fetch_page_headless subprocess error for {url}: {data.get('error')}")
+                    return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
+
+            except subprocess.TimeoutExpired:
+                logger.warning(f"fetch_page_headless timed out for {url}")
                 return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
-
-            data = _json.loads(stdout)
-            if data.get("ok"):
-                return data["html"]
-            else:
-                logger.warning(f"fetch_page_headless subprocess error for {url}: {data.get('error')}")
+            except Exception as exc:
+                logger.warning(f"fetch_page_headless failed for {url}: {exc}")
                 return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
-
-        except subprocess.TimeoutExpired:
-            logger.warning(f"fetch_page_headless timed out for {url}")
-            return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
-        except Exception as exc:
-            logger.warning(f"fetch_page_headless failed for {url}: {exc}")
-            return self._scraperapi_render_fallback(url) if _SCRAPER_PROXY_URL else self.fetch_page(url)
+        finally:
+            # Count time toward the job's headless budget regardless of outcome
+            # (success, timeout, or error) — a page that keeps timing out should
+            # count against the budget just as much as a slow-but-successful one.
+            self._headless_time_used_seconds += time.monotonic() - _headless_started_at
 
     def _scraperapi_render_fallback(self, url: str) -> Optional[str]:
         """Use ScraperAPI's managed Chrome rendering as a fallback when the local
@@ -1673,16 +1768,34 @@ except Exception as e:
           AUD  — A$ / AUD
           NZD  — NZ$ / NZD
 
-        When only a bare "$" is found, the page text is scanned for CAD context
-        (e.g. "CAD", "Canadian", "C$") so that Canadian broker sites that display
-        prices as "$1,250,000" without an explicit C$ label are correctly tagged.
+        When only a bare "$" is found, the page text is scanned for CAD/AUD/NZD
+        context (e.g. "CAD", "Canadian", "C$" / "AUD", "Australian" / "NZD",
+        "New Zealand") so that non-US "$" sites — Canadian, Australian, or NZ
+        brokers — that display prices as "$1,250,000" with no explicit currency
+        symbol are correctly tagged instead of only Canadian sites getting this
+        treatment and Australian/NZ sites silently defaulting to USD.
         """
-        # Detect whether the page is predominantly CAD-based so that a bare "$"
-        # can be treated as CAD rather than defaulting to USD.
+        # Detect the page's dominant non-USD "$" currency, if any, so a bare "$"
+        # can be tagged correctly instead of defaulting to USD. Checked in this
+        # order since a page is realistically only ever one of these.
         cad_context = bool(re.search(
             r'\bCAD\b|\bC\$\b|\bCDN\$\b|\bCanadian\s+dollar|\bprix\s+en\s+CAD',
             text, re.IGNORECASE
         ))
+        aud_context = bool(re.search(
+            r'\bAUD\b|\bA\$\b|\bAustralian\s+dollar', text, re.IGNORECASE
+        ))
+        nzd_context = bool(re.search(
+            r'\bNZD\b|\bNZ\$\b|\bNew\s+Zealand\s+dollar', text, re.IGNORECASE
+        ))
+        if cad_context:
+            bare_dollar_currency = "CAD"
+        elif aud_context:
+            bare_dollar_currency = "AUD"
+        elif nzd_context:
+            bare_dollar_currency = "NZD"
+        else:
+            bare_dollar_currency = "USD"
 
         # Each pattern: (regex, currency_code)
         # Ordered most-specific first so "C$" is tried before bare "$"
@@ -1706,8 +1819,8 @@ except Exception as e:
             (r"(\d[\d,.\s]*)\s*(?:£|GBP\b)", "GBP"),
             # Trailing currency label: "150,000 CAD", "150,000 USD", "150,000 EUR"
             (r"(\d[\d,.\s]+)\s*\b(CAD|USD|EUR|GBP|AUD|NZD)\b", None),
-            # Bare $ — ambiguous; treat as CAD if page has CAD context, else USD
-            (r"\$\s*(\d[\d,.\s]*)", "CAD" if cad_context else "USD"),
+            # Bare $ — ambiguous; tagged per page-wide context detected above
+            (r"\$\s*(\d[\d,.\s]*)", bare_dollar_currency),
         ]
         def _scan(segment: str) -> Optional[tuple]:
             for pat, currency in patterns:
@@ -1744,11 +1857,42 @@ except Exception as e:
                     continue
             return None
 
-        # Prefer a number sitting next to an explicit price label — the first
-        # bare currency match on a page is often a related listing's price, a
-        # deposit, or a financing figure, not this boat's asking price.
+        # Reduced/superseded-price framing ("Reduced from $650,000 to $549,000",
+        # "Was $650,000 Now $549,000") has no single "price" label attached to
+        # the CURRENT figure, so the generic label scan below would either miss
+        # it or (worse) grab the old, higher number if it happens to sit near a
+        # "price" label elsewhere on the page. Handle these phrasings first,
+        # scanning only the text *after* "to"/"now" for the current price.
+        for reduced_match in re.finditer(
+            r"(?:reduced|was)\b.{0,80}?\b(?:to|now)\b\s*[:\-]?\s?(.{0,60})",
+            text, re.IGNORECASE,
+        ):
+            # Scan only the captured group (text *after* "to"/"now") — the full
+            # match span still contains the old/higher price before "to", which
+            # would otherwise win by appearing earlier in the segment.
+            hit = _scan(reduced_match.group(1))
+            if hit:
+                return hit
+
+        # Prefer a number sitting next to a label that specifically indicates the
+        # CURRENT asking price over a generic/possibly-stale one. "List price" /
+        # "original price" / "msrp" can refer to a superseded figure on listings
+        # that also show a lower current price elsewhere — try the strong labels
+        # first so a later "asking price" doesn't lose to an earlier "list price".
+        strong_labels = r"(?:(?:asking|reduced|sale|current)\s+price|reduced\s+to|prezzo|prix|preis)"
         for label_match in re.finditer(
-            r"(?:asking\s+price|list\s+price|price|prezzo|prix|preis)\s*[:\-]?\s?.{0,60}",
+            strong_labels + r"\s*[:\-]?\s?.{0,60}",
+            text, re.IGNORECASE,
+        ):
+            hit = _scan(label_match.group(0))
+            if hit:
+                return hit
+
+        # Fall back to generic/weak labels (may occasionally be a stale price on
+        # a page that doesn't use any of the strong labels above, but a plausible
+        # match beats none).
+        for label_match in re.finditer(
+            r"(?:list\s+price|original\s+price|msrp|price)\s*[:\-]?\s?.{0,60}",
             text, re.IGNORECASE,
         ):
             hit = _scan(label_match.group(0))
@@ -1759,9 +1903,17 @@ except Exception as e:
 
     def extract_specs_from_text(self, text: str) -> Dict:
         specs = {}
-        length_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:ft|feet|foot|')", text, re.IGNORECASE)
+        # Also matches meters ("18.5m", "18,50 m", "18.5 meters") so a European
+        # site's LOA doesn't get silently treated as feet — see
+        # _parse_measurement_to_feet.
+        length_match = re.search(
+            r"(\d+(?:[.,]\d+)?)\s*(ft|feet|foot|'|m\b|meters?|metres?)",
+            text, re.IGNORECASE,
+        )
         if length_match:
-            specs["length_feet"] = float(length_match.group(1))
+            converted = self._parse_measurement_to_feet(length_match.group(0))
+            if converted is not None:
+                specs["length_feet"] = converted
         # Prefer labeled year (Year: 1996 OR 1996\nYear) over bare year in title
         year_labeled = re.search(
             r"year\s*[:\-]?\s*(19\d{2}|20\d{2})"      # Label: Value
@@ -1853,6 +2005,90 @@ except Exception as e:
     # ---------------------------------------------------------
     # HTML SPEC TABLE PARSER
     # ---------------------------------------------------------
+    _METERS_TO_FEET = 3.28084
+    _LENGTH_LIKE_KEYS = {"length_feet", "beam_feet", "draft_feet"}
+
+    def _parse_measurement_to_feet(self, raw: str) -> Optional[float]:
+        """Parse a length/beam/draft value that might be given in feet OR
+        meters and return it normalized to feet. European broker sites
+        commonly give LOA/beam/draft in meters (e.g. "18,50 m", "5.2m") with
+        no other unit anywhere on the page — blindly stripping the unit and
+        keeping the raw number (the old behavior) turns an 18.5m/~60ft yacht
+        into an "18 foot" listing. If no unit is present at all, feet is
+        assumed (unchanged default), since that's the common case for this
+        scraper's mostly US/UK-listed inventory."""
+        if not raw:
+            return None
+        s = raw.strip()
+        # "18.5m" has no word boundary between the digit and "m" (both are \w),
+        # so \bm\b alone misses the common no-space short form — match a digit
+        # directly followed by "m" (not "mm"/"max"/etc.) as well as the spelled-
+        # out "meters"/"metres".
+        is_meters = bool(
+            re.search(r"\d\s*m(?![a-zA-Z])", s, re.IGNORECASE)
+            or re.search(r"meters?\b|metres?\b", s, re.IGNORECASE)
+        ) and not re.search(r"\bft\b|\bfeet\b|\bfoot\b|'", s, re.IGNORECASE)
+        num_match = re.search(r"(\d+(?:[.,]\d+)?)", s)
+        if not num_match:
+            return None
+        num_str = num_match.group(1)
+        # European decimal-comma ("18,50") vs. thousands-comma with no decimal
+        # ("1,850" — not expected for a length/beam/draft but handled safely).
+        if "," in num_str and "." not in num_str:
+            num_str = num_str.replace(",", ".")
+        else:
+            num_str = num_str.replace(",", "")
+        try:
+            val = float(num_str)
+        except ValueError:
+            return None
+        if is_meters:
+            val = round(val * self._METERS_TO_FEET, 2)
+        return val
+
+    def _normalize_spec_values(self, raw: Dict[str, str]) -> Dict:
+        """Convert a {canonical_field: raw_string} dict — sourced from either
+        the hardcoded LABEL_MAP below or the DB-driven FieldSynonym overlay in
+        _parse_spec_tables_with_synonyms — into typed values, including
+        unit-aware meters-to-feet conversion for length/beam/draft. Shared so
+        synonym-matched values get the same typing/conversion as the hardcoded
+        path instead of being passed through as raw, un-typed strings."""
+        specs: Dict = {}
+        int_keys = {"year", "cabins", "berths", "heads", "engine_count"}
+        float_keys = {"length_feet", "beam_feet", "draft_feet", "engine_hours",
+                      "max_speed_knots", "cruising_speed_knots"}
+        str_keys = {"make", "model", "fuel_type", "hull_material", "hull_type",
+                    "boat_type", "condition", "city", "state", "country"}
+
+        for k, v in raw.items():
+            if k in self._LENGTH_LIKE_KEYS:
+                converted = self._parse_measurement_to_feet(v)
+                if converted is not None:
+                    specs[k] = converted
+                continue
+            # Strip units: "75 ft" -> "75", "900 hrs" -> "900"
+            num_str = re.sub(r"[^\d.]", "", v.split()[0]) if v else ""
+            if k in int_keys:
+                try:
+                    specs[k] = int(float(num_str))
+                except (ValueError, IndexError):
+                    pass
+            elif k in float_keys:
+                try:
+                    specs[k] = float(num_str)
+                except (ValueError, IndexError):
+                    pass
+            elif k in str_keys:
+                specs[k] = v
+            # "horsepower" isn't a DB field but include for AI context
+            elif k == "horsepower":
+                specs["horsepower_hint"] = v
+            # Pass through h1 title and map-derived location
+            elif k in ("_h1_title", "city", "state", "country"):
+                specs[k] = v
+
+        return specs
+
     def parse_spec_tables(self, html: str) -> Dict:
         """
         Extract labelled spec data from HTML tables, definition lists,
@@ -1981,45 +2217,32 @@ except Exception as e:
                         raw["country"] = parts[2].strip()
                 break
 
-        # Convert numeric fields
-        specs: Dict = {}
-        int_keys = {"year", "cabins", "berths", "heads", "engine_count"}
-        float_keys = {"length_feet", "beam_feet", "draft_feet", "engine_hours",
-                      "max_speed_knots", "cruising_speed_knots"}
-        str_keys = {"make", "model", "fuel_type", "hull_material", "hull_type",
-                    "boat_type", "condition", "city", "state", "country"}
-
-        for k, v in raw.items():
-            # Strip units: "75 ft" -> "75", "900 hrs" -> "900"
-            num_str = re.sub(r"[^\d.]", "", v.split()[0]) if v else ""
-            if k in int_keys:
-                try:
-                    specs[k] = int(float(num_str))
-                except (ValueError, IndexError):
-                    pass
-            elif k in float_keys:
-                try:
-                    specs[k] = float(num_str)
-                except (ValueError, IndexError):
-                    pass
-            elif k in str_keys:
-                specs[k] = v
-            # "horsepower" isn't a DB field but include for AI context
-            elif k == "horsepower":
-                specs["horsepower_hint"] = v
-            # Pass through h1 title and map-derived location
-            elif k in ("_h1_title", "city", "state", "country"):
-                specs[k] = v
-
-        return specs
+        # Convert numeric fields (unit-aware for length/beam/draft — see
+        # _normalize_spec_values / _parse_measurement_to_feet)
+        return self._normalize_spec_values(raw)
 
     # ---------------------------------------------------------
     # CLEAN HTML
     # ---------------------------------------------------------
+    _RELATED_LISTINGS_PATTERN = re.compile(
+        r"related|similar[-_]?(?:listing|boat|yacht)|you[-_]?may[-_]?also|also[-_]?view|"
+        r"recommend|cross-?sell|more[-_]?listings|other[-_]?boats",
+        re.I,
+    )
+
     def clean_html(self, html: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header", "iframe", "head"]):
             tag.decompose()
+        # Strip "related/similar listings" sidebars — these commonly show another
+        # boat's price/specs sitting earlier in the DOM than this listing's own
+        # price, which the regex-based price/spec extraction below would
+        # otherwise grab first (see extract_price_with_currency).
+        for tag in soup.find_all(class_=self._RELATED_LISTINGS_PATTERN) + soup.find_all(id=self._RELATED_LISTINGS_PATTERN):
+            try:
+                tag.decompose()
+            except Exception:
+                pass
         text = soup.get_text(separator="\n")
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
@@ -2493,8 +2716,13 @@ except Exception as e:
                 if len(parts[0]) < 40:
                     _try(parts[0], parts[1])
 
-        # synonym overlay wins over base hardcoded map for any shared key
-        return {**base, **extra}
+        # synonym overlay wins over base hardcoded map for any shared key.
+        # Type/convert `extra` the same way as the base LABEL_MAP path (unit-
+        # aware for length/beam/draft) — previously this passed raw strings
+        # straight through untyped, which silently failed downstream float()
+        # casts (losing the data) and had no meters-to-feet conversion at all.
+        extra_typed = self._normalize_spec_values(extra)
+        return {**base, **extra_typed}
 
     # ---------------------------------------------------------
     # SCRAPE A SINGLE LISTING URL - raw data dict
@@ -2741,6 +2969,48 @@ except Exception as e:
             except (TypeError, ValueError):
                 yacht_data.pop("length_feet", None)
 
+        # Extend the same physically-implausible-value rejection to every other
+        # numeric field the AI fallback (or a regex misfire) can populate. Before
+        # this, only year/length_feet were bounds-checked, so a hallucinated
+        # `cabins: 40` or an implausible price could reach the confidence score
+        # (which is purely presence-based) with no backstop at all, then sail
+        # straight past the auto-create threshold looking "complete".
+        _NUMERIC_BOUNDS = {
+            "price": (1000, 100_000_000),
+            "cabins": (0, 20),
+            "berths": (0, 40),
+            "heads": (0, 20),
+            "beam_feet": (3, 100),
+            "draft_feet": (0.5, 40),
+            "max_speed_knots": (0, 100),
+            "cruising_speed_knots": (0, 100),
+            "engine_hours": (0, 50_000),
+        }
+        for _field, (_lo, _hi) in _NUMERIC_BOUNDS.items():
+            _v = yacht_data.get(_field)
+            if _v is None:
+                continue
+            try:
+                if not (_lo <= float(_v) <= _hi):
+                    yacht_data.pop(_field, None)
+            except (TypeError, ValueError):
+                yacht_data.pop(_field, None)
+
+        # Cross-field plausibility: a price that individually passes the bounds
+        # above can still be wildly wrong for this boat's size (e.g. a stray
+        # "$549" instead of "$549,000" reads as a legitimate >= $1000 price on
+        # its own). Reject prices outside a sane $/ft range rather than trusting
+        # any in-range number just because a length is also present.
+        _price = yacht_data.get("price")
+        _length_for_price_check = yacht_data.get("length_feet")
+        if _price is not None and _length_for_price_check:
+            try:
+                _price_per_ft = float(_price) / float(_length_for_price_check)
+                if not (300 <= _price_per_ft <= 500_000):
+                    yacht_data.pop("price", None)
+            except (TypeError, ValueError, ZeroDivisionError):
+                pass
+
         images = self.extract_images(html, url)
 
         # ── Headless image rescue ─────────────────────────────────────────────
@@ -2887,27 +3157,71 @@ def _generate_bin(db) -> str:
             return bin_val
 
 
-# Domains that syndicate listing images from broker sites under license.
-# We download and re-host these images rather than linking to them externally,
-# since they may be pulled or change URL without notice.
-_EXTERNAL_CDN_DOMAINS = re.compile(
-    r'images\.boatsgroup\.com|'
-    r'cdn\.yachtworld\.com|'
-    r'photos\.yachtworld\.com|'
-    r'ybw\.com',
-    re.IGNORECASE,
-)
+def _is_already_hosted(img_url: str) -> bool:
+    """True if img_url already points at our own storage (local /uploads/
+    path, or the configured S3/R2 public base URL) — re-downloading and
+    re-uploading it again on every subsequent sync would be pure waste."""
+    if not img_url:
+        return True
+    if img_url.startswith("/uploads/"):
+        return True
+    from app.services.media_storage import S3_PUBLIC_BASE_URL
+    if S3_PUBLIC_BASE_URL and img_url.startswith(S3_PUBLIC_BASE_URL):
+        return True
+    return False
+
 
 def _rehost_image(img_url: str) -> str:
-    """Download an external CDN image and re-upload it to our own storage.
+    """Download a scraped image and re-upload it to our own storage.
 
     Returns the new hosted URL on success, or the original URL on any failure
     so the listing always gets a valid image URL.
+
+    This must run on EVERY scraped image, not just ones from known
+    syndication CDNs (YachtWorld/BoatsGroup) — the original implementation
+    only rehosted images matching that narrow whitelist, so images hosted
+    directly on an individual broker's own site (the common case for the
+    general HTML scraper) were stored as raw hotlinked URLs. The moment that
+    broker's own website went down, got redesigned, or the listing was
+    removed, those URLs 404'd and the images vanished from our own listing
+    pages too, even though the listing data itself was still fine.
+
+    Tries plain `requests` first, then falls back to the curl-cffi Chrome TLS
+    impersonation session (when installed) — the same one used for the HTML
+    fetch itself. Image CDNs on Cloudflare-protected sites can TCP-RST a plain
+    `requests` call exactly like the HTML page would, even when the HTML fetch
+    succeeded (different origin/CDN), so this was previously the weakest link
+    in an otherwise-successful scrape: the listing would come through with
+    good data but broken/missing images.
     """
+    if _is_already_hosted(img_url):
+        return img_url
+
+    _headers = {"User-Agent": "Mozilla/5.0"}
+    resp = None
     try:
-        resp = requests.get(img_url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
-        if resp.status_code != 200 or not resp.content:
-            return img_url
+        resp = requests.get(img_url, timeout=20, headers=_headers)
+        if resp.status_code == 200 and resp.content:
+            pass
+        else:
+            resp = None
+    except Exception as exc:
+        logger.info(f"_rehost_image: plain requests failed for {img_url}: {exc} — trying curl-cffi")
+        resp = None
+
+    if resp is None and _CURL_CFFI_AVAILABLE:
+        try:
+            with _CurlSession(impersonate="chrome124") as curl_sess:
+                curl_resp = curl_sess.get(img_url, timeout=20, headers=_headers)
+            if curl_resp.status_code == 200 and curl_resp.content:
+                resp = curl_resp
+        except Exception as exc:
+            logger.warning(f"_rehost_image: curl-cffi fallback also failed for {img_url}: {exc}")
+
+    if resp is None:
+        return img_url
+
+    try:
         content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
         # Derive a safe filename from the URL
         from uuid import uuid4
@@ -2936,14 +3250,31 @@ def run_scraper_job(job_id: int, db) -> Dict:
     """
     import os
 
+    # Atomically claim the job: an UPDATE...WHERE status != 'running' only affects a
+    # row if it isn't already running, and Postgres row-level locking serializes
+    # concurrent UPDATEs on the same row — so if the scheduler's 30-min tick and an
+    # admin's manual "Run Now" race each other (or the endpoint is double-clicked),
+    # only one caller's update actually flips the status; the loser sees rowcount==0
+    # and returns without scraping, instead of both starting a duplicate run.
+    claimed = (
+        db.query(ScraperJob)
+        .filter(ScraperJob.id == job_id, ScraperJob.status != "running")
+        .update(
+            {"status": "running", "started_at": datetime.utcnow(), "last_error": None},
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    if not claimed:
+        existing = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+        if not existing:
+            return {"error": f"Job {job_id} not found"}
+        logger.warning(f"[Job {job_id}] Skipping run — already running (claimed by a concurrent trigger)")
+        return {"success": False, "error": "Job is already running", "job_id": job_id}
+
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         return {"error": f"Job {job_id} not found"}
-
-    job.status = "running"
-    job.started_at = datetime.utcnow()
-    job.last_error = None
-    db.commit()
 
     # ── Master Ocean REST API path ────────────────────────────────────────────
     _template = job.site_template or {}
@@ -2966,7 +3297,14 @@ def run_scraper_job(job_id: int, db) -> Dict:
                 job.last_run_log = mo_stats.get("log", [])
                 job.total_runs = (job.total_runs or 0) + 1
                 job.last_run_at = datetime.utcnow()
-                from datetime import timedelta
+                # NOTE: `timedelta` is already imported at module level — a local
+                # `from datetime import timedelta` used to live here, which made
+                # Python treat `timedelta` as a local name for this ENTIRE
+                # function (a name assigned/imported anywhere in a function body
+                # is local throughout it), causing UnboundLocalError at Step 4's
+                # `job.next_run_at = ... + timedelta(...)` below on every normal
+                # (non-Master-Ocean) job run, since that local import never
+                # executed for them. Caught by test_scraper_reliability_fixes.py.
                 job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
             job.completed_at = datetime.utcnow()
             db.commit()
@@ -3007,7 +3345,35 @@ def run_scraper_job(job_id: int, db) -> Dict:
         synonym_cache = _load_synonym_cache(db)
 
         # -- Step 2: staged pipeline -- fetch > normalize > AI > validate > upsert --
-        for url in discovered_urls:
+        _BLOCK_SHORT_CIRCUIT_THRESHOLD = 5
+        _MIN_FETCH_DELAY_SECONDS = 0.6
+        _MAX_FETCH_DELAY_SECONDS = 1.4
+        for _url_index, url in enumerate(discovered_urls):
+            if _url_index > 0:
+                # Small jittered delay between listing fetches — hammering a
+                # broker site back-to-back with zero delay risks getting the
+                # platform's egress IP rate-limited or outright blocked, which
+                # would break not just this run but every future scrape of that
+                # site until a proxy is configured.
+                time.sleep(random.uniform(_MIN_FETCH_DELAY_SECONDS, _MAX_FETCH_DELAY_SECONDS))
+            if scraper._consecutive_blocks >= _BLOCK_SHORT_CIRCUIT_THRESHOLD:
+                # We're being blocked (403/429/TCP-RST/etc.), not just missing
+                # pages — every remaining URL would fail the same way. Stop
+                # burning through the list; the per-URL errors already logged
+                # make it clear a proxy is needed, and this leaves the rest of
+                # the job's listings untouched (not archived) for the next run.
+                remaining = len(discovered_urls) - len(run_log)
+                logger.warning(
+                    f"[Job {job_id}] {scraper._consecutive_blocks} consecutive blocked fetches — "
+                    f"stopping early with {remaining} URL(s) unprocessed this run (likely needs a proxy)"
+                )
+                run_log.append({
+                    "outcome": "job_short_circuited_blocked",
+                    "consecutive_blocks": scraper._consecutive_blocks,
+                    "urls_remaining": remaining,
+                })
+                stats["blocked_short_circuit"] = True
+                break
             try:
                 # Look up any existing rows BEFORE releasing the DB connection.
                 _existing_scraped_id = (
@@ -3429,8 +3795,9 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         db.flush()  # get listing.id
 
                         # Create images — filter out social media assets and tiny non-boat images.
-                        # Any image from an external syndicator CDN (YachtWorld / boatsgroup) is
-                        # downloaded and re-hosted on our own storage so we don't depend on their URLs.
+                        # Every scraped image is downloaded and re-hosted on our own storage
+                        # (not just known syndicator CDNs) so a listing's photos don't vanish
+                        # the moment the broker's own site goes down or changes its URLs.
                         _SKIP_IMAGE_RE = re.compile(
                             r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
                             r'logo|icon|favicon|avatar|banner|social|share|'
@@ -3441,8 +3808,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
                             if _SKIP_IMAGE_RE.search(img_url):
                                 continue
-                            if _EXTERNAL_CDN_DOMAINS.search(img_url):
-                                img_url = _rehost_image(img_url)
+                            img_url = _rehost_image(img_url)
                             db.add(ListingImage(
                                 listing_id=listing.id,
                                 url=img_url,
@@ -3496,13 +3862,45 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     break
 
         # -- Step 3: archive listings that disappeared --
+        # NOTE: archival is a soft status flip (Listing.status = "archived"), never a
+        # delete — a listing that comes back on a later scrape can be reactivated.
         previously_active = (
             db.query(ScrapedListing)
             .filter(ScrapedListing.job_id == job_id, ScrapedListing.still_active == True)
             .all()
         )
-        for scraped_record in previously_active:
-            if scraped_record.source_url not in discovered_url_set:
+        would_archive = [r for r in previously_active if r.source_url not in discovered_url_set]
+
+        # Safety threshold: a broken pagination selector, a JS-render failure, or a
+        # transient block can make discovery return far fewer URLs than the site
+        # actually has. Without a guard here, that single bad crawl would archive
+        # nearly a dealer's entire live inventory. If this run's discovery looks
+        # suspicious relative to what we've tracked before, skip archival entirely
+        # this run — listings stay active/untouched until a healthy crawl confirms
+        # they're really gone.
+        previously_tracked_count = len(previously_active)
+        drop_ratio = (len(would_archive) / previously_tracked_count) if previously_tracked_count else 0.0
+        archival_suspicious = (
+            (len(discovered_urls) == 0 and previously_tracked_count > 0)
+            or (previously_tracked_count >= 5 and drop_ratio > 0.5)
+        )
+
+        if archival_suspicious:
+            logger.warning(
+                f"[Job {job_id}] Skipping archival — discovery found {len(discovered_urls)} URLs this run "
+                f"and would archive {len(would_archive)}/{previously_tracked_count} previously-tracked "
+                f"listings ({drop_ratio:.0%}), over the safety threshold. Treating this run's discovery as "
+                f"unreliable rather than archiving live inventory."
+            )
+            run_log.append({
+                "outcome": "archival_skipped_suspicious_drop",
+                "discovered": len(discovered_urls),
+                "previously_tracked": previously_tracked_count,
+                "would_have_archived": len(would_archive),
+            })
+            stats["archival_skipped"] = True
+        else:
+            for scraped_record in would_archive:
                 scraped_record.still_active = False
                 if scraped_record.listing_id:
                     listing = db.query(Listing).filter(Listing.id == scraped_record.listing_id).first()
@@ -3535,7 +3933,6 @@ def run_scraper_job(job_id: int, db) -> Dict:
         ):
             _status_counts[row[0]] = row[1]
         logger.info(f"[Job {job_id}] Sync complete: {stats} | DB scraped listings by status: {_status_counts}")
-        return {"success": True, "job_id": job_id, **stats}
         return {"success": True, "job_id": job_id, **stats}
 
     except _AnthropicCreditsExhausted as e:
@@ -3587,6 +3984,28 @@ def _generate_image_alt_text(listing: Listing, photo_position: int) -> str:
     return f"{descriptor} for sale — photo {photo_position + 1}"
 
 
+# Physically-implausible-value bounds, applied in _apply_scraped_data — the
+# single write path shared by the HTML scraper, the YachtWorld/IYBA API sync,
+# and the Master Ocean API sync. Previously bounds-checking only happened
+# inside the HTML scraper's own extraction function (scrape_single_listing),
+# so a bad value straight from a "trusted" API feed (a broker's data-entry
+# error, a placeholder/test record, a schema quirk) had no backstop at all
+# before landing in the DB. year's upper bound is computed at call time since
+# it depends on the current date.
+_NUMERIC_FIELD_BOUNDS = {
+    "price": (1000, 100_000_000),
+    "length_feet": (8, 600),
+    "beam_feet": (3, 100),
+    "draft_feet": (0.5, 40),
+    "cabins": (0, 20),
+    "berths": (0, 40),
+    "heads": (0, 20),
+    "max_speed_knots": (0, 100),
+    "cruising_speed_knots": (0, 100),
+    "engine_hours": (0, 50_000),
+}
+
+
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
     """Copy scraped fields onto a Listing object, preserving manually-set overrides."""
     str_fields = ["title", "make", "model", "boat_type",
@@ -3612,23 +4031,71 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
             _sanitize_plain_text(str(item)) if isinstance(item, str) else item
             for item in raw["feature_bullets"]
         ]
+    _PRICE_SWING_REVIEW_THRESHOLD = 0.8  # an 80%+ single-scrape price swing gets flagged, not silently applied
     for f in float_fields:
-        if raw.get(f) is not None:
-            try:
-                v = float(raw[f])
-                # Price of exactly 0 means unknown — store as None
-                if f == 'price' and v == 0:
-                    listing.price = None
-                else:
-                    setattr(listing, f, v)
-            except (ValueError, TypeError):
-                pass
+        if raw.get(f) is None:
+            continue
+        try:
+            v = float(raw[f])
+        except (ValueError, TypeError):
+            continue
+        # Price of exactly 0 means unknown — store as None (exempt from bounds below)
+        if f == 'price' and v == 0:
+            listing.price = None
+            continue
+        _bounds = _NUMERIC_FIELD_BOUNDS.get(f)
+        if _bounds and not (_bounds[0] <= v <= _bounds[1]):
+            logger.info(
+                f"_apply_scraped_data: rejecting implausible {f}={v} for listing "
+                f"#{listing.id or '(new)'} (expected {_bounds[0]}-{_bounds[1]})"
+            )
+            continue
+        if f == 'price' and listing.price and listing.price > 0:
+            # Guard against a single bad scrape/feed record (a superseded/
+            # related-listing price the regex grabbed, a decimal-place slip,
+            # etc.) silently clobbering a previously-good price. A swing this
+            # large in one sync cycle is far more likely to be an extraction
+            # error than a real price change, so keep the existing price and
+            # flag it for admin review instead of overwriting.
+            swing = abs(v - listing.price) / listing.price
+            if swing > _PRICE_SWING_REVIEW_THRESHOLD:
+                specs = dict(listing.additional_specs or {})
+                specs["price_review_pending"] = {
+                    "current_price": listing.price,
+                    "scraped_price": v,
+                    "detected_at": datetime.utcnow().isoformat(),
+                }
+                listing.additional_specs = specs
+                logger.warning(
+                    f"_apply_scraped_data: listing #{listing.id} price swing "
+                    f"{listing.price} -> {v} ({swing:.0%}) exceeds review threshold — "
+                    f"keeping existing price, flagged for admin review"
+                )
+            else:
+                setattr(listing, f, v)
+        else:
+            setattr(listing, f, v)
+    _this_year = datetime.now().year
     for f in int_fields:
-        if raw.get(f) is not None:
-            try:
-                setattr(listing, f, int(raw[f]))
-            except (ValueError, TypeError):
-                pass
+        if raw.get(f) is None:
+            continue
+        try:
+            v = int(raw[f])
+        except (ValueError, TypeError):
+            continue
+        if f == 'year':
+            if not (1900 <= v <= _this_year + 2):
+                logger.info(f"_apply_scraped_data: rejecting implausible year={v} for listing #{listing.id or '(new)'}")
+                continue
+        else:
+            _bounds = _NUMERIC_FIELD_BOUNDS.get(f)
+            if _bounds and not (_bounds[0] <= v <= _bounds[1]):
+                logger.info(
+                    f"_apply_scraped_data: rejecting implausible {f}={v} for listing "
+                    f"#{listing.id or '(new)'} (expected {_bounds[0]}-{_bounds[1]})"
+                )
+                continue
+        setattr(listing, f, v)
 
     # Normalize and infer location fields
     city, state, country = OptimizedYachtScraper.normalize_location(
@@ -3659,9 +4126,45 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
 # ---------------------------------------------------------
 # SCHEDULER HOOK â€” called periodically to run due jobs
 # ---------------------------------------------------------
+
+# A job stuck "running" longer than this is treated as crashed, not active.
+# Kept in sync with routes_scraper.py's manual "Run Now" endpoint, which has
+# its own copy of this same recovery logic for the same reason.
+STALE_RUNNING_MINUTES = 30
+
+
 def run_due_scraper_jobs(db) -> int:
-    """Find all enabled jobs that are due and run them. Returns count of jobs triggered."""
+    """Find all enabled jobs that are due and run them. Returns count of jobs triggered.
+
+    Jobs stuck in status="running" past STALE_RUNNING_MINUTES (process crashed
+    or the server restarted mid-run) are reset here too — without this, a
+    crashed job would be silently excluded from every future scheduler tick
+    forever, since the query below filters on status != "running" and nothing
+    else would ever flip it back. Previously only the manual "Run Now" endpoint
+    had this recovery, which only helped if an admin happened to notice.
+    """
     now = datetime.utcnow()
+    stale_cutoff = now - timedelta(minutes=STALE_RUNNING_MINUTES)
+    stuck_jobs = (
+        db.query(ScraperJob)
+        .filter(
+            ScraperJob.status == "running",
+            ScraperJob.started_at != None,
+            ScraperJob.started_at < stale_cutoff,
+        )
+        .all()
+    )
+    for job in stuck_jobs:
+        logger.warning(
+            f"[Scheduler] Job #{job.id} stuck 'running' since {job.started_at} "
+            f"(> {STALE_RUNNING_MINUTES}m) — resetting so it can be scheduled again"
+        )
+        job.status = "failed"
+        job.last_error = f"Previous run appears to have crashed (stuck in 'running' since {job.started_at.isoformat()})"
+        job.completed_at = now
+    if stuck_jobs:
+        db.commit()
+
     due_jobs = (
         db.query(ScraperJob)
         .filter(

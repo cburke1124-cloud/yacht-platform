@@ -432,7 +432,7 @@ def dealer_import_listing(
     dealer_id, dp = _get_dealer_profile(current_user, db)
     _validate_dealer_scrape_url(data.url, dp.website)
 
-    from app.services.scraper import OptimizedYachtScraper, _generate_bin, _apply_scraped_data
+    from app.services.scraper import OptimizedYachtScraper, _generate_bin, _apply_scraped_data, _rehost_image
     from types import SimpleNamespace
 
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
@@ -460,7 +460,7 @@ def dealer_import_listing(
     db.flush()
 
     for img_url in raw.get("images", []):
-        db.add(ListingImage(listing_id=listing.id, url=img_url))
+        db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
 
     db.add(ScrapedListing(job_id=None, listing_id=listing.id, source_url=data.url.strip()))
     db.commit()
@@ -693,7 +693,7 @@ def import_single_listing(
     if not data.url:
         raise ValidationException("URL is required")
 
-    from app.services.scraper import OptimizedYachtScraper, _generate_bin, _apply_scraped_data
+    from app.services.scraper import OptimizedYachtScraper, _generate_bin, _apply_scraped_data, _rehost_image
     from types import SimpleNamespace
 
     api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY", "")
@@ -738,7 +738,7 @@ def import_single_listing(
     db.flush()
 
     for img_url in raw.get("images", []):
-        db.add(ListingImage(listing_id=listing.id, url=img_url))
+        db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
 
     scraped_record = ScrapedListing(
         job_id=None,
@@ -957,7 +957,7 @@ def toggle_scraper_job(
     return {"success": True, "enabled": job.enabled, "job": _job_to_dict(job)}
 
 
-STALE_RUNNING_MINUTES = 30  # a job stuck "running" longer than this is treated as crashed, not active
+from app.services.scraper import STALE_RUNNING_MINUTES  # shared with the scheduler's own stale-job recovery
 
 
 @router.post("/scraper/jobs/{job_id}/run")
@@ -1750,7 +1750,7 @@ def apply_raw_page(
     if not page.merged_data:
         raise HTTPException(status_code=422, detail="No merged data — run Reparse first")
 
-    from app.services.scraper import _generate_bin, _apply_scraped_data
+    from app.services.scraper import _generate_bin, _apply_scraped_data, _rehost_image
     from types import SimpleNamespace
 
     raw = page.merged_data
@@ -1781,7 +1781,7 @@ def apply_raw_page(
             scraped_imgs = [u for u in (raw.get("images") or []) if u not in excluded_urls]
             db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
             for img_url in scraped_imgs:
-                db.add(ListingImage(listing_id=listing.id, url=img_url))
+                db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
             db.commit()
             db.refresh(listing)
             return {"success": True, "listing_id": listing.id, "title": listing.title, "action": "updated"}
@@ -1802,7 +1802,7 @@ def apply_raw_page(
     db.flush()
 
     for img_url in (raw.get("images") or []):
-        db.add(ListingImage(listing_id=listing.id, url=img_url))
+        db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
 
     db.add(ScrapedListing(job_id=page.job_id, listing_id=listing.id, source_url=page.source_url))
     db.commit()

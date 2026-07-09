@@ -27,7 +27,7 @@ import requests
 from app.db.session import SessionLocal
 from app.models.listing import Listing, ListingImage
 from app.models.misc import YachtworldSyncJob
-from app.services.scraper import _apply_scraped_data
+from app.services.scraper import _apply_scraped_data, _rehost_image
 
 logger = logging.getLogger(__name__)
 
@@ -1121,7 +1121,7 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
                     if raw.get("images"):
                         db.query(ListingImage).filter(ListingImage.listing_id == existing.id).delete()
                         for img_url in raw["images"]:
-                            db.add(ListingImage(listing_id=existing.id, url=img_url))
+                            db.add(ListingImage(listing_id=existing.id, url=_rehost_image(img_url)))
                     stats["updated"] += 1
                     run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
                                     "listing_id": existing.id, "title": existing.title})
@@ -1143,7 +1143,7 @@ def _sync_iyba_feed(job, db, run_log: list, stats: dict, seen_source_urls: set) 
                     db.add(listing)
                     db.flush()
                     for img_url in raw.get("images", []):
-                        db.add(ListingImage(listing_id=listing.id, url=img_url))
+                        db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
                     stats["created"] += 1
                     run_log.append({"url": source_url, "outcome": "created",
                                     "listing_id": listing.id, "title": listing.title})
@@ -1185,17 +1185,33 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
     """
     proxies = None
 
+    # Atomically claim the job — same reasoning as scraper.py's run_scraper_job:
+    # an UPDATE...WHERE status != 'running' only affects a row if it isn't
+    # already running, and Postgres row-level locking serializes concurrent
+    # UPDATEs on the same row, so a scheduler tick racing an admin's manual
+    # "Run" click (or a double-click on Run) can't start two concurrent syncs
+    # of the same feed job.
+    claimed = (
+        db.query(YachtworldSyncJob)
+        .filter(YachtworldSyncJob.id == job_id, YachtworldSyncJob.status != "running")
+        .update(
+            {"status": "running", "started_at": datetime.utcnow(), "last_error": None, "last_run_log": None},
+            synchronize_session=False,
+        )
+    )
+    db.commit()
+    if not claimed:
+        existing = db.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
+        if not existing:
+            return {"error": f"YachtworldSyncJob {job_id} not found"}
+        logger.warning(f"[YWJob {job_id}] Skipping run — already running (claimed by a concurrent trigger)")
+        return {"success": False, "error": "Job is already running", "job_id": job_id}
+
     job: Optional[YachtworldSyncJob] = (
         db.query(YachtworldSyncJob).filter(YachtworldSyncJob.id == job_id).first()
     )
     if not job:
         return {"error": f"YachtworldSyncJob {job_id} not found"}
-
-    job.status = "running"
-    job.started_at = datetime.utcnow()
-    job.last_error = None
-    job.last_run_log = None
-    db.commit()
 
     stats = {"found": 0, "created": 0, "updated": 0, "archived": 0, "errors": 0}
     run_log: list = []
@@ -1236,8 +1252,27 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                 )
                 .all()
             )
-            for lst in prev_active:
-                if lst.source_url not in seen_source_urls:
+            would_archive = [lst for lst in prev_active if lst.source_url not in seen_source_urls]
+
+            # Same archival safety threshold as the Boats Group path above and
+            # scraper.py/master_ocean.py — a partial/broken IYBA fetch must not
+            # be able to mass-archive a dealer's live inventory.
+            _previously_tracked = len(prev_active)
+            _drop_ratio = (len(would_archive) / _previously_tracked) if _previously_tracked else 0.0
+            _archival_suspicious = (
+                (len(seen_source_urls) == 0 and _previously_tracked > 0)
+                or (_previously_tracked >= 5 and _drop_ratio > 0.5)
+            )
+            if _archival_suspicious:
+                logger.warning(
+                    f"[YWJob {job_id}] IYBA: skipping archival — would archive "
+                    f"{len(would_archive)}/{_previously_tracked} tracked listings ({_drop_ratio:.0%}), "
+                    f"over the safety threshold."
+                )
+                run_log.append({"outcome": "archival_skipped_suspicious_drop",
+                                 "previously_tracked": _previously_tracked, "would_have_archived": len(would_archive)})
+            else:
+                for lst in would_archive:
                     lst.status = "archived"
                     stats["archived"] += 1
                     run_log.append({"url": lst.source_url, "outcome": "archived", "listing_id": lst.id})
@@ -1440,7 +1475,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                         if raw.get("images"):
                             db.query(ListingImage).filter(ListingImage.listing_id == existing.id).delete()
                             for img_url in raw["images"]:
-                                db.add(ListingImage(listing_id=existing.id, url=img_url))
+                                db.add(ListingImage(listing_id=existing.id, url=_rehost_image(img_url)))
                         stats["updated"] += 1
                         run_log.append({"url": source_url, "outcome": "sold" if is_sold else "updated",
                                         "listing_id": existing.id, "title": existing.title})
@@ -1462,7 +1497,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                         db.add(listing)
                         db.flush()
                         for img_url in raw.get("images", []):
-                            db.add(ListingImage(listing_id=listing.id, url=img_url))
+                            db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
                         stats["created"] += 1
                         run_log.append({"url": source_url, "outcome": "created",
                                         "listing_id": listing.id, "title": listing.title})
@@ -1501,8 +1536,30 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
             )
             .all()
         )
-        for lst in prev_active:
-            if lst.source_url not in seen_source_urls:
+        would_archive = [lst for lst in prev_active if lst.source_url not in seen_source_urls]
+
+        # Safety threshold — same as scraper.py's run_scraper_job and
+        # master_ocean.py's _archive_disappeared: a broken/partial fetch (API
+        # schema change, expired key returning an empty-but-valid page, a
+        # pagination heuristic ending early) must not be able to mass-archive
+        # a dealer's live inventory just because "not seen in seen_source_urls"
+        # got treated as "no longer listed".
+        _previously_tracked = len(prev_active)
+        _drop_ratio = (len(would_archive) / _previously_tracked) if _previously_tracked else 0.0
+        _archival_suspicious = (
+            (len(seen_source_urls) == 0 and _previously_tracked > 0)
+            or (_previously_tracked >= 5 and _drop_ratio > 0.5)
+        )
+        if _archival_suspicious:
+            logger.warning(
+                f"[YWJob {job_id}] Skipping archival — would archive "
+                f"{len(would_archive)}/{_previously_tracked} tracked listings ({_drop_ratio:.0%}), "
+                f"over the safety threshold. Treating this run's fetch as unreliable."
+            )
+            run_log.append({"outcome": "archival_skipped_suspicious_drop",
+                             "previously_tracked": _previously_tracked, "would_have_archived": len(would_archive)})
+        else:
+            for lst in would_archive:
                 lst.status = "archived"
                 stats["archived"] += 1
                 run_log.append({"url": lst.source_url, "outcome": "archived", "listing_id": lst.id})
@@ -1539,9 +1596,41 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
 # Scheduler hook
 # ---------------------------------------------------------------------------
 
+STALE_YW_RUNNING_MINUTES = 30  # a job stuck "running" longer than this is treated as crashed, not active
+
+
 def run_due_yachtworld_jobs(db) -> int:
-    """Find all enabled YW feed jobs that are due and run them synchronously."""
+    """Find all enabled YW feed jobs that are due and run them synchronously.
+
+    Jobs stuck in status="running" past STALE_YW_RUNNING_MINUTES (process
+    crashed or the server restarted mid-run) are reset here too. Previously
+    stuck jobs were only recovered on server startup (see app/main.py) — if a
+    job got stuck mid-day rather than from a full restart, it stayed
+    permanently excluded from every future scheduler tick until someone
+    happened to notice and hit the manual "reset" endpoint.
+    """
     now = datetime.utcnow()
+    stale_cutoff = now - timedelta(minutes=STALE_YW_RUNNING_MINUTES)
+    stuck_jobs = (
+        db.query(YachtworldSyncJob)
+        .filter(
+            YachtworldSyncJob.status == "running",
+            YachtworldSyncJob.started_at != None,
+            YachtworldSyncJob.started_at < stale_cutoff,
+        )
+        .all()
+    )
+    for job in stuck_jobs:
+        logger.warning(
+            f"[YW Scheduler] Job #{job.id} stuck 'running' since {job.started_at} "
+            f"(> {STALE_YW_RUNNING_MINUTES}m) — resetting so it can be scheduled again"
+        )
+        job.status = "failed"
+        job.last_error = f"Previous run appears to have crashed (stuck in 'running' since {job.started_at.isoformat()})"
+        job.completed_at = now
+    if stuck_jobs:
+        db.commit()
+
     due_jobs = (
         db.query(YachtworldSyncJob)
         .filter(

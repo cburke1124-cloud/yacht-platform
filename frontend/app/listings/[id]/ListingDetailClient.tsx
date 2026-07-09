@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Heart, Download, MapPin, Calendar, ArrowLeft, Mail,
-  Ship, Share2, Facebook, Twitter, Linkedin,
+  Ship, Share2, Facebook, Twitter, Linkedin, Instagram,
   MessageCircle, Link2, Printer, Plus, Check, Phone,
   X, ChevronLeft, ChevronRight, Building2, User,
   ExternalLink, Globe, Users, Wrench,
@@ -899,14 +899,64 @@ export default function ListingDetailClient({
                       {/* Company name */}
                       {sc && (dealer.slug ? (
                         <Link href={`/dealers/${dealer.slug}`}
-                          className="block text-center text-xs font-semibold text-[#10214F] hover:text-[#01BBDC] hover:underline mb-3 uppercase tracking-wider">
+                          className="block text-center text-xs font-semibold text-[#10214F] hover:text-[#01BBDC] hover:underline mb-1 uppercase tracking-wider">
                           {dealer.company_name || dealer.name}
                         </Link>
                       ) : (
-                        <p className="text-center text-xs font-semibold text-[#10214F] mb-3 uppercase tracking-wider">
+                        <p className="text-center text-xs font-semibold text-[#10214F] mb-1 uppercase tracking-wider">
                           {dealer.company_name || dealer.name}
                         </p>
                       ))}
+
+                      {/* Location */}
+                      {(dealer.city || dealer.state || dealer.country) && (
+                        <p className="text-center text-[11px] text-gray-400 flex items-center justify-center gap-1 mb-3">
+                          <MapPin size={10} />
+                          {[dealer.city, dealer.state, dealer.country].filter(Boolean).join(', ')}
+                        </p>
+                      )}
+
+                      {/* Description / bio */}
+                      {dealer.description && (
+                        <p className="text-center text-xs text-gray-500 leading-relaxed mb-3 line-clamp-4">
+                          {dealer.description}
+                        </p>
+                      )}
+
+                      {/* Email */}
+                      {dealer.email && (
+                        <a href={`mailto:${dealer.email}`}
+                          className="flex items-center justify-center gap-1.5 text-xs hover:text-[#01BBDC] transition-colors mb-3"
+                          style={{ color: '#10214F' }}>
+                          <Mail size={12} /> {dealer.email}
+                        </a>
+                      )}
+
+                      {/* Social links */}
+                      {(dealer.facebook_url || dealer.instagram_url || dealer.twitter_url || dealer.linkedin_url) && (
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                          {dealer.facebook_url && (
+                            <a href={dealer.facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                              <Facebook size={16} className="text-[#1877F2]" />
+                            </a>
+                          )}
+                          {dealer.instagram_url && (
+                            <a href={dealer.instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                              <Instagram size={16} className="text-[#E4405F]" />
+                            </a>
+                          )}
+                          {dealer.twitter_url && (
+                            <a href={dealer.twitter_url} target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+                              <Twitter size={16} className="text-[#1DA1F2]" />
+                            </a>
+                          )}
+                          {dealer.linkedin_url && (
+                            <a href={dealer.linkedin_url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                              <Linkedin size={16} className="text-[#0A66C2]" />
+                            </a>
+                          )}
+                        </div>
+                      )}
 
                       {/* Visit website */}
                       {dealer.website && (
