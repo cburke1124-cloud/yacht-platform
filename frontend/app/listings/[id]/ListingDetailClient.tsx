@@ -327,8 +327,16 @@ export default function ListingDetailClient({
       const dealer  = contact?.dealer;
       const recipId = sc?.id ?? dealer?.id ?? listing?.created_by_user_id ?? listing?.user_id;
       let ok = false;
-      if (token && recipId) {
-        // Logged-in users: create a message
+      if (token) {
+        // Logged-in users always go through /messages, regardless of whether
+        // recipId resolved here — the backend re-derives the recipient from
+        // listing_id itself (assigned_salesman_id, then listing owner) if we
+        // don't pass one. Gating on `recipId` too meant a logged-in user
+        // messaging a listing with no resolvable recipient (e.g. an unowned
+        // scraped listing) silently fell into the anonymous inquiry branch
+        // below, which requires sender_name/sender_email — fields the
+        // logged-in form never collects — sending a blank, useless inquiry
+        // while still reporting success.
         const r = await fetch(`${API_ROOT}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: `Inquiry about: ${listing?.title || 'Listing #' + id}`, body: msgForm.message, message_type: 'inquiry', recipient_id: recipId, listing_id: Number(id) }) });
         ok = r.ok;
       } else {
@@ -641,7 +649,7 @@ export default function ListingDetailClient({
                   </div>
                   <button type="submit" disabled={msgBusy}
                     className="w-full py-3.5 rounded-xl text-white font-semibold hover:opacity-90 disabled:opacity-60 transition-all bg-[#01BBDC]">
-                    {msgBusy ? 'Sending…' : 'Send Message'}
+                    {msgBusy ? 'Sending…' : 'Send Inquiry'}
                   </button>
                 </form>
               )}
