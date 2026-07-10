@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload, Square, CheckSquare, Eye } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 import { CHARTER_FEATURES } from '@/app/lib/charterFeatures';
 import DealerMediaGallery from '@/app/components/DealerMediaGallery';
+import { ListingCheckbox, useBulkSelection } from '@/app/components/BulkActionBar';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -1022,6 +1023,10 @@ export default function AdminCharterTab() {
   const [trashed, setTrashed] = useState<CharterListing[]>([]);
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false);
+  const { selectedIds, toggleSelection, selectAll, clearSelection, isSelected } = useBulkSelection(0);
   const LIMIT = 25;
 
   const load = useCallback(async () => {
@@ -1067,6 +1072,10 @@ export default function AdminCharterTab() {
       .catch(() => {});
   }, []);
   useEffect(() => { if (statusFilter === 'deleted') loadTrashed(); }, [statusFilter, loadTrashed]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- clearSelection is
+  // re-created every render (not memoized in useBulkSelection); including it
+  // here would loop forever since setSelectedIds([]) always creates a new array.
+  useEffect(() => { clearSelection(); }, [page, statusFilter, search]);
 
   const handleRestore = async (id: number) => {
     setRestoringId(id);
@@ -1084,6 +1093,48 @@ export default function AdminCharterTab() {
   };
 
   const filtered = statusFilter === 'all' ? charters : charters.filter(c => c.status === statusFilter);
+
+  const handleBulkStatusChange = async (status: string) => {
+    if (!selectedIds.length) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(apiUrl('/charter/admin/bulk-status'), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({ charter_ids: selectedIds, status }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setToast({ ok: true, msg: `Updated ${data.updated} charter${data.updated === 1 ? '' : 's'} to ${status}` });
+      clearSelection();
+      load();
+    } catch {
+      setToast({ ok: false, msg: 'Bulk status update failed' });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.length) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch(apiUrl('/charter/admin/bulk-delete'), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({ charter_ids: selectedIds }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setToast({ ok: true, msg: `Deleted ${data.deleted} charter${data.deleted === 1 ? '' : 's'}` });
+      clearSelection();
+      load();
+    } catch {
+      setToast({ ok: false, msg: 'Bulk delete failed' });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const handleSave = async (data: Partial<CharterListing>) => {
     try {
@@ -1281,6 +1332,76 @@ export default function AdminCharterTab() {
         </select>
       </div>
 
+      {/* Bulk actions toolbar — appears once one or more rows are checked */}
+      {selectedIds.length > 0 && statusFilter !== 'deleted' && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#10214F]/20 bg-[#10214F]/5 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => (selectedIds.length === filtered.length ? clearSelection() : selectAll(filtered.map(c => c.id)))}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {selectedIds.length === filtered.length ? <Square size={14} /> : <CheckSquare size={14} />}
+              {selectedIds.length === filtered.length ? 'Deselect All' : `Select All (${filtered.length})`}
+            </button>
+            <span className="text-sm text-[#10214F]"><strong>{selectedIds.length}</strong> selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowBulkStatusMenu(v => !v)}
+                disabled={bulkBusy}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Eye size={14} /> Change Status
+              </button>
+              {showBulkStatusMenu && (
+                <div className="absolute right-0 top-full mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-xl z-20">
+                  {(['active', 'draft', 'inactive'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => { handleBulkStatusChange(s); setShowBulkStatusMenu(false); }}
+                      className="w-full px-3 py-2 text-left text-sm capitalize text-gray-700 hover:bg-gray-50"
+                    >
+                      Set to {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              disabled={bulkBusy}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+            <button onClick={clearSelection} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-700">
+              <X size={14} /> Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowBulkDeleteConfirm(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="mb-2 text-lg font-bold text-gray-900">Delete {selectedIds.length} charter{selectedIds.length === 1 ? '' : 's'}?</h3>
+            <p className="mb-5 text-sm text-gray-600">They&apos;ll move to Trash and can be restored within the retention window.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={() => { handleBulkDelete(); setShowBulkDeleteConfirm(false); }}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Delete {selectedIds.length}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {statusFilter === 'deleted' ? (
         /* Trash view — deleted charters, restorable within the retention window */
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -1343,6 +1464,13 @@ export default function AdminCharterTab() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="w-10 px-4 py-3">
+                    <ListingCheckbox
+                      id={-1}
+                      checked={selectedIds.length > 0 && selectedIds.length === filtered.length}
+                      onChange={() => (selectedIds.length === filtered.length ? clearSelection() : selectAll(filtered.map(c => c.id)))}
+                    />
+                  </th>
                   {['Title', 'Type', 'Location', 'Guests', 'Rate', 'Company', 'Status', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
@@ -1351,6 +1479,9 @@ export default function AdminCharterTab() {
               <tbody className="divide-y divide-gray-100">
                 {filtered.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <ListingCheckbox id={c.id} checked={isSelected(c.id)} onChange={toggleSelection} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900 truncate max-w-[200px]">{c.title}</div>
                       <div className="text-xs text-gray-400">{c.vessel_name}</div>

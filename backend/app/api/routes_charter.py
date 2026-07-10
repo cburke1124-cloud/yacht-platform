@@ -615,6 +615,78 @@ def admin_list_all_charters(
     }
 
 
+class BulkCharterStatusUpdate(BaseModel):
+    charter_ids: List[int]
+    status: str
+
+
+class BulkCharterIds(BaseModel):
+    charter_ids: List[int]
+
+
+@router.post("/admin/bulk-status")
+def bulk_update_charter_status(
+    body: BulkCharterStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update status on many charters in one transaction, mirroring
+    routes_admin.py's bulk_update_scraped_listing_status for for-sale listings."""
+    if body.status not in {"active", "draft", "inactive"}:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    if not body.charter_ids:
+        return {"success": True, "updated": 0}
+    if len(body.charter_ids) > 2000:
+        raise HTTPException(status_code=400, detail="Too many charter IDs (max 2000 per request)")
+
+    # Don't trust the client's id list wholesale — only touch charters this
+    # user is actually allowed to manage (same scoping as every other
+    # single-charter mutation endpoint).
+    charters = (
+        db.query(CharterListing)
+        .filter(CharterListing.id.in_(body.charter_ids), CharterListing.deleted_at.is_(None))
+        .all()
+    )
+    allowed_ids = [c.id for c in charters if _can_manage_charter(c, current_user, db)]
+    if not allowed_ids:
+        return {"success": True, "updated": 0}
+
+    updated = (
+        db.query(CharterListing)
+        .filter(CharterListing.id.in_(allowed_ids))
+        .update({"status": body.status, "updated_at": datetime.utcnow()}, synchronize_session=False)
+    )
+    db.commit()
+    return {"success": True, "updated": updated}
+
+
+@router.post("/admin/bulk-delete")
+def bulk_delete_charters(
+    body: BulkCharterIds,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete many charters at once — same trash/restore semantics as
+    the single-charter DELETE endpoint (status='deleted' + deleted_at)."""
+    if not body.charter_ids:
+        return {"success": True, "deleted": 0}
+    if len(body.charter_ids) > 2000:
+        raise HTTPException(status_code=400, detail="Too many charter IDs (max 2000 per request)")
+
+    charters = (
+        db.query(CharterListing)
+        .filter(CharterListing.id.in_(body.charter_ids), CharterListing.deleted_at.is_(None))
+        .all()
+    )
+    allowed = [c for c in charters if _can_manage_charter(c, current_user, db)]
+    now = datetime.utcnow()
+    for c in allowed:
+        c.status = "deleted"
+        c.deleted_at = now
+    db.commit()
+    return {"success": True, "deleted": len(allowed)}
+
+
 # ---------------------------------------------------------------------------
 # CSV import / export — registered before the "/{charter_id}" routes below so
 # the static "/import" and "/export" paths aren't swallowed by the dynamic one.
