@@ -17,6 +17,7 @@ from app.models.media import MediaFile, ListingMediaAttachment
 from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
 from app.services.billing_status import user_has_paid
+from app.services.media_scope import org_media_ids
 
 logger = logging.getLogger(__name__)
 CHARTER_INQUIRY_EMAIL = os.getenv("CONTACT_EMAIL", "info@yachtversal.com")
@@ -1230,6 +1231,10 @@ def update_charter(
 
 class CharterMediaAttachRequest(BaseModel):
     media_ids: List[int]
+    # Admins managing a charter on behalf of a dealer (e.g. a scraped draft)
+    # pass this so attachment is scoped to that dealer's own media org,
+    # instead of silently falling back to the admin's own org.
+    as_dealer_id: Optional[int] = None
 
 
 class CharterMediaReorderRequest(BaseModel):
@@ -1237,10 +1242,22 @@ class CharterMediaReorderRequest(BaseModel):
 
 
 @router.get("/{charter_id}/media")
-def get_charter_media(charter_id: int, db: Session = Depends(get_db)):
+def get_charter_media(
+    charter_id: int,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
     charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
     if not charter:
         raise HTTPException(status_code=404, detail="Not found")
+
+    # Active/published charters stay public (the public listing page renders
+    # this gallery unauthenticated) — anything not yet active (draft,
+    # awaiting_review, inactive) is only visible to whoever can manage it, so
+    # one broker's unpublished draft can't be browsed by guessing its ID.
+    if (charter.status or "").lower() != "active":
+        if not current_user or not _can_manage_charter(charter, current_user, db):
+            raise HTTPException(status_code=404, detail="Not found")
 
     items = []
     attachments = (
@@ -1313,13 +1330,26 @@ def attach_charter_media(
     media_files = db.query(MediaFile).filter(MediaFile.id.in_(media_ids), MediaFile.deleted_at.is_(None)).all()
     media_by_id = {m.id: m for m in media_files}
 
+    # Which media org this attach call is allowed to pull from. Admins default
+    # to their own org — cross-org attachment only happens if they explicitly
+    # declare which dealer they're acting for (matches the picker's
+    # as_dealer_id), so an admin can never silently attach one broker's media
+    # to a different broker's listing.
+    scope_user = current_user
+    if _is_admin(current_user) and payload.as_dealer_id is not None:
+        target = db.query(User).filter(User.id == payload.as_dealer_id).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Target dealer not found")
+        scope_user = target
+    allowed_ids = org_media_ids(scope_user, db)
+
     display_order = 0
     attached = 0
     for media_id in media_ids:
         mf = media_by_id.get(media_id)
         if not mf:
             continue
-        if mf.user_id != current_user.id and not _is_admin(current_user):
+        if mf.user_id not in allowed_ids:
             continue
         db.add(ListingMediaAttachment(
             charter_listing_id=charter_id,

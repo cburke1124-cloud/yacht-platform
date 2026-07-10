@@ -34,6 +34,11 @@ interface DealerMediaGalleryProps {
   onSelectMedia?: (media: MediaItem[]) => void;
   maxSelection?: number;
   filterType?: 'all' | 'image' | 'video';
+  /** Admin-only: browse/upload into a specific dealer's media library instead
+   * of the logged-in user's own — e.g. when managing a scraped charter/listing
+   * draft on behalf of that dealer, so uploads don't land in the admin's own
+   * personal library and get mixed in with every other dealer's photos. */
+  asDealerId?: number;
 }
 
 export default function DealerMediaGallery({
@@ -41,7 +46,8 @@ export default function DealerMediaGallery({
   selectionMode = 'single',
   onSelectMedia,
   maxSelection,
-  filterType = 'all'
+  filterType = 'all',
+  asDealerId
 }: DealerMediaGalleryProps) {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [folders, setFolders] = useState<MediaFolder[]>([]);
@@ -69,7 +75,7 @@ export default function DealerMediaGallery({
   useEffect(() => {
     fetchFolders();
     fetchMedia();
-  }, [currentFolder]);
+  }, [currentFolder, asDealerId]);
 
   const fetchFolders = async () => {
     // Mock data - replace with API call
@@ -87,6 +93,7 @@ export default function DealerMediaGallery({
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({ limit: '100' });
+      if (asDealerId) params.append('as_dealer_id', asDealerId.toString());
       const response = await fetch(apiUrl(`/media/my-media?${params}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -122,6 +129,9 @@ export default function DealerMediaGallery({
         formData.append('file', file);
         if (currentFolder) {
           formData.append('folder_id', currentFolder.toString());
+        }
+        if (asDealerId) {
+          formData.append('as_dealer_id', asDealerId.toString());
         }
 
         const response = await fetch(apiUrl('/media/upload'), {

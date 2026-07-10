@@ -42,8 +42,12 @@ class AntiScrapingMiddleware(BaseHTTPMiddleware):
         # Get client IP
         client_ip = self._get_client_ip(request)
         
-        # Skip for local development/testing
-        if client_ip in ("127.0.0.1", "::1"):
+        # Skip for local development/testing. "testclient" is Starlette
+        # TestClient's fixed synthetic host — without this, its in-memory
+        # request_counts dict (never reset between pytest tests, unlike
+        # slowapi's limiter) accumulates across the whole test session and
+        # eventually 429s unrelated, later tests once enough test files run.
+        if client_ip in ("127.0.0.1", "::1", "testclient"):
             return await call_next(request)
         
         # Skip anti-scraping checks for authenticated requests

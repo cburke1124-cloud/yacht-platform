@@ -18,6 +18,7 @@ from app.models.media import MediaFile, MediaFolder
 from app.models.listing import Listing
 from app.exceptions import ValidationException, ResourceNotFoundException
 from app.services.media_storage import store_media_bytes, delete_media_by_url
+from app.services.media_scope import org_media_ids
 
 router = APIRouter()
 
@@ -150,11 +151,13 @@ async def upload_media(
     folder_id: Optional[int] = Form(None),
     alt_text: Optional[str] = Form(None),
     caption: Optional[str] = Form(None),
+    as_dealer_id: Optional[int] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload a media file (image, video, or PDF)"""
-    
+    scope_user = _resolve_media_scope_user(current_user, as_dealer_id, db)
+
     # Read file
     content = await file.read()
     
@@ -221,7 +224,7 @@ async def upload_media(
     
     # Create media record - ✅ CHANGED: user_id only
     media = MediaFile(
-        user_id=current_user.id,  # ✅ CHANGED from owner_id
+        user_id=scope_user.id,  # ✅ CHANGED from owner_id
         folder_id=folder_id,
         filename=safe_filename,
         url=file_url,
@@ -256,10 +259,12 @@ async def upload_media(
 async def bulk_upload_media(
     files: List[UploadFile] = File(...),
     listing_id: Optional[int] = Form(None),
+    as_dealer_id: Optional[int] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload multiple media files at once"""
+    scope_user = _resolve_media_scope_user(current_user, as_dealer_id, db)
     results = []
     
     for file in files:
@@ -324,7 +329,7 @@ async def bulk_upload_media(
             
             # Create media record - ✅ CHANGED
             media = MediaFile(
-                user_id=current_user.id,  # ✅ CHANGED from owner_id
+                user_id=scope_user.id,  # ✅ CHANGED from owner_id
                 filename=safe_filename,
                 url=file_url,
                 thumbnail_url=thumbnail_url,
@@ -348,7 +353,7 @@ async def bulk_upload_media(
     
     # Update media IDs in results - ✅ CHANGED
     media_files = db.query(MediaFile).filter(
-        MediaFile.user_id == current_user.id  # ✅ CHANGED from owner_id
+        MediaFile.user_id == scope_user.id  # ✅ CHANGED from owner_id
     ).order_by(MediaFile.created_at.desc()).limit(len(results)).all()
     
     for i, result in enumerate(results):
@@ -368,16 +373,29 @@ def _org_media_ids(current_user: User, db: Session) -> list[int]:
     """User ids in the caller's organisation (dealer + all their team
     members) — media is shared org-wide, so any ownership check on a
     MediaFile must use this, not current_user.id alone."""
-    root_dealer_id = current_user.parent_dealer_id or current_user.id
-    team_ids = (
-        db.query(User.id)
-        .filter(
-            (User.id == root_dealer_id) |
-            (User.parent_dealer_id == root_dealer_id)
-        )
-        .all()
-    )
-    return [row[0] for row in team_ids] or [current_user.id]
+    return org_media_ids(current_user, db)
+
+
+def _resolve_media_scope_user(
+    current_user: User,
+    as_dealer_id: Optional[int],
+    db: Session,
+) -> User:
+    """Resolve which user's org media scope a media-library call should use.
+
+    Only admins may pass as_dealer_id, to browse/upload into a different
+    dealer's library — e.g. an admin managing a scraped charter listing on
+    behalf of that dealer, rather than accidentally reading from or writing
+    into the admin's own personal media pool.
+    """
+    if as_dealer_id is None:
+        return current_user
+    if (current_user.user_type or "").lower() != "admin":
+        raise HTTPException(status_code=403, detail="Only admins may act on behalf of another dealer")
+    target = db.query(User).filter(User.id == as_dealer_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target dealer not found")
+    return target
 
 
 @router.get("/my-media")
@@ -387,11 +405,17 @@ def get_my_media(
     file_type: Optional[str] = None,
     folder_id: Optional[int] = None,
     unfoldered: bool = False,
+    as_dealer_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get media files for the current user's company (dealer + their team members)."""
-    org_ids = _org_media_ids(current_user, db)
+    """Get media files for the current user's company (dealer + their team members).
+
+    Admins may pass as_dealer_id to browse a specific dealer's library instead
+    of their own (e.g. managing that dealer's scraped charter listing) — this
+    keeps each dealer's media pool from bleeding into another's."""
+    scope_user = _resolve_media_scope_user(current_user, as_dealer_id, db)
+    org_ids = org_media_ids(scope_user, db)
 
     query = db.query(MediaFile).filter(
         MediaFile.user_id.in_(org_ids),
@@ -496,20 +520,14 @@ def get_media_stats(
 
 @router.get("/folders")
 def get_folders(
+    as_dealer_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """List all folders for the current user's organisation."""
-    root_dealer_id = current_user.parent_dealer_id or current_user.id
-    team_ids = (
-        db.query(User.id)
-        .filter(
-            (User.id == root_dealer_id) |
-            (User.parent_dealer_id == root_dealer_id)
-        )
-        .all()
-    )
-    org_ids = [row[0] for row in team_ids] or [current_user.id]
+    """List all folders for the current user's organisation (or, for admins
+    passing as_dealer_id, a specific dealer's organisation)."""
+    scope_user = _resolve_media_scope_user(current_user, as_dealer_id, db)
+    org_ids = org_media_ids(scope_user, db)
 
     folders = (
         db.query(MediaFolder)

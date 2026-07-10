@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle, GripVertical } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 const authHeaders = () => ({
@@ -35,6 +35,8 @@ export default function AdminListingEditPage() {
   // We track whether the listing has already been migrated to the new media system.
   const [mediaItems, setMediaItems] = useState<any[]>([]);
   const [usingNewMediaSystem, setUsingNewMediaSystem] = useState(false);
+  const [draggedMediaId, setDraggedMediaId] = useState<number | null>(null);
+  const [reorderingMedia, setReorderingMedia] = useState(false);
 
   useEffect(() => {
     if (!listingId) return;
@@ -170,6 +172,11 @@ export default function AdminListingEditPage() {
       for (const file of Array.from(e.target.files)) {
         const fd = new FormData();
         fd.append('file', file);
+        // Attribute the upload to the listing's actual owning dealer, not the
+        // admin doing the editing — otherwise it lands in the admin's own
+        // personal media library and gets mixed in with every other dealer's
+        // uploads next time they edit a different dealer's listing.
+        if (listing?.user_id) fd.append('as_dealer_id', String(listing.user_id));
         const r = await fetch(apiUrl('/media/upload'), { method: 'POST', headers: authHeaders(), body: fd });
         if (r.ok) {
           const d = await r.json();
@@ -200,7 +207,7 @@ export default function AdminListingEditPage() {
       const attachRes = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
         method: 'POST',
         headers: jsonHeaders(),
-        body: JSON.stringify({ media_ids: allIds }),
+        body: JSON.stringify({ media_ids: allIds, as_dealer_id: listing?.user_id }),
       });
 
       if (!attachRes.ok) {
@@ -245,6 +252,36 @@ export default function AdminListingEditPage() {
     } else {
       showToast(false, 'Failed to set primary');
     }
+  }
+
+  async function persistMediaOrder(ordered: any[]) {
+    setReorderingMedia(true);
+    try {
+      const r = await fetch(apiUrl(`/listings/${listingId}/media/attach`), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({ media_ids: ordered.map((m: any) => m.id), as_dealer_id: listing?.user_id }),
+      });
+      if (r.ok) {
+        await refreshMedia();
+      } else {
+        showToast(false, 'Failed to save new photo order');
+      }
+    } finally {
+      setReorderingMedia(false);
+    }
+  }
+
+  function handleMediaDropAt(targetIndex: number) {
+    if (draggedMediaId == null) return;
+    const fromIndex = mediaItems.findIndex((m: any) => m.id === draggedMediaId);
+    setDraggedMediaId(null);
+    if (fromIndex === -1 || fromIndex === targetIndex) return;
+    const reordered = [...mediaItems];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setMediaItems(reordered);
+    persistMediaOrder(reordered);
   }
 
   if (!listing) {
@@ -514,12 +551,29 @@ export default function AdminListingEditPage() {
                 {mediaItems.length === 0 ? (
                   <p className="text-sm text-gray-400 italic">No photos yet.</p>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
-                    {mediaItems.map((img: any) => (
-                      <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
+                  <>
+                    {usingNewMediaSystem && mediaItems.length > 1 && (
+                      <p className="mt-1 mb-2 text-xs text-gray-400">Drag photos to reorder. The first photo is the primary.</p>
+                    )}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                    {mediaItems.map((img: any, i: number) => (
+                      <div
+                        key={img.id}
+                        draggable={usingNewMediaSystem}
+                        onDragStart={() => setDraggedMediaId(img.id)}
+                        onDragOver={e => usingNewMediaSystem && e.preventDefault()}
+                        onDrop={() => handleMediaDropAt(i)}
+                        onDragEnd={() => setDraggedMediaId(null)}
+                        className={`relative group rounded-lg overflow-hidden border border-gray-200 ${usingNewMediaSystem ? 'cursor-move' : ''} ${draggedMediaId === img.id ? 'opacity-40' : ''} ${reorderingMedia ? 'pointer-events-none opacity-60' : ''}`}
+                      >
                         <img src={img.thumbnail_url || img.url} alt="" className="w-full h-28 object-cover" />
                         {img.is_primary && (
                           <span className="absolute top-1 left-1 bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">Primary</span>
+                        )}
+                        {usingNewMediaSystem && (
+                          <span className="absolute top-1 right-1 rounded-full bg-black/50 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                            <GripVertical size={12} />
+                          </span>
                         )}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                           {!img.is_primary && (
@@ -533,7 +587,8 @@ export default function AdminListingEditPage() {
                         </div>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </div>
             </>

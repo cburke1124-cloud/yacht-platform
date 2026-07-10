@@ -17,6 +17,8 @@ from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.exceptions import ResourceNotFoundException, AuthorizationException
 from app.services.email_service import email_service
+from app.services.billing_status import user_has_paid, paid_owner_filter
+from app.services.media_scope import org_media_ids
 from app.core.reply_token import generate_reply_token
 import os
 
@@ -175,6 +177,10 @@ class ListingQuickEdit(BaseModel):
 
 class ListingMediaAttachRequest(BaseModel):
     media_ids: list[int]
+    # Admins managing a listing on behalf of a dealer (e.g. a scraped draft)
+    # pass this so attachment is scoped to that dealer's own media org,
+    # instead of silently falling back to the admin's own org.
+    as_dealer_id: Optional[int] = None
 
 
 class FinanceCalculation(BaseModel):
@@ -610,10 +616,6 @@ def get_listings(
     search: Optional[str] = None,
 ):
     SAIL_TYPES = {"Sailing Yacht", "Catamaran", "Sloop", "Ketch", "Schooner", "Motorsailer"}
-    _PAID_TIERS = [
-        "basic", "plus", "pro", "premium",
-        "private_basic", "private_plus", "private_pro",
-    ]
     try:
         q = (
             db.query(Listing)
@@ -632,14 +634,11 @@ def get_listings(
                 Listing.status == status,
                 Listing.deleted_at.is_(None),
                 User.is_demo != True,
-                # Only surface listings whose owner has an active subscription
-                # (or is marked always_free by an admin). Lapsed accounts keep
+                # Only surface listings whose owner has actually paid (or is
+                # marked always_free by an admin). Lapsed/unpaid accounts keep
                 # their listings in the backend but they disappear from public
                 # search until payment is restored.
-                or_(
-                    User.always_free == True,
-                    User.subscription_tier.in_(_PAID_TIERS),
-                ),
+                paid_owner_filter(),
             )
         )
         if make:
@@ -979,26 +978,24 @@ def create_listing(
         listing_data.bin = str(_uuid.uuid4()).replace("-", "").upper()[:12]
 
     user_type = (current_user.user_type or "").lower()
-    subscription_tier = (current_user.subscription_tier or "").lower()
     permissions = current_user.permissions or {}
-
-    paid_dealer_tiers = {"basic", "plus", "pro", "premium"}
-    paid_private_tiers = {"private_basic", "private_plus", "private_pro"}
 
     is_admin = user_type == "admin"
     has_create_permission = bool(permissions.get("can_create_listings"))
-    is_paid_dealer = user_type == "dealer" and subscription_tier in paid_dealer_tiers
-    is_paid_private = user_type == "private" and subscription_tier in paid_private_tiers
+    is_dealer_or_private = user_type in ("dealer", "private")
 
-    if not (is_admin or has_create_permission or is_paid_dealer or is_paid_private):
-        raise AuthorizationException("Listing creation requires an active paid subscription")
+    # Role gate: only dealer/private accounts (or an explicitly permitted team
+    # member, or an admin) can create listings at all.
+    if not (is_admin or has_create_permission or is_dealer_or_private):
+        raise AuthorizationException("Listing creation requires a broker or private seller account")
 
-    # Belt-and-suspenders: reject if trial period has expired but webhook hasn't cleared tier yet
-    if not is_admin and not has_create_permission:
-        trial_active = getattr(current_user, "trial_active", False)
-        trial_end = getattr(current_user, "trial_end_date", None)
-        if trial_active and trial_end and trial_end < datetime.utcnow():
-            raise AuthorizationException("Your free trial has expired. Please complete payment to continue creating listings.")
+    # Payment gate: unpaid accounts (never paid, or a real subscription that's
+    # lapsed/trial-expired) can still create listings — they just can't go
+    # public. This mirrors the existing rule that lapsed accounts "keep their
+    # listings in the backend but they disappear from public search until
+    # payment is restored" (see the visibility filter in GET /listings).
+    if not (is_admin or has_create_permission or user_has_paid(current_user)):
+        listing_data.status = "draft"
 
     if listing_data.bin:
         existing = db.query(Listing).filter(Listing.bin == listing_data.bin).first()
@@ -1296,10 +1293,6 @@ def _location_slugify(name: str) -> str:
 @router.get("/locations")
 def get_listing_locations(min_count: int = 5, db: Session = Depends(get_db)):
     """Aggregate active listings by country/state/city for location landing pages."""
-    _PAID_TIERS = [
-        "basic", "plus", "pro", "premium",
-        "private_basic", "private_plus", "private_pro",
-    ]
     rows = db.query(
         Listing.country, Listing.state, Listing.city, func.count(Listing.id).label("cnt")
     ).join(User, Listing.user_id == User.id).filter(
@@ -1311,10 +1304,7 @@ def get_listing_locations(min_count: int = 5, db: Session = Depends(get_db)):
         # Match the visibility rule in the main GET /listings endpoint — a
         # location's count must reflect what a visitor actually sees, or the
         # page would advertise listings the browse page then fails to return.
-        or_(
-            User.always_free == True,
-            User.subscription_tier.in_(_PAID_TIERS),
-        ),
+        paid_owner_filter(),
     ).group_by(Listing.country, Listing.state, Listing.city).all()
 
     country_counts: dict[str, int] = {}
@@ -1389,10 +1379,6 @@ def get_listing_locations(min_count: int = 5, db: Session = Depends(get_db)):
 
 @router.get("/{listing_id}")
 def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_optional_user), db: Session = Depends(get_db)):
-    _PAID_TIERS = [
-        "basic", "plus", "pro", "premium",
-        "private_basic", "private_plus", "private_pro",
-    ]
     listing = db.query(Listing).join(User, Listing.user_id == User.id).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
@@ -1402,11 +1388,10 @@ def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_opti
     # Admins can always access any listing regardless of subscription
     is_admin = current_user and current_user.user_type == "admin"
     if not is_admin:
-        # Hide listing if the owner's subscription has lapsed
+        # Hide listing if the owner hasn't actually paid (or lapsed)
         owner = listing.owner
-        if owner and not getattr(owner, "always_free", False):
-            if (owner.subscription_tier or "") not in _PAID_TIERS:
-                raise ResourceNotFoundException("Listing", listing_id)
+        if owner and not user_has_paid(owner):
+            raise ResourceNotFoundException("Listing", listing_id)
     # Increment view counter
     listing.views = (listing.views or 0) + 1
     db.commit()
@@ -1416,7 +1401,11 @@ def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_opti
 # ─── GET media for a listing ──────────────────────────────────────────────────
 
 @router.get("/{listing_id}/media")
-def get_listing_media(listing_id: int, db: Session = Depends(get_db)):
+def get_listing_media(
+    listing_id: int,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
     """
     Returns media for a listing.  Prefers the new ListingMediaAttachment
     junction table (images uploaded via the media library).  Falls back to
@@ -1426,6 +1415,21 @@ def get_listing_media(listing_id: int, db: Session = Depends(get_db)):
     listing = db.query(Listing).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
+
+    # Active/published listings stay public (the public listing page renders
+    # this gallery unauthenticated) — anything not yet active (draft,
+    # awaiting_review, sold, archived) is only visible to whoever can manage
+    # it, so one broker's unpublished draft can't be browsed by guessing its ID.
+    if (listing.status or "").lower() != "active":
+        is_admin = current_user and current_user.user_type == "admin"
+        is_owner = current_user and listing.user_id == current_user.id
+        is_assigned = current_user and listing.assigned_salesman_id == current_user.id
+        is_dealer_team = False
+        if current_user and not is_owner:
+            owner = db.query(User).filter(User.id == listing.user_id).first()
+            is_dealer_team = bool(owner and owner.parent_dealer_id == current_user.id)
+        if not (is_admin or is_owner or is_assigned or is_dealer_team):
+            raise ResourceNotFoundException("Listing", listing_id)
 
     items = []
 
@@ -1533,13 +1537,26 @@ def attach_listing_media(
 
     db.query(ListingMediaAttachment).filter(ListingMediaAttachment.listing_id == listing_id).delete()
 
+    # Which media org this attach call is allowed to pull from. Admins default
+    # to their own org — cross-org attachment only happens if they explicitly
+    # declare which dealer they're acting for (matches the picker's
+    # as_dealer_id), so an admin can never silently attach one broker's media
+    # to a different broker's listing.
+    scope_user = current_user
+    if current_user.user_type == "admin" and payload.as_dealer_id is not None:
+        target = db.query(User).filter(User.id == payload.as_dealer_id).first()
+        if not target:
+            raise ResourceNotFoundException("User", payload.as_dealer_id)
+        scope_user = target
+    allowed_ids = org_media_ids(scope_user, db)
+
     display_order = 0
     attached = 0
     for media_id in media_ids:
         mf = media_by_id.get(media_id)
         if not mf:
             continue
-        if mf.user_id != current_user.id and current_user.user_type != "admin":
+        if mf.user_id not in allowed_ids:
             continue
 
         order_for_item = display_order + (10000 if mf.file_type == "pdf" else 0)

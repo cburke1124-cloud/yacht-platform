@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload, Square, CheckSquare, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload, Square, CheckSquare, Eye, GripVertical } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 import { CHARTER_FEATURES } from '@/app/lib/charterFeatures';
@@ -141,11 +141,17 @@ interface CharterMediaItem {
  * system for-sale listings use (shared library, primary flag, reorder) instead
  * of the old flat `images` JSON array with no reorder/primary/confirm-delete.
  */
-function CharterMediaSection({ charterId }: { charterId: number }) {
+function CharterMediaSection({ charterId, ownerId }: { charterId: number; ownerId?: number }) {
   const [media, setMedia] = useState<CharterMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [reordering, setReordering] = useState(false);
+  // Reordering re-attaches the full ordered set of MediaFile ids — only
+  // possible once every photo has one (i.e. not the legacy flat `images`
+  // fallback, which get_charter_media reports with id: null).
+  const canReorder = media.length > 1 && media.every(m => m.id != null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,9 +175,34 @@ function CharterMediaSection({ charterId }: { charterId: number }) {
     const existingIds = media.filter(m => m.id != null).map(m => m.id as number);
     const mergedIds = [...existingIds, ...picked.map(p => p.id).filter(id => !existingIds.includes(id))];
     await fetch(apiUrl(`/charter/${charterId}/media/attach`), {
-      method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ media_ids: mergedIds }),
+      method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ media_ids: mergedIds, as_dealer_id: ownerId }),
     });
     load();
+  };
+
+  const persistOrder = async (ordered: CharterMediaItem[]) => {
+    const ids = ordered.filter(m => m.id != null).map(m => m.id as number);
+    setReordering(true);
+    try {
+      await fetch(apiUrl(`/charter/${charterId}/media/attach`), {
+        method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ media_ids: ids, as_dealer_id: ownerId }),
+      });
+      await load();
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const handleDropAt = (targetIndex: number) => {
+    if (draggedId == null) return;
+    const fromIndex = media.findIndex(m => m.id === draggedId);
+    setDraggedId(null);
+    if (fromIndex === -1 || fromIndex === targetIndex) return;
+    const reordered = [...media];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setMedia(reordered);
+    persistOrder(reordered);
   };
 
   const handleSetPrimary = async (mediaId: number) => {
@@ -216,30 +247,48 @@ function CharterMediaSection({ charterId }: { charterId: number }) {
       ) : media.length === 0 ? (
         <p className="text-sm text-gray-500">No images yet. Add photos from your shared media library.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
-          {media.map((m, i) => (
-            <div key={m.id ?? m.url} className="group relative aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
-              <img src={mediaUrl(m.thumbnail_url || m.url)} alt={`Charter image ${i + 1}`} onError={onImgError} className="h-full w-full object-cover" />
-              {m.is_primary && (
-                <span className="absolute left-1 top-1 rounded-full bg-[#01BBDC] px-2 py-0.5 text-[10px] font-bold text-white">Cover</span>
-              )}
-              {m.id != null && (
-                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/50 p-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  {!m.is_primary && (
-                    <button type="button" onClick={() => handleSetPrimary(m.id as number)} disabled={busyId === m.id}
-                      className="rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-800 hover:bg-white disabled:opacity-50">
-                      Set cover
+        <>
+          {canReorder && (
+            <p className="mb-2 text-xs text-gray-400">Drag photos to reorder. The first photo is the cover.</p>
+          )}
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+            {media.map((m, i) => (
+              <div
+                key={m.id ?? m.url}
+                draggable={canReorder}
+                onDragStart={() => setDraggedId(m.id)}
+                onDragOver={e => canReorder && e.preventDefault()}
+                onDrop={() => handleDropAt(i)}
+                onDragEnd={() => setDraggedId(null)}
+                className={`group relative aspect-video overflow-hidden rounded-lg border border-gray-200 bg-gray-100 ${canReorder ? 'cursor-move' : ''} ${draggedId === m.id ? 'opacity-40' : ''} ${reordering ? 'pointer-events-none opacity-60' : ''}`}
+              >
+                <img src={mediaUrl(m.thumbnail_url || m.url)} alt={`Charter image ${i + 1}`} onError={onImgError} className="h-full w-full object-cover" />
+                {m.is_primary && (
+                  <span className="absolute left-1 top-1 rounded-full bg-[#01BBDC] px-2 py-0.5 text-[10px] font-bold text-white">Cover</span>
+                )}
+                {canReorder && (
+                  <span className="absolute right-1 top-1 rounded-full bg-black/50 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <GripVertical size={12} />
+                  </span>
+                )}
+                {m.id != null && (
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/50 p-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    {!m.is_primary && (
+                      <button type="button" onClick={() => handleSetPrimary(m.id as number)} disabled={busyId === m.id}
+                        className="rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-800 hover:bg-white disabled:opacity-50">
+                        Set cover
+                      </button>
+                    )}
+                    <button type="button" onClick={() => handleDelete(m.id as number)} disabled={busyId === m.id}
+                      className="ml-auto rounded-full bg-black/60 p-1 text-white hover:bg-red-600 disabled:opacity-50" title="Remove photo">
+                      <X size={11} />
                     </button>
-                  )}
-                  <button type="button" onClick={() => handleDelete(m.id as number)} disabled={busyId === m.id}
-                    className="ml-auto rounded-full bg-black/60 p-1 text-white hover:bg-red-600 disabled:opacity-50" title="Remove photo">
-                    <X size={11} />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {showPicker && (
@@ -249,7 +298,12 @@ function CharterMediaSection({ charterId }: { charterId: number }) {
               <h4 className="text-base font-semibold text-gray-900">Choose photos</h4>
               <button onClick={() => setShowPicker(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
             </div>
-            <DealerMediaGallery mode="picker" selectionMode="multiple" filterType="image" onSelectMedia={handlePicked} />
+            {!ownerId && (
+              <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No owning dealer assigned yet — showing your own media library. Assign an owning dealer above to browse and upload into that dealer&apos;s library instead.
+              </p>
+            )}
+            <DealerMediaGallery mode="picker" selectionMode="multiple" filterType="image" onSelectMedia={handlePicked} asDealerId={ownerId} />
           </div>
         </div>
       )}
@@ -771,7 +825,7 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
           {isEdit ? (
             <>
               {/* Images — same shared MediaFile/ListingMediaAttachment gallery for-sale listings use */}
-              {initial?.id && <CharterMediaSection charterId={initial.id} />}
+              {initial?.id && <CharterMediaSection charterId={initial.id} ownerId={form.user_id} />}
 
               {/* Availability Calendar */}
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.9fr)]">
