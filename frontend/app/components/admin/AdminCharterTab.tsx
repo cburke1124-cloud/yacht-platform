@@ -70,6 +70,7 @@ interface CharterListing {
   images?: (string | { url: string })[];
   availability_blocks?: AvailabilityBlock[];
   seasonal_rates?: SeasonalRate[];
+  hourly_rates?: HourlyRate[];
 }
 
 interface CrewProfile {
@@ -88,6 +89,14 @@ interface SeasonalRate {
   week_rate?: number;
   currency?: string;
   min_charter_days?: number;
+  notes?: string;
+}
+
+interface HourlyRate {
+  id: number;
+  hours: number;
+  price: number;
+  label?: string;
   notes?: string;
 }
 
@@ -259,10 +268,13 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
   const [detailsLoading, setDetailsLoading] = useState(isEdit);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>(initial?.availability_blocks ?? []);
   const [seasonalRates, setSeasonalRates] = useState<SeasonalRate[]>(initial?.seasonal_rates ?? []);
+  const [hourlyRates, setHourlyRates] = useState<HourlyRate[]>(initial?.hourly_rates ?? []);
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [seasonalSaving, setSeasonalSaving] = useState(false);
+  const [hourlySaving, setHourlySaving] = useState(false);
   const [deletingBlockId, setDeletingBlockId] = useState<number | null>(null);
   const [deletingRateId, setDeletingRateId] = useState<number | null>(null);
+  const [deletingHourlyId, setDeletingHourlyId] = useState<number | null>(null);
   // Controlled text states for comma-separated fields — only parsed on blur/submit
   const [includedText, setIncludedText] = useState((initial?.included_items ?? []).join(', '));
   const [excludedText, setExcludedText] = useState((initial?.excluded_items ?? []).join(', '));
@@ -284,6 +296,12 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
     half_day_rate: '',
     week_rate: '',
     min_charter_days: '',
+    notes: '',
+  });
+  const [hourlyRateForm, setHourlyRateForm] = useState({
+    hours: '',
+    price: '',
+    label: '',
     notes: '',
   });
 
@@ -325,6 +343,7 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
         setForm({ ...BLANK_CHARTER, ...data });
         setAvailabilityBlocks(data.availability_blocks ?? []);
         setSeasonalRates(data.seasonal_rates ?? []);
+        setHourlyRates(data.hourly_rates ?? []);
         setIncludedText((data.included_items ?? []).join(', '));
         setExcludedText((data.excluded_items ?? []).join(', '));
         setCrewProfiles(data.crew_profiles ?? []);
@@ -332,6 +351,7 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
         if (!cancelled) {
           setAvailabilityBlocks(initial.availability_blocks ?? []);
           setSeasonalRates(initial.seasonal_rates ?? []);
+          setHourlyRates(initial.hourly_rates ?? []);
         }
       } finally {
         if (!cancelled) setDetailsLoading(false);
@@ -430,6 +450,44 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
       setSeasonalRates((current) => current.filter((rate) => rate.id !== rateId));
     } finally {
       setDeletingRateId(null);
+    }
+  };
+
+  const addHourlyRate = async () => {
+    if (!initial?.id || !hourlyRateForm.hours || !hourlyRateForm.price) return;
+    setHourlySaving(true);
+    try {
+      const res = await fetch(apiUrl(`/charter/${initial.id}/hourly-rates`), {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          hours: Number(hourlyRateForm.hours),
+          price: Number(hourlyRateForm.price),
+          label: hourlyRateForm.label || undefined,
+          notes: hourlyRateForm.notes || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const rate: HourlyRate = await res.json();
+      setHourlyRates((current) => [...current, rate].sort((left, right) => left.hours - right.hours));
+      setHourlyRateForm({ hours: '', price: '', label: '', notes: '' });
+    } finally {
+      setHourlySaving(false);
+    }
+  };
+
+  const removeHourlyRate = async (rateId: number) => {
+    if (!initial?.id) return;
+    setDeletingHourlyId(rateId);
+    try {
+      const res = await fetch(apiUrl(`/charter/${initial.id}/hourly-rates/${rateId}`), {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      setHourlyRates((current) => current.filter((rate) => rate.id !== rateId));
+    } finally {
+      setDeletingHourlyId(null);
     }
   };
 
@@ -859,6 +917,65 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
                             {rate.day_rate ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Day {moneyPrefix}{rate.day_rate.toLocaleString()}</span> : null}
                             {rate.week_rate ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Week {moneyPrefix}{rate.week_rate.toLocaleString()}</span> : null}
                             {rate.min_charter_days ? <span className="rounded-full bg-gray-100 px-2.5 py-1">Min {rate.min_charter_days} days</span> : null}
+                          </div>
+                          {rate.notes ? <p className="mt-3 text-sm text-gray-600">{rate.notes}</p> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.05fr)]">
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Hourly Charters</p>
+                    <h4 className="text-base font-semibold text-gray-900">Add fixed-duration hourly packages (e.g. 3hr, 4hr, 8hr)</h4>
+                    <p className="text-xs text-gray-400 mt-1">Each duration is priced independently — hourly pricing rarely scales linearly, so there&apos;s no per-hour rate to multiply.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Hours</label>
+                      <input type="number" min={1} className={inp} value={hourlyRateForm.hours} onChange={e => setHourlyRateForm((current) => ({ ...current, hours: e.target.value }))} placeholder="3" />
+                    </div>
+                    <div>
+                      <label className={lbl}>Price</label>
+                      <input type="number" min={0} className={inp} value={hourlyRateForm.price} onChange={e => setHourlyRateForm((current) => ({ ...current, price: e.target.value }))} placeholder="700" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className={lbl}>Label (optional)</label>
+                      <input className={inp} value={hourlyRateForm.label} onChange={e => setHourlyRateForm((current) => ({ ...current, label: e.target.value }))} placeholder="Sunset Cruise" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className={lbl}>Notes (optional)</label>
+                      <textarea rows={2} className={inp + ' resize-none'} value={hourlyRateForm.notes} onChange={e => setHourlyRateForm((current) => ({ ...current, notes: e.target.value }))} placeholder="Fuel included, gratuity not included" />
+                    </div>
+                  </div>
+                  <button type="button" onClick={addHourlyRate} disabled={hourlySaving || !hourlyRateForm.hours || !hourlyRateForm.price} className="mt-4 w-full rounded-lg bg-[#10214F] px-4 py-2 text-sm font-medium text-white hover:bg-[#1a3570] disabled:opacity-50">
+                    {hourlySaving ? 'Saving rate...' : 'Add hourly rate'}
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Current Hourly Rates</p>
+                    <h4 className="text-base font-semibold text-gray-900">Published duration options</h4>
+                  </div>
+                  <div className="space-y-3">
+                    {hourlyRates.length === 0 ? (
+                      <p className="text-sm text-gray-500">No hourly rates yet. Add one if this company offers short charters.</p>
+                    ) : hourlyRates.map((rate) => {
+                      const moneyPrefix = (form.currency || 'USD') === 'USD' ? '$' : (form.currency || 'USD');
+                      return (
+                        <div key={rate.id} className="rounded-xl border border-gray-200 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{rate.hours} hour{rate.hours === 1 ? '' : 's'}{rate.label ? ` — ${rate.label}` : ''}</p>
+                              <p className="text-xs text-gray-500">{moneyPrefix}{rate.price.toLocaleString()}</p>
+                            </div>
+                            <button type="button" onClick={() => removeHourlyRate(rate.id)} disabled={deletingHourlyId === rate.id} className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50">
+                              {deletingHourlyId === rate.id ? 'Removing...' : 'Remove'}
+                            </button>
                           </div>
                           {rate.notes ? <p className="mt-3 text-sm text-gray-600">{rate.notes}</p> : null}
                         </div>

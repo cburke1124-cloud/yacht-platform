@@ -21,6 +21,7 @@ export interface CharterListing {
   operating_regions?: string;
   day_rate?: number;
   week_rate?: number;
+  hourly_rates?: Array<{ hours: number; price: number }>;
   currency: string;
   min_charter_days?: number;
   max_guests?: number;
@@ -42,7 +43,13 @@ export default function CharterCard({ charter }: { charter: CharterListing }) {
     if (!rate) return null;
     return `${charter.currency === 'USD' ? '$' : charter.currency}${rate.toLocaleString()} / ${period}`;
   };
-  const displayRate = formatRate(charter.day_rate, 'day') || formatRate(charter.week_rate, 'week') || 'Contact for pricing';
+  const lowestHourly = charter.hourly_rates?.length
+    ? [...charter.hourly_rates].sort((a, b) => a.price - b.price)[0]
+    : null;
+  const formatHourly = lowestHourly
+    ? `From ${charter.currency === 'USD' ? '$' : charter.currency}${lowestHourly.price.toLocaleString()} / ${lowestHourly.hours}hr`
+    : null;
+  const displayRate = formatRate(charter.day_rate, 'day') || formatRate(charter.week_rate, 'week') || formatHourly || 'Contact for pricing';
 
   return (
     <Link href={`/charter/${charter.id}`} className="group block bg-white rounded-xl overflow-hidden border border-gray-200 hover:border-[#01BBDC] hover:shadow-md transition-all duration-200">

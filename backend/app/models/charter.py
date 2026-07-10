@@ -109,6 +109,12 @@ class CharterListing(Base):
         back_populates="charter",
         cascade="all, delete-orphan",
     )
+    hourly_rates = relationship(
+        "CharterHourlyRate",
+        back_populates="charter",
+        cascade="all, delete-orphan",
+        order_by="CharterHourlyRate.hours",
+    )
 
 
 class CharterAvailabilityBlock(Base):
@@ -147,3 +153,22 @@ class CharterSeasonalRate(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     charter = relationship("CharterListing", back_populates="seasonal_rates")
+
+
+class CharterHourlyRate(Base):
+    """One bookable duration + its total price. Hourly charter pricing rarely
+    scales linearly across companies (fixed 3/4/6/8-hour packages vs. a flat
+    8-hour-only offering vs. metered-from-1-hour), so each row prices its own
+    duration independently instead of deriving a total from a per-hour rate."""
+    __tablename__ = "charter_hourly_rates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    charter_id = Column(Integer, ForeignKey("charter_listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    hours = Column(Integer, nullable=False, index=True)
+    price = Column(Float, nullable=False)
+    label = Column(String)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    charter = relationship("CharterListing", back_populates="hourly_rates")

@@ -84,6 +84,13 @@ interface CharterListing {
     min_charter_days?: number;
     notes?: string;
   }>;
+  hourly_rates?: Array<{
+    id?: number;
+    hours: number;
+    price: number;
+    label?: string;
+    notes?: string;
+  }>;
   included_items?: string[];
   excluded_items?: string[];
   apa_percentage?: number;
@@ -161,6 +168,12 @@ export default function CharterDetailPage() {
     if (charter.week_rate) return Math.ceil(charterDays / 7) * charter.week_rate;
     return null;
   }, [charterDays, charter]);
+
+  const hourlyRates = useMemo(
+    () => [...(charter?.hourly_rates ?? [])].sort((a, b) => a.hours - b.hours),
+    [charter]
+  );
+  const lowestHourlyRate = hourlyRates.length > 0 ? hourlyRates[0] : null;
 
   const availabilitySummary = useMemo(() => {
     if (!charter?.availability_blocks?.length) return 'Availability is confirmed after inquiry.';
@@ -491,7 +504,13 @@ export default function CharterDetailPage() {
                       <span className="font-semibold text-[#10214F]">{formatRate(charter.week_rate, charter.currency)}</span>
                     </div>
                   )}
-                  {!charter.day_rate && !charter.week_rate && !charter.half_day_rate && (
+                  {lowestHourlyRate && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">From ({lowestHourlyRate.hours}hr)</span>
+                      <span className="font-semibold text-[#10214F]">{formatRate(lowestHourlyRate.price, charter.currency)}</span>
+                    </div>
+                  )}
+                  {!charter.day_rate && !charter.week_rate && !charter.half_day_rate && !lowestHourlyRate && (
                     <p className="text-sm text-gray-400">Contact for pricing</p>
                   )}
                 </div>
@@ -700,6 +719,23 @@ export default function CharterDetailPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* HOURLY RATES */}
+            {hourlyRates.length > 0 && (
+              <div>
+                <SectionHeading>Hourly Rates</SectionHeading>
+                <div className="flex flex-wrap gap-3">
+                  {hourlyRates.map((rate, index) => (
+                    <div key={rate.id ?? `${rate.hours}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 min-w-[140px]">
+                      <p className="text-sm font-semibold text-[#10214F]">{rate.hours} hour{rate.hours === 1 ? '' : 's'}</p>
+                      {rate.label && <p className="text-xs text-gray-500">{rate.label}</p>}
+                      <p className="mt-1 text-sm font-medium text-gray-700">{formatRate(rate.price, charter.currency)}</p>
+                      {rate.notes && <p className="mt-2 text-xs text-gray-500">{rate.notes}</p>}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

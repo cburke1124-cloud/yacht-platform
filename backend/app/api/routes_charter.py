@@ -12,10 +12,11 @@ import logging
 import os
 
 from app.db.session import get_db
-from app.models.charter import CharterListing, CharterAvailabilityBlock, CharterSeasonalRate
+from app.models.charter import CharterListing, CharterAvailabilityBlock, CharterSeasonalRate, CharterHourlyRate
 from app.models.media import MediaFile, ListingMediaAttachment
 from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
+from app.services.billing_status import user_has_paid
 
 logger = logging.getLogger(__name__)
 CHARTER_INQUIRY_EMAIL = os.getenv("CONTACT_EMAIL", "info@yachtversal.com")
@@ -52,6 +53,13 @@ class SeasonalRateRequest(BaseModel):
     week_rate: Optional[float] = None
     currency: Optional[str] = "USD"
     min_charter_days: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class HourlyRateRequest(BaseModel):
+    hours: int
+    price: float
+    label: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -261,6 +269,19 @@ def _serialize_rate(r: CharterSeasonalRate) -> dict:
         "week_rate": r.week_rate,
         "currency": r.currency or "USD",
         "min_charter_days": r.min_charter_days,
+        "notes": r.notes,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+    }
+
+
+def _serialize_hourly_rate(r: CharterHourlyRate) -> dict:
+    return {
+        "id": r.id,
+        "charter_id": r.charter_id,
+        "hours": r.hours,
+        "price": r.price,
+        "label": r.label,
         "notes": r.notes,
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
@@ -754,6 +775,7 @@ def get_charter(charter_id: int, db: Session = Depends(get_db)):
         **_with_company_fallback(_serialize(charter), charter, db),
         "availability_blocks": [_serialize_block(b) for b in charter.availability_blocks],
         "seasonal_rates": [_serialize_rate(r) for r in charter.seasonal_rates],
+        "hourly_rates": [_serialize_hourly_rate(r) for r in charter.hourly_rates],
     }
 
 
@@ -898,6 +920,67 @@ def delete_charter_seasonal_rate(
     return {"success": True}
 
 
+@router.get("/{charter_id}/hourly-rates")
+def get_charter_hourly_rates(charter_id: int, db: Session = Depends(get_db)):
+    rates = (
+        db.query(CharterHourlyRate)
+        .filter(CharterHourlyRate.charter_id == charter_id)
+        .order_by(CharterHourlyRate.hours.asc())
+        .all()
+    )
+    return [_serialize_hourly_rate(r) for r in rates]
+
+
+@router.post("/{charter_id}/hourly-rates")
+def create_charter_hourly_rate(
+    charter_id: int,
+    data: HourlyRateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Charter listing not found")
+    if not _can_manage_charter(charter, current_user, db):
+        raise HTTPException(status_code=403, detail="Not authorised")
+    rate = CharterHourlyRate(
+        charter_id=charter_id,
+        hours=data.hours,
+        price=data.price,
+        label=data.label,
+        notes=data.notes,
+    )
+    db.add(rate)
+    db.commit()
+    db.refresh(rate)
+    return _serialize_hourly_rate(rate)
+
+
+@router.delete("/{charter_id}/hourly-rates/{rate_id}")
+def delete_charter_hourly_rate(
+    charter_id: int,
+    rate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rate = db.query(CharterHourlyRate).filter(
+        CharterHourlyRate.id == rate_id,
+        CharterHourlyRate.charter_id == charter_id,
+    ).first()
+    if not rate:
+        raise HTTPException(status_code=404, detail="Hourly rate not found")
+
+    charter = db.query(CharterListing).filter(CharterListing.id == charter_id).first()
+    if not charter:
+        raise HTTPException(status_code=404, detail="Charter listing not found")
+    if not _can_manage_charter(charter, current_user, db):
+        raise HTTPException(status_code=403, detail="Not authorised")
+
+    db.delete(rate)
+    db.commit()
+    return {"success": True}
+
+
 @router.post("/inquiry")
 def submit_inquiry(data: CharterInquiryRequest, db: Session = Depends(get_db)):
     """Forward charter inquiry to the charter company and confirm to the inquirer."""
@@ -1000,20 +1083,20 @@ def create_charter(
 
     # Charter listings are a broker (dealer) feature bundled into the same
     # account/subscription as for-sale listings — no separate charter paywall
-    # yet. Mirrors the for-sale gating in routes_listings.py:create_listing.
-    # If a standalone charter plan is introduced later, this is the check to
-    # change.
+    # yet. Mirrors the for-sale gating in routes_listings.py:create_listing:
+    # role gate is a hard block, payment gate is a soft downgrade to "draft"
+    # so unpaid accounts can still create but not go public.
     user_type = (current_user.user_type or "").lower()
-    subscription_tier = (current_user.subscription_tier or "").lower()
     permissions = current_user.permissions or {}
-    paid_dealer_tiers = {"basic", "plus", "pro", "premium"}
 
     has_create_permission = bool(permissions.get("can_create_listings"))
-    is_paid_dealer = user_type == "dealer" and subscription_tier in paid_dealer_tiers
-    is_always_free = bool(getattr(current_user, "always_free", False))
+    is_dealer = user_type == "dealer"
 
-    if not (is_admin or has_create_permission or is_paid_dealer or is_always_free):
-        raise HTTPException(status_code=403, detail="Charter listing creation requires an active broker account")
+    if not (is_admin or has_create_permission or is_dealer):
+        raise HTTPException(status_code=403, detail="Charter listing creation requires a broker account")
+
+    if not (is_admin or has_create_permission or user_has_paid(current_user)):
+        payload["status"] = "draft"
 
     slug = _make_unique_slug(vessel_name or title, db)
 
