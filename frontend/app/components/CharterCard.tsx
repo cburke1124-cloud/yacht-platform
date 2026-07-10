@@ -74,9 +74,9 @@ export default function CharterCard({ charter }: { charter: CharterListing }) {
           {[charter.home_port_city, charter.home_port_state, charter.home_port_country].filter(Boolean).join(', ') || charter.home_port || charter.operating_regions || 'Location TBD'}
         </p>
         <div className="flex items-center gap-3 mt-3 text-sm text-gray-500 flex-wrap">
-          {charter.max_guests && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{charter.max_guests} guests</span>}
-          {charter.cabins && <span className="flex items-center gap-1"><Bed className="w-3.5 h-3.5" />{charter.cabins} cabins</span>}
-          {charter.length_feet && <span className="flex items-center gap-1"><Ruler className="w-3.5 h-3.5" />{charter.length_feet}ft</span>}
+          {charter.max_guests ? <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{charter.max_guests} guests</span> : null}
+          {charter.cabins ? <span className="flex items-center gap-1"><Bed className="w-3.5 h-3.5" />{charter.cabins} cabins</span> : null}
+          {charter.length_feet ? <span className="flex items-center gap-1"><Ruler className="w-3.5 h-3.5" />{charter.length_feet}ft</span> : null}
         </div>
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
           <span className="text-[#01BBDC] font-semibold text-sm">{displayRate}</span>
