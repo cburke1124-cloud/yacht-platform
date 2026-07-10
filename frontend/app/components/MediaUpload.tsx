@@ -10,6 +10,7 @@ import {
   Loader,
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
+import ImageCropModal from './ImageCropModal';
 
 interface MediaUploadProps {
   onUploadComplete: (media: any[]) => void;
@@ -41,17 +42,32 @@ export default function MediaUpload({
   const [videoType, setVideoType] = useState<'youtube' | 'vimeo' | 'tour'>(
     'youtube'
   );
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+
+  // Every image goes through crop/rotate before it's uploaded. Non-image
+  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  const handleFilesSelected = (files: File[]) => {
+    const images = files.filter(f => f.type.startsWith('image/'));
+    const others = files.filter(f => !f.type.startsWith('image/'));
+    if (others.length) uploadFiles(others);
+    if (images.length) setPendingCropFiles(images);
+  };
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
+    handleFilesSelected(files);
+  };
+
+  const uploadFiles = async (files: File[] | FileList) => {
+    if (files.length === 0) return;
     setUploading(true);
     const uploadedMedia: any[] = [];
     try {
       const token = localStorage.getItem('token');
-      for (const file of files) {
+      for (const file of Array.from(files)) {
         if (file.size > maxFileSize * 1024 * 1024) {
           alert(`${file.name} exceeds ${maxFileSize}MB`);
           continue;
@@ -78,57 +94,13 @@ export default function MediaUpload({
     }
   };
 
-  const handleFileUpload = async (
+  const handleFileUpload = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
     if (files.length === 0) return;
-
-    setUploading(true);
-    const uploadedMedia: any[] = [];
-
-    try {
-      const token = localStorage.getItem('token');
-
-      for (const file of files) {
-        if (file.size > maxFileSize * 1024 * 1024) {
-          alert(`${file.name} exceeds ${maxFileSize}MB`);
-          continue;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file);
-        if (folderId) {
-          formData.append('folder_id', folderId.toString());
-        }
-
-        const response = await fetch(
-          `${API_ROOT}/media/upload`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            body: formData,
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          uploadedMedia.push(data?.media || data);
-        }
-      }
-
-      if (uploadedMedia.length > 0) {
-        onUploadComplete(uploadedMedia);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Upload failed');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
+    handleFilesSelected(files);
   };
 
   const handleVideoEmbed = async () => {
@@ -273,6 +245,14 @@ export default function MediaUpload({
             </div>
           )}
         </>
+      )}
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={edited => { setPendingCropFiles(null); uploadFiles(edited); }}
+          onCancel={() => setPendingCropFiles(null)}
+        />
       )}
     </div>
   );

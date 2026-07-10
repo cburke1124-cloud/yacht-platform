@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/ariakit';
 import { PartialBlock } from '@blocknote/core';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/ariakit/style.css';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ImageCropModal from '../../ImageCropModal';
 
 interface BlogContentEditorProps {
   initialBlocks: PartialBlock[];
@@ -44,9 +45,29 @@ export function legacyTextToBlocks(text: string): PartialBlock[] {
 }
 
 export default function BlogContentEditor({ initialBlocks, onChange }: BlogContentEditorProps) {
+  // Inline body images go through crop/rotate before upload. BlockNote's
+  // uploadFile callback is a bare async function with no place to render a
+  // modal, so we bridge it to component state via a pending promise: queue
+  // the file, render ImageCropModal, and resolve/reject once the user
+  // finishes (or cancels) the crop step.
+  const [pendingBodyImage, setPendingBodyImage] = useState<File[] | null>(null);
+  const cropHandlers = useRef<{ resolve: (url: string) => void; reject: (err: unknown) => void } | null>(null);
+
+  const uploadFileWithCrop = (file: File): Promise<string> => {
+    if (!file.type.startsWith('image/')) {
+      // Non-image uploads (if BlockNote ever routes one through here) skip
+      // the crop step entirely — nothing to crop.
+      return uploadImage(file);
+    }
+    return new Promise<string>((resolve, reject) => {
+      cropHandlers.current = { resolve, reject };
+      setPendingBodyImage([file]);
+    });
+  };
+
   const editor = useCreateBlockNote({
     initialContent: initialBlocks.length > 0 ? initialBlocks : undefined,
-    uploadFile: uploadImage,
+    uploadFile: uploadFileWithCrop,
   });
 
   const handleChange = useMemo(
@@ -68,6 +89,29 @@ export default function BlogContentEditor({ initialBlocks, onChange }: BlogConte
   return (
     <div className="border border-gray-200 rounded-lg min-h-[400px] [&_.bn-editor]:min-h-[400px]">
       <BlockNoteView editor={editor} onChange={handleChange} theme="light" />
+
+      {pendingBodyImage && (
+        <ImageCropModal
+          files={pendingBodyImage}
+          onComplete={(edited) => {
+            setPendingBodyImage(null);
+            const handlers = cropHandlers.current;
+            cropHandlers.current = null;
+            if (!handlers) return;
+            if (edited[0]) {
+              uploadImage(edited[0]).then(handlers.resolve).catch(handlers.reject);
+            } else {
+              handlers.reject(new Error('Image crop produced no file'));
+            }
+          }}
+          onCancel={() => {
+            setPendingBodyImage(null);
+            const handlers = cropHandlers.current;
+            cropHandlers.current = null;
+            handlers?.reject(new Error('Image upload cancelled'));
+          }}
+        />
+      )}
     </div>
   );
 }

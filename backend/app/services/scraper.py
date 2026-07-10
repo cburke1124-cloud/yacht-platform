@@ -3979,9 +3979,14 @@ def _sanitize_rich_text(value: str) -> str:
 
 def _generate_image_alt_text(listing: Listing, photo_position: int) -> str:
     """Descriptive alt text for a scraped photo, from the listing's own fields plus its
-    position in the gallery — scraped source sites rarely provide usable alt text."""
-    descriptor = " ".join(str(part) for part in (listing.year, listing.make, listing.model) if part) or listing.title or "Yacht"
-    return f"{descriptor} for sale — photo {photo_position + 1}"
+    position in the gallery — scraped source sites rarely provide usable alt text.
+
+    Thin wrapper around app.services.alt_text, the single source of truth
+    shared with the charter/manual-scrape/backfill paths — kept here too
+    since it's part of this module's public surface (imported directly by
+    tests and other scraper internals)."""
+    from app.services.alt_text import generate_listing_image_alt_text
+    return generate_listing_image_alt_text(listing, photo_position)
 
 
 # Physically-implausible-value bounds, applied in _apply_scraped_data — the

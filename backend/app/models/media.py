@@ -72,10 +72,18 @@ class MediaFolder(Base):
     name = Column(String, nullable=False)
     parent_id = Column(Integer, ForeignKey("media_folders.id"), nullable=True)
     
-    # Ownership - ✅ Simplified
+    # Ownership
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    # created_by_user_id removed - use user_id
-    
+    # NOT NULL in the live DB (unlike MediaFile, which really did drop its
+    # equivalent column) — a prior cleanup pass removed this from the model
+    # assuming the DB column had been dropped too, but it never was, so every
+    # ORM insert omitting it violated the NOT NULL constraint and folder
+    # creation always 500'd. Kept distinct from user_id: user_id is the
+    # owning org/dealer (may be a different dealer than the caller when an
+    # admin passes as_dealer_id), created_by_user_id is whoever actually
+    # clicked "create".
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -84,7 +92,7 @@ class MediaFolder(Base):
     # Relationships - ✅ Simplified
     files = relationship("MediaFile", back_populates="folder")
     parent = relationship("MediaFolder", remote_side=[id], backref="subfolders")
-    user = relationship("User", backref="media_folders")  # ✅ Simple relationship
+    user = relationship("User", foreign_keys=[user_id], backref="media_folders")
     
     # Indexes
     __table_args__ = (

@@ -7,6 +7,7 @@ import {
   ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, AlertTriangle
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ImageCropModal from '../../components/ImageCropModal';
 
 type Step =
   | 'welcome'
@@ -509,6 +510,7 @@ function BrokerageProfileStep({
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File[] | null>(null);
 
   // Seed form fields from the parent-fetched profile.
   // Two rules:
@@ -537,9 +539,7 @@ function BrokerageProfileStep({
     if (initialProfile.logo_url) setLogoPreview(initialProfile.logo_url);
   }, [initialProfile]);
 
-  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadLogo = async (file: File) => {
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
     setUploadingLogo(true);
@@ -559,6 +559,19 @@ function BrokerageProfileStep({
       }
     } catch {}
     finally { setUploadingLogo(false); }
+  };
+
+  // The logo goes through crop/rotate before upload — route the picked file
+  // into the crop queue instead of uploading it straight away.
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.type.startsWith('image/')) {
+      setPendingLogoFile([file]);
+    } else {
+      uploadLogo(file);
+    }
   };
 
   const save = async () => {
@@ -674,6 +687,18 @@ function BrokerageProfileStep({
             </div>
           </div>
         </div>
+
+        {pendingLogoFile && (
+          <ImageCropModal
+            files={pendingLogoFile}
+            aspect={1}
+            onComplete={(edited) => {
+              setPendingLogoFile(null);
+              if (edited[0]) uploadLogo(edited[0]);
+            }}
+            onCancel={() => setPendingLogoFile(null)}
+          />
+        )}
 
         {/* Section 2: Social Media */}
         <div className="border border-gray-200 rounded-xl p-5">

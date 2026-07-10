@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import NextLink from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
+import ImageCropModal from '@/app/components/ImageCropModal';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, User,
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
@@ -14,7 +15,7 @@ import {
   XCircle, Check, Zap,
   MapPin, Phone, Mail, Facebook, Instagram, Twitter, Linkedin, Save, Share2,
   Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter,
-  Loader2, AlertCircle, ExternalLink, Ruler, Clock, Copy, AlertTriangle,
+  Loader2, AlertCircle, Ruler, Clock, Copy, AlertTriangle,
   UserPlus, Shield, LayoutDashboard, ClipboardList, ChevronLeft,
   EyeOff, Briefcase, ChevronDown, ChevronUp, HelpCircle
 } from 'lucide-react';
@@ -216,24 +217,6 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 // ─── Billing types ──────────────────────────────────────────────────────────
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  interval: string;
-  features: string[];
-  popular?: boolean;
-  custom_price?: boolean;
-}
-interface SubscriptionInfo {
-  active: boolean;
-  tier: string;
-  status?: string;
-  current_period_end?: string;
-  cancel_at_period_end?: boolean;
-  trial_active?: boolean;
-  trial_end?: string;
-}
 // ─── API Keys types ───────────────────────────────────────────────────────────
 interface APIKey {
   id: number;
@@ -300,6 +283,7 @@ function EnhancedDealerDashboard() {
   const [showPersonalProfile, setShowPersonalProfile] = useState(false);
   const salesmanProfileRef = useRef<SalesmanProfileFormHandle>(null);
   const brokerProfileDirtyRef = useRef(false);
+  const [pendingBrokerCrop, setPendingBrokerCrop] = useState<{ field: 'logo_url' | 'banner_url'; file: File } | null>(null);
 
   // Media manager inline state
   const [mediaFiles, setMediaFiles] = useState<MediaFileItem[]>([]);
@@ -316,6 +300,7 @@ function EnhancedDealerDashboard() {
   const [mediaDragging, setMediaDragging] = useState(false);
   const [mediaMovingId, setMediaMovingId] = useState<number | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingMediaCropFiles, setPendingMediaCropFiles] = useState<File[] | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
@@ -402,14 +387,11 @@ function EnhancedDealerDashboard() {
   const [webhookTestPassed, setWebhookTestPassed] = useState(false);
   const [webhookTesting, setWebhookTesting] = useState(false);
 
-  // Billing state
-  const [billingPlans, setBillingPlans] = useState<Plan[]>([]);
-  const [currentTier, setCurrentTier] = useState('free');
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [selectedTier, setSelectedTier] = useState('');
-  const [billingLoading, setBillingLoading] = useState(false);
+  // Billing state — one-time setup fee, not a recurring subscription (see
+  // frontend/app/dashboard/billing/page.tsx, the dedicated checkout page this
+  // tab hands off to).
   const [billingError, setBillingError] = useState('');
-  const [managingBilling, setManagingBilling] = useState(false);
+  const [payingNow, setPayingNow] = useState(false);
 
   // Preferences state
   const [preferences, setPreferences] = useState<Preferences>({
@@ -448,7 +430,6 @@ function EnhancedDealerDashboard() {
     fetchGuestBrokers();
     fetchCRMStatus();
     fetchWebhookConfig();
-    fetchBillingData();
     fetchPreferences();
     fetchPrefRates();
     fetchAPIKeys();
@@ -570,9 +551,9 @@ function EnhancedDealerDashboard() {
     } catch { /* non-fatal */ }
   };
 
-  const handleBrokerImageUpload = async (field: 'logo_url' | 'banner_url', e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Logo/banner picked in the file input first go through the crop modal
+  // (see pendingBrokerCrop below); this uploads the resulting edited file.
+  const handleBrokerImageUpload = async (field: 'logo_url' | 'banner_url', file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -591,6 +572,13 @@ function EnhancedDealerDashboard() {
         }
       }
     } catch { /* non-fatal */ }
+  };
+
+  const handleBrokerImageSelected = (field: 'logo_url' | 'banner_url', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPendingBrokerCrop({ field, file });
   };
 
   const handleBrokerSave = async (overrideData?: Partial<typeof brokerProfile>) => {
@@ -689,6 +677,16 @@ function EnhancedDealerDashboard() {
     } catch { /* non-fatal */ } finally {
       setMediaUploading(false);
     }
+  };
+
+  // Every image goes through crop/rotate before it's uploaded. Non-image
+  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  const handleMediaFilesSelected = (fileList: FileList | File[]) => {
+    const all = Array.from(fileList);
+    const images = all.filter(f => f.type.startsWith('image/'));
+    const others = all.filter(f => !f.type.startsWith('image/'));
+    if (others.length) handleMediaUploadFiles(others);
+    if (images.length) setPendingMediaCropFiles(images);
   };
 
   const handleMediaDelete = async (id: number) => {
@@ -1443,46 +1441,26 @@ function EnhancedDealerDashboard() {
   };
 
   // ─── Billing handlers ────────────────────────────────────────────────────
-  const fetchBillingData = async () => {
-    setBillingLoading(true);
+  const payNow = async () => {
+    setPayingNow(true);
+    setBillingError('');
     try {
       const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const [plansRes, subRes] = await Promise.all([
-        fetch(apiUrl('/payments/plans'), { headers }),
-        fetch(apiUrl('/payments/subscription'), { headers }),
-      ]);
-      if (plansRes.ok) {
-        const d = await plansRes.json();
-        setBillingPlans(d.plans || []);
-        setCurrentTier(d.current_tier || 'free');
-        setSelectedTier(d.current_tier !== 'free' ? d.current_tier : (d.plans?.[0]?.id || ''));
-      }
-      if (subRes.ok) setSubscription(await subRes.json());
-    } catch {
-      setBillingError('Failed to load billing information.');
-    } finally {
-      setBillingLoading(false);
-    }
-  };
-
-  const openStripePortal = async () => {
-    setManagingBilling(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(apiUrl('/payments/billing-portal'), {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const origin = window.location.origin;
+      const res = await fetch(apiUrl('/payments/create-setup-fee-session'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          success_url: `${origin}/dashboard/billing?success=1&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${origin}/dashboard/billing?cancelled=1`,
+        }),
       });
-      if (res.ok) {
-        const { url } = await res.json();
-        window.location.href = url;
-      } else {
-        alert('Unable to open billing portal.');
-      }
+      if (!res.ok) throw new Error();
+      const { checkout_url } = await res.json();
+      window.location.href = checkout_url;
     } catch {
-      alert('Unable to open billing portal.');
-    } finally {
-      setManagingBilling(false);
+      setBillingError('Unable to start checkout. Please try again.');
+      setPayingNow(false);
     }
   };
 
@@ -1666,10 +1644,20 @@ function EnhancedDealerDashboard() {
   ] as { id: TabId; label: string; icon: any }[];
 
   const paidTiers = new Set(['basic','plus','pro','premium','private_basic','private_plus','private_pro']);
+  // subscription_start_date is only ever set by a confirmed Stripe webhook /
+  // session-confirm — never by a sales-rep/admin manually creating a broker
+  // account. A manually-created account can have subscription_tier set to a
+  // paid-looking value (e.g. "pro") without ever having paid, so tier alone
+  // isn't a reliable "has paid" signal.
+  const hasConfirmedPayment = !!currentUser?.subscription_start_date;
+  const neverPaid = currentUser &&
+    (currentUser.user_type === 'dealer' || currentUser.user_type === 'private') &&
+    !currentUser.always_free &&
+    !hasConfirmedPayment;
   const paymentLapsed = currentUser &&
     (currentUser.user_type === 'dealer' || currentUser.user_type === 'private') &&
     !currentUser.always_free &&
-    !paidTiers.has(currentUser.subscription_tier || '');
+    (!paidTiers.has(currentUser.subscription_tier || '') || !hasConfirmedPayment);
 
   return (
     <div className="min-h-screen bg-white">
@@ -1684,18 +1672,24 @@ function EnhancedDealerDashboard() {
       )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Payment lapsed banner */}
+        {/* Payment lapsed / never-activated banner */}
         {paymentLapsed && (
           <div className="mb-6 flex items-start justify-between gap-4 p-4 bg-red-50 border border-red-300 rounded-xl">
             <div>
-              <p className="font-semibold text-red-700">Subscription inactive — action required</p>
-              <p className="text-sm text-red-600 mt-0.5">Your listings are suspended and new listings cannot be created until payment is complete. Update your payment method to restore access.</p>
+              <p className="font-semibold text-red-700">
+                {neverPaid ? 'Activate your account — payment required' : 'Subscription inactive — action required'}
+              </p>
+              <p className="text-sm text-red-600 mt-0.5">
+                {neverPaid
+                  ? 'Your account was set up on your behalf but has not been activated yet. Complete your one-time setup payment to unlock listings and full platform access.'
+                  : 'Your listings are suspended and new listings cannot be created until payment is complete. Update your payment method to restore access.'}
+              </p>
             </div>
             <button
-              onClick={() => setActiveTab('billing')}
+              onClick={() => router.push('/dashboard/billing')}
               className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              Update payment
+              {neverPaid ? 'Pay now' : 'Update payment'}
             </button>
           </div>
         )}
@@ -2274,7 +2268,7 @@ function EnhancedDealerDashboard() {
                     multiple
                     accept="image/*,video/*,application/pdf"
                     className="hidden"
-                    onChange={e => { if (e.target.files) handleMediaUploadFiles(e.target.files); e.target.value = ''; }}
+                    onChange={e => { if (e.target.files) handleMediaFilesSelected(e.target.files); e.target.value = ''; }}
                   />
                 </div>
               </div>
@@ -2390,7 +2384,7 @@ function EnhancedDealerDashboard() {
                     onDrop={e => {
                       e.preventDefault();
                       setMediaDragging(false);
-                      if (e.dataTransfer.files.length > 0) handleMediaUploadFiles(e.dataTransfer.files);
+                      if (e.dataTransfer.files.length > 0) handleMediaFilesSelected(e.dataTransfer.files);
                     }}
                     onClick={() => mediaFileInputRef.current?.click()}
                     style={{ cursor: 'pointer' }}
@@ -2930,137 +2924,92 @@ function EnhancedDealerDashboard() {
 
           {/* Billing Tab */}
           {activeTab === 'billing' && (
-            <div className="max-w-5xl mx-auto">
-              {billingLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="animate-spin h-10 w-10 text-primary" />
-                </div>
-              ) : billingError ? (
-                <div className="bg-red-50 text-red-700 p-4 rounded-xl flex items-center gap-3">
+            <div className="max-w-2xl mx-auto">
+              {billingError && (
+                <div className="mb-6 bg-red-50 text-red-700 p-4 rounded-xl flex items-center gap-3">
                   <AlertCircle size={20} />{billingError}
                 </div>
-              ) : (
-                <>
-                  {/* Header */}
+              )}
+
+              {(currentUser?.always_free || currentUser?.subscription_start_date) ? (
+                /* ── PAID / COMPED STATE ── */
+                <div>
                   <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-secondary mb-3">Choose Your Plan</h2>
-                    <p className="text-gray-600">Select the perfect plan for your yacht brokerage</p>
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-4">
+                      <Check className="w-10 h-10 text-green-600" />
+                    </div>
+                    <h2 className="text-3xl font-bold text-secondary mb-2">You're all set</h2>
+                    <p className="text-gray-500">
+                      {currentUser?.always_free
+                        ? 'Your account has complimentary full platform access — no fees, ever.'
+                        : 'Your one-time setup fee has been paid. Your account is active for life — no renewals, no monthly charges.'}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
+                    <div className="flex items-center gap-3 mb-1">
+                      <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <span className="font-semibold text-green-800">Account Active — Full Platform Access</span>
+                    </div>
+                    {currentUser?.subscription_start_date && (
+                      <p className="mt-3 ml-8 text-xs text-green-600">
+                        Member since {new Date(currentUser.subscription_start_date).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* ── UNPAID STATE ── */
+                <div>
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold text-secondary mb-2">Activate Your Account</h2>
+                    <p className="text-gray-600">One payment. No subscriptions. Full access for the life of your account.</p>
                   </div>
 
-                  {/* Active subscription banner */}
-                  {subscription?.active && subscription?.status === 'active' && (
-                    <div className="mb-8 bg-primary/10 border border-primary/30 rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-secondary">
-                          Current Plan: <span className="text-primary capitalize">{currentTier}</span>
-                          {subscription.cancel_at_period_end && <span className="ml-2 text-sm text-orange-600 font-medium">(cancels at period end)</span>}
-                        </p>
-                        {subscription.current_period_end && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            Next billing: {new Date(Number(subscription.current_period_end) * 1000).toLocaleDateString()}
-                          </p>
-                        )}
+                  <div className="border-2 border-primary rounded-2xl p-8 bg-white">
+                    <div className="mb-6">
+                      <h3 className="text-2xl font-bold text-secondary mb-1">Full Platform Access</h3>
+                      <div className="flex items-baseline gap-2 mt-3">
+                        <span className="text-5xl font-bold text-primary">$200</span>
                       </div>
-                      <button onClick={openStripePortal} disabled={managingBilling}
-                        className="flex items-center gap-2 px-5 py-2.5 border-2 border-primary text-primary rounded-xl font-semibold hover:bg-primary hover:text-white transition-all">
-                        {managingBilling ? <Loader2 className="animate-spin h-4 w-4" /> : <ExternalLink size={16} />}
-                        Manage Billing
-                      </button>
+                      <p className="text-gray-500 text-sm mt-2">One-time setup fee — never pay again</p>
                     </div>
-                  )}
 
-                  {/* Plan cards */}
-                  <div className={`grid gap-6 mb-10 ${billingPlans.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
-                    {billingPlans.map(plan => {
-                      const isCurrent = plan.id === currentTier;
-                      const isSelected = plan.id === selectedTier;
-                      return (
-                        <div key={plan.id} onClick={() => setSelectedTier(plan.id)}
-                          className={`relative p-8 border-2 rounded-2xl cursor-pointer transition-all ${
-                            isSelected ? 'border-primary bg-primary/5 shadow-xl scale-[1.02]'
-                                       : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-lg'
-                          }`}>
-                          {plan.popular && (
-                            <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                              <span className="bg-primary text-white px-4 py-1 rounded-full text-sm font-semibold shadow-lg">Most Popular</span>
-                            </div>
-                          )}
-                          {isCurrent && (
-                            <div className="absolute top-4 right-4">
-                              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Current Plan</span>
-                            </div>
-                          )}
-                          {isSelected && !isCurrent && (
-                            <div className="absolute top-6 right-6">
-                              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                                <Check className="w-5 h-5 text-white" />
-                              </div>
-                            </div>
-                          )}
-                          <div className="mb-6">
-                            <h3 className="text-2xl font-bold text-secondary mb-2">{plan.name}</h3>
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-5xl font-bold text-primary">${plan.price}</span>
-                              <span className="text-gray-500 text-lg">/{plan.interval}</span>
-                            </div>
-                            {plan.custom_price && <p className="text-xs text-primary font-medium mt-1">Custom pricing applied</p>}
-                          </div>
-                          <ul className="space-y-3 mb-6">
-                            {plan.features.map((f, i) => (
-                              <li key={i} className="flex items-start gap-3">
-                                <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                                <span className="text-gray-700">{f}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <button className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                            isCurrent ? 'bg-green-50 text-green-700 border border-green-200'
-                                      : isSelected ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          }`}>
-                            {isCurrent ? 'Current Plan' : isSelected ? 'Selected' : 'Select Plan'}
-                          </button>
-                        </div>
-                      );
-                    })}
+                    <ul className="space-y-3 mb-8">
+                      {[
+                        'Unlimited yacht and charter listings',
+                        'Full CRM and inquiry management',
+                        'Analytics and performance dashboard',
+                        'Team management and multi-user access',
+                        'API access for inventory sync',
+                        'Priority support',
+                      ].map(f => (
+                        <li key={f} className="flex items-start gap-3">
+                          <Check className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                          <span className="text-gray-700 text-sm">{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <button
+                      onClick={payNow}
+                      disabled={payingNow}
+                      className="w-full py-4 bg-primary hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-2"
+                    >
+                      {payingNow ? (
+                        <>
+                          <Loader2 className="animate-spin h-5 w-5" />
+                          Redirecting to checkout…
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="h-5 w-5" />
+                          Pay $200 — Activate Account
+                        </>
+                      )}
+                    </button>
+                    <p className="text-center text-xs text-gray-400 mt-4">Secure payment via Stripe. No subscription. No renewals.</p>
                   </div>
-
-                  {/* Checkout form */}
-                  {selectedTier !== currentTier && billingPlans.find(p => p.id === selectedTier) && (
-                    <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 shadow-lg mb-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <CreditCard className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-secondary">Payment Details</h3>
-                          <p className="text-sm text-gray-500">
-                            {subscription?.active ? 'Upgrade' : 'Subscribe'} to:{' '}
-                            <span className="font-semibold text-primary">
-                              {billingPlans.find(p => p.id === selectedTier)?.name} — ${billingPlans.find(p => p.id === selectedTier)?.price}/{billingPlans.find(p => p.id === selectedTier)?.interval}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => { window.location.href = '/dashboard/billing'; }}
-                        className="w-full px-6 py-4 bg-primary text-white rounded-xl hover:bg-primary/90 font-semibold transition-all shadow-lg"
-                      >
-                        Continue to Checkout
-                      </button>
-                      <p className="text-xs text-gray-500 text-center mt-4">Secure payment powered by Stripe. Cancel anytime.</p>
-                    </div>
-                  )}
-
-                  {/* All plans include */}
-                  <div className="bg-soft border-2 border-gray-200 rounded-2xl p-8">
-                    <h3 className="text-lg font-bold text-secondary mb-4 text-center">All Plans Include</h3>
-                    <div className="grid md:grid-cols-3 gap-6">
-                      <div className="text-center"><div className="text-3xl mb-2">📊</div><h4 className="font-semibold text-secondary mb-1">Analytics Dashboard</h4><p className="text-sm text-gray-500">Track views and performance</p></div>
-                      <div className="text-center"><div className="text-3xl mb-2">📧</div><h4 className="font-semibold text-secondary mb-1">Lead Management</h4><p className="text-sm text-gray-500">Manage inquiries easily</p></div>
-                      <div className="text-center"><div className="text-3xl mb-2">🔒</div><h4 className="font-semibold text-secondary mb-1">Secure Platform</h4><p className="text-sm text-gray-500">Your data is protected</p></div>
-                    </div>
-                  </div>
-                </>
+                </div>
               )}
             </div>
           )}
@@ -3294,7 +3243,7 @@ function EnhancedDealerDashboard() {
                       </div>
                     )}
                     <label className="absolute inset-0 cursor-pointer hover:bg-black/10 transition-all">
-                      <input type="file" accept="image/*" onChange={(e) => handleBrokerImageUpload('banner_url', e)} className="hidden" />
+                      <input type="file" accept="image/*" onChange={(e) => handleBrokerImageSelected('banner_url', e)} className="hidden" />
                     </label>
                   </div>
                 </div>
@@ -3359,7 +3308,7 @@ function EnhancedDealerDashboard() {
                     <div>
                       <label className="flex items-center gap-2 cursor-pointer px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-soft transition-colors">
                         <Upload size={14} /> Upload Logo
-                        <input type="file" accept="image/*" onChange={(e) => handleBrokerImageUpload('logo_url', e)} className="hidden" />
+                        <input type="file" accept="image/*" onChange={(e) => handleBrokerImageSelected('logo_url', e)} className="hidden" />
                       </label>
                       <p className="text-xs text-gray-400 mt-1">PNG, JPG, or SVG recommended</p>
                     </div>
@@ -4355,6 +4304,27 @@ function EnhancedDealerDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingBrokerCrop && (
+        <ImageCropModal
+          files={[pendingBrokerCrop.file]}
+          aspect={pendingBrokerCrop.field === 'logo_url' ? 1 : undefined}
+          onComplete={edited => {
+            const { field } = pendingBrokerCrop;
+            setPendingBrokerCrop(null);
+            if (edited[0]) handleBrokerImageUpload(field, edited[0]);
+          }}
+          onCancel={() => setPendingBrokerCrop(null)}
+        />
+      )}
+
+      {pendingMediaCropFiles && (
+        <ImageCropModal
+          files={pendingMediaCropFiles}
+          onComplete={edited => { setPendingMediaCropFiles(null); handleMediaUploadFiles(edited); }}
+          onCancel={() => setPendingMediaCropFiles(null)}
+        />
       )}
     </div>
   );

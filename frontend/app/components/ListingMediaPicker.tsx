@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Upload, Image, Video, Folder, Check, X, Star, Trash2, Search, Grid3x3, AlertCircle, ChevronRight, FolderOpen } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import ImageCropModal from './ImageCropModal';
 
 // Type definitions
 type MediaItem = {
@@ -53,6 +54,7 @@ export default function ListingMediaPicker({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all');
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
 
   useEffect(() => {
     fetchFolders();
@@ -119,7 +121,17 @@ export default function ListingMediaPicker({
     }
   };
 
-  const handleFileUpload = async (files: FileList) => {
+  // Every image goes through crop/rotate before it's uploaded. Non-image
+  // files (video) skip straight to upload — there's nothing to crop.
+  const handleFilesSelected = (fileList: FileList) => {
+    const all = Array.from(fileList);
+    const images = all.filter(f => f.type.startsWith('image/'));
+    const others = all.filter(f => !f.type.startsWith('image/'));
+    if (others.length) handleFileUpload(others);
+    if (images.length) setPendingCropFiles(images);
+  };
+
+  const handleFileUpload = async (files: FileList | File[]) => {
     setUploading(true);
     setUploadProgress(0);
 
@@ -331,7 +343,7 @@ export default function ListingMediaPicker({
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragOver(false);
-                  if (e.dataTransfer.files) handleFileUpload(e.dataTransfer.files);
+                  if (e.dataTransfer.files) handleFilesSelected(e.dataTransfer.files);
                 }}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -350,7 +362,7 @@ export default function ListingMediaPicker({
                   type="file"
                   multiple
                   accept="image/*,video/*"
-                  onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                  onChange={(e) => { if (e.target.files) handleFilesSelected(e.target.files); e.target.value = ''; }}
                   className="hidden"
                   id="file-upload"
                 />
@@ -609,6 +621,14 @@ export default function ListingMediaPicker({
           )}
         </div>
       </div>
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={edited => { setPendingCropFiles(null); handleFileUpload(edited); }}
+          onCancel={() => setPendingCropFiles(null)}
+        />
+      )}
     </div>
   );
 }

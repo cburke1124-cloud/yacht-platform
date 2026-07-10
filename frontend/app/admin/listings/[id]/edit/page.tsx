@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle, GripVertical } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ImageCropModal from '@/app/components/ImageCropModal';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -37,6 +38,7 @@ export default function AdminListingEditPage() {
   const [usingNewMediaSystem, setUsingNewMediaSystem] = useState(false);
   const [draggedMediaId, setDraggedMediaId] = useState<number | null>(null);
   const [reorderingMedia, setReorderingMedia] = useState(false);
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
 
   useEffect(() => {
     if (!listingId) return;
@@ -163,13 +165,21 @@ export default function AdminListingEditPage() {
     return mediaItems.map((m: any) => m.id);
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!e.target.files?.length) return;
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (!files.length) return;
+    // Every image goes through crop/rotate before it's uploaded.
+    setPendingCropFiles(files);
+  }
+
+  async function uploadImages(files: File[]) {
+    if (!files.length) return;
     setUploadingImages(true);
     const newMediaIds: number[] = [];
     let uploadErrors = 0;
     try {
-      for (const file of Array.from(e.target.files)) {
+      for (const file of files) {
         const fd = new FormData();
         fd.append('file', file);
         // Attribute the upload to the listing's actual owning dealer, not the
@@ -685,6 +695,14 @@ export default function AdminListingEditPage() {
           </button>
         </div>
       </div>
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={edited => { setPendingCropFiles(null); uploadImages(edited); }}
+          onCancel={() => setPendingCropFiles(null)}
+        />
+      )}
     </div>
   );
 }

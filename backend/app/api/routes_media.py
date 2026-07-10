@@ -557,19 +557,25 @@ def get_folders(
 @router.post("/folders")
 def create_folder(
     name: str,
+    as_dealer_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new folder."""
+    """Create a new folder (or, for admins passing as_dealer_id, create it
+    under a specific dealer's organisation instead of the admin's own —
+    otherwise a folder created while managing that dealer's charter/listing
+    media would end up invisible to them, owned by the admin instead)."""
     name = name.strip()
     if not name:
         raise ValidationException("Folder name cannot be empty")
     if len(name) > 100:
         raise ValidationException("Folder name too long (max 100 characters)")
 
+    scope_user = _resolve_media_scope_user(current_user, as_dealer_id, db)
     folder = MediaFolder(
         name=name,
-        user_id=current_user.id
+        user_id=scope_user.id,
+        created_by_user_id=current_user.id,
     )
     db.add(folder)
     db.commit()
@@ -647,10 +653,16 @@ def move_to_folder(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Move a media file to a folder (or to root if folder_id is null)."""
+    """Move a media file to a folder (or to root if folder_id is null).
+
+    Scoped to the caller's whole organisation, matching /media/my-media and
+    delete_media above — a dealer moving a team member's upload between
+    folders in that same shared gallery shouldn't 404 just because they
+    aren't the uploader."""
+    org_ids = _org_media_ids(current_user, db)
     media = db.query(MediaFile).filter(
         MediaFile.id == media_id,
-        MediaFile.user_id == current_user.id,
+        MediaFile.user_id.in_(org_ids),
         MediaFile.deleted_at == None
     ).first()
 

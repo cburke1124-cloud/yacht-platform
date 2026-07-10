@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ImageCropModal from '../ImageCropModal';
 
 interface ListingEditorProps {
   listing: any;
@@ -17,6 +18,7 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
   const [loading, setLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'specs' | 'media'>('basic');
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,15 +76,23 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (files.length === 0) return;
+    // Every image goes through crop/rotate before it's uploaded.
+    setPendingCropFiles(files);
+  };
+
+  const uploadImages = async (files: File[]) => {
+    if (files.length === 0) return;
 
     setUploadingImages(true);
     const token = localStorage.getItem('token');
     const uploadedUrls: string[] = [];
 
     try {
-      for (const file of Array.from(e.target.files)) {
+      for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
 
@@ -666,6 +676,14 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
           </div>
         </form>
       </div>
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={edited => { setPendingCropFiles(null); uploadImages(edited); }}
+          onCancel={() => setPendingCropFiles(null)}
+        />
+      )}
     </div>
   );
 }

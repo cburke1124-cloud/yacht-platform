@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import ImageCropModal from '../ImageCropModal';
 
 const PAID_TIERS = new Set([
   'basic', 'plus', 'pro', 'premium',
@@ -45,6 +46,7 @@ export default function AdminDealersTab() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [mediaUploading, setMediaUploading] = useState<Record<string, boolean>>({});
+  const [pendingCropFile, setPendingCropFile] = useState<{ key: string; file: File } | null>(null);
 
   // Team accordion state: dealerId → member list (null = not yet loaded)
   const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
@@ -202,6 +204,12 @@ export default function AdminDealersTab() {
     } finally {
       setMediaUploading(prev => ({ ...prev, [key]: false }));
     }
+  };
+
+  // Logo/banner are single-file uploads — route the picked image through the
+  // crop modal first, then reuse the existing upload logic unchanged.
+  const handleFileSelected = (key: string, file: File) => {
+    setPendingCropFile({ key, file });
   };
 
   const openEditProfile = async (dealer: any) => {
@@ -693,7 +701,7 @@ export default function AdminDealersTab() {
                               disabled={!!mediaUploading[key]}
                               onChange={e => {
                                 const f = e.target.files?.[0];
-                                if (f) handleMediaUpload(key, f);
+                                if (f) handleFileSelected(key, f);
                                 e.target.value = '';
                               }}
                             />
@@ -784,6 +792,19 @@ export default function AdminDealersTab() {
             )}
           </div>
         </div>
+      )}
+
+      {pendingCropFile && (
+        <ImageCropModal
+          files={[pendingCropFile.file]}
+          aspect={pendingCropFile.key === 'logo_url' ? 1 : undefined}
+          onComplete={edited => {
+            const { key } = pendingCropFile;
+            setPendingCropFile(null);
+            if (edited[0]) handleMediaUpload(key, edited[0]);
+          }}
+          onCancel={() => setPendingCropFile(null)}
+        />
       )}
     </div>
   );

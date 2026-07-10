@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import { Upload, Folder, FolderPlus, Image, Video, Trash2, X, Check, Search, Grid3x3, List, Move, FolderOpen, ChevronRight, MoreVertical, Edit2, Download, Star } from 'lucide-react';
+import ImageCropModal from './ImageCropModal';
 
 // Type definitions
 type MediaItem = {
@@ -63,6 +64,7 @@ export default function DealerMediaGallery({
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{x: number, y: number, item: MediaItem} | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Subscription tier limits (from user context)
@@ -78,14 +80,31 @@ export default function DealerMediaGallery({
   }, [currentFolder, asDealerId]);
 
   const fetchFolders = async () => {
-    // Mock data - replace with API call
-    setFolders([
-      { id: 1, name: 'Yacht Exteriors', parent_id: null, item_count: 45, created_at: new Date().toISOString() },
-      { id: 2, name: 'Yacht Interiors', parent_id: null, item_count: 38, created_at: new Date().toISOString() },
-      { id: 3, name: 'Engine Room', parent_id: null, item_count: 12, created_at: new Date().toISOString() },
-      { id: 4, name: 'Deck & Flybridge', parent_id: null, item_count: 28, created_at: new Date().toISOString() },
-      { id: 5, name: 'Videos', parent_id: null, item_count: 5, created_at: new Date().toISOString() },
-    ]);
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (asDealerId) params.append('as_dealer_id', asDealerId.toString());
+      const response = await fetch(apiUrl(`/media/folders?${params}`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Backend only tracks id/name/file_count (flat, no nesting) — fill
+        // in the rest of the shape this component expects.
+        setFolders((data.folders || []).map((f: { id: number; name: string; file_count: number }) => ({
+          id: f.id,
+          name: f.name,
+          parent_id: null,
+          item_count: f.file_count ?? 0,
+          created_at: new Date().toISOString(),
+        })));
+      } else {
+        setFolders([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch folders:', error);
+      setFolders([]);
+    }
   };
 
   const fetchMedia = async () => {
@@ -94,6 +113,7 @@ export default function DealerMediaGallery({
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({ limit: '100' });
       if (asDealerId) params.append('as_dealer_id', asDealerId.toString());
+      if (currentFolder != null) params.append('folder_id', currentFolder.toString());
       const response = await fetch(apiUrl(`/media/my-media?${params}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -112,7 +132,7 @@ export default function DealerMediaGallery({
     }
   };
 
-  const handleBulkUpload = async (files: FileList) => {
+  const handleBulkUpload = async (files: FileList | File[]) => {
     setUploading(true);
     setUploadProgress(0);
 
@@ -182,8 +202,18 @@ export default function DealerMediaGallery({
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files.length > 0) {
-      handleBulkUpload(e.dataTransfer.files);
+      handleFilesSelected(e.dataTransfer.files);
     }
+  };
+
+  // Every image goes through crop/rotate before it's uploaded. Non-image
+  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  const handleFilesSelected = (fileList: FileList) => {
+    const all = Array.from(fileList);
+    const images = all.filter(f => f.type.startsWith('image/'));
+    const others = all.filter(f => !f.type.startsWith('image/'));
+    if (others.length) handleBulkUpload(others);
+    if (images.length) setPendingCropFiles(images);
   };
 
   const toggleSelectMedia = (id: number) => {
@@ -216,36 +246,58 @@ export default function DealerMediaGallery({
   };
 
   const createFolder = async () => {
-    if (!newFolderName.trim()) return;
-    
+    const name = newFolderName.trim();
+    if (!name) return;
+
     try {
-      // Mock API call
-      const newFolder: MediaFolder = {
-        id: folders.length + 1,
-        name: newFolderName,
-        parent_id: currentFolder,
-        item_count: 0,
-        created_at: new Date().toISOString()
-      };
-      
-      setFolders([...folders, newFolder]);
-      setNewFolderName('');
-      setShowNewFolderModal(false);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({ name });
+      if (asDealerId) params.append('as_dealer_id', asDealerId.toString());
+      const response = await fetch(apiUrl(`/media/folders?${params}`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFolders(prev => [...prev, {
+          id: data.id, name: data.name, parent_id: null,
+          item_count: data.file_count ?? 0, created_at: new Date().toISOString(),
+        }]);
+        setNewFolderName('');
+        setShowNewFolderModal(false);
+      } else {
+        alert('Failed to create folder');
+      }
     } catch (error) {
       console.error('Failed to create folder:', error);
+      alert('Failed to create folder');
     }
   };
 
   const moveSelectedToFolder = async (folderId: number | null) => {
     try {
-      // Mock API call
-      setMedia(media.map(m => 
+      const token = localStorage.getItem('token');
+      const ids = Array.from(selectedMedia);
+      let failed = 0;
+      for (const id of ids) {
+        const params = new URLSearchParams();
+        if (folderId != null) params.append('folder_id', folderId.toString());
+        const response = await fetch(apiUrl(`/media/${id}/folder?${params}`), {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!response.ok) failed++;
+      }
+      setMedia(media.map(m =>
         selectedMedia.has(m.id) ? { ...m, folder_id: folderId } : m
       ));
       setSelectedMedia(new Set());
       setShowMoveModal(false);
+      fetchFolders(); // counts changed
+      if (failed > 0) alert(`${failed} item(s) failed to move`);
     } catch (error) {
       console.error('Failed to move items:', error);
+      alert('Failed to move items');
     }
   };
 
@@ -349,7 +401,7 @@ export default function DealerMediaGallery({
               type="file"
               multiple
               accept="image/*,video/*"
-              onChange={(e) => e.target.files && handleBulkUpload(e.target.files)}
+              onChange={(e) => { if (e.target.files) handleFilesSelected(e.target.files); e.target.value = ''; }}
               className="hidden"
             />
           </div>
@@ -736,6 +788,14 @@ export default function DealerMediaGallery({
             </button>
           </div>
         </div>
+      )}
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={edited => { setPendingCropFiles(null); handleBulkUpload(edited); }}
+          onCancel={() => setPendingCropFiles(null)}
+        />
       )}
     </div>
   );

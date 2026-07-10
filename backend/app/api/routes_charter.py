@@ -6,6 +6,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict
 from datetime import date, datetime
 from io import StringIO
+from urllib.parse import urlparse
 import csv
 import re
 import logging
@@ -1184,9 +1185,45 @@ def create_charter(
     charter = CharterListing(
         user_id=owner_id,
         slug=slug,
-        **{k: v for k, v in payload.items() if k in allowed_keys and k not in ("id", "slug", "user_id", "created_at", "updated_at", "deleted_at")},
+        **{k: v for k, v in payload.items() if k in allowed_keys and k not in ("id", "slug", "user_id", "created_at", "updated_at", "deleted_at", "images")},
     )
     db.add(charter)
+    db.flush()  # need charter.id to attach media below
+
+    # Scraped/manually-entered charters arrive with a flat list of raw image
+    # URLs (payload["images"]) rather than going through the media library —
+    # convert them into real MediaFile/ListingMediaAttachment rows up front
+    # so every charter photo gets alt text and a rehosted URL from the moment
+    # it's created, exactly like the automated for-sale scraper does for
+    # ListingImage rows, instead of leaving charter.images as a flat
+    # alt-text-less array pointing at the source site indefinitely.
+    scraped_images = payload.get("images") or []
+    if scraped_images:
+        from app.services.scraper import _rehost_image
+        from app.services.alt_text import generate_charter_image_alt_text
+
+        for position, img in enumerate(scraped_images):
+            img_url = img if isinstance(img, str) else (img.get("url") if isinstance(img, dict) else None)
+            if not img_url:
+                continue
+            hosted_url = _rehost_image(img_url)
+            media = MediaFile(
+                user_id=owner_id,
+                filename=os.path.basename(urlparse(hosted_url).path) or f"charter-{charter.id}-{position}.jpg",
+                url=hosted_url,
+                file_type="image",
+                file_size_mb=0.0,
+                alt_text=generate_charter_image_alt_text(charter, position),
+            )
+            db.add(media)
+            db.flush()
+            db.add(ListingMediaAttachment(
+                charter_listing_id=charter.id,
+                media_id=media.id,
+                display_order=position,
+                is_primary=(position == 0),
+            ))
+
     db.commit()
     db.refresh(charter)
     return _serialize(charter)
@@ -1343,6 +1380,8 @@ def attach_charter_media(
         scope_user = target
     allowed_ids = org_media_ids(scope_user, db)
 
+    from app.services.alt_text import generate_charter_image_alt_text
+
     display_order = 0
     attached = 0
     for media_id in media_ids:
@@ -1351,6 +1390,11 @@ def attach_charter_media(
             continue
         if mf.user_id not in allowed_ids:
             continue
+        # A photo uploaded straight into the media library (not via scraping)
+        # has no listing context to generate alt text from at upload time —
+        # backfill it here, now that we know which charter it's joining.
+        if mf.file_type == "image" and not (mf.alt_text or "").strip():
+            mf.alt_text = generate_charter_image_alt_text(charter, display_order)
         db.add(ListingMediaAttachment(
             charter_listing_id=charter_id,
             media_id=media_id,

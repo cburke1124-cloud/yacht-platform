@@ -8,6 +8,7 @@ import {
 import type { PartialBlock } from '@blocknote/core';
 import { legacyTextToBlocks } from './BlogContentEditor';
 import BlogRevisionsPanel from './BlogRevisionsPanel';
+import ImageCropModal from '../../ImageCropModal';
 
 // BlockNote/Prosemirror isn't SSR-safe.
 const BlogContentEditor = dynamic(() => import('./BlogContentEditor'), { ssr: false });
@@ -60,6 +61,9 @@ export default function BlogPostEditor({
 }: BlogPostEditorProps) {
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showRevisions, setShowRevisions] = useState(false);
+  // Featured image goes through crop/rotate before it's handed to the
+  // existing onImageUpload uploader (owned by the parent page).
+  const [pendingFeaturedFile, setPendingFeaturedFile] = useState<File[] | null>(null);
   // Escape hatch for the first rollout cycle — writers can fall back to the
   // plain textarea if the block editor misbehaves. Defaults on whenever the
   // post already has block content (or is new); off only if explicitly chosen.
@@ -80,6 +84,26 @@ export default function BlogPostEditor({
   const handleRestored = async () => {
     setShowRevisions(false);
     await onPostRestored();
+  };
+
+  // onImageUpload (owned by the parent) expects a real ChangeEvent with
+  // target.files — synthesize one around the cropped/rotated File so the
+  // existing upload logic doesn't need to change.
+  const buildFakeFileEvent = (file: File): React.ChangeEvent<HTMLInputElement> => {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    return { target: { files: dt.files } } as unknown as React.ChangeEvent<HTMLInputElement>;
+  };
+
+  const handleFeaturedImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type.startsWith('image/')) {
+      setPendingFeaturedFile([file]);
+      e.target.value = '';
+    } else {
+      onImageUpload(e);
+    }
   };
 
   return (
@@ -311,7 +335,7 @@ export default function BlogPostEditor({
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={onImageUpload}
+                      onChange={handleFeaturedImageSelected}
                       className="hidden"
                       disabled={uploadingImage}
                     />
@@ -481,6 +505,17 @@ export default function BlogPostEditor({
           postId={editingPost.id}
           onClose={() => setShowRevisions(false)}
           onRestored={handleRestored}
+        />
+      )}
+
+      {pendingFeaturedFile && (
+        <ImageCropModal
+          files={pendingFeaturedFile}
+          onComplete={(edited) => {
+            setPendingFeaturedFile(null);
+            if (edited[0]) onImageUpload(buildFakeFileEvent(edited[0]));
+          }}
+          onCancel={() => setPendingFeaturedFile(null)}
         />
       )}
     </div>

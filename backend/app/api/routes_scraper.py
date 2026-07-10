@@ -1918,6 +1918,7 @@ def apply_raw_page(
         raise HTTPException(status_code=422, detail="No merged data — run Reparse first")
 
     from app.services.scraper import _generate_bin, _apply_scraped_data, _rehost_image
+    from app.services.alt_text import generate_listing_image_alt_text
     from types import SimpleNamespace
 
     raw = page.merged_data
@@ -1947,8 +1948,13 @@ def apply_raw_page(
             excluded_urls = set((listing.additional_specs or {}).get("_deleted_image_urls") or [])
             scraped_imgs = [u for u in (raw.get("images") or []) if u not in excluded_urls]
             db.query(ListingImage).filter(ListingImage.listing_id == listing.id).delete()
-            for img_url in scraped_imgs:
-                db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
+            for position, img_url in enumerate(scraped_imgs):
+                db.add(ListingImage(
+                    listing_id=listing.id,
+                    url=_rehost_image(img_url),
+                    display_order=position,
+                    alt_text=generate_listing_image_alt_text(listing, position),
+                ))
             db.commit()
             db.refresh(listing)
             return {"success": True, "listing_id": listing.id, "title": listing.title, "action": "updated"}
@@ -1968,8 +1974,13 @@ def apply_raw_page(
     db.add(listing)
     db.flush()
 
-    for img_url in (raw.get("images") or []):
-        db.add(ListingImage(listing_id=listing.id, url=_rehost_image(img_url)))
+    for position, img_url in enumerate(raw.get("images") or []):
+        db.add(ListingImage(
+            listing_id=listing.id,
+            url=_rehost_image(img_url),
+            display_order=position,
+            alt_text=generate_listing_image_alt_text(listing, position),
+        ))
 
     db.add(ScrapedListing(job_id=page.job_id, listing_id=listing.id, source_url=page.source_url))
     db.commit()

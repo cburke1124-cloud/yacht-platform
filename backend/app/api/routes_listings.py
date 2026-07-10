@@ -1550,6 +1550,8 @@ def attach_listing_media(
         scope_user = target
     allowed_ids = org_media_ids(scope_user, db)
 
+    from app.services.alt_text import generate_listing_image_alt_text
+
     display_order = 0
     attached = 0
     for media_id in media_ids:
@@ -1558,6 +1560,11 @@ def attach_listing_media(
             continue
         if mf.user_id not in allowed_ids:
             continue
+        # A photo uploaded straight into the media library (not via scraping)
+        # has no listing context to generate alt text from at upload time —
+        # backfill it here, now that we know which listing it's joining.
+        if mf.file_type == "image" and not (mf.alt_text or "").strip():
+            mf.alt_text = generate_listing_image_alt_text(listing, display_order)
 
         order_for_item = display_order + (10000 if mf.file_type == "pdf" else 0)
         db.add(

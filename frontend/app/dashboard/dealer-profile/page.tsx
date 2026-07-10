@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import ImageCropModal from '@/app/components/ImageCropModal';
 import {
   Building2, 
   Upload, 
@@ -37,6 +38,7 @@ export default function DealerProfileEditPage() {
       });
   }, []);
   const [saving, setSaving] = useState(false);
+  const [pendingCrop, setPendingCrop] = useState<{ field: 'logo_url' | 'banner_url'; file: File } | null>(null);
   const [profile, setProfile] = useState({
     company_name: '',
     name: '',
@@ -106,10 +108,9 @@ export default function DealerProfileEditPage() {
     }
   };
 
-  const handleImageUpload = async (field: 'logo_url' | 'banner_url', e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Every logo/banner picked in the file input first goes through the crop
+  // modal, then this uploads the resulting edited file unchanged.
+  const handleImageUpload = async (field: 'logo_url' | 'banner_url', file: File) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -137,6 +138,13 @@ export default function DealerProfileEditPage() {
       console.error('Upload failed:', error);
       alert('Failed to upload image');
     }
+  };
+
+  const handleImageSelected = (field: 'logo_url' | 'banner_url', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPendingCrop({ field, file });
   };
 
   const handleSave = async () => {
@@ -238,7 +246,7 @@ export default function DealerProfileEditPage() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => handleImageUpload('banner_url', e)}
+                    onChange={(e) => handleImageSelected('banner_url', e)}
                     className="hidden"
                   />
                   <Upload className="text-white opacity-0 hover:opacity-100" size={32} />
@@ -268,7 +276,7 @@ export default function DealerProfileEditPage() {
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageUpload('logo_url', e)}
+                      onChange={(e) => handleImageSelected('logo_url', e)}
                       className="hidden"
                     />
                     <Upload className="text-white opacity-0 hover:opacity-100" size={24} />
@@ -644,6 +652,19 @@ export default function DealerProfileEditPage() {
           </div>
         </div>
       </div>
+
+      {pendingCrop && (
+        <ImageCropModal
+          files={[pendingCrop.file]}
+          aspect={pendingCrop.field === 'logo_url' ? 1 : undefined}
+          onComplete={edited => {
+            const { field } = pendingCrop;
+            setPendingCrop(null);
+            if (edited[0]) handleImageUpload(field, edited[0]);
+          }}
+          onCancel={() => setPendingCrop(null)}
+        />
+      )}
     </div>
   );
 }

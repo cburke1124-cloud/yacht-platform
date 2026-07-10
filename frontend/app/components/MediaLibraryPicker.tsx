@@ -6,6 +6,7 @@ import {
   X, Search, Folder, FolderOpen, FolderPlus, Film, FileText,
   Image, Filter, Check, Upload, RefreshCw
 } from 'lucide-react';
+import ImageCropModal from './ImageCropModal';
 
 interface MediaFileItem {
   id: number;
@@ -52,6 +53,7 @@ export default function MediaLibraryPicker({
   const [isDragging, setIsDragging] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,6 +85,16 @@ export default function MediaLibraryPicker({
   };
 
   useEffect(() => { fetchData(); }, [filter, currentFolder]);
+
+  // Every image goes through crop/rotate before it's uploaded. Non-image
+  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  const handleFilesSelected = (fileList: FileList) => {
+    const all = Array.from(fileList);
+    const images = all.filter(f => f.type.startsWith('image/'));
+    const others = all.filter(f => !f.type.startsWith('image/'));
+    if (others.length) handleUpload(others);
+    if (images.length) setPendingCropFiles(images);
+  };
 
   const handleUpload = async (fileList: FileList | File[]) => {
     const token = localStorage.getItem('token');
@@ -193,7 +205,7 @@ export default function MediaLibraryPicker({
               multiple
               accept="image/*,video/*,application/pdf"
               className="hidden"
-              onChange={e => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }}
+              onChange={e => { if (e.target.files) handleFilesSelected(e.target.files); e.target.value = ''; }}
             />
             <button
               disabled={selected.size === 0}
@@ -313,7 +325,7 @@ export default function MediaLibraryPicker({
               onDrop={e => {
                 e.preventDefault();
                 setIsDragging(false);
-                if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files);
+                if (e.dataTransfer.files.length) handleFilesSelected(e.dataTransfer.files);
               }}
             >
               Drop files here to upload
@@ -385,6 +397,14 @@ export default function MediaLibraryPicker({
           </div>
         </div>
       </div>
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={edited => { setPendingCropFiles(null); handleUpload(edited); }}
+          onCancel={() => setPendingCropFiles(null)}
+        />
+      )}
     </div>
   );
 }

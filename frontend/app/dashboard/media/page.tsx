@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Upload, X, Video, FileText, Folder, Trash2, Search, Image, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import ImageCropModal from '@/app/components/ImageCropModal';
 
 // Type definitions
 type MediaFile = {
@@ -31,6 +32,7 @@ export default function MediaGallery() {
   const [storageUsed, setStorageUsed] = useState(0);
   const [totalFiles, setTotalFiles] = useState(0);
   const [lightboxFile, setLightboxFile] = useState<MediaFile | null>(null);
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -90,16 +92,25 @@ export default function MediaGallery() {
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const files = Array.from(e.dataTransfer.files);
-    await uploadFiles(files);
+    handleFilesSelected(files);
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files);
-    await uploadFiles(files);
+    handleFilesSelected(files);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Every image goes through crop/rotate before it's uploaded. Non-image
+  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  const handleFilesSelected = (files: File[]) => {
+    const images = files.filter(f => f.type.startsWith('image/'));
+    const others = files.filter(f => !f.type.startsWith('image/'));
+    if (others.length) uploadFiles(others);
+    if (images.length) setPendingCropFiles(images);
   };
 
   const uploadFiles = async (files: File[]) => {
@@ -428,6 +439,14 @@ export default function MediaGallery() {
           onError={onImgError}
         />
       </div>
+    )}
+
+    {pendingCropFiles && (
+      <ImageCropModal
+        files={pendingCropFiles}
+        onComplete={edited => { setPendingCropFiles(null); uploadFiles(edited); }}
+        onCancel={() => setPendingCropFiles(null)}
+      />
     )}
     </>
   );

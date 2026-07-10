@@ -6,6 +6,7 @@ import {
   Briefcase, Globe, Instagram, Linkedin, Facebook
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import ImageCropModal from '../../components/ImageCropModal';
 
 export interface SalesmanProfileFormHandle {
   save: () => Promise<void>;
@@ -24,6 +25,7 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userType, setUserType] = useState<string>('team_member');
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File[] | null>(null);
   const [profile, setProfile] = useState({
     first_name: '',
     last_name: '',
@@ -74,9 +76,7 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
     }
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadPhoto = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -93,6 +93,19 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
       }
     } catch (error) {
       console.error('Upload failed:', error);
+    }
+  };
+
+  // Headshots are displayed in a circular avatar, so route the picked file
+  // through a square crop before uploading.
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.type.startsWith('image/')) {
+      setPendingPhotoFile([file]);
+    } else {
+      uploadPhoto(file);
     }
   };
 
@@ -341,6 +354,18 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
             {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
+      )}
+
+      {pendingPhotoFile && (
+        <ImageCropModal
+          files={pendingPhotoFile}
+          aspect={1}
+          onComplete={(edited) => {
+            setPendingPhotoFile(null);
+            if (edited[0]) uploadPhoto(edited[0]);
+          }}
+          onCancel={() => setPendingPhotoFile(null)}
+        />
       )}
     </div>
   );
