@@ -318,6 +318,7 @@ export default function DealerMediaGallery({
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => setShowNewFolderModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
@@ -325,6 +326,7 @@ export default function DealerMediaGallery({
               New Folder
             </button>
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-gray-400"
@@ -369,12 +371,14 @@ export default function DealerMediaGallery({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}
             >
               <Grid3x3 size={18} />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}
             >
@@ -389,6 +393,7 @@ export default function DealerMediaGallery({
         <div className="w-64 bg-white border-r overflow-y-auto">
           <div className="p-4">
             <button
+              type="button"
               onClick={() => setCurrentFolder(null)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                 currentFolder === null ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
@@ -403,6 +408,7 @@ export default function DealerMediaGallery({
               <p className="text-xs font-semibold text-gray-500 uppercase px-3 mb-2">Folders</p>
               {folders.map(folder => (
                 <button
+                  type="button"
                   key={folder.id}
                   onClick={() => setCurrentFolder(folder.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
@@ -427,6 +433,7 @@ export default function DealerMediaGallery({
                 <div key={idx} className="flex items-center gap-2">
                   {idx > 0 && <ChevronRight size={14} className="text-gray-400" />}
                   <button
+                    type="button"
                     onClick={() => setCurrentFolder(crumb.id)}
                     className="hover:text-blue-600 transition-colors"
                   >
@@ -442,12 +449,14 @@ export default function DealerMediaGallery({
                   {selectedMedia.size} selected
                 </span>
                 <button
+                  type="button"
                   onClick={selectAllInFolder}
                   className="text-sm text-blue-600 hover:text-blue-700"
                 >
                   Select All
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowMoveModal(true)}
                   className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
                 >
@@ -455,6 +464,7 @@ export default function DealerMediaGallery({
                   Move
                 </button>
                 <button
+                  type="button"
                   onClick={deleteSelected}
                   className="flex items-center gap-2 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm"
                 >
@@ -463,6 +473,7 @@ export default function DealerMediaGallery({
                 </button>
                 {mode === 'picker' && (
                   <button
+                    type="button"
                     onClick={handleConfirmSelection}
                     className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
                   >
@@ -622,6 +633,7 @@ export default function DealerMediaGallery({
                         </td>
                         <td className="px-4 py-3">
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setContextMenu({ x: e.clientX, y: e.clientY, item });
@@ -657,6 +669,7 @@ export default function DealerMediaGallery({
             />
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => {
                   setShowNewFolderModal(false);
                   setNewFolderName('');
@@ -666,6 +679,7 @@ export default function DealerMediaGallery({
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={createFolder}
                 disabled={!newFolderName.trim()}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
@@ -684,6 +698,7 @@ export default function DealerMediaGallery({
             <h3 className="text-xl font-bold mb-4">Move {selectedMedia.size} item(s) to...</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
               <button
+                type="button"
                 onClick={() => moveSelectedToFolder(null)}
                 className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-lg flex items-center gap-3"
               >
@@ -692,6 +707,7 @@ export default function DealerMediaGallery({
               </button>
               {folders.map(folder => (
                 <button
+                  type="button"
                   key={folder.id}
                   onClick={() => moveSelectedToFolder(folder.id)}
                   className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-lg flex items-center gap-3"
@@ -702,6 +718,7 @@ export default function DealerMediaGallery({
               ))}
             </div>
             <button
+              type="button"
               onClick={() => setShowMoveModal(false)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
