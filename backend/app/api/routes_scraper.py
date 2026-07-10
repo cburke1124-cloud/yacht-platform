@@ -272,6 +272,139 @@ For hull_type: Catamaran if catamaran, Displacement if slow trawler/sailboat, Pl
         return None
 
 
+def _fallback_parse_charter(text: str) -> dict:
+    """Regex-only fallback for charter text parsing — same role as
+    _fallback_parse() above but tuned to charter fields (day/week rates,
+    max_guests, crew, home port) instead of a sale price/berths/sale location.
+    Used when no Claude API key is configured, or the AI call fails."""
+    lines = [line.strip() for line in text.replace("\r", "").split("\n") if line.strip()]
+    year = _first([r"\b(19\d{2}|20\d{2})\b"], text)
+    title = lines[0] if lines else None
+    day_rate = _first([
+        r"day\s*rate\s*[:\-]?\s*\$?\s*([\d,]+(?:\.\d+)?)",
+        r"\$\s*([\d,]+(?:\.\d+)?)\s*(?:/|per)\s*day",
+    ], text)
+    week_rate = _first([
+        r"week(?:ly)?\s*rate\s*[:\-]?\s*\$?\s*([\d,]+(?:\.\d+)?)",
+        r"\$\s*([\d,]+(?:\.\d+)?)\s*(?:/|per)\s*week",
+    ], text)
+    make = _first([
+        r"\b(Azimut|Beneteau|Bertram|Boston\s*Whaler|Cabo|Carver|Chris\-Craft|Ferretti|Formula|"
+        r"Hatteras|Jeanneau|Lagoon|Leopard|Fountaine\s*Pajot|Meridian|Monterey|Monte\s*Carlo|"
+        r"Nordhavn|Pershing|Princess|Regal|Riva|Sanlorenzo|Sea\s*Ray|Sunreef|Sunseeker|Tiara|"
+        r"Viking|Yamaha|Yellowfin)\b"
+    ], text)
+    model = _first([r"model\s*[:\-]?\s*([^\n]+)"], text)
+    length = _first([r"(?:loa|length(?:\s+overall)?)\s*[:\-]?\s*([\d.]+)", r"\b([\d.]+)\s*(?:ft|feet|')"], text)
+    beam = _first([r"beam\s*[:\-]?\s*([\d.]+)"], text)
+    draft = _first([r"draft(?:\s*(?:max|min)?)?\s*[:\-]?\s*([\d.]+)"], text)
+    cabins = _first([r"cabins?\s*[:\-]?\s*(\d+)"], text)
+    heads = _first([r"heads?\s*[:\-]?\s*(\d+)"], text)
+    max_guests = _first([
+        r"(?:max(?:imum)?\s*guests?|guests?\s*capacity|sleeps?|up\s*to)\s*[:\-]?\s*(\d+)\s*(?:guests?|people)?",
+        r"(\d+)\s*guests?\b",
+    ], text)
+    hull_material = _first([r"hull\s*material\s*[:\-]?\s*([^\n]+)"], text)
+    hull_type = _first([r"hull\s*(?:shape|type)\s*[:\-]?\s*([^\n]+)"], text)
+    home_port = _first([
+        r"(?:home\s*port|based\s+in|located\s+in)\s*[:\-]?\s*([^\n]+)",
+    ], text)
+    home_port_city = home_port_state = home_port_country = None
+    if home_port:
+        parts = [p.strip() for p in home_port.split(",") if p.strip()]
+        if len(parts) >= 1:
+            home_port_city = parts[0]
+        if len(parts) >= 2:
+            home_port_state = parts[1]
+        if len(parts) >= 3:
+            home_port_country = parts[2]
+    crew_included = None
+    if re.search(r"\bbareboat\b|\bself[\-\s]?(?:sail|skipper)\b|no\s+crew", text, re.IGNORECASE):
+        crew_included = False
+    elif re.search(r"\bcrewed\b|\bcaptain\s+included\b|\bskipper\s+(?:included|provided)\b|full[\-\s]?crew", text, re.IGNORECASE):
+        crew_included = True
+    engine_count = None
+    if re.search(r"\btwin\b", text, re.IGNORECASE):
+        engine_count = 2
+    elif re.search(r"\bsingle\b", text, re.IGNORECASE):
+        engine_count = 1
+    bullets = [re.sub(r"^[-•*]\s+", "", line).strip() for line in lines if re.match(r"^[-•*]\s+", line)]
+    return {
+        "vessel_name": title, "title": title, "description": text,
+        "day_rate": _to_float(day_rate), "week_rate": _to_float(week_rate),
+        "year": _to_int(year), "make": make, "model": model,
+        "length_feet": _to_float(length), "beam_feet": _to_float(beam), "draft_feet": _to_float(draft),
+        "cabins": _to_int(cabins), "heads": _to_int(heads), "max_guests": _to_int(max_guests),
+        "hull_material": hull_material, "hull_type": hull_type,
+        "engine_count": engine_count, "crew_included": crew_included,
+        "home_port_city": home_port_city, "home_port_state": home_port_state,
+        "home_port_country": home_port_country,
+        "amenities": bullets[:10] if bullets else None,
+    }
+
+
+def _claude_extract_charter_if_available(text: str) -> Optional[dict]:
+    """Claude-based extraction tuned to CharterListing fields — same role as
+    _claude_extract_if_available() above but for charters: day/week rates
+    instead of a sale price, max_guests/crew instead of berths, home port
+    instead of a sale location, amenities/inclusions instead of feature_bullets."""
+    api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
+    if not api_key:
+        return None
+    prompt = f"""Extract yacht CHARTER listing fields from the text below and return a single JSON object — no markdown, no explanation, only raw JSON. This is a charter (rental) listing, not a boat for sale — do not confuse a purchase price with a day/week charter rate.
+
+Text:
+{text[:12000]}
+
+Return exactly these fields in this order (use null for unknowns):
+- vessel_name (string — the boat's own name, e.g. "Serenity Now"; if the text only gives make/model with no name, use the make+model as the name)
+- make (string)
+- model (string)
+- year (integer)
+- boat_type — MUST be one of exactly: "Motor Yacht", "Sailing Yacht", "Catamaran", "Center Console", "Sport Fisher", "Trawler", "Express Cruiser", "Mega Yacht", "Pontoon", "Bowrider", "Cuddy Cabin", "Walkaround", "Convertible", "Pilothouse", or null
+- hull_material — MUST be one of exactly: "Fiberglass", "Aluminum", "Steel", "Wood", "Composite", "Carbon Fiber", "Ferro-Cement", or null
+- length_feet (number)
+- beam_feet (number)
+- draft_feet (number)
+- cabins (integer)
+- heads (integer)
+- max_guests (integer — maximum charter guest capacity; for a day charter this can exceed overnight sleeping capacity, so prefer an explicit "up to N guests"/"capacity N" figure over a sleeps/berths figure if both are given)
+- crew_included (true | false | null — true if the text says crewed/captain included/skipper provided/full-service; false if bareboat/self-sail/no crew; null if not mentioned)
+- crew_count (integer — number of crew, if stated)
+- engine_make (string)
+- engine_count (integer)
+- day_rate (number, no currency symbol — the CHARTER rate per day, not a sale price)
+- half_day_rate (number, no currency symbol)
+- week_rate (number, no currency symbol — the CHARTER rate per week)
+- currency ("USD" | "EUR" | "GBP" | other ISO 3-letter code | null)
+- min_charter_days (integer — minimum booking length, if stated)
+- home_port_city (string — the marina/port city the boat operates from)
+- home_port_state (string — first-level administrative region in English, same convention as for a sale listing: Spain uses autonomous community, France/Italy use region, US uses state abbreviation, Canada uses province)
+- home_port_country (string — full country name in English)
+- operating_regions (string — the cruising region/area the charter covers, e.g. "BVI, Caribbean" or "Amalfi Coast, Mediterranean", if different/broader than the home port)
+- amenities (array of up to 10 short amenity/feature strings, each under 60 chars — e.g. "Jacuzzi", "WiFi", "Snorkel gear", "Paddleboards", "Air conditioning")
+- included_items (array of up to 8 short strings describing what's included in the charter price, e.g. "Fuel", "Crew gratuity", "All meals", "Water toys")
+- excluded_items (array of up to 8 short strings describing what's NOT included, e.g. "Fuel surcharge", "Gratuity", "Alcohol", "Dockage fees")
+
+Do NOT include a "description" field — that's handled separately.
+
+For day_rate/week_rate: only extract a rate if it's clearly framed as a rental/charter rate (per day, per week, "starting from", "charter rate"). If the text only gives a purchase/sale price with no rental framing, leave day_rate and week_rate both null rather than guessing.
+For boat_type: infer from context the same way as for a sale listing (fishing-focused = "Sport Fisher", sailing/sloop/ketch = "Sailing Yacht", catamaran = "Catamaran", slow long-range = "Trawler")."""
+    try:
+        import anthropic as _anthropic
+        client = _anthropic.Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text_blob = re.sub(r"^```json\s*|\s*```$", "", message.content[0].text.strip())
+        parsed = json.loads(text_blob)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
 def _require_admin(current_user: User):
     if current_user.user_type != "admin":
         raise AuthorizationException("Admin access required")
@@ -535,6 +668,40 @@ def parse_listing_text(
         ai_data = None
     fallback = _fallback_parse(data.text)
     merged = {**fallback, **(ai_data or {})}
+    return {"success": True, "data": merged}
+
+
+# -----------------------------------------------------------------------
+# CHARTER: parse raw text → structured CharterListing fields. Same tool as
+# /scraper/parse-text above, but for charter operators whose listing copy is
+# often a wall of text (a PDF export, a marketing email body, a WhatsApp
+# message from the charter company) rather than a page the URL-based
+# /scraper/charter-preview scraper can crawl.
+# -----------------------------------------------------------------------
+
+@router.post("/scraper/parse-text-charter")
+def parse_charter_text(
+    data: ParseTextRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Admin-only for now, matching /scraper/charter-preview — the charter
+    # text-parse tool is only wired into AdminScraperTab.tsx's admin-only UI,
+    # unlike the for-sale /scraper/parse-text (which dealers use directly via
+    # ScraperModal), so this must be gated at the API level too, not just by
+    # which page happens to link to it.
+    _require_admin(current_user)
+    if not data.text or not data.text.strip():
+        return {"success": False, "message": "Text is required"}
+    try:
+        ai_data = _claude_extract_charter_if_available(data.text)
+    except Exception:
+        ai_data = None
+    fallback = _fallback_parse_charter(data.text)
+    merged = {**fallback, **(ai_data or {})}
+    # Strip empty/None so the frontend preview only shows fields it actually found,
+    # matching _map_scraped_to_charter's behavior for the URL-scrape path.
+    merged = {k: v for k, v in merged.items() if v not in (None, "", [])}
     return {"success": True, "data": merged}
 
 

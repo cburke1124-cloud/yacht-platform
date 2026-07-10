@@ -1727,22 +1727,45 @@ interface CharterPreview {
   cabins?: number;
   berths?: number;
   heads?: number;
+  max_guests?: number;
+  crew_included?: boolean | null;
+  crew_count?: number;
+  engine_make?: string;
+  engine_count?: number;
+  min_charter_days?: number;
   home_port_city?: string;
   home_port_state?: string;
   home_port_country?: string;
+  operating_regions?: string;
+  amenities?: string[] | string;
+  included_items?: string[] | string;
+  excluded_items?: string[] | string;
   description?: string;
   images?: string[];
   status?: string;
   currency?: string;
-  day_rate?: string;
-  week_rate?: string;
+  day_rate?: string | number;
+  week_rate?: string | number;
   charter_company_name?: string;
   charter_company_email?: string;
   charter_company_phone?: string;
 }
 
+// Fields the /scraper/parse-text-charter and /scraper/charter-preview endpoints
+// can return as arrays (amenities/included_items/excluded_items) — the form
+// edits these as a single comma-separated text field for speed, then this
+// splits them back into an array right before the POST /charter call.
+const _LIST_FIELDS: (keyof CharterPreview)[] = ['amenities', 'included_items', 'excluded_items'];
+
+function _listToText(v: string[] | string | undefined): string {
+  if (!v) return '';
+  return Array.isArray(v) ? v.join(', ') : v;
+}
+
 function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }: { dealers: Dealer[]; apiUrl: (p: string) => string; authHeaders: () => Record<string, string> }) {
+  const [inputMode, setInputMode] = useState<'url' | 'text'>('url');
   const [url, setUrl] = useState('');
+  const [pasteText, setPasteText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
@@ -1776,6 +1799,29 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
     }
   }
 
+  async function handleExtractText() {
+    if (!pasteText.trim()) { setError('Paste some listing text first'); return; }
+    setLoading(true); setError(''); setPreview(null); setPriceHint(null); setLogs([]); setSaveMsg(null);
+    try {
+      const res = await fetch(_apiUrl('/scraper/parse-text-charter'), {
+        method: 'POST',
+        headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: pasteText }),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Failed to extract fields from this text'); return; }
+      // Unlike the URL scraper (which reuses the generic for-sale engine and
+      // can't tell day-rate from week-rate), the text prompt is charter-aware
+      // and already tries to classify the rate correctly — so no price hint
+      // banner is needed here; day_rate/week_rate come pre-populated if found.
+      setPreview({ ...data.data, currency: data.data.currency || 'USD' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleCreate() {
     if (!preview) return;
     if (!dealerId) { setSaveMsg({ ok: false, text: 'Select which dealer/brokerage account should own this listing' }); return; }
@@ -1785,6 +1831,14 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
       // Empty rate fields shouldn't overwrite as "0" — strip them
       if (!payload.day_rate) delete payload.day_rate; else payload.day_rate = Number(payload.day_rate);
       if (!payload.week_rate) delete payload.week_rate; else payload.week_rate = Number(payload.week_rate);
+      // Comma-separated text fields → arrays for the array-typed CharterListing columns
+      for (const field of _LIST_FIELDS) {
+        const raw = payload[field];
+        if (typeof raw === 'string') {
+          const items = raw.split(',').map(s => s.trim()).filter(Boolean);
+          if (items.length) payload[field] = items; else delete payload[field];
+        }
+      }
       const res = await fetch(_apiUrl('/charter'), {
         method: 'POST',
         headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
@@ -1795,6 +1849,7 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
       setSaveMsg({ ok: true, text: `Created charter listing #${data.id} — ${data.title}` });
       setPreview(null);
       setUrl('');
+      setPasteText('');
     } catch (err) {
       setSaveMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed to create listing' });
     } finally {
@@ -1806,26 +1861,60 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
     <div className="p-6">
       <div className="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-lg">
         <p className="text-sm text-amber-900">
-          <strong>Manual charter scrape.</strong> Paste a single charter listing URL — it reuses the same page-fetch and extraction engine as the for-sale scraper, then maps the result onto the charter schema. Rates couldn&apos;t reliably be classified as day vs. week automatically, so confirm those manually below before creating the listing.
+          <strong>Manual charter import.</strong> Scrape a listing page by URL, or paste raw listing text (a PDF export, an email, a WhatsApp message from the charter company) and let AI extract the fields. Review everything below before creating the listing.
         </p>
       </div>
 
-      <div className="flex gap-2 mb-5">
-        <input
-          type="url"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="https://example.com/charter/north-wind"
-          className={inp}
-        />
+      <div className="flex gap-2 mb-4">
         <button
-          onClick={handleScrape}
-          disabled={loading}
-          className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 flex-shrink-0"
+          onClick={() => { setInputMode('url'); setError(''); }}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium ${inputMode === 'url' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
-          {loading ? 'Scraping…' : 'Scrape & Preview'}
+          Scrape from URL
+        </button>
+        <button
+          onClick={() => { setInputMode('text'); setError(''); }}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium ${inputMode === 'text' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Paste Text (AI Extract)
         </button>
       </div>
+
+      {inputMode === 'url' ? (
+        <div className="flex gap-2 mb-5">
+          <input
+            type="url"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://example.com/charter/north-wind"
+            className={inp}
+          />
+          <button
+            onClick={handleScrape}
+            disabled={loading}
+            className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 flex-shrink-0"
+          >
+            {loading ? 'Scraping…' : 'Scrape & Preview'}
+          </button>
+        </div>
+      ) : (
+        <div className="mb-5 space-y-2">
+          <textarea
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            placeholder={"Paste the charter company's listing text here — e.g.\n\nSerenity Now - 2019 Lagoon 52\nSleeps up to 10 guests in 5 cabins...\nCrewed charter, day rate $3,500, week rate $22,000\nBased in Road Town, BVI\n..."}
+            rows={10}
+            className={inp + ' resize-y font-mono text-xs'}
+          />
+          <button
+            onClick={handleExtractText}
+            disabled={loading}
+            className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50"
+          >
+            {loading ? 'Extracting…' : 'Extract with AI'}
+          </button>
+        </div>
+      )}
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>}
 
@@ -1868,8 +1957,23 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
             <div><label className={lbl}>Cabins</label><input type="number" className={inp} value={preview.cabins ?? ''} onChange={e => set('cabins', e.target.value ? Number(e.target.value) : undefined)} /></div>
             <div><label className={lbl}>Berths</label><input type="number" className={inp} value={preview.berths ?? ''} onChange={e => set('berths', e.target.value ? Number(e.target.value) : undefined)} /></div>
             <div><label className={lbl}>Heads</label><input type="number" className={inp} value={preview.heads ?? ''} onChange={e => set('heads', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div><label className={lbl}>Max Guests</label><input type="number" className={inp} value={preview.max_guests ?? ''} onChange={e => set('max_guests', e.target.value ? Number(e.target.value) : undefined)} /></div>
+            <div>
+              <label className={lbl}>Crew</label>
+              <select
+                className={inp}
+                value={preview.crew_included === true ? 'true' : preview.crew_included === false ? 'false' : ''}
+                onChange={e => set('crew_included', e.target.value === '' ? null : e.target.value === 'true')}
+              >
+                <option value="">— Unknown —</option>
+                <option value="true">Crewed</option>
+                <option value="false">Bareboat</option>
+              </select>
+            </div>
+            <div><label className={lbl}>Min Charter Days</label><input type="number" className={inp} value={preview.min_charter_days ?? ''} onChange={e => set('min_charter_days', e.target.value ? Number(e.target.value) : undefined)} /></div>
             <div><label className={lbl}>Home Port City</label><input className={inp} value={preview.home_port_city ?? ''} onChange={e => set('home_port_city', e.target.value)} /></div>
             <div><label className={lbl}>Home Port Country</label><input className={inp} value={preview.home_port_country ?? ''} onChange={e => set('home_port_country', e.target.value)} /></div>
+            <div className="col-span-2"><label className={lbl}>Operating Regions</label><input className={inp} value={preview.operating_regions ?? ''} onChange={e => set('operating_regions', e.target.value)} placeholder="e.g. BVI, Caribbean" /></div>
 
             <div>
               <label className={lbl}>Currency</label>
@@ -1884,6 +1988,18 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
             <div><label className={lbl}>Week Rate</label><input type="number" className={inp} value={preview.week_rate ?? ''} onChange={e => set('week_rate', e.target.value)} placeholder="Leave blank if not applicable" /></div>
 
             <div className="col-span-2"><label className={lbl}>Charter Company Name</label><input className={inp} value={preview.charter_company_name ?? ''} onChange={e => set('charter_company_name', e.target.value)} /></div>
+            <div className="col-span-2">
+              <label className={lbl}>Amenities <span className="text-gray-400 font-normal">(comma-separated)</span></label>
+              <input className={inp} value={_listToText(preview.amenities)} onChange={e => set('amenities', e.target.value)} placeholder="Jacuzzi, WiFi, Snorkel gear, Paddleboards" />
+            </div>
+            <div>
+              <label className={lbl}>Included <span className="text-gray-400 font-normal">(comma-separated)</span></label>
+              <input className={inp} value={_listToText(preview.included_items)} onChange={e => set('included_items', e.target.value)} placeholder="Fuel, Crew gratuity" />
+            </div>
+            <div>
+              <label className={lbl}>Excluded <span className="text-gray-400 font-normal">(comma-separated)</span></label>
+              <input className={inp} value={_listToText(preview.excluded_items)} onChange={e => set('excluded_items', e.target.value)} placeholder="Alcohol, Dockage fees" />
+            </div>
             <div className="col-span-2">
               <label className={lbl}>Description</label>
               <textarea rows={4} className={inp + ' resize-none'} value={preview.description ?? ''} onChange={e => set('description', e.target.value)} />
