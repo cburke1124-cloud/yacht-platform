@@ -335,7 +335,7 @@ export default function CharterDetailPage() {
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Back button */}
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-sm mb-6 text-[#10214F] hover:text-[#01BBDC] transition-colors group">
+        <button onClick={() => router.push('/charter')} className="flex items-center gap-2 text-sm mb-6 text-[#10214F] hover:text-[#01BBDC] transition-colors group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to charter listings
         </button>
 
