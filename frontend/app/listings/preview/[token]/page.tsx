@@ -11,7 +11,7 @@ import {
   Heart, Plus, Share2,
   Instagram, Facebook, Linkedin, Twitter,
 } from 'lucide-react';
-import { API_ROOT } from '@/app/lib/apiRoot';
+import { API_ROOT, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,8 +87,6 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
-const FALLBACK = '/images/listing-fallback1.png';
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -224,7 +222,7 @@ export default function PreviewListingPage() {
             <ChevronLeft size={28} className="text-white" />
           </button>
           <img
-            src={images[lightbox]?.url || FALLBACK}
+            src={images[lightbox]?.url || FALLBACK_IMAGE}
             alt={`${displayTitle} photo ${lightbox + 1}`}
             className="relative z-0 max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
             style={{ transform: `scale(${zoom})` }}
@@ -299,10 +297,10 @@ export default function PreviewListingPage() {
               onClick={() => setLightbox(mainIdx)}
             >
               <img
-                src={images[mainIdx]?.url || FALLBACK}
+                src={images[mainIdx]?.url || FALLBACK_IMAGE}
                 alt={`${displayTitle} main photo`}
                 className="w-full h-full object-cover"
-                onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }}
+                onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE; }}
               />
             </div>
           </div>
@@ -505,7 +503,7 @@ export default function PreviewListingPage() {
                   onClick={() => { setMainIdx(idx + 1); setLightbox(idx + 1); }}
                 >
                   <img src={img.url} alt={`${displayTitle} photo ${idx + 2}`} className="w-full h-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).src = FALLBACK; }} />
+                    onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE; }} />
                   {isLast && remaining > 0 && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>

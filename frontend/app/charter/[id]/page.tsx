@@ -400,13 +400,7 @@ export default function CharterDetailPage() {
           {/* Featured image -- 8 cols */}
           <div className="lg:col-span-8">
             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100" style={{ height: 500 }}>
-              {images.length > 0 ? (
-                <img src={images[activeImg]} alt={charter.title} onError={onImgError} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Anchor className="w-16 h-16 text-gray-300" />
-                </div>
-              )}
+              <img src={mediaUrl(images[activeImg])} alt={charter.title} onError={onImgError} className="w-full h-full object-cover" />
               {images.length > 1 && (
                 <>
                   <button onClick={() => setActiveImg(i => (i - 1 + images.length) % images.length)} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors">
@@ -808,20 +802,14 @@ export default function CharterDetailPage() {
             <SectionHeading>Similar Yachts</SectionHeading>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {similar.map(s => {
-                const img = s.images?.length ? mediaUrl(typeof s.images[0] === 'string' ? s.images[0] : s.images[0].url) : null;
+                const img = mediaUrl(s.images?.length ? (typeof s.images[0] === 'string' ? s.images[0] : s.images[0].url) : null);
                 const rate = s.day_rate
                   ? formatRate(s.day_rate, s.currency, 'day')
                   : s.week_rate ? formatRate(s.week_rate, s.currency, 'week') : null;
                 return (
                   <Link key={s.id} href={`/charter/${s.id}`} className="group rounded-2xl border border-gray-200 bg-white overflow-hidden hover:border-[#01BBDC] hover:shadow-md transition-all">
                     <div className="relative h-44 bg-gray-100 overflow-hidden">
-                      {img ? (
-                        <img src={img} alt={s.title} onError={onImgError} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Anchor className="w-10 h-10 text-gray-300" />
-                        </div>
-                      )}
+                      <img src={img} alt={s.title} onError={onImgError} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     </div>
                     <div className="p-4">
                       <p className="font-semibold text-[#10214F] text-sm truncate" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{s.title}</p>

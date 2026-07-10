@@ -238,7 +238,7 @@ export default function MediaUpload({
               <button
                 onClick={handleVideoEmbed}
                 disabled={uploading}
-                className="w-full bg-blue-600 text-white rounded py-2"
+                className="w-full bg-[#10214F] hover:bg-[#1a3570] text-white rounded py-2"
               >
                 Add Video
               </button>

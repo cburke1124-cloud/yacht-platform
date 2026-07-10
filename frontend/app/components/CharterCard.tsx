@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Anchor, Bed, Users, Ruler } from 'lucide-react';
+import { Bed, Users, Ruler } from 'lucide-react';
 import { mediaUrl, onImgError } from '@/app/lib/apiRoot';
 
 export interface CharterListing {
@@ -34,11 +34,14 @@ export interface CharterListing {
 }
 
 export default function CharterCard({ charter }: { charter: CharterListing }) {
-  const imageUrl = (() => {
-    if (!charter.images?.length) return null;
-    const first = charter.images[0];
-    return mediaUrl(typeof first === 'string' ? first : first.url);
-  })();
+  // mediaUrl() already falls back to the same placeholder used by for-sale
+  // listings (FALLBACK_IMAGE) when there's no photo — no need for a separate
+  // icon-based empty state.
+  const imageUrl = mediaUrl(
+    charter.images?.length
+      ? (typeof charter.images[0] === 'string' ? charter.images[0] : charter.images[0].url)
+      : null
+  );
   const formatRate = (rate?: number, period?: string) => {
     if (!rate) return null;
     return `${charter.currency === 'USD' ? '$' : charter.currency}${rate.toLocaleString()} / ${period}`;
@@ -54,13 +57,7 @@ export default function CharterCard({ charter }: { charter: CharterListing }) {
   return (
     <Link href={`/charter/${charter.id}`} className="group block bg-white rounded-xl overflow-hidden border border-gray-200 hover:border-[#01BBDC] hover:shadow-md transition-all duration-200">
       <div className="relative h-52 bg-gray-100 overflow-hidden">
-        {imageUrl ? (
-          <img src={imageUrl} alt={charter.title} onError={onImgError} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-100">
-            <Anchor className="w-12 h-12 text-gray-300" />
-          </div>
-        )}
+        <img src={imageUrl} alt={charter.title} onError={onImgError} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         {charter.crew_included && (
           <span className="absolute top-3 left-3 bg-[#01BBDC] text-white text-xs font-semibold px-2 py-1 rounded-full">Crew Included</span>
         )}

@@ -13,7 +13,7 @@ import {
   Zap, Wind, ZoomIn, ZoomOut, FileText, PlayCircle, Edit
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
+import { API_ROOT, mediaUrl, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
 import { detectLocaleDefaults, fmtLength, fmtCapacity, fmtWeight, fmtFuelBurn } from '@/app/lib/locale';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -108,8 +108,6 @@ function formatPhone(raw?: string): string {
   if (digits.length === 11 && digits[0] === '1') return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   return raw;
 }
-
-const FALLBACK_LISTING_IMAGE = '/images/listing-fallback1.png';
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -528,7 +526,7 @@ export default function ListingDetailClient({
             className="absolute z-10 left-6 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-all">
             <ChevronLeft size={28} className="text-white" />
           </button>
-          <img src={mediaUrl(imageLightboxItems[lightbox]?.url) || FALLBACK_LISTING_IMAGE} className="relative z-0 max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
+          <img src={mediaUrl(imageLightboxItems[lightbox]?.url) || FALLBACK_IMAGE} className="relative z-0 max-h-[90vh] max-w-[90vw] object-contain rounded-2xl transition-transform duration-200"
             style={{ transform: `scale(${lightboxZoom})` }}
             alt={imageLightboxItems[lightbox]?.alt_text || imageLightboxItems[lightbox]?.caption || `${listing.title} photo ${(lightbox ?? 0) + 1}`}
             onClick={e => e.stopPropagation()} />
@@ -788,7 +786,7 @@ export default function ListingDetailClient({
                   )}
                 </div>
               ) : (
-                <img src={mediaUrl(featuredMedia?.url) || FALLBACK_LISTING_IMAGE}
+                <img src={mediaUrl(featuredMedia?.url) || FALLBACK_IMAGE}
                   alt={`${listing.title} main photo`} className="w-full h-full object-cover" />
               )}
               {listing.featured && (
@@ -1073,14 +1071,14 @@ export default function ListingDetailClient({
                   }}>
                   {item.file_type === 'video' ? (
                     <>
-                      <img src={mediaUrl(item.thumbnail_url) || FALLBACK_LISTING_IMAGE}
+                      <img src={mediaUrl(item.thumbnail_url) || FALLBACK_IMAGE}
                         alt={`${listing.title} video`} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                         <PlayCircle size={22} className="text-white" />
                       </div>
                     </>
                   ) : (
-                    <img src={mediaUrl(item.thumbnail_url || item.url) || FALLBACK_LISTING_IMAGE}
+                    <img src={mediaUrl(item.thumbnail_url || item.url) || FALLBACK_IMAGE}
                       alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
                   )}
                   {isLast && remaining > 0 && (

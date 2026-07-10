@@ -690,7 +690,7 @@ export default function AdminDealersTab() {
                             className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
                               mediaUploading[key]
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                                : 'bg-secondary/10 text-secondary hover:bg-secondary/20 cursor-pointer'
                             }`}
                           >
                             {mediaUploading[key] ? '...' : '↑ Upload'}

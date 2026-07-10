@@ -391,7 +391,7 @@ export default function DealerMediaGallery({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-gray-400"
+              className="flex items-center gap-2 px-4 py-2 bg-[#10214F] hover:bg-[#1a3570] text-white rounded-lg transition-colors disabled:bg-gray-400"
             >
               <Upload size={18} />
               Upload Files
@@ -412,7 +412,7 @@ export default function DealerMediaGallery({
           <div 
             className={`h-2 rounded-full transition-all ${
               storage.percentage > 90 ? 'bg-red-600' :
-              storage.percentage > 75 ? 'bg-yellow-600' : 'bg-blue-600'
+              storage.percentage > 75 ? 'bg-yellow-600' : 'bg-[#10214F]'
             }`}
             style={{ width: `${Math.min(storage.percentage, 100)}%` }}
           />
@@ -427,7 +427,7 @@ export default function DealerMediaGallery({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search media..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#10214F]/20 focus:border-[#10214F]/40"
             />
           </div>
 
@@ -435,14 +435,14 @@ export default function DealerMediaGallery({
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}
+              className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-[#10214F]/10 text-[#10214F]' : 'bg-gray-100 text-gray-600'}`}
             >
               <Grid3x3 size={18} />
             </button>
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}`}
+              className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-[#10214F]/10 text-[#10214F]' : 'bg-gray-100 text-gray-600'}`}
             >
               <List size={18} />
             </button>
@@ -458,7 +458,7 @@ export default function DealerMediaGallery({
               type="button"
               onClick={() => setCurrentFolder(null)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                currentFolder === null ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                currentFolder === null ? 'bg-[#10214F]/5 text-[#10214F]' : 'hover:bg-gray-50'
               }`}
             >
               <FolderOpen size={18} />
@@ -474,7 +474,7 @@ export default function DealerMediaGallery({
                   key={folder.id}
                   onClick={() => setCurrentFolder(folder.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                    currentFolder === folder.id ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'
+                    currentFolder === folder.id ? 'bg-[#10214F]/5 text-[#10214F]' : 'hover:bg-gray-50'
                   }`}
                 >
                   <Folder size={18} />
@@ -497,7 +497,7 @@ export default function DealerMediaGallery({
                   <button
                     type="button"
                     onClick={() => setCurrentFolder(crumb.id)}
-                    className="hover:text-blue-600 transition-colors"
+                    className="hover:text-[#10214F] transition-colors"
                   >
                     {crumb.name}
                   </button>
@@ -513,7 +513,7 @@ export default function DealerMediaGallery({
                 <button
                   type="button"
                   onClick={selectAllInFolder}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-[#10214F] hover:text-[#1a3570]"
                 >
                   Select All
                 </button>
@@ -537,7 +537,7 @@ export default function DealerMediaGallery({
                   <button
                     type="button"
                     onClick={handleConfirmSelection}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                    className="flex items-center gap-2 px-4 py-1.5 bg-[#10214F] hover:bg-[#1a3570] text-white rounded-lg text-sm font-medium"
                   >
                     <Check size={14} />
                     Use Selected ({selectedMedia.size})
@@ -549,18 +549,18 @@ export default function DealerMediaGallery({
 
           {/* Upload Progress */}
           {uploading && (
-            <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+            <div className="bg-[#10214F]/5 border-b border-[#10214F]/20 px-6 py-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-900">
+                <span className="text-sm font-medium text-[#10214F]">
                   Uploading files...
                 </span>
-                <span className="text-sm text-blue-700">
+                <span className="text-sm text-[#1a3570]">
                   {uploadProgress.toFixed(0)}%
                 </span>
               </div>
-              <div className="w-full bg-blue-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all"
+              <div className="w-full bg-[#10214F]/20 rounded-full h-2">
+                <div
+                  className="bg-[#10214F] h-2 rounded-full transition-all"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
@@ -575,18 +575,18 @@ export default function DealerMediaGallery({
             onDragLeave={() => setIsDragging(false)}
           >
             {isDragging && (
-              <div className="absolute inset-0 bg-blue-50 border-4 border-dashed border-blue-400 flex items-center justify-center z-10">
+              <div className="absolute inset-0 bg-[#01BBDC]/5 border-4 border-dashed border-[#01BBDC] flex items-center justify-center z-10">
                 <div className="text-center">
-                  <Upload size={64} className="text-blue-600 mx-auto mb-4" />
-                  <p className="text-xl font-bold text-blue-900">Drop files to upload</p>
-                  <p className="text-blue-700">to current folder</p>
+                  <Upload size={64} className="text-[#01BBDC] mx-auto mb-4" />
+                  <p className="text-xl font-bold text-[#10214F]">Drop files to upload</p>
+                  <p className="text-[#10214F]/70">to current folder</p>
                 </div>
               </div>
             )}
 
             {loading ? (
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#10214F] mx-auto"></div>
               </div>
             ) : filteredMedia.length === 0 ? (
               <div className="text-center py-12">
@@ -606,7 +606,7 @@ export default function DealerMediaGallery({
                     }}
                     className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
                       selectedMedia.has(item.id)
-                        ? 'border-blue-500 ring-2 ring-blue-200'
+                        ? 'border-[#01BBDC] ring-2 ring-[#01BBDC]/20'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -626,7 +626,7 @@ export default function DealerMediaGallery({
                     </div>
 
                     {selectedMedia.has(item.id) && (
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                      <div className="absolute top-2 right-2 w-6 h-6 bg-[#01BBDC] rounded-full flex items-center justify-center">
                         <Check size={16} className="text-white" />
                       </div>
                     )}
@@ -658,7 +658,7 @@ export default function DealerMediaGallery({
                         key={item.id}
                         onClick={() => toggleSelectMedia(item.id)}
                         className={`cursor-pointer transition-colors ${
-                          selectedMedia.has(item.id) ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          selectedMedia.has(item.id) ? 'bg-[#01BBDC]/5' : 'hover:bg-gray-50'
                         }`}
                       >
                         <td className="px-4 py-3">
@@ -744,7 +744,7 @@ export default function DealerMediaGallery({
                 type="button"
                 onClick={createFolder}
                 disabled={!newFolderName.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+                className="flex-1 px-4 py-2 bg-[#10214F] text-white rounded-lg hover:bg-[#1a3570] disabled:bg-gray-400"
               >
                 Create
               </button>

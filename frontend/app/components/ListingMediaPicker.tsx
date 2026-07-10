@@ -296,7 +296,7 @@ export default function ListingMediaPicker({
   return (
     <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+      <div className="bg-gradient-to-r from-[#10214F] to-[#1a3570] text-white p-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-bold">Media for Listing</h3>
           <div className="flex items-center gap-4 text-sm">
@@ -315,8 +315,8 @@ export default function ListingMediaPicker({
             onClick={() => setActiveTab('library')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'library'
-                ? 'bg-white text-blue-600'
-                : 'bg-blue-500 hover:bg-blue-400 text-white'
+                ? 'bg-white text-[#10214F]'
+                : 'bg-[#1a3570] hover:bg-[#28407e] text-white'
             }`}
           >
             📚 Media Library
@@ -325,8 +325,8 @@ export default function ListingMediaPicker({
             onClick={() => setActiveTab('upload')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'upload'
-                ? 'bg-white text-blue-600'
-                : 'bg-blue-500 hover:bg-blue-400 text-white'
+                ? 'bg-white text-[#10214F]'
+                : 'bg-[#1a3570] hover:bg-[#28407e] text-white'
             }`}
           >
             ⬆️ Upload New
@@ -348,7 +348,7 @@ export default function ListingMediaPicker({
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
-                  dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                  dragOver ? 'border-[#01BBDC] bg-[#01BBDC]/5' : 'border-gray-300 hover:border-gray-400'
                 }`}
               >
                 <Upload size={48} className="mx-auto mb-4 text-gray-400" />
@@ -368,7 +368,7 @@ export default function ListingMediaPicker({
                 />
                 <label
                   htmlFor="file-upload"
-                  className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                  className="inline-block px-6 py-3 bg-[#10214F] text-white rounded-lg hover:bg-[#1a3570] cursor-pointer"
                 >
                   Choose Files
                 </label>
@@ -382,7 +382,7 @@ export default function ListingMediaPicker({
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className="bg-blue-600 h-2 rounded-full transition-all"
+                      className="bg-[#10214F] h-2 rounded-full transition-all"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -396,7 +396,7 @@ export default function ListingMediaPicker({
                 <button
                   onClick={() => setCurrentFolder(null)}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    currentFolder === null ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+                    currentFolder === null ? 'bg-[#10214F]/5 text-[#10214F]' : 'hover:bg-gray-100'
                   }`}
                 >
                   <FolderOpen size={16} />
@@ -408,7 +408,7 @@ export default function ListingMediaPicker({
                       key={folder.id}
                       onClick={() => setCurrentFolder(folder.id)}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        currentFolder === folder.id ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
+                        currentFolder === folder.id ? 'bg-[#10214F]/5 text-[#10214F]' : 'hover:bg-gray-100'
                       }`}
                     >
                       <Folder size={16} />
@@ -439,7 +439,7 @@ export default function ListingMediaPicker({
                       <button
                         onClick={() => setFilterType('all')}
                         className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                          filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100'
+                          filterType === 'all' ? 'bg-[#10214F] text-white' : 'bg-gray-100'
                         }`}
                       >
                         All
@@ -447,7 +447,7 @@ export default function ListingMediaPicker({
                       <button
                         onClick={() => setFilterType('image')}
                         className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                          filterType === 'image' ? 'bg-blue-600 text-white' : 'bg-gray-100'
+                          filterType === 'image' ? 'bg-[#10214F] text-white' : 'bg-gray-100'
                         }`}
                       >
                         Images
@@ -455,7 +455,7 @@ export default function ListingMediaPicker({
                       <button
                         onClick={() => setFilterType('video')}
                         className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                          filterType === 'video' ? 'bg-blue-600 text-white' : 'bg-gray-100'
+                          filterType === 'video' ? 'bg-[#10214F] text-white' : 'bg-gray-100'
                         }`}
                       >
                         Videos
@@ -473,13 +473,13 @@ export default function ListingMediaPicker({
                   </div>
 
                   {selectedFromLibrary.size > 0 && (
-                    <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-2">
-                      <span className="text-sm font-medium text-blue-900">
+                    <div className="flex items-center justify-between bg-[#10214F]/5 border border-[#10214F]/20 rounded-lg p-2">
+                      <span className="text-sm font-medium text-[#10214F]">
                         {selectedFromLibrary.size} selected
                       </span>
                       <button
                         onClick={addFromLibrary}
-                        className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700"
+                        className="px-3 py-1 bg-[#10214F] text-white rounded-lg text-xs font-medium hover:bg-[#1a3570]"
                       >
                         Add Selected
                       </button>
@@ -495,7 +495,7 @@ export default function ListingMediaPicker({
                       onClick={() => toggleLibrarySelection(item.id)}
                       className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
                         selectedFromLibrary.has(item.id)
-                          ? 'border-blue-500 ring-2 ring-blue-200'
+                          ? 'border-[#01BBDC] ring-2 ring-[#01BBDC]/20'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -513,7 +513,7 @@ export default function ListingMediaPicker({
                       )}
 
                       {selectedFromLibrary.has(item.id) && (
-                        <div className="absolute top-1 right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                        <div className="absolute top-1 right-1 w-5 h-5 bg-[#01BBDC] rounded-full flex items-center justify-center">
                           <Check size={14} className="text-white" />
                         </div>
                       )}
