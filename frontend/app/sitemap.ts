@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import * as Sentry from '@sentry/nextjs';
 import { getBoatTypes } from '@/app/lib/boatTypeData';
 import { getDestinations } from '@/app/lib/destinationData';
 import { fetchLocationNodes } from '@/app/lib/listingLocationsData';
@@ -42,7 +43,10 @@ async function fetchAllListings(): Promise<{ id: number; updated_at?: string }[]
         `${API_ROOT}/listings?status=active&limit=${limit}&skip=${skip}`,
         { next: { revalidate: 3600 } } // cache for 1 hour at build/ISR time
       );
-      if (!res.ok) break;
+      if (!res.ok) {
+        Sentry.captureMessage(`sitemap: listings fetch returned ${res.status} at skip=${skip}`, { tags: { sitemap_source: 'listings' } });
+        break;
+      }
       const data = await res.json();
       const page: any[] = Array.isArray(data) ? data : (data.listings ?? []);
       if (page.length === 0) break;
@@ -51,7 +55,8 @@ async function fetchAllListings(): Promise<{ id: number; updated_at?: string }[]
       skip += limit;
     }
     return allListings;
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { sitemap_source: 'listings' } });
     return [];
   }
 }
@@ -59,11 +64,15 @@ async function fetchAllListings(): Promise<{ id: number; updated_at?: string }[]
 async function fetchAllDealers(): Promise<{ slug: string; updated_at?: string }[]> {
   try {
     const res = await fetch(`${API_ROOT}/dealers?limit=500`, { next: { revalidate: 86400 } });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      Sentry.captureMessage(`sitemap: dealers fetch returned ${res.status}`, { tags: { sitemap_source: 'dealers' } });
+      return [];
+    }
     const data = await res.json();
     const dealers: any[] = Array.isArray(data) ? data : (data.dealers ?? []);
     return dealers.filter((d: any) => d.slug).map((d: any) => ({ slug: d.slug, updated_at: d.updated_at }));
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { sitemap_source: 'dealers' } });
     return [];
   }
 }
@@ -71,21 +80,55 @@ async function fetchAllDealers(): Promise<{ slug: string; updated_at?: string }[
 async function fetchAllBlogSlugs(): Promise<{ slug: string; updated_at?: string }[]> {
   try {
     const res = await fetch(`${API_ROOT}/blog?limit=500&status=published`, { next: { revalidate: 86400 } });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      Sentry.captureMessage(`sitemap: blog fetch returned ${res.status}`, { tags: { sitemap_source: 'blog' } });
+      return [];
+    }
     const data = await res.json();
     const posts: any[] = Array.isArray(data) ? data : (data.posts ?? []);
     return posts.filter((p: any) => p.slug).map((p: any) => ({ slug: p.slug, updated_at: p.updated_at }));
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { sitemap_source: 'blog' } });
+    return [];
+  }
+}
+
+async function fetchAllCharters(): Promise<{ id: number; updated_at?: string }[]> {
+  try {
+    const allCharters: { id: number; updated_at?: string }[] = [];
+    let page = 1;
+    const limit = 500;
+
+    while (true) {
+      const res = await fetch(
+        `${API_ROOT}/charter?page=${page}&limit=${limit}`,
+        { next: { revalidate: 3600 } }
+      );
+      if (!res.ok) {
+        Sentry.captureMessage(`sitemap: charter fetch returned ${res.status}`, { tags: { sitemap_source: 'charter' } });
+        break;
+      }
+      const data = await res.json();
+      const results: any[] = data.results ?? [];
+      if (results.length === 0) break;
+      allCharters.push(...results.map((c: any) => ({ id: c.id, updated_at: c.updated_at })));
+      if (results.length < limit) break;
+      page += 1;
+    }
+    return allCharters;
+  } catch (err) {
+    Sentry.captureException(err, { tags: { sitemap_source: 'charter' } });
     return [];
   }
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [listings, dealers, blogPosts, locationNodes] = await Promise.all([
+  const [listings, dealers, blogPosts, locationNodes, charters] = await Promise.all([
     fetchAllListings(),
     fetchAllDealers(),
     fetchAllBlogSlugs(),
     fetchLocationNodes(),
+    fetchAllCharters(),
   ]);
 
   const listingEntries: MetadataRoute.Sitemap = listings.map(({ id, updated_at }) => ({
@@ -93,6 +136,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: updated_at ? new Date(updated_at) : new Date(),
     changeFrequency: 'weekly',
     priority: 0.8,
+  }));
+
+  const charterEntries: MetadataRoute.Sitemap = charters.map(({ id, updated_at }) => ({
+    url: `${SITE_URL}/charter/${id}`,
+    lastModified: updated_at ? new Date(updated_at) : new Date(),
+    changeFrequency: 'weekly',
+    priority: 0.7,
   }));
 
   const dealerEntries: MetadataRoute.Sitemap = dealers.map(({ slug, updated_at }) => ({
@@ -137,6 +187,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...STATIC_PAGES,
     ...listingEntries,
+    ...charterEntries,
     ...dealerEntries,
     ...blogEntries,
     ...boatTypeEntries,

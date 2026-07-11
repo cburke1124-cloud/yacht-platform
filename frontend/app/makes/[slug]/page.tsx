@@ -1,10 +1,10 @@
-'use client';
-
-import { useEffect, useMemo, useState } from 'react';
-import { useParams, notFound } from 'next/navigation';
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import Link from 'next/link';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { API_ROOT } from '@/app/lib/apiRoot';
 import { Ship, MapPin, Sailboat } from 'lucide-react';
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
 
 interface CatalogMake {
   id: number;
@@ -26,45 +26,69 @@ interface CatalogModel {
   max_year?: number;
 }
 
-export default function MakeDetailPage() {
-  const params = useParams();
-  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
+interface MakeDetailPageProps {
+  params: Promise<{ slug: string }>;
+}
 
-  const [make, setMake] = useState<CatalogMake | null>(null);
-  const [models, setModels] = useState<CatalogModel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFoundState, setNotFoundState] = useState(false);
+async function fetchMake(slug: string): Promise<CatalogMake | null> {
+  try {
+    const res = await fetch(`${API_ROOT}/catalog/makes`, { next: { revalidate: 3600 } });
+    if (!res.ok) return null;
+    const allMakes: CatalogMake[] = await res.json();
+    return allMakes.find((m) => m.slug === slug) ?? null;
+  } catch {
+    return null;
+  }
+}
 
-  useEffect(() => {
-    async function fetchMake() {
-      try {
-        setLoading(true);
-        const makesRes = await fetch(apiUrl('/catalog/makes'));
-        if (!makesRes.ok) throw new Error('Failed to fetch makes');
-        const allMakes: CatalogMake[] = await makesRes.json();
-        const found = allMakes.find((m) => m.slug === slug);
+async function fetchModels(makeId: number): Promise<CatalogModel[]> {
+  try {
+    const res = await fetch(`${API_ROOT}/catalog/models?make_id=${makeId}`, { next: { revalidate: 3600 } });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
 
-        if (!found) {
-          setNotFoundState(true);
-          return;
-        }
-        setMake(found);
+export async function generateMetadata({ params }: MakeDetailPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const make = await fetchMake(slug);
+  if (!make) return { title: 'Make Not Found' };
 
-        const modelsRes = await fetch(apiUrl(`/catalog/models?make_id=${found.id}`));
-        if (modelsRes.ok) {
-          const modelData: CatalogModel[] = await modelsRes.json();
-          setModels(modelData);
-        }
-      } catch (err) {
-        console.error('Error fetching make:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    if (slug) fetchMake();
-  }, [slug]);
+  const propulsionLabel = make.propulsion === 'both' ? 'Power & Sail' : make.propulsion === 'sail' ? 'Sail' : 'Power';
+  const description = make.notes?.slice(0, 160)
+    || `Browse ${make.name} yacht models${make.country ? ` from ${make.country}` : ''} — ${propulsionLabel} builder.`;
 
-  const modelsByType = useMemo(() => {
+  return {
+    title: make.name,
+    description,
+    alternates: { canonical: `${SITE_URL}/makes/${slug}` },
+    openGraph: {
+      title: make.name,
+      description,
+      url: `${SITE_URL}/makes/${slug}`,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: make.name,
+      description,
+    },
+  };
+}
+
+export default async function MakeDetailPage({ params }: MakeDetailPageProps) {
+  const { slug } = await params;
+  const make = await fetchMake(slug);
+
+  if (!make) {
+    notFound();
+  }
+
+  const models = await fetchModels(make.id);
+
+  const modelsByType = (() => {
     const groups = new Map<string, CatalogModel[]>();
     for (const model of models) {
       const key = model.boat_type || 'Other';
@@ -72,21 +96,7 @@ export default function MakeDetailPage() {
       groups.get(key)!.push(model);
     }
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [models]);
-
-  if (notFoundState) {
-    notFound();
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-soft flex items-center justify-center">
-        <p className="text-gray-600 font-poppins">Loading builder...</p>
-      </div>
-    );
-  }
-
-  if (!make) return null;
+  })();
 
   const propulsionLabel = make.propulsion === 'both' ? 'Power & Sail' : make.propulsion === 'sail' ? 'Sail' : 'Power';
 

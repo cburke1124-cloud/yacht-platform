@@ -1,93 +1,51 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Check } from 'lucide-react';
-import LoadingSpinner from '@/app/components/LoadingSpinner';
 import HomeSearchTabs from '@/app/components/HomeSearchTabs';
-import ListingCard from '@/app/components/ListingCard';
+import HomeFeaturedListings, { type Listing } from '@/app/components/HomeFeaturedListings';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
-// --- Types ---
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
 
-type ListingImage = {
-  url: string;
-  thumbnail_url?: string;
-  is_primary?: boolean;
+const TITLE = 'YachtVersal - Buy, Sell & Charter Luxury Yachts';
+const DESCRIPTION = 'A smarter way to buy, sell, and charter yachts. Browse verified listings from trusted brokers and private sellers worldwide, with AI-powered search matched to your budget, size, and destination.';
+
+export const metadata: Metadata = {
+  title: { absolute: TITLE },
+  description: DESCRIPTION,
+  alternates: { canonical: SITE_URL },
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: SITE_URL,
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
-type Listing = {
-  id: number | string;
-  title: string;
-  make?: string;
-  model?: string;
-  year?: number;
-  price?: number;
-  currency?: string;
-  length_feet?: number;
-  city?: string;
-  state?: string;
-  country?: string;
-  boat_type?: string;
-  condition?: string;
-  status?: string;
-  featured?: boolean;
-  images?: ListingImage[];
-  dealer?: {
-    name?: string;
-    company_name?: string;
-    slug?: string;
-    logo_url?: string;
-  };
-};
+async function fetchFeaturedListings(): Promise<Listing[]> {
+  try {
+    const res = await fetch(`${API_ROOT}/listings?limit=12&status=active&featured=true&sort=price_desc`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const listingsArray = Array.isArray(data) ? data : (data.listings ?? []);
+    return listingsArray.slice(0, 12);
+  } catch {
+    return [];
+  }
+}
 
 // --- Main Page ---
 
-export default function HomePage() {
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
-  const [visitorCurrency, setVisitorCurrency] = useState('USD');
-
-  useEffect(() => {
-    // Fetch listings
-    const fetchListings = async () => {
-      try {
-        const res = await fetch(`${API_ROOT}/listings?limit=12&status=active&featured=true&sort=price_desc`);
-        if (!res.ok) {
-          setListings([]);
-        } else {
-          const data = await res.json();
-          const listingsArray = Array.isArray(data) ? data : (data.listings ?? []);
-          setListings(listingsArray.slice(0, 12));
-        }
-      } catch {
-        setListings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Fetch exchange rates
-    fetch(`${API_ROOT}/currencies/rates`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data?.rates) setExchangeRates(data.rates); })
-      .catch(() => {});
-
-    // Auto-detect visitor currency from browser locale
-    const locale = (typeof navigator !== 'undefined' ? navigator.language : 'en-US') || 'en-US';
-    const region = locale.split('-')[1]?.toUpperCase() ?? '';
-    const EUR_REGIONS = ['DE','FR','ES','IT','NL','BE','AT','FI','GR','IE','LU','PT','SK','SI','EE','LV','LT','MT','CY'];
-    if (region === 'GB') setVisitorCurrency('GBP');
-    else if (region === 'AU') setVisitorCurrency('AUD');
-    else if (region === 'CA') setVisitorCurrency('CAD');
-    else if (EUR_REGIONS.includes(region)) setVisitorCurrency('EUR');
-
-    fetchListings();
-  }, []);
-
-  const visitorExchangeRate = visitorCurrency !== 'USD' ? (exchangeRates[visitorCurrency] ?? 1) : 1;
+export default async function HomePage() {
+  const listings = await fetchFeaturedListings();
 
   const features = [
     'Global listings in one trusted platform',
@@ -250,53 +208,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {loading ? (
-            <div className="flex justify-center items-center py-24">
-              <LoadingSpinner />
-            </div>
-          ) : listings.length === 0 ? (
-            <div className="text-center py-24">
-              <p className="text-lg" style={{ color: '#10214F', fontFamily: 'Poppins, sans-serif' }}>
-                No listings available right now. Check back soon.
-              </p>
-              <Link
-                href="/listings"
-                className="mt-6 inline-flex items-center justify-center px-6 py-3 rounded-xl text-white font-medium"
-                style={{ backgroundColor: '#01BBDC', fontFamily: 'Poppins, sans-serif' }}
-              >
-                Browse All Listings
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-stretch" style={{ gap: 24 }}>
-              {listings.slice(0, 12).map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  id={Number(listing.id)}
-                  title={listing.title}
-                  price={listing.price}
-                  year={listing.year}
-                  make={listing.make}
-                  model={listing.model}
-                  boatType={listing.boat_type}
-                  length={listing.length_feet}
-                  city={listing.city}
-                  state={listing.state}
-                  images={listing.images?.map((img) => img.url) || []}
-                  condition={listing.condition}
-                  featured={listing.featured}
-                  currencyCode={visitorCurrency}
-                  exchangeRate={visitorExchangeRate}
-                  dealerInfo={listing.dealer ? {
-                    name: listing.dealer.name || '',
-                    company: listing.dealer.company_name || '',
-                    slug: listing.dealer.slug,
-                    logoUrl: listing.dealer.logo_url,
-                  } : undefined}
-                />
-              ))}
-            </div>
-          )}
+          <HomeFeaturedListings initialListings={listings} />
         </div>
       </section>
 

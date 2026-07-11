@@ -3,6 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from collections import defaultdict
 from datetime import datetime, timedelta
+import os
 import re
 import hashlib
 
@@ -56,32 +57,46 @@ class AntiScrapingMiddleware(BaseHTTPMiddleware):
 
         if request.url.path == "/api/saved-listings" and request.headers.get("Authorization"):
             return await call_next(request)
-        
+
+        # Trusted internal caller (e.g. the frontend's own server-side/ISR
+        # fetches, including sitemap.ts) — these don't carry a bot user-agent
+        # and share pooled egress IPs, so they need an explicit bypass rather
+        # than relying on IP/UA heuristics. No-op unless INTERNAL_API_SECRET
+        # is configured on both sides.
+        internal_secret = os.getenv("INTERNAL_API_SECRET")
+        if internal_secret and request.headers.get("x-internal-api-key") == internal_secret:
+            return await call_next(request)
+
         # Check if IP is blocked
         if client_ip in self.blocked_ips:
             return JSONResponse(status_code=403, content={"detail": "Access denied"})
-        
+
+        # Search engine bots (Googlebot, Bingbot, etc.) must be exempt from
+        # rate limiting and suspicious-activity tracking, not just the final
+        # 403 block — otherwise a normal crawl burst gets 429'd before the
+        # allowlist is ever consulted, which silently kills indexing.
+        user_agent = request.headers.get('user-agent', '').lower()
+        if self._is_allowed_bot(user_agent):
+            return await call_next(request)
+
         # Rate limiting check
         if self._is_rate_limited(client_ip):
             self._add_suspicious_activity(client_ip)
             return JSONResponse(status_code=429, content={"detail": "Too many requests"})
-        
+
         # Bot detection
-        user_agent = request.headers.get('user-agent', '').lower()
         if self._is_suspicious_bot(user_agent):
             self._add_suspicious_activity(client_ip)
-            
-            # Allow legitimate bots but log them
-            if not self._is_allowed_bot(user_agent):
-                # Block after too many suspicious activities
-                if self.suspicious_ips[client_ip] >= 10:
-                    self.blocked_ips.add(client_ip)
-                    return JSONResponse(status_code=403, content={"detail": "Bot detected"})
-        
+
+            # Block after too many suspicious activities
+            if self.suspicious_ips[client_ip] >= 10:
+                self.blocked_ips.add(client_ip)
+                return JSONResponse(status_code=403, content={"detail": "Bot detected"})
+
         # Check for suspicious patterns
         if self._has_suspicious_pattern(request):
             self._add_suspicious_activity(client_ip)
-        
+
         # Track request
         self._track_request(client_ip)
         
