@@ -229,6 +229,7 @@ def _serialize(c: CharterListing) -> dict:
         "excluded_items": c.excluded_items or [],
         "description": c.description,
         "amenities": c.amenities or [],
+        "special_features": c.special_features or [],
         "images": _charter_images(c),
         "booking_url": c.booking_url,
         "charter_company_name": c.charter_company_name,
@@ -1376,7 +1377,7 @@ def attach_charter_media(
     if _is_admin(current_user) and payload.as_dealer_id is not None:
         target = db.query(User).filter(User.id == payload.as_dealer_id).first()
         if not target:
-            raise HTTPException(status_code=404, detail="Target dealer not found")
+            raise HTTPException(status_code=404, detail="Target broker not found")
         scope_user = target
     allowed_ids = org_media_ids(scope_user, db)
 

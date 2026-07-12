@@ -68,6 +68,7 @@ interface CharterListing {
   cancellation_policy?: string;
   included_items?: string[];
   excluded_items?: string[];
+  special_features?: string[];
   images?: (string | { url: string })[];
   availability_blocks?: AvailabilityBlock[];
   seasonal_rates?: SeasonalRate[];
@@ -124,7 +125,7 @@ const BLANK_CHARTER: Partial<CharterListing> = {
   home_port_city: '', home_port_state: '', home_port_country: 'USA',
   operating_regions: '', description: '', booking_url: '',
   embarkation_ports: [], disembarkation_ports: [], included_items: [], excluded_items: [],
-  amenities: [], crew_profiles: [],
+  amenities: [], crew_profiles: [], special_features: [],
 };
 
 interface CharterMediaItem {
@@ -300,7 +301,7 @@ function CharterMediaSection({ charterId, ownerId }: { charterId: number; ownerI
             </div>
             {!ownerId && (
               <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                No owning dealer assigned yet — showing your own media library. Assign an owning dealer above to browse and upload into that dealer&apos;s library instead.
+                No owning broker assigned yet — showing your own media library. Assign an owning broker above to browse and upload into that broker&apos;s library instead.
               </p>
             )}
             <DealerMediaGallery mode="picker" selectionMode="multiple" filterType="image" onSelectMedia={handlePicked} asDealerId={ownerId} />
@@ -333,6 +334,7 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
   // Controlled text states for comma-separated fields — only parsed on blur/submit
   const [includedText, setIncludedText] = useState((initial?.included_items ?? []).join(', '));
   const [excludedText, setExcludedText] = useState((initial?.excluded_items ?? []).join(', '));
+  const [specialFeaturesText, setSpecialFeaturesText] = useState((initial?.special_features ?? []).join('\n'));
   // Optional crew profiles — only appear on the listing if at least one is added
   const [crewProfiles, setCrewProfiles] = useState<CrewProfile[]>(initial?.crew_profiles ?? []);
   const [crewDraft, setCrewDraft] = useState<CrewProfile>({ name: '', role: '', bio: '' });
@@ -401,6 +403,7 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
         setHourlyRates(data.hourly_rates ?? []);
         setIncludedText((data.included_items ?? []).join(', '));
         setExcludedText((data.excluded_items ?? []).join(', '));
+        setSpecialFeaturesText((data.special_features ?? []).join('\n'));
         setCrewProfiles(data.crew_profiles ?? []);
       } catch {
         if (!cancelled) {
@@ -424,6 +427,7 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
       ...form,
       included_items: includedText.split(',').map(v => v.trim()).filter(Boolean),
       excluded_items: excludedText.split(',').map(v => v.trim()).filter(Boolean),
+      special_features: specialFeaturesText.split('\n').map(v => v.trim()).filter(Boolean),
       crew_profiles: crewProfiles,
     });
     setSaving(false);
@@ -772,9 +776,9 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
           {/* Ownership — which dealer/brokerage account this listing belongs to.
               Separate from "Charter Company" below, which is just display text. */}
           <div>
-            <label className={lbl}>Owning Dealer Account</label>
+            <label className={lbl}>Owning Broker Account</label>
             <select className={inp} value={form.user_id ?? ''} onChange={e => set('user_id', e.target.value ? Number(e.target.value) : undefined)}>
-              <option value="">— Unassigned (won&apos;t appear on any dealer dashboard) —</option>
+              <option value="">— Unassigned (won&apos;t appear on any broker dashboard) —</option>
               {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
             </select>
           </div>
@@ -810,6 +814,19 @@ function CharterModal({ initial, dealers, onSave, onClose }: {
           <div>
             <label className={lbl}>Description</label>
             <textarea rows={4} className={inp + ' resize-none'} value={form.description ?? ''} onChange={e => set('description', e.target.value)} />
+          </div>
+
+          {/* Special Features — optional marketing bullet points, one per line */}
+          <div>
+            <label className={lbl}>Special Features (optional, one per line)</label>
+            <textarea
+              rows={3}
+              className={inp + ' resize-none'}
+              value={specialFeaturesText}
+              onChange={e => setSpecialFeaturesText(e.target.value)}
+              placeholder={"World's 8th fastest superyacht\nSky lounge with 360° views\nCharters from as little as 3 hours"}
+            />
+            <p className="text-xs text-gray-400 mt-1">Shown as a highlight callout on the listing page. Leave empty to skip it entirely.</p>
           </div>
 
           {/* Status */}

@@ -4,10 +4,10 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, MapPin, Anchor, Users, Ruler, Calendar, X,
+  ArrowLeft, MapPin, Anchor, Users, Ruler, Calendar,
   Mail, Phone, ChevronLeft, ChevronRight,
   Ship, Zap, Bed, Waves, Check, ExternalLink,
-  Facebook, Instagram, Twitter, Linkedin
+  Facebook, Instagram, Twitter, Linkedin, Sparkles, AlertTriangle
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
@@ -53,6 +53,7 @@ export interface CharterListing {
   max_charter_days?: number;
   description?: string;
   amenities?: string[];
+  special_features?: string[];
   images?: Array<{ url: string; is_primary?: boolean } | string>;
   status: string;
   charter_company_name?: string;
@@ -150,8 +151,7 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
   const [charter] = useState<CharterListing | null>(initialCharter);
   const [notFound] = useState(!initialCharter);
   const [activeImg, setActiveImg] = useState(0);
-  const [showInquiry, setShowInquiry] = useState(false);
-  const [inquiryForm, setInquiryForm] = useState({ name: '', email: '', phone: '', message: '' });
+  const [inquiryForm, setInquiryForm] = useState({ name: '', email: '', phone: '', guests: '', message: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [charterStartDate, setCharterStartDate] = useState('');
@@ -187,6 +187,59 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
   }, [charter]);
 
   const seasonalRates = useMemo(() => charter?.seasonal_rates ?? [], [charter]);
+
+  // Flag (not block — the charter company makes the final call) when the
+  // requester's preferred dates overlap a published booked/hold/option
+  // window, using the same availability data the calendar above renders.
+  const dateConflict = useMemo(() => {
+    if (!charterStartDate || !charterEndDate || !charter?.availability_blocks?.length) return false;
+    const start = new Date(`${charterStartDate}T00:00:00`);
+    const end = new Date(`${charterEndDate}T00:00:00`);
+    return charter.availability_blocks.some(b => {
+      if (!['booked', 'hold', 'option'].includes(b.status)) return false;
+      const bStart = new Date(`${b.start_date}T00:00:00`);
+      const bEnd = new Date(`${b.end_date}T00:00:00`);
+      return start <= bEnd && end >= bStart;
+    });
+  }, [charterStartDate, charterEndDate, charter]);
+
+  // Condensed above-the-fold facts — only ever shows what actually exists,
+  // so a listing with just 2 populated fields doesn't look broken next to
+  // one with a dozen.
+  const quickFacts = useMemo(() => {
+    if (!charter) return [];
+    return [
+      charter.max_guests ? { icon: <Users size={14} />, label: `${charter.max_guests} guests` } : null,
+      charter.cabins ? { icon: <Bed size={14} />, label: `${charter.cabins} cabins` } : null,
+      charter.length_feet ? { icon: <Ruler size={14} />, label: `${charter.length_feet} ft` } : null,
+      charter.crew_included ? { icon: <Check size={14} />, label: charter.crew_count ? `Crew of ${charter.crew_count}` : 'Crew included' } : null,
+    ].filter((f): f is { icon: React.ReactElement; label: string } => f !== null);
+  }, [charter]);
+
+  const topAmenities = useMemo(() => (charter?.amenities ?? []).slice(0, 4), [charter]);
+
+  const vesselSpecs = useMemo(() => {
+    if (!charter) return [];
+    return [
+      { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Length',      value: charter.length_feet ? `${charter.length_feet} ft` : null },
+      { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Type',        value: charter.boat_type },
+      { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Year',        value: charter.year ? charter.year.toString() : null },
+      { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Max Guests',  value: charter.max_guests ? charter.max_guests.toString() : null },
+      { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Cabins',      value: charter.cabins ? charter.cabins.toString() : null },
+      { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Make / Model', value: [charter.make, charter.model].filter(Boolean).join(' ') || null },
+      { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: 'Engines',         value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ''}`.trim() : null },
+      { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: 'Fuel Type',       value: charter.fuel_type },
+      { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Max Speed',       value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
+      { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Cruise Speed',    value: charter.cruising_speed_knots ? `${charter.cruising_speed_knots} kts` : null },
+      { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Crew',            value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ''}` : 'Bareboat' },
+      { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Berths',          value: charter.berths ? charter.berths.toString() : null },
+      { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Heads',           value: charter.heads ? charter.heads.toString() : null },
+      { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Hull Material',   value: charter.hull_material },
+      { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Beam',            value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
+      { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Draft',           value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
+      { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Charter Duration', value: charter.min_charter_days || charter.max_charter_days ? [charter.min_charter_days ? `Min ${charter.min_charter_days}d` : null, charter.max_charter_days ? `Max ${charter.max_charter_days}d` : null].filter(Boolean).join(' · ') : null },
+    ].filter((s): s is { icon: React.ReactElement; label: string; value: string } => Boolean(s.value));
+  }, [charter]);
 
   const [galleryImages, setGalleryImages] = useState<string[] | null>(initialGalleryImages);
 
@@ -226,12 +279,14 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
     e.preventDefault();
     setSubmitting(true);
     try {
+      const { guests, ...rest } = inquiryForm;
       await fetch(apiUrl('/charter/inquiry'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           charter_id: charter?.id,
-          ...inquiryForm,
+          ...rest,
+          guests: guests ? Number(guests) : undefined,
           start_date: charterStartDate || undefined,
           end_date: charterEndDate || undefined,
         }),
@@ -259,58 +314,39 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
       ? formatRate(charter.week_rate, charter.currency, 'week')
       : null;
 
-  return (
-    <div className="min-h-screen bg-white">
+  const quickNavLinks: Array<{ id: string; label: string }> = [
+    { id: 'overview', label: 'Overview' },
+    ...(images.length > 1 ? [{ id: 'photos', label: 'Photos' }] : []),
+    { id: 'specs', label: 'Specs' },
+    ...(topAmenities.length ? [{ id: 'amenities', label: 'Amenities' }] : []),
+    { id: 'availability', label: 'Availability' },
+    ...(seasonalRates.length || hourlyRates.length ? [{ id: 'rates', label: 'Rates' }] : []),
+    { id: 'inquiry', label: 'Inquire' },
+  ];
 
-      {/* == INQUIRY MODAL ====================================================== */}
-      {showInquiry && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 bg-[#10214F]/80 backdrop-blur-sm" style={{ zIndex: 9999 }} onClick={() => setShowInquiry(false)}>
-          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-              <div>
-                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Request Charter</h3>
-                {charter.charter_company_name && <p className="text-sm text-gray-500 mt-1">{charter.charter_company_name}</p>}
-              </div>
-              <button onClick={() => setShowInquiry(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 transition">
-                <X className="w-4 h-4 text-gray-400" />
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <div className="min-h-screen bg-white pb-20 md:pb-0">
+
+      {/* == STICKY SECTION NAV ================================================= */}
+      <div className="sticky top-20 z-30 bg-white/95 backdrop-blur-sm border-b border-gray-200">
+        <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2.5">
+            {quickNavLinks.map(link => (
+              <button
+                key={link.id}
+                onClick={() => scrollToSection(link.id)}
+                className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#10214F] hover:bg-[#01BBDC]/10 hover:text-[#01BBDC] transition-colors whitespace-nowrap"
+              >
+                {link.label}
               </button>
-            </div>
-            <div className="px-6 py-6">
-              <div className="mb-5 px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
-                <p className="text-sm text-gray-600">Re: <span className="font-semibold text-[#10214F]">{charter.title}</span></p>
-              </div>
-              {submitted ? (
-                <div className="text-center py-8">
-                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
-                  <p className="text-sm text-gray-400 mb-6">The charter company will be in touch shortly.</p>
-                  <button onClick={() => { setSubmitted(false); setShowInquiry(false); }} className="px-8 py-2.5 bg-[#01BBDC] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-colors">Close</button>
-                </div>
-              ) : (
-                <form onSubmit={handleInquiry} className="space-y-3">
-                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Preferred start</label>
-                      <input type="date" value={charterStartDate} onChange={e => setCharterStartDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Preferred end</label>
-                      <input type="date" value={charterEndDate} min={charterStartDate || undefined} onChange={e => setCharterEndDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                    </div>
-                  </div>
-                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
-                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
-                    {submitting ? 'Sending...' : 'Send Request'}
-                  </button>
-                </form>
-              )}
-            </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
 
       {/* == PAGE =============================================================== */}
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -319,6 +355,8 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
         <button onClick={() => router.push('/charter')} className="flex items-center gap-2 text-sm mb-6 text-[#10214F] hover:text-[#01BBDC] transition-colors group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to charter listings
         </button>
+
+        <div id="overview" className="scroll-mt-32" />
 
         {/* == TITLE + RATE ====================================================== */}
         <div className="flex flex-wrap items-baseline justify-between gap-4 mb-6">
@@ -375,8 +413,40 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
           )}
         </div>
 
+        {/* == QUICK FACTS + AMENITY STRIP ======================================= */}
+        {(quickFacts.length > 0 || topAmenities.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {quickFacts.map((fact, i) => (
+              <span key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-[#10214F] bg-gray-100">
+                {fact.icon} {fact.label}
+              </span>
+            ))}
+            {topAmenities.map((a, i) => (
+              <span key={i} className="px-3 py-1.5 rounded-full text-xs font-semibold text-[#01BBDC] bg-[#01BBDC]/10">
+                {a}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* == SPECIAL FEATURES CALLOUT =========================================== */}
+        {charter.special_features && charter.special_features.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-[#C9A84C]/30 bg-[#C9A84C]/8 p-4">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#a1852f] mb-2.5">
+              <Sparkles size={14} /> Special Features
+            </p>
+            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+              {charter.special_features.map((feature, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-[#10214F]">
+                  <span className="text-[#C9A84C] mt-0.5">•</span> {feature}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* == FEATURED IMAGE + BOOKING CARD ===================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
+        <div id="photos" className="scroll-mt-32 grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
           {/* Featured image -- 8 cols */}
           <div className="lg:col-span-8">
@@ -507,7 +577,7 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                     BOOK NOW <ExternalLink size={13} />
                   </a>
                 ) : (
-                  <button onClick={() => setShowInquiry(true)}
+                  <button onClick={() => scrollToSection('inquiry')}
                     className="w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
                     style={{ backgroundColor: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.08em', fontSize: 13 }}>
                     REQUEST CHARTER
@@ -532,6 +602,53 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                     )}
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* == INLINE INQUIRY FORM ==============================================
+                Always present (not a modal) so the availability calendar and date
+                selection are available on every listing, whether or not it has a
+                direct booking_url — this is the one place across the site where a
+                visitor picks their preferred charter dates before contacting the
+                charter company. */}
+            <div id="inquiry" className="scroll-mt-32 rounded-3xl border border-gray-200 bg-white p-6">
+              <h4 className="text-lg font-bold text-[#10214F] mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Inquire About This Yacht</h4>
+              <p className="text-sm text-gray-500 mb-4">Send your preferred dates and the charter company will confirm availability.</p>
+              {submitted ? (
+                <div className="text-center py-6">
+                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
+                  <p className="text-sm text-gray-400">The charter company will be in touch shortly.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleInquiry} className="space-y-3">
+                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    <input type="number" min={1} placeholder="Guests" value={inquiryForm.guests} onChange={e => setInquiryForm(f => ({ ...f, guests: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Preferred start</label>
+                      <input type="date" value={charterStartDate} onChange={e => setCharterStartDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Preferred end</label>
+                      <input type="date" value={charterEndDate} min={charterStartDate || undefined} onChange={e => setCharterEndDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    </div>
+                  </div>
+                  {dateConflict && (
+                    <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                      These dates overlap a booked or tentatively held window — you can still send your inquiry, but confirm with the charter company before finalizing plans.
+                    </div>
+                  )}
+                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
+                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
+                    {submitting ? 'Sending...' : 'Send Inquiry'}
+                  </button>
+                </form>
               )}
             </div>
           </div>
@@ -566,30 +683,14 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
           {/* Left -- 8 cols */}
           <div className="lg:col-span-8 space-y-10">
 
-            {/* VESSEL SPECIFICATIONS */}
-            <div>
+            {/* VESSEL SPECIFICATIONS — grid column count adapts to how much data
+                actually exists, so a thin listing (a handful of specs) doesn't
+                sit inside a grid built for a dozen and look like it's missing rows. */}
+            <div id="specs" className="scroll-mt-32">
               <SectionHeading>Vessel Specifications</SectionHeading>
               <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
-                  {[
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Length',      value: charter.length_feet ? `${charter.length_feet} ft` : null },
-                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Type',        value: charter.boat_type },
-                    { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Year',        value: charter.year ? charter.year.toString() : null },
-                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Max Guests',  value: charter.max_guests ? charter.max_guests.toString() : null },
-                    { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Cabins',      value: charter.cabins ? charter.cabins.toString() : null },
-                    { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Make / Model', value: [charter.make, charter.model].filter(Boolean).join(' ') || null },
-                    { icon: <Zap size={20} className="text-[#01BBDC]" />,      label: 'Engines',         value: charter.engine_count ? `${charter.engine_count}x ${charter.engine_make ?? ''}`.trim() : null },
-                    { icon: <Waves size={20} className="text-[#01BBDC]" />,    label: 'Fuel Type',       value: charter.fuel_type },
-                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Max Speed',       value: charter.max_speed_knots ? `${charter.max_speed_knots} kts` : null },
-                    { icon: <Ship size={20} className="text-[#01BBDC]" />,     label: 'Cruise Speed',    value: charter.cruising_speed_knots ? `${charter.cruising_speed_knots} kts` : null },
-                    { icon: <Users size={20} className="text-[#01BBDC]" />,    label: 'Crew',            value: charter.crew_included ? `Included${charter.crew_count ? ` (${charter.crew_count})` : ''}` : 'Bareboat' },
-                    { icon: <Bed size={20} className="text-[#01BBDC]" />,      label: 'Berths',          value: charter.berths ? charter.berths.toString() : null },
-                    { icon: <Anchor size={20} className="text-[#01BBDC]" />,   label: 'Heads',           value: charter.heads ? charter.heads.toString() : null },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Hull Material',   value: charter.hull_material },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Beam',            value: charter.beam_feet ? `${charter.beam_feet} ft` : null },
-                    { icon: <Ruler size={20} className="text-[#01BBDC]" />,    label: 'Draft',           value: charter.draft_feet ? `${charter.draft_feet} ft` : null },
-                    { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Charter Duration', value: charter.min_charter_days || charter.max_charter_days ? [charter.min_charter_days ? `Min ${charter.min_charter_days}d` : null, charter.max_charter_days ? `Max ${charter.max_charter_days}d` : null].filter(Boolean).join(' · ') : null },
-                  ].filter(s => s.value).map((spec, i) => (
+                <div className={`grid gap-x-6 gap-y-5 ${vesselSpecs.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                  {vesselSpecs.map((spec, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
                         {spec.icon}
@@ -632,7 +733,7 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
 
             {/* FEATURES & EQUIPMENT — grouped by category */}
             {charter.amenities && charter.amenities.length > 0 && (
-              <div>
+              <div id="amenities" className="scroll-mt-32">
                 <SectionHeading>Features &amp; Equipment</SectionHeading>
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
                   <div className="grid sm:grid-cols-2 gap-x-8 gap-y-6">
@@ -655,7 +756,7 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
             )}
 
             {/* AVAILABILITY */}
-            <div>
+            <div id="availability" className="scroll-mt-32">
               <div className="mb-5 pl-4 border-l-4 border-[#01BBDC] flex items-center justify-between gap-4">
                 <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Availability</h3>
                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 flex-shrink-0">{availabilitySummary}</span>
@@ -669,49 +770,65 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
               )}
             </div>
 
-            {/* SEASONAL PRICING */}
-            {seasonalRates.length > 0 && (
-              <div>
-                <SectionHeading>Seasonal Pricing</SectionHeading>
-                <div className="space-y-3">
-                  {seasonalRates.map((rate, index) => {
-                    const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
-                    return (
-                      <div key={rate.id ?? `${rate.season_name}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-[#10214F]">{rate.season_name}</p>
-                            <p className="text-xs text-gray-500">{rate.start_date || 'Open start'}{rate.end_date ? ` to ${rate.end_date}` : ''}</p>
-                          </div>
-                          {rate.min_charter_days ? <span className="rounded-full bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Min {rate.min_charter_days} days</span> : null}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                          {rate.half_day_rate ? <span className="rounded-full bg-[#01BBDC]/10 text-[#01BBDC] px-2.5 py-1 font-medium">Half day {moneyPrefix}{rate.half_day_rate.toLocaleString()}</span> : null}
-                          {rate.day_rate ? <span className="rounded-full bg-[#01BBDC]/10 text-[#01BBDC] px-2.5 py-1 font-medium">Day {moneyPrefix}{rate.day_rate.toLocaleString()}</span> : null}
-                          {rate.week_rate ? <span className="rounded-full bg-[#01BBDC]/10 text-[#01BBDC] px-2.5 py-1 font-medium">Week {moneyPrefix}{rate.week_rate.toLocaleString()}</span> : null}
-                        </div>
-                        {rate.notes ? <p className="mt-3 text-sm text-gray-600">{rate.notes}</p> : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* SEASONAL + HOURLY RATES */}
+            {(seasonalRates.length > 0 || hourlyRates.length > 0) && (
+              <div id="rates" className="scroll-mt-32 space-y-8">
 
-            {/* HOURLY RATES */}
-            {hourlyRates.length > 0 && (
-              <div>
-                <SectionHeading>Hourly Rates</SectionHeading>
-                <div className="flex flex-wrap gap-3">
-                  {hourlyRates.map((rate, index) => (
-                    <div key={rate.id ?? `${rate.hours}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 min-w-[140px]">
-                      <p className="text-sm font-semibold text-[#10214F]">{rate.hours} hour{rate.hours === 1 ? '' : 's'}</p>
-                      {rate.label && <p className="text-xs text-gray-500">{rate.label}</p>}
-                      <p className="mt-1 text-sm font-medium text-gray-700">{formatRate(rate.price, charter.currency)}</p>
-                      {rate.notes && <p className="mt-2 text-xs text-gray-500">{rate.notes}</p>}
+                {/* SEASONAL PRICING — compact table instead of a stacked card list,
+                    so a handful of seasons reads at a glance rather than scrolling. */}
+                {seasonalRates.length > 0 && (
+                  <div>
+                    <SectionHeading>Seasonal Pricing</SectionHeading>
+                    <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Season</th>
+                            <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Dates</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Half Day</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Day</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Week</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {seasonalRates.map((rate, index) => {
+                            const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
+                            return (
+                              <tr key={rate.id ?? `${rate.season_name}-${index}`} className="align-top">
+                                <td className="px-4 py-3">
+                                  <p className="font-semibold text-[#10214F]">{rate.season_name}</p>
+                                  {rate.min_charter_days ? <p className="text-xs text-gray-400 mt-0.5">Min {rate.min_charter_days} days</p> : null}
+                                  {rate.notes ? <p className="text-xs text-gray-400 mt-0.5">{rate.notes}</p> : null}
+                                </td>
+                                <td className="px-4 py-3 text-gray-500 text-xs">{rate.start_date || 'Open start'}{rate.end_date ? ` – ${rate.end_date}` : ''}</td>
+                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.half_day_rate ? `${moneyPrefix}${rate.half_day_rate.toLocaleString()}` : '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.day_rate ? `${moneyPrefix}${rate.day_rate.toLocaleString()}` : '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.week_rate ? `${moneyPrefix}${rate.week_rate.toLocaleString()}` : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+
+                {/* HOURLY RATES */}
+                {hourlyRates.length > 0 && (
+                  <div>
+                    <SectionHeading>Hourly Rates</SectionHeading>
+                    <div className="flex flex-wrap gap-3">
+                      {hourlyRates.map((rate, index) => (
+                        <div key={rate.id ?? `${rate.hours}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 min-w-[140px]">
+                          <p className="text-sm font-semibold text-[#10214F]">{rate.hours} hour{rate.hours === 1 ? '' : 's'}</p>
+                          {rate.label && <p className="text-xs text-gray-500">{rate.label}</p>}
+                          <p className="mt-1 text-sm font-medium text-gray-700">{formatRate(rate.price, charter.currency)}</p>
+                          {rate.notes && <p className="mt-2 text-xs text-gray-500">{rate.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -829,6 +946,26 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
           </div>
         </div>
 
+      </div>
+
+      {/* == STICKY MOBILE CTA BAR ============================================== */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between gap-3" style={{ boxShadow: '0 -4px 12px rgba(0,0,0,0.06)' }}>
+        <div className="min-w-0">
+          {primaryRate ? (
+            <span className="text-lg font-bold text-[#01BBDC] truncate block" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{primaryRate}</span>
+          ) : lowestHourlyRate ? (
+            <span className="text-sm font-bold text-[#01BBDC] truncate block">From {formatRate(lowestHourlyRate.price, charter.currency)}</span>
+          ) : (
+            <span className="text-sm text-gray-400">Contact for pricing</span>
+          )}
+        </div>
+        <button
+          onClick={() => (charter.booking_url ? window.open(charter.booking_url, '_blank') : scrollToSection('inquiry'))}
+          className="flex-shrink-0 px-5 py-2.5 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
+          style={{ backgroundColor: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.05em' }}
+        >
+          {charter.booking_url ? 'Book Now' : 'Send Inquiry'}
+        </button>
       </div>
     </div>
   );

@@ -81,6 +81,10 @@ class CharterListing(Base):
     description = Column(Text)
     amenities = Column(JSON, default=list)
     images = Column(JSON, default=list)
+    # Short marketing bullet points (e.g. "World's 8th fastest superyacht") —
+    # optional, purely for the listing page's highlight callout. Left empty
+    # for the common case of a thin scraped/imported listing.
+    special_features = Column(JSON, default=list)
 
     # External booking
     booking_url = Column(String)
