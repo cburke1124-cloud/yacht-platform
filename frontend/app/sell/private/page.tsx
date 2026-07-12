@@ -1,85 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Check, Globe, Award, Zap, Headphones, Users } from 'lucide-react';
-import { apiUrl } from '@/app/lib/apiRoot';
+import { Globe, Award, Zap, Headphones, Users } from 'lucide-react';
 
-// ─── Tier display config — Figma: Silver/Gold/Platinum badges ────────────────
-const TIER_DISPLAY: Record<string, { badge: string; variant: 'outline' | 'filled' }> = {
-  private_basic: { badge: 'Silver',   variant: 'outline' },
-  private_plus:  { badge: 'Gold',     variant: 'filled'  },
-  private_pro:   { badge: 'Platinum', variant: 'outline' },
-};
+// ─── Pricing — flat one-time listing fee (no more tiered monthly plans) ──────
+const PRIVATE_SELLER_FEE = 149;
 
-type PrivateTier = {
-  key: string;
-  name: string;
-  price: number;
-  features: string[];
-  listings: number;
-  images_per_listing: number;
-  videos_per_listing: number;
-  trial_days: number;
-  active: boolean;
-};
-
-// Fallback tiers — kept in sync with DEFAULT_PRIVATE_TIERS in admin settings
-const FALLBACK_PRIVATE_TIERS: PrivateTier[] = [
-  {
-    key: 'private_basic',
-    name: 'Basic',
-    price: 9,
-    features: [
-      '1 active listing',
-      '20 photos per listing',
-      'Standard search visibility',
-      'Email support',
-    ],
-    listings: 1,
-    images_per_listing: 20,
-    videos_per_listing: 0,
-    trial_days: 7,
-    active: true,
-  },
-  {
-    key: 'private_plus',
-    name: 'Plus',
-    price: 19,
-    features: [
-      '3 active listings',
-      '35 photos per listing',
-      '1 video per listing',
-      'Priority search placement',
-      'Listing analytics',
-    ],
-    listings: 3,
-    images_per_listing: 35,
-    videos_per_listing: 1,
-    trial_days: 7,
-    active: true,
-  },
-  {
-    key: 'private_pro',
-    name: 'Pro',
-    price: 39,
-    features: [
-      '10 active listings',
-      '50 photos per listing',
-      '3 videos per listing',
-      'Top search placement',
-      'Featured badge',
-      'Priority support',
-      'Social media promotion',
-    ],
-    listings: 10,
-    images_per_listing: 50,
-    videos_per_listing: 3,
-    trial_days: 14,
-    active: true,
-  },
+const PRIVATE_SELLER_FEATURES = [
+  'List your yacht for sale',
+  'Professional listing presentation',
+  'Global marketplace exposure',
+  'Direct buyer inquiries',
+  'Support from our team when you need it',
 ];
 
 // ─── Data — Figma copy ────────────────────────────────────────────────────────
@@ -159,33 +93,9 @@ const howItWorksSteps = [
 
 export default function SellPrivatePage() {
   const router = useRouter();
-  const [tiers, setTiers] = useState<PrivateTier[]>(FALLBACK_PRIVATE_TIERS);
-  const [tiersLoading, setTiersLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchTiers = async () => {
-      try {
-        fetch(apiUrl('/health'), { method: 'GET', cache: 'no-store' }).catch(() => {});
-        const res = await fetch(apiUrl('/pricing-tiers'), { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          const source = data.private ?? data;
-          const arr: PrivateTier[] = Array.isArray(source)
-            ? source
-            : Object.entries(source).map(([key, val]: [string, any]) => ({ key, ...val }));
-          if (arr.length > 0) setTiers(arr.filter((t) => t.active !== false));
-        }
-      } catch {
-        // silently use fallback
-      } finally {
-        setTiersLoading(false);
-      }
-    };
-    fetchTiers();
-  }, []);
-
-  const handleSelectTier = (tierKey: string) => {
-    router.push(`/register?user_type=private&subscription_tier=${tierKey}`);
+  const handleGetStarted = () => {
+    router.push('/register?user_type=private');
   };
 
   return (
@@ -240,7 +150,7 @@ export default function SellPrivatePage() {
           Figma: Group 122, left 312, top 615, 1296px wide
           Header: "Sell Your Yacht—Simply and Confidently", Bahnschrift SemiBold 30/36
       ══════════════════════════════════════════════════════════════════ */}
-      {false && <section className="bg-white" style={{ paddingTop: 80, paddingBottom: 100 }}>
+      <section className="bg-white" style={{ paddingTop: 80, paddingBottom: 100 }}>
         <div
           className="mx-auto"
           style={{ maxWidth: 1296, paddingLeft: 'clamp(16px, 4vw, 0px)', paddingRight: 'clamp(16px, 4vw, 0px)' }}
@@ -286,159 +196,112 @@ export default function SellPrivatePage() {
             </p>
           </div>
 
-          {/* ── PRICING CARDS — same Figma style as brokers page ── */}
-          <div className="flex flex-wrap justify-center" style={{ gap: 24 }}>
-            {tiersLoading
-              ? [0, 1, 2].map((i) => (
-                  <div key={i} className="animate-pulse" style={{ paddingTop: 24, flex: '0 1 390px', minWidth: 280, width: '100%' }}>
-                    <div className="flex justify-center" style={{ marginBottom: -1 }}>
-                      <div className="rounded-xl bg-gray-200" style={{ width: 118, height: 48 }} />
-                    </div>
-                    <div className="rounded-xl" style={{ border: '1px solid #e5e7eb', minHeight: 403, background: '#FFFFFF', paddingTop: 40, paddingLeft: 32, paddingRight: 32, paddingBottom: 32 }}>
-                      <div className="h-9 bg-gray-200 rounded w-1/2 mx-auto mb-6" />
-                      {[1, 2, 3, 4].map((j) => <div key={j} className="h-5 bg-gray-100 rounded mb-4" />)}
-                      <div className="h-12 bg-gray-200 rounded-xl mt-8" />
-                    </div>
-                  </div>
-                ))
-              : tiers.map((tier) => {
-                  const display = TIER_DISPLAY[tier.key] ?? { badge: tier.name, variant: 'outline' as const };
-                  const priceLabel = `$${tier.price}/month`;
-                  const ctaLabel = 'Get Started';
+          {/* ── FLAT ONE-TIME FEE CARD — replaces old tiered monthly pricing ── */}
+          <div className="flex justify-center">
+            <div className="relative flex flex-col" style={{ paddingTop: 24, flex: '0 1 390px', minWidth: 280, width: '100%' }}>
+              <div
+                className="absolute left-1/2 flex items-center justify-center"
+                style={{
+                  transform: 'translateX(-50%)',
+                  top: 0,
+                  backgroundColor: '#01BBDC',
+                  borderRadius: 6,
+                  width: 160,
+                  height: 48,
+                  zIndex: 2,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                    fontSize: 18,
+                    lineHeight: '22px',
+                    fontWeight: 600,
+                    color: '#FFFFFF',
+                  }}
+                >
+                  Private Seller
+                </span>
+              </div>
 
-                  return (
-                    <div key={tier.key} className="relative flex flex-col" style={{ paddingTop: 24, flex: '0 1 390px', minWidth: 280, width: '100%' }}>
-                      {/* Badge tab — Figma: #01BBDC, 118×48, radius 12, overlapping card top */}
-                      <div
-                        className="absolute left-1/2 flex items-center justify-center"
-                        style={{
-                          transform: 'translateX(-50%)',
-                          top: 0,
-                          backgroundColor: '#01BBDC',
-                          borderRadius: 6,
-                          width: 118,
-                          height: 48,
-                          zIndex: 2,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                            fontSize: 18,
-                            lineHeight: '22px',
-                            fontWeight: 600,
-                            color: '#FFFFFF',
-                          }}
-                        >
-                          {tier.name}
-                        </span>
-                      </div>
+              <div
+                className="flex flex-col flex-1"
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #01BBDC',
+                  boxShadow: '0px 0px 4px rgba(0,0,0,0.25)',
+                  borderRadius: 6,
+                  minHeight: 403,
+                  paddingTop: 40,
+                  paddingLeft: 32,
+                  paddingRight: 32,
+                  paddingBottom: 32,
+                }}
+              >
+                <p
+                  className="text-center"
+                  style={{
+                    fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                    fontSize: 30,
+                    lineHeight: '36px',
+                    fontWeight: 600,
+                    color: '#10214F',
+                    marginBottom: 24,
+                  }}
+                >
+                  ${PRIVATE_SELLER_FEE} one-time
+                </p>
 
-                      {/* Card body — Figma: Rectangle 31, border #01BBDC, shadow, radius 12 */}
-                      <div
-                        className="flex flex-col flex-1"
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          border: '1px solid #01BBDC',
-                          boxShadow: '0px 0px 4px rgba(0,0,0,0.25)',
-                          borderRadius: 6,
-                          minHeight: 403,
-                          paddingTop: 40,
-                          paddingLeft: 32,
-                          paddingRight: 32,
-                          paddingBottom: 32,
-                        }}
-                      >
-                        {/* Price — Figma: Bahnschrift SemiBold 30/36, #10214F */}
-                        <p
-                          className="text-center"
-                          style={{
-                            fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                            fontSize: 30,
-                            lineHeight: '36px',
-                            fontWeight: 600,
-                            color: '#10214F',
-                            marginBottom: 24,
-                          }}
-                        >
-                          {priceLabel}
-                        </p>
+                <p
+                  className="text-center"
+                  style={{
+                    fontFamily: 'Poppins, sans-serif',
+                    fontSize: 12,
+                    color: 'rgba(16,33,79,0.4)',
+                    marginBottom: 24,
+                  }}
+                >
+                  🔒 Billed securely via Stripe
+                </p>
 
-                        {/* Stripe badge */}
-                        <p
-                          className="text-center"
-                          style={{
-                            fontFamily: 'Poppins, sans-serif',
-                            fontSize: 12,
-                            color: 'rgba(16,33,79,0.4)',
-                            marginBottom: 24,
-                          }}
-                        >
-                          🔒 Billed securely via Stripe
-                        </p>
+                <ul className="flex-1 flex flex-col items-center" style={{ gap: 20, marginBottom: 32 }}>
+                  {PRIVATE_SELLER_FEATURES.map((f) => (
+                    <li
+                      key={f}
+                      style={{
+                        fontFamily: 'Poppins, sans-serif',
+                        fontSize: 16,
+                        lineHeight: '24px',
+                        color: '#10214F',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {f}
+                    </li>
+                  ))}
+                </ul>
 
-                        {/* Features — Figma: Poppins 16/24, centered, #10214F */}
-                        <ul className="flex-1 flex flex-col items-center" style={{ gap: 20, marginBottom: 32 }}>
-                          {tier.features.map((f) => (
-                            <li
-                              key={f}
-                              style={{
-                                fontFamily: 'Poppins, sans-serif',
-                                fontSize: 16,
-                                lineHeight: '24px',
-                                color: '#10214F',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {f}
-                            </li>
-                          ))}
-                        </ul>
-
-                        {/* CTA — routes to /register with Stripe tier pre-selected */}
-                        {display.variant === 'filled' ? (
-                          <button
-                            onClick={() => handleSelectTier(tier.key)}
-                            className="w-full flex items-center justify-center transition-all duration-200 hover:scale-105 hover:shadow-lg"
-                            style={{
-                              backgroundColor: '#10214F',
-                              color: '#FFFFFF',
-                              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                              fontSize: 18,
-                              lineHeight: '22px',
-                              fontWeight: 600,
-                              borderRadius: 6,
-                              height: 48,
-                            }}
-                          >
-                            {ctaLabel}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSelectTier(tier.key)}
-                            className="w-full flex items-center justify-center transition-all duration-200 hover:scale-105 hover:shadow-lg hover:bg-[#10214F] hover:text-white"
-                            style={{
-                              border: '1px solid #10214F',
-                              backgroundColor: 'transparent',
-                              color: '#10214F',
-                              fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
-                              fontSize: 18,
-                              lineHeight: '22px',
-                              fontWeight: 600,
-                              borderRadius: 6,
-                              height: 48,
-                            }}
-                          >
-                            {ctaLabel}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                <button
+                  onClick={handleGetStarted}
+                  className="w-full flex items-center justify-center transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                  style={{
+                    backgroundColor: '#10214F',
+                    color: '#FFFFFF',
+                    fontFamily: 'Bahnschrift, DIN Alternate, sans-serif',
+                    fontSize: 18,
+                    lineHeight: '22px',
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    height: 48,
+                  }}
+                >
+                  Get Started
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </section>}
+      </section>
 
       {/* ══════════════════════════════════════════════════════════════════
           WHY PRIVATE SELLERS CHOOSE YACHTVERSAL

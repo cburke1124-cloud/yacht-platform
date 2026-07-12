@@ -21,6 +21,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: '/dashboard-v2', label: 'Overview', icon: <LayoutDashboard size={18} /> },
   { href: '/dashboard-v2/listings', label: 'Listings', icon: <Ship size={18} /> },
+  { href: '/dashboard-v2/charter', label: 'Charter', icon: <Anchor size={18} /> },
   { href: '/dashboard-v2/inquiries', label: 'Inquiries', icon: <MessageSquare size={18} /> },
   { href: '/dashboard-v2/team', label: 'Team', icon: <Users size={18} /> },
   { href: '/dashboard-v2/analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
@@ -64,6 +65,7 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
   const PAGE_TITLES: Record<string, string> = {
     '/dashboard-v2': 'Overview',
     '/dashboard-v2/listings': 'Listings',
+    '/dashboard-v2/charter': 'Charter',
     '/dashboard-v2/inquiries': 'Inquiries',
     '/dashboard-v2/team': 'Team',
     '/dashboard-v2/analytics': 'Analytics',
@@ -160,7 +162,7 @@ export default function DashboardV2Layout({ children }: { children: React.ReactN
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-white text-xs font-medium truncate">{user?.name || user?.email || 'Dealer'}</p>
+              <p className="text-white text-xs font-medium truncate">{user?.name || user?.email || 'Broker'}</p>
               <p className="text-white/40 text-xs truncate">{user?.email}</p>
             </div>
             <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors" title="Sign out">

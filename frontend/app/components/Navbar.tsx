@@ -346,7 +346,8 @@ export default function Navbar() {
   ];
 
   const createAccountItems = [
-    { label: 'Create Seller Account', href: '/register' },
+    { label: 'Create Broker Account', href: '/register' },
+    { label: 'Create Private Seller Account', href: '/register?user_type=private' },
     { label: 'Create Buyer Account', href: '/register?user_type=buyer' },
   ];
 

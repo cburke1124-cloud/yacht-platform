@@ -27,6 +27,21 @@ interface DealerStats {
   joined_date: string;
   effective_monthly_price: number;
   commission_rate: number;
+  paid: boolean;
+}
+
+interface PrivateSellerStats {
+  user_id: number;
+  name: string;
+  email: string;
+  total_listings: number;
+  joined_date: string;
+  active: boolean;
+  one_time_fee: number;
+  commission_rate: number;
+  one_time_commission: number;
+  referred: boolean;
+  paid: boolean;
 }
 
 interface AnalyticsData {
@@ -35,9 +50,13 @@ interface AnalyticsData {
   monthly_revenue: number;
   monthly_commission: number;
   dealers: DealerStats[];
+  total_private_referrals: number;
+  private_seller_commission_total: number;
+  private_sellers: PrivateSellerStats[];
   affiliate?: {
     code: string;
     referral_link: string;
+    private_referral_link: string;
     commission_rate: number;
     referred_signups: number;
   };
@@ -109,7 +128,7 @@ type Tab = 'overview' | 'deals' | 'dealers' | 'register' | 'demo' | 'resources' 
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'overview',  label: 'Overview',         icon: BarChart3 },
   { id: 'deals',     label: 'Deals & Links',    icon: Handshake },
-  { id: 'dealers',   label: 'My Dealers',       icon: Users },
+  { id: 'dealers',   label: 'My Brokers',       icon: Users },
   { id: 'register',  label: 'Register Broker',  icon: UserPlus },
   { id: 'demo',      label: 'Demo Portal',      icon: Monitor },
   { id: 'resources', label: 'Resources',        icon: BookOpen },
@@ -149,6 +168,7 @@ export default function SalesRepDashboard() {
   const [activeDoc, setActiveDoc]           = useState<DocItem | null>(null);
   const [demo, setDemo]                     = useState<DemoAccount | null>(null);
   const [openingDemo, setOpeningDemo]       = useState(false);
+  const [creatingDemo, setCreatingDemo]     = useState(false);
   const [showDealModal, setShowDealModal]   = useState(false);
   const [activeTab, setActiveTab]           = useState<Tab>('overview');
   const [copiedText, setCopiedText]         = useState('');
@@ -274,6 +294,27 @@ export default function SalesRepDashboard() {
     }
   };
 
+  const createMyDemoAccount = async () => {
+    setCreatingDemo(true);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(apiUrl('/sales-rep/demo-account'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await r.json();
+      if (!r.ok || !data.exists) {
+        alert(data.detail || 'Failed to create demo account');
+        return;
+      }
+      setDemo(data);
+    } catch (e) {
+      alert('Failed to create demo account');
+    } finally {
+      setCreatingDemo(false);
+    }
+  };
+
   const copyToClipboard = async (text: string, label?: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedText(label || text);
@@ -373,6 +414,7 @@ export default function SalesRepDashboard() {
   // modal showed a flat 10% of the generic tier price regardless of what was
   // actually being paid out.
   const dealerCommission = (dealer: DealerStats) => {
+    if (!dealer.paid) return 'Pending payment';
     if (dealer.subscription_tier === 'ultimate') return 'Custom';
     const price = dealer.effective_monthly_price ?? getTierPrice(dealer.subscription_tier);
     const rate = dealer.commission_rate ?? analytics?.affiliate?.commission_rate ?? 10;
@@ -381,6 +423,10 @@ export default function SalesRepDashboard() {
 
   const affiliateLink = analytics?.affiliate
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}${analytics.affiliate.referral_link}`
+    : '';
+
+  const privateReferralLink = analytics?.affiliate
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}${analytics.affiliate.private_referral_link}`
     : '';
 
   const dealSignupLink = (code: string) =>
@@ -458,14 +504,14 @@ export default function SalesRepDashboard() {
   <>
     <div className="mb-6">
       <h2 className="text-2xl font-bold text-secondary">Welcome back, {user?.first_name}!</h2>
-      <p className="text-dark/70 mt-1">Track your dealers, commission earnings, and pipeline.</p>
+      <p className="text-dark/70 mt-1">Track your brokers, commission earnings, and pipeline.</p>
     </div>
 
     {/* Stats */}
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
       {[
-        { label: 'Total Dealers',      value: analytics?.total_dealers || 0,                                   icon: Users,      bg: 'bg-blue-50',    ic: 'text-blue-600' },
-        { label: 'Active Dealers',     value: analytics?.active_dealers || 0,                                  icon: TrendingUp, bg: 'bg-green-50',   ic: 'text-green-600' },
+        { label: 'Total Brokers',      value: analytics?.total_dealers || 0,                                   icon: Users,      bg: 'bg-blue-50',    ic: 'text-blue-600' },
+        { label: 'Active Brokers',     value: analytics?.active_dealers || 0,                                  icon: TrendingUp, bg: 'bg-green-50',   ic: 'text-green-600' },
         { label: 'Monthly Commission', value: `$${analytics?.monthly_commission?.toFixed(2) || '0.00'}`,       icon: DollarSign, bg: 'bg-primary/10', ic: 'text-primary' },
         { label: 'Total Revenue',      value: `$${analytics?.monthly_revenue?.toFixed(2) || '0.00'}`,          icon: DollarSign, bg: 'bg-amber-50',   ic: 'text-amber-600' },
       ].map((s, i) => (
@@ -485,8 +531,13 @@ export default function SalesRepDashboard() {
     <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-6 mb-6 text-white">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p className="text-white/70 text-sm font-medium mb-1">Monthly Commission</p>
+          <p className="text-white/70 text-sm font-medium mb-1">Monthly Commission (brokers)</p>
           <h3 className="text-3xl font-bold">${analytics?.monthly_commission?.toFixed(2) || '0.00'}</h3>
+        </div>
+        <div>
+          <p className="text-white/70 text-sm font-medium mb-1">One-Time Commission (private sellers)</p>
+          <h3 className="text-3xl font-bold">${analytics?.private_seller_commission_total?.toFixed(2) || '0.00'}</h3>
+          <p className="text-white/60 text-xs mt-0.5">{analytics?.total_private_referrals || 0} private seller{analytics?.total_private_referrals === 1 ? '' : 's'} referred</p>
         </div>
         <div className="text-right">
           <p className="text-white/70 text-sm">Commission Rate</p>
@@ -498,16 +549,22 @@ export default function SalesRepDashboard() {
     {/* Referral + Recent Dealers */}
     <div className="grid lg:grid-cols-2 gap-6 mb-6">
       <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <h4 className="font-semibold text-secondary mb-3 flex items-center gap-2"><Link2 size={16} /> Referral Link</h4>
+        <h4 className="font-semibold text-secondary mb-3 flex items-center gap-2"><Link2 size={16} /> Referral Links</h4>
+        <p className="text-xs font-semibold text-dark/60 mb-1">Broker signup</p>
         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
           <p className="text-sm font-mono text-primary flex-1 break-all truncate">{affiliateLink || 'Loading...'}</p>
           <button onClick={() => copyToClipboard(affiliateLink, 'ref')} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1"><Copy size={12} /> Copy</button>
+        </div>
+        <p className="text-xs font-semibold text-dark/60 mb-1 mt-3">Private seller signup</p>
+        <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+          <p className="text-sm font-mono text-primary flex-1 break-all truncate">{privateReferralLink || 'Loading...'}</p>
+          <button onClick={() => copyToClipboard(privateReferralLink, 'private-ref')} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1"><Copy size={12} /> Copy</button>
         </div>
         <p className="text-xs text-dark/50 mt-2">Code: <span className="font-mono">{analytics?.affiliate?.code || '\u2014'}</span> &middot; {analytics?.affiliate?.referred_signups || 0} signups</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-5">
-        <h4 className="font-semibold text-secondary mb-3 flex items-center gap-2"><Activity size={16} /> Recent Dealers</h4>
+        <h4 className="font-semibold text-secondary mb-3 flex items-center gap-2"><Activity size={16} /> Recent Brokers</h4>
         {analytics && analytics.dealers.length > 0 ? (
           <div className="space-y-2">
             {analytics.dealers.slice(0, 4).map((d) => (
@@ -520,11 +577,11 @@ export default function SalesRepDashboard() {
               </div>
             ))}
             {analytics.dealers.length > 4 && (
-              <button onClick={() => setActiveTab('dealers')} className="text-primary text-xs font-medium mt-1">View all {analytics.dealers.length} dealers &rarr;</button>
+              <button onClick={() => setActiveTab('dealers')} className="text-primary text-xs font-medium mt-1">View all {analytics.dealers.length} brokers &rarr;</button>
             )}
           </div>
         ) : (
-          <p className="text-sm text-dark/50">No dealers yet. Share your referral link or register a broker.</p>
+          <p className="text-sm text-dark/50">No brokers yet. Share your referral link or register a broker.</p>
         )}
       </div>
     </div>
@@ -554,14 +611,21 @@ export default function SalesRepDashboard() {
       </div>
     </div>
 
-    {/* Affiliate Link */}
+    {/* Affiliate Links */}
     <div className="bg-white rounded-xl border border-primary/20 p-5 mb-6">
-      <h3 className="font-semibold text-secondary mb-2">Your Affiliate Link</h3>
-      <p className="text-sm text-dark/70 mb-1">Self-serve dealer signups credited to you.</p>
+      <h3 className="font-semibold text-secondary mb-2">Your Affiliate Links</h3>
       <p className="text-xs text-dark/50 mb-3">Code: <span className="font-mono">{analytics?.affiliate?.code || '\u2014'}</span></p>
-      <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+
+      <p className="text-sm text-dark/70 mb-1">Broker signups \u2014 recurring monthly commission</p>
+      <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3 mb-4">
         <p className="text-sm font-mono text-primary flex-1 break-all">{affiliateLink || 'Loading...'}</p>
         <button onClick={() => copyToClipboard(affiliateLink, 'ref')} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1"><Copy size={12} /> Copy</button>
+      </div>
+
+      <p className="text-sm text-dark/70 mb-1">Private seller signups \u2014 one-time commission on the $149 listing fee</p>
+      <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+        <p className="text-sm font-mono text-primary flex-1 break-all">{privateReferralLink || 'Loading...'}</p>
+        <button onClick={() => copyToClipboard(privateReferralLink, 'private-ref')} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1"><Copy size={12} /> Copy</button>
       </div>
     </div>
 
@@ -682,8 +746,8 @@ export default function SalesRepDashboard() {
   <>
     <div className="flex items-center justify-between mb-6">
       <div>
-        <h2 className="text-2xl font-bold text-secondary">My Dealers</h2>
-        <p className="text-dark/70 mt-1">All dealers assigned or referred by you.</p>
+        <h2 className="text-2xl font-bold text-secondary">My Brokers</h2>
+        <p className="text-dark/70 mt-1">All brokers assigned or referred by you.</p>
       </div>
       <button onClick={() => setActiveTab('register')} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium">
         <UserPlus size={16} /> Register Broker
@@ -695,7 +759,7 @@ export default function SalesRepDashboard() {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listings</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
@@ -708,7 +772,7 @@ export default function SalesRepDashboard() {
               <tr>
                 <td colSpan={6} className="px-5 py-16 text-center text-dark/50">
                   <Users size={48} className="mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg mb-2">No dealers yet</p>
+                  <p className="text-lg mb-2">No brokers yet</p>
                   <p className="text-sm mb-4">Share your referral link or register a broker</p>
                   <div className="flex gap-3 justify-center">
                     <button onClick={() => setActiveTab('deals')} className="text-primary font-medium text-sm hover:text-primary/80">Deals &amp; Links</button>
@@ -739,6 +803,55 @@ export default function SalesRepDashboard() {
                 </td>
                 <td className="px-5 py-4">
                   <button onClick={() => setSelectedDealer(dealer)} className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1"><BarChart3 size={16} /> Details</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* Private Sellers */}
+    <div className="flex items-center justify-between mt-8 mb-4">
+      <div>
+        <h3 className="text-lg font-bold text-secondary">My Private Sellers</h3>
+        <p className="text-dark/70 text-sm mt-1">Private sellers referred by you — one-time commission per signup.</p>
+      </div>
+    </div>
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seller</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listings</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {!analytics || analytics.private_sellers.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-12 text-center text-dark/50">
+                  <UserPlus size={40} className="mx-auto mb-3 text-gray-300" />
+                  <p>No private sellers yet</p>
+                  <p className="text-sm mt-1">Share your private seller referral link above</p>
+                </td>
+              </tr>
+            ) : analytics.private_sellers.map((seller) => (
+              <tr key={seller.user_id} className="hover:bg-gray-50">
+                <td className="px-5 py-4">
+                  <div className="font-medium text-secondary">{seller.name}</div>
+                  <div className="text-sm text-dark/60">{seller.email}</div>
+                </td>
+                <td className="px-5 py-4 text-sm text-secondary">{seller.total_listings}</td>
+                <td className="px-5 py-4 text-sm text-dark/60">{new Date(seller.joined_date).toLocaleDateString()}</td>
+                <td className="px-5 py-4">
+                  {seller.paid ? (
+                    <span className="font-semibold text-primary">${seller.one_time_commission.toFixed(2)} one-time</span>
+                  ) : (
+                    <span className="text-dark/50 text-sm">Pending payment</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1107,8 +1220,17 @@ export default function SalesRepDashboard() {
       <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
         <Monitor size={56} className="mx-auto mb-4 text-gray-300" />
         <h3 className="text-xl font-semibold text-secondary mb-2">Demo Account Not Set Up</h3>
-        <p className="text-dark/60 mb-6 max-w-md mx-auto">Contact your admin to provision a demo account pre-loaded with sample yacht listings.</p>
-        <button onClick={() => router.push('/messages')} className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium">Message Admin</button>
+        <p className="text-dark/60 mb-6 max-w-md mx-auto">Create your own demo account, pre-loaded with sample yacht listings, to walk prospects through the platform.</p>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={createMyDemoAccount}
+            disabled={creatingDemo}
+            className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
+          >
+            {creatingDemo ? 'Creating…' : 'Create My Demo Account'}
+          </button>
+          <button onClick={() => router.push('/messages')} className="px-6 py-2.5 border border-gray-200 text-dark/70 rounded-lg hover:bg-gray-50 text-sm font-medium">Message Admin</button>
+        </div>
       </div>
     )}
   </>
@@ -1210,7 +1332,7 @@ export default function SalesRepDashboard() {
                 <input type="text" placeholder="Deal code (auto if blank)" value={dealForm.code} onChange={(e) => setDealForm({ ...dealForm, code: e.target.value.toUpperCase() })} className="w-full px-4 py-2 border rounded-lg" />
                 <input type="number" placeholder="Free days" value={dealForm.free_days} onChange={(e) => setDealForm({ ...dealForm, free_days: Number(e.target.value) })} className="w-full px-4 py-2 border rounded-lg" />
               </div>
-              <input type="email" placeholder="Target dealer email (optional)" value={dealForm.target_email} onChange={(e) => setDealForm({ ...dealForm, target_email: e.target.value })} className="w-full px-4 py-2 border rounded-lg" />
+              <input type="email" placeholder="Target broker email (optional)" value={dealForm.target_email} onChange={(e) => setDealForm({ ...dealForm, target_email: e.target.value })} className="w-full px-4 py-2 border rounded-lg" />
               <div className="grid grid-cols-2 gap-3">
                 <select value={dealForm.discount_type} onChange={(e) => setDealForm({ ...dealForm, discount_type: e.target.value })} className="w-full px-4 py-2 border rounded-lg">
                   <option value="percentage">Percentage Off</option>

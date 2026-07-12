@@ -18,6 +18,7 @@ from app.security.auth import get_password_hash, pwd_context
 from app.services.email_service import email_service
 from app.utils.slug import create_slug
 from app.services.api_key_service import generate_api_key_for_dealer
+from app.services.demo_fixtures import create_demo_account_for_owner
 from app.models.misc import SiteSettings
 
 router = APIRouter()
@@ -30,6 +31,7 @@ router = APIRouter()
 # only so historical dealer records that still reference those tier
 # strings don't break, not because they're purchasable plans anymore.
 BROKER_SETUP_FEE = 199.0
+PRIVATE_SETUP_FEE = 149.0  # the one real private-seller plan: $149 one-time
 
 TIER_PRICES = {
     "free": 0.0,
@@ -39,9 +41,10 @@ TIER_PRICES = {
     "premium": 499.0, # legacy tier string — no longer sold, kept for historical records
     "pro": BROKER_SETUP_FEE,  # the one real broker plan: $199 one-time
     "ultimate": 0.0,  # Custom/enterprise pricing — managed manually
-    "private_basic": 9.0,
-    "private_plus": 19.0,
-    "private_pro": 39.0,
+    "private_active": 149.0,  # the one real private-seller plan: $149 one-time
+    "private_basic": 9.0,   # legacy tier string — no longer sold, kept for historical records
+    "private_plus": 19.0,   # legacy tier string — no longer sold, kept for historical records
+    "private_pro": 39.0,    # legacy tier string — no longer sold, kept for historical records
 }
 
 
@@ -107,19 +110,23 @@ def get_sales_rep_analytics(
         ReferralSignup.sales_rep_id == current_user.id
     ).all()
 
-    referred_dealer_ids = {r.dealer_user_id for r in referrals}
+    referred_user_ids = {r.dealer_user_id for r in referrals}
 
-    assigned_dealers = db.query(User).filter(
+    assigned_users = db.query(User).filter(
         User.assigned_sales_rep_id == current_user.id
     ).all()
 
-    dealer_map = {d.id: d for d in assigned_dealers}
-    if referred_dealer_ids:
-        extra_dealers = db.query(User).filter(User.id.in_(list(referred_dealer_ids))).all()
-        for dealer in extra_dealers:
-            dealer_map[dealer.id] = dealer
+    user_map = {u.id: u for u in assigned_users}
+    if referred_user_ids:
+        extra_users = db.query(User).filter(User.id.in_(list(referred_user_ids))).all()
+        for u in extra_users:
+            user_map[u.id] = u
 
-    dealers = list(dealer_map.values())
+    all_referred_users = list(user_map.values())
+    # Brokers are commission-recurring (monthly subscription); private sellers
+    # pay a flat one-time fee, so they're tallied separately below.
+    dealers = [u for u in all_referred_users if (u.user_type or "").lower() == "dealer"]
+    private_seller_users = [u for u in all_referred_users if (u.user_type or "").lower() == "private"]
 
     referral_map = {r.dealer_user_id: r for r in referrals}
     active_dealers_list = [d for d in dealers if d.active]
@@ -127,6 +134,12 @@ def get_sales_rep_analytics(
     monthly_revenue = 0.0
     monthly_commission = 0.0
     for dealer in active_dealers_list:
+        # subscription_start_date is only ever set by a confirmed Stripe
+        # webhook/session-confirm — never by manual sales-rep/admin broker
+        # creation. Skip dealers who haven't actually paid so commission
+        # isn't accrued on accounts that were signed up but never billed.
+        if not dealer.subscription_start_date:
+            continue
         referral = referral_map.get(dealer.id)
         base_price = float(TIER_PRICES.get(dealer.subscription_tier, 0.0))
         effective_price = float(referral.effective_monthly_price) if referral and referral.effective_monthly_price is not None else base_price
@@ -181,6 +194,35 @@ def get_sales_rep_analytics(
             "effective_monthly_price": float(referral_map[dealer.id].effective_monthly_price) if dealer.id in referral_map and referral_map[dealer.id].effective_monthly_price is not None else float(TIER_PRICES.get(dealer.subscription_tier, 0.0)),
             "commission_rate": float(referral_map[dealer.id].commission_rate) if dealer.id in referral_map and referral_map[dealer.id].commission_rate is not None else float(current_user.commission_rate or 10.0),
             "referred": dealer.id in referral_map,
+            "paid": bool(dealer.subscription_start_date),
+        })
+
+    # Private-seller referrals earn a one-time commission on the flat $149
+    # fee rather than a recurring monthly commission.
+    private_seller_stats = []
+    private_seller_commission_total = 0.0
+    for seller in private_seller_users:
+        referral = referral_map.get(seller.id)
+        commission_rate = float(referral.commission_rate) if referral and referral.commission_rate is not None else float(current_user.commission_rate or 10.0)
+        paid = bool(seller.subscription_start_date)
+        one_time_commission = (PRIVATE_SETUP_FEE * (commission_rate / 100.0)) if paid else 0.0
+        if paid:
+            private_seller_commission_total += one_time_commission
+
+        listing_count = db.query(Listing).filter(Listing.user_id == seller.id).count()
+
+        private_seller_stats.append({
+            "user_id": seller.id,
+            "name": f"{seller.first_name} {seller.last_name}",
+            "email": seller.email,
+            "total_listings": listing_count,
+            "joined_date": seller.created_at.isoformat() if seller.created_at else None,
+            "active": seller.active,
+            "one_time_fee": PRIVATE_SETUP_FEE,
+            "commission_rate": commission_rate,
+            "one_time_commission": one_time_commission,
+            "referred": seller.id in referral_map,
+            "paid": paid,
         })
 
     return {
@@ -189,9 +231,13 @@ def get_sales_rep_analytics(
         "monthly_revenue": monthly_revenue,
         "monthly_commission": monthly_commission,
         "dealers": dealer_stats,
+        "total_private_referrals": len(private_seller_users),
+        "private_seller_commission_total": private_seller_commission_total,
+        "private_sellers": private_seller_stats,
         "affiliate": {
             "code": affiliate_account.code,
             "referral_link": f"/register?user_type=dealer&ref={affiliate_account.code}",
+            "private_referral_link": f"/register?user_type=private&ref={affiliate_account.code}",
             "commission_rate": float(affiliate_account.commission_rate or current_user.commission_rate or 10.0),
             "referred_signups": len(referrals),
         }
@@ -214,6 +260,7 @@ def get_referral_info(
     return {
         "code": affiliate_account.code,
         "referral_link": f"/register?user_type=dealer&ref={affiliate_account.code}",
+        "private_referral_link": f"/register?user_type=private&ref={affiliate_account.code}",
         "commission_rate": float(affiliate_account.commission_rate or current_user.commission_rate or 10.0),
         "referred_signups": referral_count,
     }
@@ -502,6 +549,43 @@ def get_my_demo_account(
         "id": demo.id,
         "email": demo.email,
         "company_name": demo.company_name,
+        "listings": listing_count,
+    }
+
+
+@router.post("/demo-account")
+def create_my_demo_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Self-service: let a sales rep provision their own demo account."""
+    if current_user.user_type != "salesman":
+        raise AuthorizationException("Sales rep access required")
+
+    existing_demo = db.query(User).filter(
+        User.demo_owner_sales_rep_id == current_user.id,
+        User.is_demo == True,
+        User.deleted_at.is_(None),
+    ).first()
+
+    if existing_demo:
+        raise ValidationException(f"You already have a demo account (ID: {existing_demo.id})")
+
+    try:
+        result = create_demo_account_for_owner(db, owner=current_user, created_by_user_id=current_user.id)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise ValidationException(f"Failed to create demo account: {str(e)}")
+
+    demo_user = result["demo_user"]
+    listing_count = result["listings_created"]
+
+    return {
+        "exists": True,
+        "id": demo_user.id,
+        "email": demo_user.email,
+        "company_name": demo_user.company_name,
         "listings": listing_count,
     }
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
+import os
 
 import stripe
 
@@ -74,6 +75,12 @@ DEALER_PLANS = [
     },
 ]
 
+# Private-seller pricing pivoted to a single flat one-time listing fee (see
+# PRIVATE_SETUP_FEE below and the broker BROKER_SETUP_FEE precedent in
+# routes_sales.py) — private sellers no longer choose between tiered
+# monthly plans. PRIVATE_SELLER_PLANS is kept only so historical private
+# seller records that still reference these tier strings don't break, not
+# because they're purchasable plans anymore.
 PRIVATE_SELLER_PLANS = [
     {
         "id": "private_basic",
@@ -298,6 +305,65 @@ async def create_setup_fee_session(
         raise ExternalServiceException(f"Stripe error: {e}")
 
     logger.info("Created setup-fee session %s for user %s", session.id, current_user.id)
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+# ==================== PRIVATE SELLER ONE-TIME LISTING FEE ====================
+
+PRIVATE_SETUP_FEE = 149.0
+# Set in your Stripe Dashboard and add as a Render env var (mirrors STRIPE_PRICES
+# in stripe_service.py) so the price can change without a code deploy.
+PRIVATE_SETUP_FEE_PRICE_ID = os.getenv("STRIPE_PRICE_PRIVATE_SETUP_FEE", "price_1TqmIPL4JS1hgLQ4OpNvigTZ")
+
+@router.post("/payments/create-private-setup-fee-session")
+async def create_private_setup_fee_session(
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a Stripe Checkout Session for the private seller's one-time $149
+    listing fee. Uses mode='payment' (not a subscription) — mirrors
+    create_setup_fee_session above for brokers.
+    After payment the webhook activates the user with tier='private_active'.
+    """
+    success_url = data.get("success_url")
+    cancel_url = data.get("cancel_url")
+    if not success_url or not cancel_url:
+        raise ValidationException("success_url and cancel_url are required")
+
+    # Get or create Stripe customer
+    if not current_user.stripe_customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip(),
+                metadata={"user_id": str(current_user.id)},
+            )
+            current_user.stripe_customer_id = customer.id
+            db.commit()
+        except stripe.error.StripeError as e:
+            logger.error("Stripe customer creation failed: %s", e)
+            raise ExternalServiceException(f"Stripe error: {e}")
+
+    try:
+        session = stripe.checkout.Session.create(
+            customer=current_user.stripe_customer_id,
+            mode="payment",
+            line_items=[{"price": PRIVATE_SETUP_FEE_PRICE_ID, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_update={"address": "auto"},
+            metadata={
+                "user_id": str(current_user.id),
+                "subscription_tier": "private_active",
+            },
+        )
+    except stripe.error.StripeError as e:
+        logger.error("Private setup fee checkout session creation failed: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    logger.info("Created private setup-fee session %s for user %s", session.id, current_user.id)
     return {"checkout_url": session.url, "session_id": session.id}
 
 

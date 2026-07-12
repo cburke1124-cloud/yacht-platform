@@ -15,6 +15,8 @@ interface Stats {
   totalInquiries: number;
   featuredListings: number;
   newInquiriesToday: number;
+  totalCharterListings: number;
+  activeCharterListings: number;
 }
 
 interface RecentInquiry {
@@ -128,7 +130,9 @@ export default function DashboardV2Home() {
     Promise.all([
       fetch(apiUrl('/listings/my-listings?limit=5&sort=created_at'), { headers: h }).then(r => r.ok ? r.json() : null),
       fetch(apiUrl('/inquiries?limit=6'), { headers: h }).then(r => r.ok ? r.json() : null),
-    ]).then(([listingsData, inquiriesData]) => {
+      fetch(apiUrl('/charter/my'), { headers: h }).then(r => r.ok ? r.json() : null),
+    ]).then(([listingsData, inquiriesData, charterData]) => {
+      const charters: any[] = Array.isArray(charterData) ? charterData : [];
       if (listingsData) {
         const all: RecentListing[] = listingsData.listings ?? listingsData.results ?? listingsData ?? [];
         setListings(all.slice(0, 5));
@@ -139,6 +143,8 @@ export default function DashboardV2Home() {
           totalInquiries: 0,
           featuredListings: all.filter((l: any) => l.featured).length,
           newInquiriesToday: 0,
+          totalCharterListings: charters.length,
+          activeCharterListings: charters.filter((c: any) => c.status === 'active').length,
         });
       }
       if (inquiriesData) {
@@ -204,7 +210,7 @@ export default function DashboardV2Home() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Total Listings"
           value={stats?.totalListings ?? 0}
@@ -212,6 +218,14 @@ export default function DashboardV2Home() {
           icon={<Ship size={20} strokeWidth={1.75} />}
           href="/dashboard-v2/listings"
           color="#10214F"
+        />
+        <StatCard
+          label="Charter Listings"
+          value={stats?.totalCharterListings ?? 0}
+          sub={`${stats?.activeCharterListings ?? 0} active`}
+          icon={<Anchor size={20} strokeWidth={1.75} />}
+          href="/dashboard-v2/charter"
+          color="#0891b2"
         />
         <StatCard
           label="Total Views"
@@ -362,6 +376,7 @@ export default function DashboardV2Home() {
             <div className="p-3 grid grid-cols-2 gap-2">
               {[
                 { label: 'Add Listing', href: '/dashboard/listings', icon: <Plus size={16} />, color: '#10214F' },
+                { label: 'Add Charter', href: '/dashboard-v2/charter', icon: <Anchor size={16} />, color: '#0891b2' },
                 { label: 'Messages', href: '/dashboard-v2/inquiries', icon: <MessageSquare size={16} />, color: '#6366f1' },
                 { label: 'Manage Team', href: '/dashboard-v2/team', icon: <Users size={16} />, color: '#f59e0b' },
                 { label: 'Analytics', href: '/dashboard-v2/analytics', icon: <BarChart3 size={16} />, color: '#10b981' },

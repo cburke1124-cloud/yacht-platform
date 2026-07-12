@@ -7,8 +7,9 @@ import Image from 'next/image';
 import { Check, Loader2, ChevronLeft, ShieldCheck, Zap, Users } from 'lucide-react';
 import { apiUrl, markLoggedIn } from '@/app/lib/apiRoot';
 
-// --- One-time signup fee ------------------------------------------------------
+// --- One-time signup fees ------------------------------------------------------
 const SIGNUP_FEE = 199;
+const PRIVATE_SIGNUP_FEE = 149;
 
 const INCLUDED_FEATURES = [
   'Unlimited active listings',
@@ -30,10 +31,20 @@ const BUYER_FEATURES = [
   'Full access to every listing on the platform',
 ];
 
+const PRIVATE_FEATURES = [
+  'List your yacht for sale',
+  'Professional listing presentation',
+  'Global marketplace exposure',
+  'Direct buyer inquiries',
+  'Support from our team when you need it',
+];
+
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isBuyer = searchParams.get('user_type') === 'buyer';
+  const isPrivate = searchParams.get('user_type') === 'private';
+  const ref = searchParams.get('ref');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -43,6 +54,7 @@ function RegisterContent() {
     last_name: '',
     phone: '',
     company_name: '',
+    website: '',
     agree_terms: false,
     agree_broker_terms: false,
     agree_communications: false,
@@ -68,8 +80,12 @@ function RegisterContent() {
       setError('You must agree to the Terms and Privacy Policy');
       return;
     }
-    if (!isBuyer && !formData.agree_broker_terms) {
+    if (!isBuyer && !isPrivate && !formData.agree_broker_terms) {
       setError('You must read and agree to the Broker Services Agreement');
+      return;
+    }
+    if (!isBuyer && !isPrivate && !formData.phone.trim()) {
+      setError('Phone number is required');
       return;
     }
     if (!formData.agree_communications) {
@@ -88,11 +104,13 @@ function RegisterContent() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone: formData.phone,
-          user_type: isBuyer ? 'buyer' : 'dealer',
+          user_type: isPrivate ? 'private' : isBuyer ? 'buyer' : 'dealer',
           company_name: formData.company_name,
-          subscription_tier: isBuyer ? 'free' : 'pro',
+          ...(!isBuyer && !isPrivate ? { website: formData.website } : {}),
+          subscription_tier: isPrivate ? 'private_active' : isBuyer ? 'free' : 'pro',
           agree_terms: formData.agree_terms,
           agree_communications: formData.agree_communications,
+          ...(!isBuyer && ref ? { referral_code: ref } : {}),
         }),
       });
 
@@ -110,7 +128,7 @@ function RegisterContent() {
       setRedirecting(true);
       setLoading(false);
 
-      const checkoutRes = await fetch(apiUrl('/payments/create-setup-fee-session'), {
+      const checkoutRes = await fetch(apiUrl(isPrivate ? '/payments/create-private-setup-fee-session' : '/payments/create-setup-fee-session'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -166,17 +184,23 @@ function RegisterContent() {
               <div className="inline-block mb-3 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-xs font-semibold text-primary uppercase tracking-wide">
                 Always Free
               </div>
+            ) : isPrivate ? (
+              <div className="inline-block mb-3 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                Private Seller
+              </div>
             ) : (
               <div className="inline-block mb-3 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-semibold text-amber-700 uppercase tracking-wide">
                 Founding Member Offer
               </div>
             )}
             <h1 className="text-3xl font-bold text-secondary mb-2">
-              {isBuyer ? 'Find Your Next Yacht' : 'Join YachtVersal'}
+              {isBuyer ? 'Find Your Next Yacht' : isPrivate ? 'List Your Yacht Privately' : 'Join YachtVersal'}
             </h1>
             <p className="text-dark/60 mb-8 text-lg">
               {isBuyer
                 ? 'Create a free buyer account to save listings, message sellers, and get alerts — no fees, ever.'
+                : isPrivate
+                ? 'Get started with a single listing fee — list your yacht and reach buyers worldwide.'
                 : 'Get started with a single setup fee and full access to every tool on the platform.'}
             </p>
 
@@ -190,6 +214,14 @@ function RegisterContent() {
                   </div>
                   <p className="text-dark/60 text-sm mb-6">No credit card required.</p>
                 </>
+              ) : isPrivate ? (
+                <>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-5xl font-extrabold text-primary">${PRIVATE_SIGNUP_FEE}</span>
+                    <span className="text-dark/50 text-lg font-medium">one-time</span>
+                  </div>
+                  <p className="text-dark/60 text-sm mb-6">One-time payment. List your yacht from day one.</p>
+                </>
               ) : (
                 <>
                   <div className="flex items-baseline gap-2 mb-1">
@@ -201,7 +233,7 @@ function RegisterContent() {
               )}
 
               <ul className="space-y-3">
-                {(isBuyer ? BUYER_FEATURES : INCLUDED_FEATURES).map((f, i) => (
+                {(isBuyer ? BUYER_FEATURES : isPrivate ? PRIVATE_FEATURES : INCLUDED_FEATURES).map((f, i) => (
                   <li key={i} className="flex items-start gap-3 text-sm text-dark/80">
                     <Check size={16} className="text-primary mt-0.5 shrink-0" />
                     {f}
@@ -224,8 +256,8 @@ function RegisterContent() {
               </div>
               <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                 <Users size={22} className="text-primary mx-auto mb-1.5" />
-                <p className="text-xs font-semibold text-secondary">{isBuyer ? 'No Commitment' : 'Team Support'}</p>
-                <p className="text-xs text-dark/50">{isBuyer ? 'Cancel anytime' : 'Add salesmen free'}</p>
+                <p className="text-xs font-semibold text-secondary">{isBuyer ? 'No Commitment' : isPrivate ? 'Real Support' : 'Team Support'}</p>
+                <p className="text-xs text-dark/50">{isBuyer ? 'Cancel anytime' : isPrivate ? 'We help along the way' : 'Add salesmen free'}</p>
               </div>
             </div>
           </div>
@@ -265,7 +297,7 @@ function RegisterContent() {
                 </div>
               </div>
 
-              {!isBuyer && (
+              {!isBuyer && !isPrivate && (
                 <div>
                   <label htmlFor="reg-company" className="block text-sm font-medium text-dark mb-1.5">Brokerage / Company Name *</label>
                   <input
@@ -286,22 +318,39 @@ function RegisterContent() {
                   type="email" required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder={isBuyer ? 'you@example.com' : 'you@brokerage.com'}
+                  placeholder={isBuyer || isPrivate ? 'you@example.com' : 'you@brokerage.com'}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label htmlFor="reg-phone" className="block text-sm font-medium text-dark mb-1.5">Phone Number</label>
+                <label htmlFor="reg-phone" className="block text-sm font-medium text-dark mb-1.5">
+                  Phone Number{!isBuyer && !isPrivate ? ' *' : ''}
+                </label>
                 <input
                   id="reg-phone"
                   type="tel"
+                  required={!isBuyer && !isPrivate}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+1 (555) 000-0000"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
+
+              {!isBuyer && !isPrivate && (
+                <div>
+                  <label htmlFor="reg-website" className="block text-sm font-medium text-dark mb-1.5">Website (optional)</label>
+                  <input
+                    id="reg-website"
+                    type="text"
+                    value={formData.website}
+                    onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                    placeholder="https://yourbrokerage.com"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -345,7 +394,7 @@ function RegisterContent() {
                   </label>
                 </div>
 
-                {!isBuyer && (
+                {!isBuyer && !isPrivate && (
                   <div className="flex items-start gap-2">
                     <input
                       id="broker-terms" type="checkbox"
@@ -380,6 +429,14 @@ function RegisterContent() {
                   <p className="font-medium mb-0.5">Buyer accounts are always free</p>
                   <p className="text-blue-600">
                     Your account activates immediately after you sign up — no payment, no card required.
+                  </p>
+                </div>
+              ) : isPrivate ? (
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
+                  <p className="font-medium mb-0.5">Secure payment via Stripe</p>
+                  <p className="text-blue-600">
+                    After creating your account you will be taken to Stripe checkout to pay the{' '}
+                    <strong>${PRIVATE_SIGNUP_FEE} one-time fee</strong>. Your account activates immediately after payment.
                   </p>
                 </div>
               ) : (
