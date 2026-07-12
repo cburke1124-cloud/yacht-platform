@@ -15,6 +15,7 @@ interface SalesRep {
   commission_rate: number;
   referral_code?: string;
   referral_link?: string;
+  private_referral_link?: string;
   referred_signups?: number;
 }
 
@@ -27,6 +28,7 @@ interface AffiliateAccount {
   commission_rate: number;
   active: boolean;
   referral_link: string;
+  private_referral_link: string;
 }
 
 interface DealPerformanceRow {
@@ -386,16 +388,16 @@ export default function AdminSalesRepTab() {
       });
 
       if (response.ok) {
-        alert('Dealer assigned successfully!');
+        alert('Broker assigned successfully!');
         setShowAssignModal(false);
         setSelectedDealer(null);
         fetchData();
       } else {
-        alert('Failed to assign dealer');
+        alert('Failed to assign broker');
       }
     } catch (error) {
       console.error('Failed to assign:', error);
-      alert('Failed to assign dealer');
+      alert('Failed to assign broker');
     }
   };
 
@@ -475,7 +477,7 @@ export default function AdminSalesRepTab() {
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
           >
             <Mail size={20} />
-            Invite Dealer
+            Invite Broker
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -506,7 +508,7 @@ export default function AdminSalesRepTab() {
               <Users className="text-primary" size={24} />
             </div>
             <div>
-              <p className="text-gray-600 text-sm">Total Dealers Managed</p>
+              <p className="text-gray-600 text-sm">Total Brokers Managed</p>
               <p className="text-3xl font-bold text-gray-900">
                 {salesReps.reduce((sum, rep) => sum + (rep.dealer_count || 0), 0)}
               </p>
@@ -539,7 +541,7 @@ export default function AdminSalesRepTab() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rep</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealers</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brokers</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission Rate</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monthly Commission</th>
@@ -570,7 +572,7 @@ export default function AdminSalesRepTab() {
                           <button
                             onClick={() => toggleRepExpand(rep.id)}
                             className="flex items-center gap-2 text-left group"
-                            title={isExpanded ? 'Collapse dealers' : 'View dealers'}
+                            title={isExpanded ? 'Collapse brokers' : 'View brokers'}
                           >
                             <span className={`flex-shrink-0 flex items-center justify-center w-6 h-6 rounded border ${isExpanded ? 'bg-primary border-primary text-white' : 'border-gray-300 text-gray-500 group-hover:border-primary group-hover:text-primary'} transition-colors`}>
                               {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -624,11 +626,26 @@ export default function AdminSalesRepTab() {
                             <div className="text-gray-500">{rep.referred_signups || 0} signups</div>
                             {rep.referral_link && (
                               <>
-                                <div className="mt-1 text-xs font-mono text-gray-600 break-all">
+                                <div className="mt-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Broker</div>
+                                <div className="text-xs font-mono text-gray-600 break-all">
                                   {buildAbsoluteSignupLink(rep.referral_link)}
                                 </div>
                                 <button
                                   onClick={() => copyToClipboard(buildAbsoluteSignupLink(rep.referral_link), 'Signup link')}
+                                  className="mt-1 text-xs text-primary hover:text-primary/90"
+                                >
+                                  Copy signup link
+                                </button>
+                              </>
+                            )}
+                            {rep.private_referral_link && (
+                              <>
+                                <div className="mt-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Private Seller</div>
+                                <div className="text-xs font-mono text-gray-600 break-all">
+                                  {buildAbsoluteSignupLink(rep.private_referral_link)}
+                                </div>
+                                <button
+                                  onClick={() => copyToClipboard(buildAbsoluteSignupLink(rep.private_referral_link), 'Private seller signup link')}
                                   className="mt-1 text-xs text-primary hover:text-primary/90"
                                 >
                                   Copy signup link
@@ -651,7 +668,7 @@ export default function AdminSalesRepTab() {
                         <tr className="bg-blue-50/40">
                           <td colSpan={7} className="px-6 py-4">
                             {repDealers.length === 0 ? (
-                              <p className="text-sm text-gray-500 italic">No dealers assigned to this rep yet.</p>
+                              <p className="text-sm text-gray-500 italic">No brokers assigned to this rep yet.</p>
                             ) : (
                               <table className="w-full text-sm">
                                 <thead>
@@ -737,11 +754,22 @@ export default function AdminSalesRepTab() {
                     <td className="px-6 py-4 capitalize">{affiliate.account_type.replace('_', ' ')}</td>
                     <td className="px-6 py-4 font-mono text-sm">{affiliate.code}</td>
                     <td className="px-6 py-4">
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Broker</div>
                       <div className="text-xs font-mono text-gray-600 break-all">
                         {buildAbsoluteSignupLink(affiliate.referral_link)}
                       </div>
                       <button
                         onClick={() => copyToClipboard(buildAbsoluteSignupLink(affiliate.referral_link), 'Affiliate signup link')}
+                        className="mt-1 text-xs text-primary hover:text-primary/90"
+                      >
+                        Copy signup link
+                      </button>
+                      <div className="mt-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Private Seller</div>
+                      <div className="text-xs font-mono text-gray-600 break-all">
+                        {buildAbsoluteSignupLink(affiliate.private_referral_link)}
+                      </div>
+                      <button
+                        onClick={() => copyToClipboard(buildAbsoluteSignupLink(affiliate.private_referral_link), 'Affiliate private seller signup link')}
                         className="mt-1 text-xs text-primary hover:text-primary/90"
                       >
                         Copy signup link
@@ -844,15 +872,15 @@ export default function AdminSalesRepTab() {
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6 border-b">
-          <h3 className="text-xl font-semibold">Unassigned Dealers</h3>
-          <p className="text-sm text-gray-600 mt-1">Assign these dealers to a sales rep for account management</p>
+          <h3 className="text-xl font-semibold">Unassigned Brokers</h3>
+          <p className="text-sm text-gray-600 mt-1">Assign these brokers to a sales rep for account management</p>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -861,7 +889,7 @@ export default function AdminSalesRepTab() {
               {dealers.filter(d => !d.assigned_sales_rep_id).length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
-                    All dealers are assigned to sales reps
+                    All brokers are assigned to sales reps
                   </td>
                 </tr>
               ) : (
@@ -1070,7 +1098,7 @@ export default function AdminSalesRepTab() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
             <div className="p-6 border-b flex items-center justify-between">
-              <h3 className="text-xl font-bold">Invite New Dealer</h3>
+              <h3 className="text-xl font-bold">Invite New Broker</h3>
               <button onClick={() => setShowInviteModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
@@ -1223,7 +1251,7 @@ export default function AdminSalesRepTab() {
                 Assign {selectedDealer.company_name}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
-                Select a sales rep to manage this dealer
+                Select a sales rep to manage this broker
               </p>
             </div>
 
@@ -1236,7 +1264,7 @@ export default function AdminSalesRepTab() {
                 >
                   <div className="font-semibold text-gray-900">{rep.name}</div>
                   <div className="text-sm text-gray-600">
-                    {rep.dealer_count} dealers · ${rep.monthly_commission.toFixed(2)}/mo commission
+                    {rep.dealer_count} brokers · ${rep.monthly_commission.toFixed(2)}/mo commission
                   </div>
                 </button>
               ))}

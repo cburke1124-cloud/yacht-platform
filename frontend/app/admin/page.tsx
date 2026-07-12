@@ -30,7 +30,7 @@ function AdminPageContent() {
     { id: 'users', label: 'Users', icon: '👥' },
     { id: 'listings', label: 'Listings', icon: '🚤' },
     { id: 'bulk-tools', label: 'Bulk Tools', icon: '📦' },
-    { id: 'dealers', label: 'Dealers', icon: '🏢' },
+    { id: 'dealers', label: 'Brokers', icon: '🏢' },
     { id: 'media', label: 'Media', icon: '🖼️' },
     { id: 'blog', label: 'Blog', icon: '📝' },
     { id: 'scraper', label: 'Scraper', icon: '🔍' },
@@ -192,9 +192,12 @@ function timeAgo(iso?: string): string {
 interface OutreachAnalytics {
   total_dealers: number;
   monthly_commission: number;
+  total_private_referrals?: number;
+  private_seller_commission_total?: number;
   affiliate?: {
     code: string;
     referral_link: string;
+    private_referral_link: string;
     commission_rate: number;
     referred_signups: number;
   };
@@ -207,6 +210,7 @@ function AdminDashboardOverview() {
   const [outreach, setOutreach] = useState<OutreachAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copiedPrivate, setCopiedPrivate] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -233,6 +237,14 @@ function AdminDashboardOverview() {
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyPrivateReferralLink = () => {
+    if (!outreach?.affiliate) return;
+    const link = `${window.location.origin}${outreach.affiliate.private_referral_link}`;
+    navigator.clipboard.writeText(link);
+    setCopiedPrivate(true);
+    setTimeout(() => setCopiedPrivate(false), 2000);
   };
 
   if (loading) {
@@ -362,7 +374,7 @@ function AdminDashboardOverview() {
               <p className="font-mono font-semibold text-gray-900">{outreach.affiliate.code}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Dealers Referred</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Brokers Referred</p>
               <p className="font-semibold text-gray-900">{outreach.total_dealers}</p>
             </div>
             <div>
@@ -370,10 +382,18 @@ function AdminDashboardOverview() {
               <p className="font-semibold text-gray-900">{outreach.affiliate.commission_rate}%</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Broker Signup Link</p>
+          <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3 mb-3">
             <p className="text-sm font-mono text-primary flex-1 truncate">{typeof window !== 'undefined' ? `${window.location.origin}${outreach.affiliate.referral_link}` : outreach.affiliate.referral_link}</p>
             <button onClick={copyReferralLink} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1">
               {copied ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Private Seller Signup Link</p>
+          <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
+            <p className="text-sm font-mono text-primary flex-1 truncate">{typeof window !== 'undefined' ? `${window.location.origin}${outreach.affiliate.private_referral_link}` : outreach.affiliate.private_referral_link}</p>
+            <button onClick={copyPrivateReferralLink} className="px-3 py-1.5 bg-primary text-white rounded text-xs font-medium hover:bg-primary/90 shrink-0 flex items-center gap-1">
+              {copiedPrivate ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
             </button>
           </div>
         </div>
@@ -428,7 +448,7 @@ function AdminAnalyticsTab() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Platform Analytics</h2>
         <p className="text-gray-600">
-          Platform-wide performance metrics and insights. This section shows aggregated data across all dealers and listings.
+          Platform-wide performance metrics and insights. This section shows aggregated data across all brokers and listings.
         </p>
       </div>
 
@@ -471,14 +491,14 @@ function AdminAnalyticsTab() {
       {/* Top Performers */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">Top Performing Dealers</h3>
+          <h3 className="text-xl font-bold text-gray-900">Top Performing Brokers</h3>
           <p className="text-xs text-gray-500 mt-1">Ranked by total views across for-sale listings</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listings</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Views</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inquiries</th>
@@ -487,7 +507,7 @@ function AdminAnalyticsTab() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {topDealers.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400 text-sm">No dealer activity yet.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400 text-sm">No broker activity yet.</td></tr>
               ) : topDealers.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">

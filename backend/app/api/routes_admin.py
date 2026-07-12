@@ -1100,6 +1100,8 @@ def create_dealer(
     db: Session = Depends(get_db),
 ):
     """Create a new dealer account and send a password-setup email."""
+    from app.utils.slug import create_slug
+
     email = (data.get("email") or "").strip().lower()
     if not email:
         raise ValidationException("Email is required")
@@ -1119,6 +1121,9 @@ def create_dealer(
     # Unusable random password — dealer cannot log in until they set their own
     dummy_hash = get_password_hash(secrets.token_urlsafe(32))
 
+    verified = bool(data.get("verified", False))
+    active = bool(data.get("active", True))
+
     dealer = User(
         email=email,
         password_hash=dummy_hash,
@@ -1128,12 +1133,29 @@ def create_dealer(
         company_name=data.get("company_name"),
         user_type="dealer",
         subscription_tier="free",
-        verified=bool(data.get("verified", False)),
-        active=bool(data.get("active", True)),
+        verified=verified,
+        active=active,
         verification_token=setup_token,
         email_verified=False,
     )
     db.add(dealer)
+    db.flush()
+
+    slug = create_slug(data.get("company_name") or raw_name or email, db, DealerProfile)
+    profile = DealerProfile(
+        user_id=dealer.id,
+        name=raw_name,
+        company_name=data.get("company_name"),
+        email=email,
+        phone=data.get("phone"),
+        city=data.get("city"),
+        state=data.get("state"),
+        country=data.get("country") or "USA",
+        slug=slug,
+        verified=verified,
+        active=active,
+    )
+    db.add(profile)
     db.commit()
     db.refresh(dealer)
 
@@ -1161,7 +1183,7 @@ def create_dealer(
     try:
         email_service.send_email(
             to_email=email,
-            subject="Set up your YachtVersal dealer account",
+            subject="Set up your YachtVersal broker account",
             html_content=html,
         )
         email_sent = True
@@ -1174,7 +1196,7 @@ def create_dealer(
         "email": dealer.email,
         "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip(),
         "email_sent": email_sent,
-        "message": "Dealer created. A password-setup email has been sent." if email_sent else "Dealer created. Email could not be sent — check SendGrid configuration.",
+        "message": "Broker created. A password-setup email has been sent." if email_sent else "Broker created. Email could not be sent — check SendGrid configuration.",
     }
 
 
@@ -1188,7 +1210,7 @@ def update_dealer(
     """Update dealer fields (verified, active, name, company, etc.)."""
     dealer = db.query(User).filter(User.id == dealer_id, User.user_type == "dealer").first()
     if not dealer:
-        raise ResourceNotFoundException("Dealer", dealer_id)
+        raise ResourceNotFoundException("Broker", dealer_id)
 
     updatable = ["first_name", "last_name", "phone", "company_name",
                  "verified", "active", "subscription_tier"]
@@ -1251,7 +1273,7 @@ def update_dealer_profile(
     """Update the DealerProfile row for a dealer."""
     profile = db.query(DealerProfile).filter(DealerProfile.user_id == dealer_id).first()
     if not profile:
-        raise ResourceNotFoundException("DealerProfile", dealer_id)
+        raise ResourceNotFoundException("Broker profile", dealer_id)
 
     updatable = [
         "name", "company_name", "email", "phone",
@@ -1279,12 +1301,12 @@ def delete_dealer(
     """Permanently delete a dealer and their listings."""
     dealer = db.query(User).filter(User.id == dealer_id, User.user_type == "dealer").first()
     if not dealer:
-        raise ResourceNotFoundException("Dealer", dealer_id)
+        raise ResourceNotFoundException("Broker", dealer_id)
 
     db.query(Listing).filter(Listing.user_id == dealer_id).delete()
     db.delete(dealer)
     db.commit()
-    return {"success": True, "message": "Dealer deleted"}
+    return {"success": True, "message": "Broker deleted"}
 
 
 @router.get("/dealers/{dealer_id}/team")
@@ -1296,7 +1318,7 @@ def get_dealer_team(
     """Return all team members (salesman + sub-accounts) whose parent_dealer_id = dealer_id."""
     dealer = db.query(User).filter(User.id == dealer_id).first()
     if not dealer:
-        raise ResourceNotFoundException("Dealer", dealer_id)
+        raise ResourceNotFoundException("Broker", dealer_id)
 
     members = (
         db.query(User)
@@ -1775,6 +1797,12 @@ def get_all_sales_reps(
         total_revenue = 0.0
         monthly_commission = 0.0
         for dealer in active_dealers:
+            # Only count dealers who've actually paid through Stripe
+            # (subscription_start_date is set only by the payment webhook /
+            # session-confirm flow) — manually created broker accounts never
+            # touch Stripe and shouldn't accrue commission until they do.
+            if not dealer.subscription_start_date:
+                continue
             signup = referral_map.get(dealer.id)
             effective_price = float(signup.effective_monthly_price) if signup and signup.effective_monthly_price is not None else float(tier_prices.get(dealer.subscription_tier, 0.0))
             commission_rate = float(signup.commission_rate) if signup and signup.commission_rate is not None else float(rep.commission_rate or affiliate_account.commission_rate or 10.0)
@@ -1794,6 +1822,7 @@ def get_all_sales_reps(
             "commission_rate": float(commission_rate),
             "referral_code": affiliate_account.code,
             "referral_link": f"/register?user_type=dealer&ref={affiliate_account.code}",
+            "private_referral_link": f"/register?user_type=private&ref={affiliate_account.code}",
             "referred_signups": len(referral_signups),
         })
     
@@ -1842,6 +1871,7 @@ def create_sales_rep(
         "email": sales_rep.email,
         "referral_code": affiliate_account.code,
         "referral_link": f"/register?user_type=dealer&ref={affiliate_account.code}",
+        "private_referral_link": f"/register?user_type=private&ref={affiliate_account.code}",
     }
 
 
@@ -1862,7 +1892,7 @@ def assign_sales_rep(
         User.user_type == "dealer"
     ).first()
     if not dealer:
-        raise ResourceNotFoundException("Dealer", dealer_id)
+        raise ResourceNotFoundException("Broker", dealer_id)
 
     sales_rep = db.query(User).filter(
         User.id == sales_rep_id,
@@ -1899,6 +1929,7 @@ def get_affiliates(
             "active": bool(account.active),
             "created_at": account.created_at.isoformat() if account.created_at else None,
             "referral_link": f"/register?user_type=dealer&ref={account.code}",
+            "private_referral_link": f"/register?user_type=private&ref={account.code}",
         }
         for account in accounts
     ]
@@ -2011,12 +2042,15 @@ def get_deal_performance(
             effective_price = float(referral.effective_monthly_price or 0.0)
             commission_rate = float(referral.commission_rate or 10.0)
 
-            # Treat non-trial/non-free dealers with positive effective price as paid.
-            if effective_price > 0 and dealer.subscription_tier not in ["free", "trial"]:
+            # Only dealers with a confirmed Stripe payment (subscription_start_date
+            # is set solely by the payment webhook / session-confirm flow) count as
+            # paid — manually created broker accounts never touch Stripe and
+            # shouldn't accrue revenue/commission until they actually pay.
+            has_paid = bool(dealer.subscription_start_date)
+            if has_paid:
                 active_paid_count += 1
-
-            monthly_revenue += effective_price
-            monthly_commission += effective_price * (commission_rate / 100.0)
+                monthly_revenue += effective_price
+                monthly_commission += effective_price * (commission_rate / 100.0)
 
             if referral.sales_rep_id:
                 rep_row = rep_summary.setdefault(referral.sales_rep_id, {
@@ -2028,10 +2062,10 @@ def get_deal_performance(
                     "monthly_commission": 0.0,
                 })
                 rep_row["signup_count"] += 1
-                if effective_price > 0 and dealer.subscription_tier not in ["free", "trial"]:
+                if has_paid:
                     rep_row["active_paid_accounts"] += 1
-                rep_row["monthly_revenue"] += effective_price
-                rep_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
+                    rep_row["monthly_revenue"] += effective_price
+                    rep_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
 
             if referral.affiliate_account_id:
                 affiliate_row = affiliate_summary.setdefault(referral.affiliate_account_id, {
@@ -2044,10 +2078,10 @@ def get_deal_performance(
                     "monthly_commission": 0.0,
                 })
                 affiliate_row["signup_count"] += 1
-                if effective_price > 0 and dealer.subscription_tier not in ["free", "trial"]:
+                if has_paid:
                     affiliate_row["active_paid_accounts"] += 1
-                affiliate_row["monthly_revenue"] += effective_price
-                affiliate_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
+                    affiliate_row["monthly_revenue"] += effective_price
+                    affiliate_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
 
         owner_sales_rep_name = None
         if deal.owner_sales_rep_id:
@@ -2383,7 +2417,7 @@ def admin_generate_api_key(
         raise ValidationException("dealer_id is required")
     dealer = db.query(User).filter(User.id == dealer_id, User.user_type == "dealer").first()
     if not dealer:
-        raise ResourceNotFoundException("Dealer", dealer_id)
+        raise ResourceNotFoundException("Broker", dealer_id)
 
     key = f"yvk_{_secrets.token_urlsafe(32)}"
     key_hash = _hashlib.sha256(key.encode()).hexdigest()
