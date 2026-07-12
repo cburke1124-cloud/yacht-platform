@@ -38,7 +38,7 @@ from app.services.media_storage import get_storage_health, run_storage_test
 from app.services.clamav_service import health_check as clamav_health_check
 from app.security.auth import get_password_hash
 from app.services.email_service import email_service
-from app.services.demo_fixtures import get_demo_listing_data
+from app.services.demo_fixtures import get_demo_listing_data, create_demo_account_for_owner
 from app.models.documentation import Documentation
 from app.services.default_documentation import get_default_doc_by_slug
 
@@ -3069,107 +3069,20 @@ def create_demo_account(
         if existing_demo:
             raise ValidationException(f"This user already has a demo account (ID: {existing_demo.id})")
         
-        # Generate credentials
-        demo_email = f"demo-{owner_id}-{secrets.token_hex(4)}@yachtversal.demo"
-        temp_password = secrets.token_urlsafe(16)
-        hashed_password = get_password_hash(temp_password)
-        
-        # Create demo user account
-        demo_user = User(
-            email=demo_email,
-            password_hash=hashed_password,
-            first_name="Demo",
-            last_name=f"- {owner.first_name or 'Account'}",
-            user_type="dealer",
-            company_name=f"[DEMO] {owner.first_name or 'Demo'}'s Demo Dealership",
-            subscription_tier="premium",
-            is_demo=True,
-            demo_owner_sales_rep_id=owner_id,
-            active=True,
-            verified=True,
-            email_verified=True,
-        )
-        db.add(demo_user)
-        db.flush()
-        
-        # Create dealer profile
-        profile = DealerProfile(
-            user_id=demo_user.id,
-            name=demo_user.company_name,
-            company_name=demo_user.company_name,
-            slug=f"demo-{owner_id}-{secrets.token_hex(3)}",
-            email=demo_email,
-        )
-        db.add(profile)
-        db.flush()
-        
-        # Create sample listings
-        demo_listings = get_demo_listing_data()
-        listings_created = 0
-        now = datetime.utcnow()
-        
-        for idx, listing_data in enumerate(demo_listings):
-            try:
-                bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
-                location = listing_data.get("location", "Miami, Florida")
-                location_parts = location.split(",")
-                city = location_parts[0].strip() if location_parts else "Miami"
-                state = location_parts[1].strip() if len(location_parts) > 1 else "FL"
-                
-                is_featured = listing_data.get("featured", False)
-                listing_status = listing_data.get("status", "active")
-                is_recently_deleted = listing_data.get("recently_deleted", False)
+        # Create the demo user + dealer profile + sample listings
+        result = create_demo_account_for_owner(db, owner=owner, created_by_user_id=current_user.id)
+        demo_user = result["demo_user"]
+        listings_created = result["listings_created"]
+        temp_password = result["temp_password"]
 
-                listing = Listing(
-                    user_id=demo_user.id,
-                    created_by_user_id=current_user.id,
-                    title=listing_data.get("title", "Sample Yacht"),
-                    description=listing_data.get("description", ""),
-                    make=listing_data.get("make", ""),
-                    model=listing_data.get("model", ""),
-                    year=listing_data.get("year", 2023),
-                    price=listing_data.get("price", 1000000),
-                    currency="USD",
-                    bin=bin_id,
-                    length_feet=listing_data.get("length_feet", 50),
-                    beam_feet=listing_data.get("beam_feet", 15),
-                    draft_feet=listing_data.get("draft_feet", 4),
-                    boat_type=listing_data.get("boat_type", "motor_yacht"),
-                    cabins=listing_data.get("num_cabins", 3),
-                    heads=listing_data.get("num_heads", 2),
-                    fuel_capacity_gallons=listing_data.get("fuel_capacity_gallons", 2000),
-                    water_capacity_gallons=listing_data.get("water_capacity_gallons", 1000),
-                    city=city,
-                    state=state,
-                    country="USA",
-                    fuel_type=listing_data.get("fuel_type", "diesel"),
-                    condition=listing_data.get("condition", "Excellent"),
-                    feature_bullets=listing_data.get("features", []),
-                    status=listing_status,
-                    featured=is_featured,
-                    featured_until=now + timedelta(days=90) if is_featured else None,
-                    views=listing_data.get("views", 0),
-                    inquiries=listing_data.get("inquiries", 0),
-                    # Soft-delete listings flagged recently_deleted so the
-                    # Recently Deleted tab is populated on a fresh demo.
-                    # Use staggered ages so countdown numbers vary.
-                    deleted_at=now - timedelta(days=3 + idx * 2) if is_recently_deleted else None,
-                )
-                db.add(listing)
-                listings_created += 1
-            except Exception as e:
-                # Log but continue creating other listings
-                print(f"Error creating listing: {str(e)}")
-                continue
-        
         db.commit()
         db.refresh(demo_user)
-        
+
         return {
             "success": True,
             "demo_account": {
                 "id": demo_user.id,
-                "email": demo_email,
+                "email": demo_user.email,
                 "password": temp_password,
                 "first_name": demo_user.first_name,
                 "last_name": demo_user.last_name,

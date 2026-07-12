@@ -12,6 +12,17 @@ Status distribution across the 9 fixtures:
     showcase the Recently Deleted tab with the 30-day recovery countdown
 """
 
+import secrets
+import uuid
+from datetime import datetime, timedelta
+
+from sqlalchemy.orm import Session
+
+from app.models.user import User
+from app.models.dealer import DealerProfile
+from app.models.listing import Listing
+from app.security.auth import get_password_hash
+
 DEMO_SAMPLE_LISTINGS = [
     # --- Featured showcase ---
     {
@@ -248,3 +259,106 @@ def get_demo_listing_data(index: int = None):
     if index is not None and 0 <= index < len(DEMO_SAMPLE_LISTINGS):
         return DEMO_SAMPLE_LISTINGS[index]
     return DEMO_SAMPLE_LISTINGS
+
+
+def create_demo_account_for_owner(db: Session, owner: User, created_by_user_id: int) -> dict:
+    """
+    Create a demo User + DealerProfile + 8 sample Listings owned by `owner`
+    (a sales rep or admin). Does not commit — caller owns the transaction.
+    """
+    demo_email = f"demo-{owner.id}-{secrets.token_hex(4)}@yachtversal.demo"
+    temp_password = secrets.token_urlsafe(16)
+    hashed_password = get_password_hash(temp_password)
+
+    demo_user = User(
+        email=demo_email,
+        password_hash=hashed_password,
+        first_name="Demo",
+        last_name=f"- {owner.first_name or 'Account'}",
+        user_type="dealer",
+        company_name=f"[DEMO] {owner.first_name or 'Demo'}'s Demo Brokerage",
+        subscription_tier="premium",
+        is_demo=True,
+        demo_owner_sales_rep_id=owner.id,
+        active=True,
+        verified=True,
+        email_verified=True,
+    )
+    db.add(demo_user)
+    db.flush()
+
+    profile = DealerProfile(
+        user_id=demo_user.id,
+        name=demo_user.company_name,
+        company_name=demo_user.company_name,
+        slug=f"demo-{owner.id}-{secrets.token_hex(3)}",
+        email=demo_email,
+    )
+    db.add(profile)
+    db.flush()
+
+    demo_listings = get_demo_listing_data()
+    listings_created = 0
+    now = datetime.utcnow()
+
+    for idx, listing_data in enumerate(demo_listings):
+        try:
+            bin_id = f"DEMO{uuid.uuid4().hex[:12].upper()}"
+            location = listing_data.get("location", "Miami, Florida")
+            location_parts = location.split(",")
+            city = location_parts[0].strip() if location_parts else "Miami"
+            state = location_parts[1].strip() if len(location_parts) > 1 else "FL"
+
+            is_featured = listing_data.get("featured", False)
+            listing_status = listing_data.get("status", "active")
+            is_recently_deleted = listing_data.get("recently_deleted", False)
+
+            listing = Listing(
+                user_id=demo_user.id,
+                created_by_user_id=created_by_user_id,
+                title=listing_data.get("title", "Sample Yacht"),
+                description=listing_data.get("description", ""),
+                make=listing_data.get("make", ""),
+                model=listing_data.get("model", ""),
+                year=listing_data.get("year", 2023),
+                price=listing_data.get("price", 1000000),
+                currency="USD",
+                bin=bin_id,
+                length_feet=listing_data.get("length_feet", 50),
+                beam_feet=listing_data.get("beam_feet", 15),
+                draft_feet=listing_data.get("draft_feet", 4),
+                boat_type=listing_data.get("boat_type", "motor_yacht"),
+                cabins=listing_data.get("num_cabins", 3),
+                heads=listing_data.get("num_heads", 2),
+                fuel_capacity_gallons=listing_data.get("fuel_capacity_gallons", 2000),
+                water_capacity_gallons=listing_data.get("water_capacity_gallons", 1000),
+                city=city,
+                state=state,
+                country="USA",
+                fuel_type=listing_data.get("fuel_type", "diesel"),
+                condition=listing_data.get("condition", "Excellent"),
+                feature_bullets=listing_data.get("features", []),
+                status=listing_status,
+                featured=is_featured,
+                featured_until=now + timedelta(days=90) if is_featured else None,
+                views=listing_data.get("views", 0),
+                inquiries=listing_data.get("inquiries", 0),
+                # Soft-delete listings flagged recently_deleted so the
+                # Recently Deleted tab is populated on a fresh demo.
+                # Use staggered ages so countdown numbers vary.
+                deleted_at=now - timedelta(days=3 + idx * 2) if is_recently_deleted else None,
+            )
+            db.add(listing)
+            listings_created += 1
+        except Exception as e:
+            # Log but continue creating other listings
+            print(f"Error creating listing: {str(e)}")
+            continue
+
+    db.flush()
+
+    return {
+        "demo_user": demo_user,
+        "listings_created": listings_created,
+        "temp_password": temp_password,
+    }
