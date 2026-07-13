@@ -20,6 +20,7 @@ import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import AdminCatalogTab from '@/app/components/admin/AdminCatalogTab';
 import AdminCharterTab from '@/app/components/admin/AdminCharterTab';
 import AdminFoundingBrokerTab from '@/app/components/admin/AdminFoundingBrokerTab';
+import AdminEmailTemplatesTab from '@/app/components/admin/AdminEmailTemplatesTab';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3, Link2, Copy, Check } from 'lucide-react';
 
 function AdminPageContent() {
@@ -44,6 +45,7 @@ function AdminPageContent() {
     { id: 'catalog', label: 'Catalog', icon: '📋' },
     { id: 'charter', label: 'Charter', icon: '⛵' },
     { id: 'founding-broker', label: 'Founding Broker', icon: '🤝' },
+    { id: 'email-templates', label: 'Email Templates', icon: '✉️' },
   ];
 
   return (
@@ -93,6 +95,7 @@ function AdminPageContent() {
           {activeTab === 'catalog' && <AdminCatalogTab />}
           {activeTab === 'charter' && <AdminCharterTab />}
           {activeTab === 'founding-broker' && <AdminFoundingBrokerTab />}
+          {activeTab === 'email-templates' && <AdminEmailTemplatesTab />}
         </section>
       </div>
     </AdminLayout>
