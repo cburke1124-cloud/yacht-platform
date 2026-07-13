@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
+import BookingRangeCalendar from '@/app/components/charter/BookingRangeCalendar';
 
 export interface CharterListing {
   id: number;
@@ -604,53 +605,6 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 </div>
               )}
             </div>
-
-            {/* == INLINE INQUIRY FORM ==============================================
-                Always present (not a modal) so the availability calendar and date
-                selection are available on every listing, whether or not it has a
-                direct booking_url — this is the one place across the site where a
-                visitor picks their preferred charter dates before contacting the
-                charter company. */}
-            <div id="inquiry" className="scroll-mt-32 rounded-3xl border border-gray-200 bg-white p-6">
-              <h4 className="text-lg font-bold text-[#10214F] mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Inquire About This Yacht</h4>
-              <p className="text-sm text-gray-500 mb-4">Send your preferred dates and the charter company will confirm availability.</p>
-              {submitted ? (
-                <div className="text-center py-6">
-                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
-                  <p className="text-sm text-gray-400">The charter company will be in touch shortly.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleInquiry} className="space-y-3">
-                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                    <input type="number" min={1} placeholder="Guests" value={inquiryForm.guests} onChange={e => setInquiryForm(f => ({ ...f, guests: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Preferred start</label>
-                      <input type="date" value={charterStartDate} onChange={e => setCharterStartDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Preferred end</label>
-                      <input type="date" value={charterEndDate} min={charterStartDate || undefined} onChange={e => setCharterEndDate(e.target.value)} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                    </div>
-                  </div>
-                  {dateConflict && (
-                    <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-                      These dates overlap a booked or tentatively held window — you can still send your inquiry, but confirm with the charter company before finalizing plans.
-                    </div>
-                  )}
-                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
-                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
-                    {submitting ? 'Sending...' : 'Send Inquiry'}
-                  </button>
-                </form>
-              )}
-            </div>
           </div>
         </div>
 
@@ -861,6 +815,50 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
 
           {/* Right sidebar -- 4 cols */}
           <div className="lg:col-span-4 space-y-6">
+
+            {/* == INLINE INQUIRY FORM ==============================================
+                Always present (not a modal) so the availability calendar and date
+                selection are available on every listing, whether or not it has a
+                direct booking_url — this is the one place across the site where a
+                visitor picks their preferred charter dates before contacting the
+                charter company. The calendar leads the card, single month, click to
+                pick a range — a hotel-booking feel rather than a form field. */}
+            <div id="inquiry" className="scroll-mt-32 rounded-3xl border border-gray-200 bg-white p-6">
+              <h4 className="text-lg font-bold text-[#10214F] mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Inquire About This Yacht</h4>
+              <p className="text-sm text-gray-500 mb-4">Pick your preferred dates and the charter company will confirm availability.</p>
+              {submitted ? (
+                <div className="text-center py-6">
+                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
+                  <p className="text-sm text-gray-400">The charter company will be in touch shortly.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleInquiry} className="space-y-3">
+                  <BookingRangeCalendar
+                    blocks={charter.availability_blocks ?? []}
+                    startDate={charterStartDate}
+                    endDate={charterEndDate}
+                    onChange={(start, end) => { setCharterStartDate(start); setCharterEndDate(end); }}
+                  />
+                  {dateConflict && (
+                    <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                      These dates overlap a booked or tentatively held window — you can still send your inquiry, but confirm with the charter company before finalizing plans.
+                    </div>
+                  )}
+                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    <input type="number" min={1} placeholder="Guests" value={inquiryForm.guests} onChange={e => setInquiryForm(f => ({ ...f, guests: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  </div>
+                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
+                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
+                    {submitting ? 'Sending...' : 'Send Inquiry'}
+                  </button>
+                </form>
+              )}
+            </div>
 
             {/* CHARTER POLICY CARD */}
             {(charter.included_items?.length || charter.excluded_items?.length || charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
