@@ -105,6 +105,8 @@ async def register(request: Request, response: Response, user_data: UserRegister
                 raise ValidationException("You must agree to the Terms and Privacy Policy")
             if not user_data.agree_communications:
                 raise ValidationException("You must agree to receive account communications")
+            if user_data.user_type == "dealer" and not (user_data.phone or "").strip():
+                raise ValidationException("Phone number is required")
 
         try:
             existing_user = db.execute(
@@ -332,6 +334,9 @@ async def register(request: Request, response: Response, user_data: UserRegister
                 if hasattr(DealerProfile, 'phone'):
                     profile_data["phone"] = user.phone
 
+                if hasattr(DealerProfile, 'website') and user_data.website:
+                    profile_data["website"] = user_data.website
+
                 profile = DealerProfile(**profile_data)
                 db.add(profile)
                 # API key is no longer generated or emailed on registration. Brokers can create API keys from the dashboard only.
@@ -353,6 +358,40 @@ async def register(request: Request, response: Response, user_data: UserRegister
         except Exception:
             db.rollback()
             logger.exception("Post-registration provisioning failed for user %s; continuing", user.id)
+
+        # Notify admins whenever a new broker account is created
+        if user.user_type == "dealer":
+            try:
+                admins = db.query(User).filter(User.user_type == "admin").all()
+                broker_name = f"{user.first_name} {user.last_name}".strip()
+                for admin in admins:
+                    if admin.email:
+                        email_service.send_admin_new_broker_alert(
+                            to_email=admin.email,
+                            broker_name=broker_name,
+                            broker_email=user.email,
+                            company_name=user.company_name,
+                        )
+            except Exception:
+                logger.exception("Failed to notify admins of new broker signup for user %s", user.id)
+
+        # Notify the connected sales rep when someone signs up through their affiliate/referral link
+        if assigned_sales_rep_id:
+            try:
+                sales_rep = db.query(User).filter(User.id == assigned_sales_rep_id).first()
+                if sales_rep and sales_rep.email:
+                    account_type_labels = {"dealer": "Broker", "buyer": "Buyer", "private": "Private Seller"}
+                    signup_name = f"{user.first_name} {user.last_name}".strip()
+                    email_service.send_sales_rep_referral_signup_alert(
+                        to_email=sales_rep.email,
+                        sales_rep_name=sales_rep.first_name or "there",
+                        signup_name=signup_name,
+                        signup_email=user.email,
+                        account_type_label=account_type_labels.get(user.user_type, user.user_type.title()),
+                        company_name=user.company_name,
+                    )
+            except Exception:
+                logger.exception("Failed to notify sales rep %s of new referral signup", assigned_sales_rep_id)
 
         token = None
         try:

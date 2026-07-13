@@ -206,6 +206,39 @@ class EmailService:
         )
         return self.send_email(to_email, "Reset Your YachtVersal Password", html)
 
+    def send_admin_new_broker_alert(self, to_email: str, broker_name: str, broker_email: str, company_name: str = None):
+        """Notify an admin that a new broker/dealer account was created."""
+        html = self._render(
+            "admin_new_broker_signup.html",
+            broker_name=broker_name,
+            broker_email=broker_email,
+            company_name=company_name,
+            admin_url=f"{self.base_url}/admin",
+        )
+        subject = f"New Broker Signup: {company_name}" if company_name else f"New Broker Signup: {broker_name}"
+        return self.send_email(to_email, subject, html)
+
+    def send_sales_rep_referral_signup_alert(
+        self,
+        to_email: str,
+        sales_rep_name: str,
+        signup_name: str,
+        signup_email: str,
+        account_type_label: str,
+        company_name: str = None,
+    ):
+        """Notify a sales rep that someone signed up through their referral link."""
+        html = self._render(
+            "sales_rep_referral_signup.html",
+            sales_rep_name=sales_rep_name,
+            signup_name=signup_name,
+            signup_email=signup_email,
+            account_type_label=account_type_label,
+            company_name=company_name,
+            dashboard_url=f"{self.base_url}/sales-rep",
+        )
+        return self.send_email(to_email, f"New Referral Signup: {signup_name}", html)
+
 
 # Singleton instance
 email_service = EmailService()

@@ -428,9 +428,39 @@ async def register_with_invitation(
     # Mark invitation as accepted
     invitation.status = "accepted"
     invitation.accepted_at = datetime.utcnow()
-    
+
     db.commit()
-    
+
+    # Notify admins whenever a new broker account is created
+    try:
+        admins = db.query(User).filter(User.user_type == "admin").all()
+        broker_name = f"{user.first_name} {user.last_name}".strip()
+        for admin in admins:
+            if admin.email:
+                email_service.send_admin_new_broker_alert(
+                    to_email=admin.email,
+                    broker_name=broker_name,
+                    broker_email=user.email,
+                    company_name=user.company_name,
+                )
+    except Exception:
+        logging.exception("Failed to notify admins of new broker signup for user %s", user.id)
+
+    # Notify the connected sales rep when someone signs up through their invitation link
+    try:
+        sales_rep = db.query(User).filter(User.id == invitation.sales_rep_id).first()
+        if sales_rep and sales_rep.email:
+            email_service.send_sales_rep_referral_signup_alert(
+                to_email=sales_rep.email,
+                sales_rep_name=sales_rep.first_name or "there",
+                signup_name=f"{user.first_name} {user.last_name}".strip(),
+                signup_email=user.email,
+                account_type_label="Broker",
+                company_name=user.company_name,
+            )
+    except Exception:
+        logging.exception("Failed to notify sales rep %s of new referral signup", invitation.sales_rep_id)
+
     # Generate access token
     access_token = create_access_token(
         data={"sub": user.email},
