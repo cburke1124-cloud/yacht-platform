@@ -315,39 +315,12 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
       ? formatRate(charter.week_rate, charter.currency, 'week')
       : null;
 
-  const quickNavLinks: Array<{ id: string; label: string }> = [
-    { id: 'overview', label: 'Overview' },
-    ...(images.length > 1 ? [{ id: 'photos', label: 'Photos' }] : []),
-    { id: 'specs', label: 'Specs' },
-    ...(topAmenities.length ? [{ id: 'amenities', label: 'Amenities' }] : []),
-    { id: 'availability', label: 'Availability' },
-    ...(seasonalRates.length || hourlyRates.length ? [{ id: 'rates', label: 'Rates' }] : []),
-    { id: 'inquiry', label: 'Inquire' },
-  ];
-
   const scrollToSection = (sectionId: string) => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
     <div className="min-h-screen bg-white pb-20 md:pb-0">
-
-      {/* == STICKY SECTION NAV ================================================= */}
-      <div className="sticky top-20 z-30 bg-white/95 backdrop-blur-sm border-b border-gray-200">
-        <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2.5">
-            {quickNavLinks.map(link => (
-              <button
-                key={link.id}
-                onClick={() => scrollToSection(link.id)}
-                className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#10214F] hover:bg-[#01BBDC]/10 hover:text-[#01BBDC] transition-colors whitespace-nowrap"
-              >
-                {link.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* == PAGE =============================================================== */}
       <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
