@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from datetime import datetime, timedelta
@@ -201,6 +202,95 @@ def test_email(
         return {"success": True, "send_result": result, "diagnostics": diag}
     except Exception as e:
         return {"success": False, "error": str(e), "diagnostics": diag}
+
+
+_EMAIL_PREVIEW_SAMPLES: dict[str, dict] = {
+    "api_key.html": {
+        "dealer_name": "Jane Broker",
+        "api_key": "yv_live_sample1234567890",
+        "tier_title": "Premium",
+        "requests_limit": "10,000/day",
+        "listings_limit": "Unlimited",
+        "dashboard_url": f"{email_service.base_url}/dashboard/api-keys",
+    },
+    "wordpress_site_created.html": {
+        "dealer_name": "Jane Broker",
+        "site_domain": "janebroker-yachts.com",
+        "api_key": "yv_live_sample1234567890",
+        "wp_admin_url": "https://janebroker-yachts.com/wp-admin",
+        "wp_username": "janebroker",
+        "wp_password": "SampleTempPassword123!",
+    },
+    "verification.html": {
+        "user_name": "Jane Broker",
+        "verification_url": f"{email_service.base_url}/verify-email?token=sample-token",
+    },
+    "welcome.html": {
+        "greeting": "Hi Jane Broker,",
+        "signin_url": f"{email_service.base_url}/login",
+        "dashboard_url": f"{email_service.base_url}/dashboard",
+    },
+    "trial_expiring.html": {
+        "greeting": "Hi Jane Broker,",
+        "days_left": 3,
+        "trial_end_date": "March 15, 2026",
+        "billing_url": f"{email_service.base_url}/dashboard/billing",
+        "signin_url": f"{email_service.base_url}/login",
+    },
+    "dealer_invitation.html": {
+        "sales_rep_name": "Alex Sales",
+        "invitee": "Jane Yachts ",
+        "invitation_url": f"{email_service.base_url}/register/invited?token=sample-token",
+    },
+    "two_factor_code.html": {
+        "user_name": "Jane Broker",
+        "code": "123456",
+    },
+    "promotional_offer.html": {
+        "discount": "20%",
+        "trial_days": 30,
+        "end_date": "March 31, 2026",
+        "login_url": f"{email_service.base_url}/login",
+    },
+    "password_set.html": {
+        "greeting": "Hi Jane Broker,",
+        "set_password_url": f"{email_service.base_url}/set-password?token=sample-token",
+        "login_url": f"{email_service.base_url}/login/seller",
+    },
+    "password_reset.html": {
+        "greeting": "Hi Jane Broker,",
+        "reset_url": f"{email_service.base_url}/reset-password?token=sample-token",
+    },
+    "admin_new_broker_signup.html": {
+        "broker_name": "Jane Broker",
+        "broker_email": "jane@janebroker-yachts.com",
+        "company_name": "Jane Broker Yachts",
+        "admin_url": f"{email_service.base_url}/admin",
+    },
+    "sales_rep_referral_signup.html": {
+        "sales_rep_name": "Alex Sales",
+        "signup_name": "Jane Broker",
+        "signup_email": "jane@janebroker-yachts.com",
+        "account_type_label": "Broker",
+        "company_name": "Jane Broker Yachts",
+        "dashboard_url": f"{email_service.base_url}/sales-rep",
+    },
+}
+
+
+@router.get("/email-preview")
+def list_email_previews(current_user: User = Depends(require_admin)):
+    """Admin-only: list email template names available for preview."""
+    return {"templates": list(_EMAIL_PREVIEW_SAMPLES.keys())}
+
+
+@router.get("/email-preview/{template_name}", response_class=HTMLResponse)
+def preview_email(template_name: str, current_user: User = Depends(require_admin)):
+    """Admin-only: render an email template with sample data (never sends anything)."""
+    sample_ctx = _EMAIL_PREVIEW_SAMPLES.get(template_name)
+    if sample_ctx is None:
+        raise ResourceNotFoundException("Email template", template_name)
+    return HTMLResponse(email_service._render(template_name, **sample_ctx))
 
 
 @router.get("/system/info")
