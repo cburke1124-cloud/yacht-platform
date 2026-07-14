@@ -111,6 +111,7 @@ def _with_company_fallback(data: dict, charter: CharterListing, db: Session) -> 
     profile = db.query(DealerProfile).filter(DealerProfile.user_id == profile_owner.id).first()
 
     data["charter_company_name"] = data.get("charter_company_name") or (profile.company_name if profile else None) or getattr(owner, "company_name", None)
+    data["charter_company_slug"] = data.get("charter_company_slug") or (profile.slug if profile else None)
     data["charter_company_email"] = data.get("charter_company_email") or (profile.email if profile else None) or owner.email
     data["charter_company_phone"] = data.get("charter_company_phone") or (profile.phone if profile else None) or getattr(owner, "phone", None)
     data["charter_company_website"] = data.get("charter_company_website") or (profile.website if profile else None)

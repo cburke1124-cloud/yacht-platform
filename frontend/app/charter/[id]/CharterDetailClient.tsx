@@ -458,9 +458,16 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                   )}
                 </div>
                 {charter.charter_company_name && (
-                  <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4 }}>
-                    {charter.charter_company_name}
-                  </p>
+                  charter.charter_company_slug ? (
+                    <Link href={`/dealers/${charter.charter_company_slug}`} className="hover:underline"
+                      style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4, display: 'block' }}>
+                      {charter.charter_company_name}
+                    </Link>
+                  ) : (
+                    <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4 }}>
+                      {charter.charter_company_name}
+                    </p>
+                  )
                 )}
                 {charter.charter_company_phone && (
                   <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2" style={{ color: '#10214F' }}>
