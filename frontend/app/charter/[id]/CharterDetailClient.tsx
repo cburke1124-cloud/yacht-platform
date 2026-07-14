@@ -526,7 +526,9 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
           {/* Booking card -- 4 cols */}
           <div className="lg:col-span-4">
             <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden sticky top-5">
-              {/* ── Broker/company section (top tier, mirrors the for-sale contact card) ── */}
+              {/* ── Company section — single unified block, no separate broker tier
+                    (charter listings don't have an individual sales-rep concept the
+                    way for-sale listings do, just the one charter company). ── */}
               <div className="p-6 text-center">
                 <div className="flex justify-center mb-4">
                   {charter.charter_company_logo_url ? (
@@ -551,16 +553,52 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                     </p>
                   )
                 )}
+                {(charter.charter_company_city || charter.charter_company_state || charter.charter_company_country) && (
+                  <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-3">
+                    <MapPin size={10} />
+                    {[charter.charter_company_city, charter.charter_company_state, charter.charter_company_country].filter(Boolean).join(', ')}
+                  </p>
+                )}
+                {charter.charter_company_description && (
+                  <p className="text-center text-xs text-gray-500 leading-relaxed mb-3 line-clamp-4">
+                    {charter.charter_company_description}
+                  </p>
+                )}
                 {charter.charter_company_phone && (
                   <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2" style={{ color: '#10214F' }}>
                     <Phone size={13} /> {charter.charter_company_phone}
                   </a>
                 )}
-                {(charter.charter_company_city || charter.charter_company_state) && (
-                  <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-5">
-                    <MapPin size={10} />
-                    {[charter.charter_company_city, charter.charter_company_state].filter(Boolean).join(', ')}
-                  </p>
+                {charter.charter_company_email && (
+                  <a href={`mailto:${charter.charter_company_email}`}
+                    className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-3"
+                    style={{ color: '#10214F' }}>
+                    <Mail size={13} /> {charter.charter_company_email}
+                  </a>
+                )}
+                {(charter.charter_company_facebook_url || charter.charter_company_instagram_url || charter.charter_company_twitter_url || charter.charter_company_linkedin_url) && (
+                  <div className="flex items-center justify-center gap-3 mb-5">
+                    {charter.charter_company_facebook_url && (
+                      <a href={charter.charter_company_facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                        <Facebook size={16} className="text-[#1877F2]" />
+                      </a>
+                    )}
+                    {charter.charter_company_instagram_url && (
+                      <a href={charter.charter_company_instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                        <Instagram size={16} className="text-[#E4405F]" />
+                      </a>
+                    )}
+                    {charter.charter_company_twitter_url && (
+                      <a href={charter.charter_company_twitter_url} target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+                        <Twitter size={16} className="text-[#1DA1F2]" />
+                      </a>
+                    )}
+                    {charter.charter_company_linkedin_url && (
+                      <a href={charter.charter_company_linkedin_url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                        <Linkedin size={16} className="text-[#0A66C2]" />
+                      </a>
+                    )}
+                  </div>
                 )}
 
                 {/* Rates */}
@@ -603,7 +641,8 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                   </div>
                 )}
 
-                {/* CTA */}
+                {/* CTA — the "message" action: books directly if a booking_url exists,
+                    otherwise scrolls to the inquiry form further down the page */}
                 {charter.booking_url ? (
                   <a href={charter.booking_url} target="_blank" rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
@@ -617,72 +656,16 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                     REQUEST CHARTER
                   </button>
                 )}
-              </div>
 
-              {/* ── Company section (bottom tier, gray bg — logo, bio, socials, website) ── */}
-              {charter.charter_company_name && (
-                <div className="border-t border-gray-100 p-5" style={{ backgroundColor: '#F8F9FC' }}>
-                  <div className="flex justify-center mb-3">
-                    {charter.charter_company_logo_url ? (
-                      <img src={mediaUrl(charter.charter_company_logo_url)} alt={`${charter.charter_company_name} logo`}
-                        className="h-12 max-w-[140px] object-contain"
-                        onError={onImgError} />
-                    ) : (
-                      <img src="/logo/logo-icon.png" alt="YachtVersal" className="h-10 w-auto object-contain opacity-30" />
-                    )}
-                  </div>
-                  {(charter.charter_company_city || charter.charter_company_state || charter.charter_company_country) && (
-                    <p className="text-center text-[11px] text-gray-400 flex items-center justify-center gap-1 mb-3">
-                      <MapPin size={10} />
-                      {[charter.charter_company_city, charter.charter_company_state, charter.charter_company_country].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                  {charter.charter_company_description && (
-                    <p className="text-center text-xs text-gray-500 leading-relaxed mb-3 line-clamp-4">
-                      {charter.charter_company_description}
-                    </p>
-                  )}
-                  {charter.charter_company_email && (
-                    <a href={`mailto:${charter.charter_company_email}`}
-                      className="flex items-center justify-center gap-1.5 text-xs hover:text-[#01BBDC] transition-colors mb-3"
-                      style={{ color: '#10214F' }}>
-                      <Mail size={12} /> {charter.charter_company_email}
-                    </a>
-                  )}
-                  {(charter.charter_company_facebook_url || charter.charter_company_instagram_url || charter.charter_company_twitter_url || charter.charter_company_linkedin_url) && (
-                    <div className="flex items-center justify-center gap-3 mb-3">
-                      {charter.charter_company_facebook_url && (
-                        <a href={charter.charter_company_facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-                          <Facebook size={16} className="text-[#1877F2]" />
-                        </a>
-                      )}
-                      {charter.charter_company_instagram_url && (
-                        <a href={charter.charter_company_instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                          <Instagram size={16} className="text-[#E4405F]" />
-                        </a>
-                      )}
-                      {charter.charter_company_twitter_url && (
-                        <a href={charter.charter_company_twitter_url} target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-                          <Twitter size={16} className="text-[#1DA1F2]" />
-                        </a>
-                      )}
-                      {charter.charter_company_linkedin_url && (
-                        <a href={charter.charter_company_linkedin_url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                          <Linkedin size={16} className="text-[#0A66C2]" />
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  {charter.charter_company_website && (
-                    <a href={charter.charter_company_website.startsWith('http') ? charter.charter_company_website : `https://${charter.charter_company_website}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80"
-                      style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.06em', border: '1.5px solid #10214F', color: '#10214F' }}>
-                      VISIT WEBSITE
-                    </a>
-                  )}
-                </div>
-              )}
+                {charter.charter_company_website && (
+                  <a href={charter.charter_company_website.startsWith('http') ? charter.charter_company_website : `https://${charter.charter_company_website}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80 mt-2"
+                    style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.06em', border: '1.5px solid #10214F', color: '#10214F' }}>
+                    VISIT WEBSITE
+                  </a>
+                )}
+              </div>
 
               {/* ── Action buttons row: Save / Compare / Share ── */}
               <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
