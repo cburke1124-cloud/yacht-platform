@@ -255,6 +255,98 @@ async def upload_media(
     }
 
 
+@router.post("/{media_id}/replace")
+async def replace_media(
+    media_id: int,
+    file: UploadFile = File(...),
+    as_dealer_id: Optional[int] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Overwrite an existing MediaFile's contents in place (same id/alt_text/
+    folder), used by the crop/rotate "Edit" action on an already-uploaded
+    photo. Keeping the id stable means every listing/charter attachment
+    already pointing at this photo automatically shows the edited version —
+    no need to re-attach anywhere it's used.
+
+    Same as_dealer_id scoping as every other media endpoint: an admin editing
+    a specific dealer's existing photo (e.g. from the dealer-management
+    screen) must explicitly declare which dealer via as_dealer_id, exactly
+    like uploading/attaching on their behalf — no blanket "admin can touch
+    any media" bypass, to keep this consistent with the cross-broker
+    isolation fix elsewhere in this file.
+    """
+    scope_user = _resolve_media_scope_user(current_user, as_dealer_id, db)
+    org_ids = _org_media_ids(scope_user, db)
+    media = db.query(MediaFile).filter(
+        MediaFile.id == media_id,
+        MediaFile.user_id.in_(org_ids),
+        MediaFile.deleted_at.is_(None),
+    ).first()
+    if not media:
+        raise ResourceNotFoundException("Media", media_id)
+    if media.file_type != "image":
+        raise ValidationException("Only images can be replaced this way")
+
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise ValidationException(f"File too large. Maximum size is {MAX_FILE_SIZE / 1024 / 1024}MB")
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise ValidationException(f"Unsupported file type: {file.content_type}")
+
+    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    safe_basename = re.sub(r'[^a-zA-Z0-9._-]', '_', os.path.basename(file.filename or 'upload'))
+    safe_filename = f"{timestamp}_{safe_basename}"
+
+    try:
+        optimized_content, thumbnail_content, width, height = optimize_image(content)
+        base_name = os.path.splitext(safe_filename)[0]
+        optimized_filename = f"{base_name}.webp"
+        thumb_filename = f"{base_name}_thumb.webp"
+        file_url = store_media_bytes(optimized_filename, optimized_content, "image/webp")
+        thumbnail_url = store_media_bytes(thumb_filename, thumbnail_content, "image/webp")
+        safe_filename = optimized_filename
+        content = optimized_content
+    except Exception:
+        file_url = store_media_bytes(safe_filename, content, file.content_type)
+        thumbnail_url = None
+        width = None
+        height = None
+
+    old_url, old_thumbnail_url = media.url, media.thumbnail_url
+
+    media.filename = safe_filename
+    media.url = file_url
+    media.thumbnail_url = thumbnail_url
+    media.file_size_mb = len(content) / (1024 * 1024)
+    media.width = width
+    media.height = height
+    media.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(media)
+
+    try:
+        if old_url:
+            delete_media_by_url(old_url)
+        if old_thumbnail_url:
+            delete_media_by_url(old_thumbnail_url)
+    except Exception:
+        pass  # best-effort cleanup of the superseded file
+
+    return {
+        "success": True,
+        "media": {
+            "id": media.id,
+            "url": media.url,
+            "thumbnail_url": media.thumbnail_url,
+            "file_type": media.file_type,
+            "filename": media.filename,
+            "width": media.width,
+            "height": media.height,
+        },
+    }
+
+
 @router.post("/bulk-upload")
 async def bulk_upload_media(
     files: List[UploadFile] = File(...),
@@ -391,10 +483,10 @@ def _resolve_media_scope_user(
     if as_dealer_id is None:
         return current_user
     if (current_user.user_type or "").lower() != "admin":
-        raise HTTPException(status_code=403, detail="Only admins may act on behalf of another dealer")
+        raise HTTPException(status_code=403, detail="Only admins may act on behalf of another broker")
     target = db.query(User).filter(User.id == as_dealer_id).first()
     if not target:
-        raise HTTPException(status_code=404, detail="Target dealer not found")
+        raise HTTPException(status_code=404, detail="Target broker not found")
     return target
 
 

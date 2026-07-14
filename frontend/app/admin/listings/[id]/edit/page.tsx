@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle, GripVertical } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle, GripVertical, Edit2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ImageCropModal from '@/app/components/ImageCropModal';
 
@@ -39,6 +39,8 @@ export default function AdminListingEditPage() {
   const [draggedMediaId, setDraggedMediaId] = useState<number | null>(null);
   const [reorderingMedia, setReorderingMedia] = useState(false);
   const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingBusy, setEditingBusy] = useState(false);
 
   useEffect(() => {
     if (!listingId) return;
@@ -169,8 +171,9 @@ export default function AdminListingEditPage() {
     const files = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
     if (!files.length) return;
-    // Every image goes through crop/rotate before it's uploaded.
-    setPendingCropFiles(files);
+    // Crop/rotate is opt-in — click "Edit" on an already-uploaded photo,
+    // not forced on every upload. See startEditPhoto/finishEditPhoto below.
+    uploadImages(files);
   }
 
   async function uploadImages(files: File[]) {
@@ -261,6 +264,47 @@ export default function AdminListingEditPage() {
       await refreshMedia();
     } else {
       showToast(false, 'Failed to set primary');
+    }
+  }
+
+  // Crop/rotate an already-uploaded photo, opt-in via its own Edit button —
+  // fetches the current bytes, reuses the same crop modal as uploads, then
+  // swaps the edited version in via /media/{id}/replace. Same MediaFile id,
+  // so this listing (and any other listing sharing the same photo)
+  // automatically shows the edit with no re-attach needed.
+  async function startEditPhoto(img: any) {
+    if (!usingNewMediaSystem || img.id == null) return;
+    try {
+      // Full-res url, not the thumbnail — cropping a thumbnail would bake in
+      // its lower resolution.
+      const res = await fetch(img.url);
+      const blob = await res.blob();
+      const file = new File([blob], `listing-photo-${img.id}.jpg`, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(img.id);
+      setPendingCropFiles([file]);
+    } catch {
+      showToast(false, 'Could not load this photo for editing');
+    }
+  }
+
+  async function finishEditPhoto(edited: File[]) {
+    const mediaId = editingMediaId;
+    setPendingCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const r = await fetch(apiUrl(`/media/${mediaId}/replace`), { method: 'POST', headers: authHeaders(), body: fd });
+      if (r.ok) {
+        await refreshMedia();
+      } else {
+        showToast(false, 'Failed to save edited photo');
+      }
+    } finally {
+      setEditingBusy(false);
     }
   }
 
@@ -591,6 +635,11 @@ export default function AdminListingEditPage() {
                               <Star size={13} />
                             </button>
                           )}
+                          {usingNewMediaSystem && (
+                            <button onClick={() => startEditPhoto(img)} title="Edit photo" className="p-1.5 bg-[#10214F] text-white rounded-lg hover:bg-[#1a3570]">
+                              <Edit2 size={13} />
+                            </button>
+                          )}
                           <button onClick={() => deleteImage(img.id)} title="Remove" className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700">
                             <Trash2 size={13} />
                           </button>
@@ -613,7 +662,7 @@ export default function AdminListingEditPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className={labelCls}>Owner (Dealer Account)</label>
+                  <label className={labelCls}>Owner (Broker Account)</label>
                   <select
                     className={inputCls}
                     value={listing.user_id || ''}
@@ -623,7 +672,7 @@ export default function AdminListingEditPage() {
                       if (e.target.value) loadSalespeople(Number(e.target.value));
                     }}
                   >
-                    <option value="">— Select dealer —</option>
+                    <option value="">— Select broker —</option>
                     {dealers.map((d: any) => (
                       <option key={d.id} value={d.id}>
                         {d.company_name || `${d.first_name} ${d.last_name}`.trim()} (#{d.id})
@@ -699,9 +748,18 @@ export default function AdminListingEditPage() {
       {pendingCropFiles && (
         <ImageCropModal
           files={pendingCropFiles}
-          onComplete={edited => { setPendingCropFiles(null); uploadImages(edited); }}
-          onCancel={() => setPendingCropFiles(null)}
+          onComplete={finishEditPhoto}
+          onCancel={() => { setPendingCropFiles(null); setEditingMediaId(null); }}
         />
+      )}
+
+      {editingBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
     </div>
   );

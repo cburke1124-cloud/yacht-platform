@@ -65,6 +65,8 @@ export default function DealerMediaGallery({
   const [contextMenu, setContextMenu] = useState<{x: number, y: number, item: MediaItem} | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingBusy, setEditingBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Subscription tier limits (from user context)
@@ -183,7 +185,12 @@ export default function DealerMediaGallery({
       }
 
       setMedia(prev => [...newMedia, ...prev]);
-      if (newMedia.length > 0) {
+      // In picker mode (embedded in a listing/charter editor), a freshly
+      // uploaded photo attaches immediately — no need to also find and
+      // select it from the library grid.
+      if (mode === 'picker' && onSelectMedia && newMedia.length > 0) {
+        onSelectMedia(newMedia);
+      } else if (newMedia.length > 0) {
         alert(`Successfully uploaded ${newMedia.length} file(s)!`);
       }
       if (newMedia.length < totalFiles) {
@@ -202,18 +209,61 @@ export default function DealerMediaGallery({
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files.length > 0) {
-      handleFilesSelected(e.dataTransfer.files);
+      handleBulkUpload(e.dataTransfer.files);
     }
   };
 
-  // Every image goes through crop/rotate before it's uploaded. Non-image
-  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  // Crop/rotate is opt-in — click "Edit" on an already-uploaded photo,
+  // not forced on every upload. See startEditPhoto/finishEditPhoto below.
   const handleFilesSelected = (fileList: FileList) => {
-    const all = Array.from(fileList);
-    const images = all.filter(f => f.type.startsWith('image/'));
-    const others = all.filter(f => !f.type.startsWith('image/'));
-    if (others.length) handleBulkUpload(others);
-    if (images.length) setPendingCropFiles(images);
+    handleBulkUpload(fileList);
+  };
+
+  // Fetch an already-uploaded photo's bytes so it can be re-opened in the
+  // same crop/rotate modal used for uploads, then swap the edited version
+  // back in via /media/{id}/replace (same id, so anything already using
+  // this photo elsewhere just shows the edited version automatically).
+  const startEditPhoto = async (item: MediaItem) => {
+    setContextMenu(null);
+    try {
+      const res = await fetch(mediaUrl(item.url));
+      const blob = await res.blob();
+      const file = new File([blob], item.filename, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(item.id);
+      setPendingCropFiles([file]);
+    } catch (error) {
+      console.error('Failed to load photo for editing:', error);
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditPhoto = async (edited: File[]) => {
+    const mediaId = editingMediaId;
+    setPendingCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', edited[0]);
+      const response = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (response.ok) {
+        await fetchMedia();
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch (error) {
+      console.error('Failed to save edited photo:', error);
+      alert('Failed to save edited photo');
+    } finally {
+      setEditingBusy(false);
+    }
   };
 
   const toggleSelectMedia = (id: number) => {
@@ -322,6 +372,26 @@ export default function DealerMediaGallery({
 
       if (deleted < idsToDelete.length) {
         alert(`${idsToDelete.length - deleted} item(s) could not be deleted.`);
+      }
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      alert('Delete failed');
+    }
+  };
+
+  const deleteOne = async (item: MediaItem) => {
+    setContextMenu(null);
+    if (!confirm(`Delete "${item.filename}"?`)) return;
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(apiUrl(`/media/${item.id}`), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setMedia(prev => prev.filter(m => m.id !== item.id));
+      } else {
+        alert('Delete failed');
       }
     } catch (error) {
       console.error('Failed to delete:', error);
@@ -631,6 +701,17 @@ export default function DealerMediaGallery({
                       </div>
                     )}
 
+                    {item.file_type === 'image' && !selectedMedia.has(item.id) && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); startEditPhoto(item); }}
+                        title="Edit photo"
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#10214F]"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                    )}
+
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <p className="text-white text-xs truncate">{item.filename}</p>
                       <p className="text-white/80 text-xs">{item.file_size_mb.toFixed(2)} MB</p>
@@ -793,9 +874,45 @@ export default function DealerMediaGallery({
       {pendingCropFiles && (
         <ImageCropModal
           files={pendingCropFiles}
-          onComplete={edited => { setPendingCropFiles(null); handleBulkUpload(edited); }}
-          onCancel={() => setPendingCropFiles(null)}
+          onComplete={finishEditPhoto}
+          onCancel={() => { setPendingCropFiles(null); setEditingMediaId(null); }}
         />
+      )}
+
+      {editingBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-[90]" onClick={() => setContextMenu(null)} />
+          <div
+            className="fixed z-[100] w-40 rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            {contextMenu.item.file_type === 'image' && (
+              <button
+                type="button"
+                onClick={() => startEditPhoto(contextMenu.item)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                <Edit2 size={14} /> Edit photo
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => deleteOne(contextMenu.item)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

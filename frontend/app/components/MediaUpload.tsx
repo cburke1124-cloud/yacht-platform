@@ -10,7 +10,6 @@ import {
   Loader,
 } from 'lucide-react';
 import { API_ROOT } from '@/app/lib/apiRoot';
-import ImageCropModal from './ImageCropModal';
 
 interface MediaUploadProps {
   onUploadComplete: (media: any[]) => void;
@@ -42,15 +41,9 @@ export default function MediaUpload({
   const [videoType, setVideoType] = useState<'youtube' | 'vimeo' | 'tour'>(
     'youtube'
   );
-  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
 
-  // Every image goes through crop/rotate before it's uploaded. Non-image
-  // files (video, PDF) skip straight to upload — there's nothing to crop.
   const handleFilesSelected = (files: File[]) => {
-    const images = files.filter(f => f.type.startsWith('image/'));
-    const others = files.filter(f => !f.type.startsWith('image/'));
-    if (others.length) uploadFiles(others);
-    if (images.length) setPendingCropFiles(images);
+    uploadFiles(files);
   };
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
@@ -247,13 +240,6 @@ export default function MediaUpload({
         </>
       )}
 
-      {pendingCropFiles && (
-        <ImageCropModal
-          files={pendingCropFiles}
-          onComplete={edited => { setPendingCropFiles(null); uploadFiles(edited); }}
-          onCancel={() => setPendingCropFiles(null)}
-        />
-      )}
     </div>
   );
 }

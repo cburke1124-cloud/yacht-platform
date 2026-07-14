@@ -5,21 +5,22 @@ import { useRouter } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ImageCropModal from '@/app/components/ImageCropModal';
 import {
-  Building2, 
-  Upload, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Globe, 
-  Facebook, 
-  Instagram, 
-  Twitter, 
+  Building2,
+  Upload,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  Facebook,
+  Instagram,
+  Twitter,
   Linkedin,
   Save,
   Eye,
   ArrowLeft,
   Share2,
-  Users
+  Users,
+  Edit2
 } from 'lucide-react';
 
 export default function DealerProfileEditPage() {
@@ -38,7 +39,10 @@ export default function DealerProfileEditPage() {
       });
   }, []);
   const [saving, setSaving] = useState(false);
-  const [pendingCrop, setPendingCrop] = useState<{ field: 'logo_url' | 'banner_url'; file: File } | null>(null);
+  // mediaId set only when editing an already-uploaded logo/banner (via the
+  // Edit button); absent for a brand-new upload picked from the file input.
+  const [pendingCrop, setPendingCrop] = useState<{ field: 'logo_url' | 'banner_url'; file: File; mediaId?: number } | null>(null);
+  const [editingImage, setEditingImage] = useState<'logo_url' | 'banner_url' | null>(null);
   const [profile, setProfile] = useState({
     company_name: '',
     name: '',
@@ -108,8 +112,7 @@ export default function DealerProfileEditPage() {
     }
   };
 
-  // Every logo/banner picked in the file input first goes through the crop
-  // modal, then this uploads the resulting edited file unchanged.
+  // Newly picked logo/banner files upload immediately — no forced crop step.
   const handleImageUpload = async (field: 'logo_url' | 'banner_url', file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -144,7 +147,72 @@ export default function DealerProfileEditPage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setPendingCrop({ field, file });
+    handleImageUpload(field, file);
+  };
+
+  // Edit an already-uploaded logo/banner. `profile` only stores the plain
+  // URL, so recover the MediaFile id by matching against the org's media
+  // library before re-opening the crop modal on the full-res image.
+  const startEditImage = async (field: 'logo_url' | 'banner_url') => {
+    const url = profile[field];
+    if (!url) return;
+    setEditingImage(field);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/media/my-media?limit=200'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      let mediaId: number | null = null;
+      if (res.ok) {
+        const data = await res.json();
+        const match = (data.media || []).find((m: any) => m.url === url);
+        if (match) mediaId = match.id;
+      }
+      if (mediaId == null) {
+        alert('Could not find this photo in the media library to edit it.');
+        return;
+      }
+      const imgRes = await fetch(mediaUrl(url));
+      const blob = await imgRes.blob();
+      const file = new File([blob], `${field}.jpg`, { type: blob.type || 'image/jpeg' });
+      setPendingCrop({ field, file, mediaId });
+    } catch (error) {
+      console.error('Failed to load photo for editing:', error);
+      alert('Could not load this photo for editing');
+    } finally {
+      setEditingImage(null);
+    }
+  };
+
+  const finishEditImage = async (edited: File[]) => {
+    if (!pendingCrop) return;
+    const { field, mediaId } = pendingCrop;
+    setPendingCrop(null);
+    if (!edited[0] || mediaId == null) return;
+
+    setEditingImage(field);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const r = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const url = data?.media?.url ?? data?.url;
+        if (url) setProfile(prev => ({ ...prev, [field]: url }));
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch (error) {
+      console.error('Failed to save edited photo:', error);
+      alert('Failed to save edited photo');
+    } finally {
+      setEditingImage(null);
+    }
   };
 
   const handleSave = async () => {
@@ -198,7 +266,7 @@ export default function DealerProfileEditPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-secondary">Edit Broker Profile</h1>
-              <p className="text-gray-600 mt-1">Customize how your dealership appears to buyers</p>
+              <p className="text-gray-600 mt-1">Customize how your brokerage appears to buyers</p>
             </div>
             
             <div className="flex gap-3">
@@ -251,6 +319,17 @@ export default function DealerProfileEditPage() {
                   />
                   <Upload className="text-white opacity-0 hover:opacity-100" size={32} />
                 </label>
+                {profile.banner_url && (
+                  <button
+                    type="button"
+                    onClick={() => startEditImage('banner_url')}
+                    disabled={editingImage === 'banner_url'}
+                    title="Edit photo"
+                    className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/50 text-white hover:bg-[#10214F] disabled:opacity-50"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -281,6 +360,17 @@ export default function DealerProfileEditPage() {
                     />
                     <Upload className="text-white opacity-0 hover:opacity-100" size={24} />
                   </label>
+                  {profile.logo_url && (
+                    <button
+                      type="button"
+                      onClick={() => startEditImage('logo_url')}
+                      disabled={editingImage === 'logo_url'}
+                      title="Edit photo"
+                      className="absolute top-1 right-1 z-10 p-1 rounded-full bg-black/50 text-white hover:bg-[#10214F] disabled:opacity-50"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -323,7 +413,7 @@ export default function DealerProfileEditPage() {
                   onChange={(e) => setProfile({...profile, description: e.target.value})}
                   rows={4}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="Tell buyers about your dealership, your experience, and what makes you unique..."
+                  placeholder="Tell buyers about your brokerage, your experience, and what makes you unique..."
                 />
               </div>
             </div>
@@ -346,7 +436,7 @@ export default function DealerProfileEditPage() {
                   value={profile.email}
                   onChange={(e) => setProfile({...profile, email: e.target.value})}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="contact@yourdealership.com"
+                  placeholder="contact@yourbrokerage.com"
                 />
               </div>
 
@@ -378,7 +468,7 @@ export default function DealerProfileEditPage() {
                   value={profile.website}
                   onChange={(e) => setProfile({...profile, website: e.target.value})}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="https://www.yourdealership.com"
+                  placeholder="https://www.yourbrokerage.com"
                 />
               </div>
             </div>
@@ -480,7 +570,7 @@ export default function DealerProfileEditPage() {
                   value={profile.facebook_url}
                   onChange={(e) => setProfile({...profile, facebook_url: e.target.value})}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="https://facebook.com/yourdealership"
+                  placeholder="https://facebook.com/yourbrokerage"
                 />
               </div>
 
@@ -496,7 +586,7 @@ export default function DealerProfileEditPage() {
                   value={profile.instagram_url}
                   onChange={(e) => setProfile({...profile, instagram_url: e.target.value})}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="https://instagram.com/yourdealership"
+                  placeholder="https://instagram.com/yourbrokerage"
                 />
               </div>
 
@@ -512,7 +602,7 @@ export default function DealerProfileEditPage() {
                   value={profile.twitter_url}
                   onChange={(e) => setProfile({...profile, twitter_url: e.target.value})}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="https://twitter.com/yourdealership"
+                  placeholder="https://twitter.com/yourbrokerage"
                 />
               </div>
 
@@ -528,7 +618,7 @@ export default function DealerProfileEditPage() {
                   value={profile.linkedin_url}
                   onChange={(e) => setProfile({...profile, linkedin_url: e.target.value})}
                   className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="https://linkedin.com/company/yourdealership"
+                  placeholder="https://linkedin.com/company/yourbrokerage"
                 />
               </div>
             </div>
@@ -657,13 +747,18 @@ export default function DealerProfileEditPage() {
         <ImageCropModal
           files={[pendingCrop.file]}
           aspect={pendingCrop.field === 'logo_url' ? 1 : undefined}
-          onComplete={edited => {
-            const { field } = pendingCrop;
-            setPendingCrop(null);
-            if (edited[0]) handleImageUpload(field, edited[0]);
-          }}
+          onComplete={finishEditImage}
           onCancel={() => setPendingCrop(null)}
         />
+      )}
+
+      {editingImage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-primary" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
     </div>
   );

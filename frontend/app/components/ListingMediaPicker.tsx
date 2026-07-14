@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, Image, Video, Folder, Check, X, Star, Trash2, Search, Grid3x3, AlertCircle, ChevronRight, FolderOpen } from 'lucide-react';
+import { Upload, Image, Video, Folder, Check, X, Star, Trash2, Search, Grid3x3, AlertCircle, ChevronRight, FolderOpen, Edit2 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ImageCropModal from './ImageCropModal';
 
@@ -55,6 +55,8 @@ export default function ListingMediaPicker({
   const [dragOver, setDragOver] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all');
   const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingBusy, setEditingBusy] = useState(false);
 
   useEffect(() => {
     fetchFolders();
@@ -121,14 +123,50 @@ export default function ListingMediaPicker({
     }
   };
 
-  // Every image goes through crop/rotate before it's uploaded. Non-image
-  // files (video) skip straight to upload — there's nothing to crop.
   const handleFilesSelected = (fileList: FileList) => {
-    const all = Array.from(fileList);
-    const images = all.filter(f => f.type.startsWith('image/'));
-    const others = all.filter(f => !f.type.startsWith('image/'));
-    if (others.length) handleFileUpload(others);
-    if (images.length) setPendingCropFiles(images);
+    handleFileUpload(fileList);
+  };
+
+  const startEditPhoto = async (item: MediaItem) => {
+    try {
+      const res = await fetch(mediaUrl(item.url));
+      const blob = await res.blob();
+      const file = new File([blob], item.filename, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(item.id);
+      setPendingCropFiles([file]);
+    } catch (error) {
+      console.error('Failed to load photo for editing:', error);
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditPhoto = async (edited: File[]) => {
+    const mediaId = editingMediaId;
+    setPendingCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', edited[0]);
+      const response = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (response.ok) {
+        await fetchLibraryMedia();
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch (error) {
+      console.error('Failed to save edited photo:', error);
+      alert('Failed to save edited photo');
+    } finally {
+      setEditingBusy(false);
+    }
   };
 
   const handleFileUpload = async (files: FileList | File[]) => {
@@ -490,10 +528,13 @@ export default function ListingMediaPicker({
                 {/* Media Grid */}
                 <div className="grid grid-cols-4 gap-2">
                   {filteredLibraryMedia.map(item => (
-                    <button
+                    <div
                       key={item.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => toggleLibrarySelection(item.id)}
-                      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleLibrarySelection(item.id); }}
+                      className={`group relative aspect-square rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
                         selectedFromLibrary.has(item.id)
                           ? 'border-[#01BBDC] ring-2 ring-[#01BBDC]/20'
                           : 'border-gray-200 hover:border-gray-300'
@@ -517,7 +558,18 @@ export default function ListingMediaPicker({
                           <Check size={14} className="text-white" />
                         </div>
                       )}
-                    </button>
+
+                      {item.file_type === 'image' && !selectedFromLibrary.has(item.id) && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); startEditPhoto(item); }}
+                          title="Edit photo"
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#10214F]"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
 
@@ -625,9 +677,17 @@ export default function ListingMediaPicker({
       {pendingCropFiles && (
         <ImageCropModal
           files={pendingCropFiles}
-          onComplete={edited => { setPendingCropFiles(null); handleFileUpload(edited); }}
-          onCancel={() => setPendingCropFiles(null)}
+          onComplete={finishEditPhoto}
+          onCancel={() => { setPendingCropFiles(null); setEditingMediaId(null); }}
         />
+      )}
+      {editingBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
     </div>
   );

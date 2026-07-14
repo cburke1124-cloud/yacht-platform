@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle, Trash2, Archive, RotateCcw } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
-import ImageCropModal from '../components/ImageCropModal';
 
 interface Message {
   id: number;
@@ -95,8 +94,6 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
   const inquiryFileRef = useRef<HTMLInputElement>(null);
   // Image attachments go through crop/rotate before upload; PDFs skip
   // straight to upload since there's nothing to crop.
-  const [pendingReplyImage, setPendingReplyImage] = useState<File[] | null>(null);
-  const [pendingInquiryImage, setPendingInquiryImage] = useState<File[] | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [newMessageForm, setNewMessageForm] = useState({
@@ -333,28 +330,19 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
     }
   };
 
-  // Splits a picked attachment: images go through the crop modal first,
-  // non-images (e.g. PDFs) go straight to the existing upload function.
+  // Attachments upload immediately — no forced crop/rotate step.
   const handleReplyFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (f.type.startsWith('image/')) {
-      setPendingReplyImage([f]);
-    } else {
-      uploadAttachment(f, (att) => setReplyAttachments(prev => [...prev, att]));
-    }
+    uploadAttachment(f, (att) => setReplyAttachments(prev => [...prev, att]));
   };
 
   const handleInquiryFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    if (f.type.startsWith('image/')) {
-      setPendingInquiryImage([f]);
-    } else {
-      uploadAttachment(f, (att) => setInquiryAttachments(prev => [...prev, att]));
-    }
+    uploadAttachment(f, (att) => setInquiryAttachments(prev => [...prev, att]));
   };
 
   const createNewMessage = async (e: React.FormEvent) => {
@@ -1106,28 +1094,6 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
             </form>
           </div>
         </div>
-      )}
-
-      {pendingReplyImage && (
-        <ImageCropModal
-          files={pendingReplyImage}
-          onComplete={(edited) => {
-            setPendingReplyImage(null);
-            edited.forEach(f => uploadAttachment(f, (att) => setReplyAttachments(prev => [...prev, att])));
-          }}
-          onCancel={() => setPendingReplyImage(null)}
-        />
-      )}
-
-      {pendingInquiryImage && (
-        <ImageCropModal
-          files={pendingInquiryImage}
-          onComplete={(edited) => {
-            setPendingInquiryImage(null);
-            edited.forEach(f => uploadAttachment(f, (att) => setInquiryAttachments(prev => [...prev, att])));
-          }}
-          onCancel={() => setPendingInquiryImage(null)}
-        />
       )}
     </div>
   );

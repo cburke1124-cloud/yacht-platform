@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload, Square, CheckSquare, Eye, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Check, AlertCircle, ExternalLink, Anchor, Upload, Square, CheckSquare, Eye, GripVertical, Edit2 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 import { CHARTER_FEATURES } from '@/app/lib/charterFeatures';
 import DealerMediaGallery from '@/app/components/DealerMediaGallery';
+import ImageCropModal from '@/app/components/ImageCropModal';
 import { ListingCheckbox, useBulkSelection } from '@/app/components/BulkActionBar';
 
 const authHeaders = () => ({
@@ -149,6 +150,9 @@ function CharterMediaSection({ charterId, ownerId }: { charterId: number; ownerI
   const [busyId, setBusyId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [reordering, setReordering] = useState(false);
+  const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingBusy, setEditingBusy] = useState(false);
   // Reordering re-attaches the full ordered set of MediaFile ids — only
   // possible once every photo has one (i.e. not the legacy flat `images`
   // fallback, which get_charter_media reports with id: null).
@@ -227,6 +231,47 @@ function CharterMediaSection({ charterId, ownerId }: { charterId: number; ownerI
     }
   };
 
+  // Crop/rotate an already-attached photo, opt-in via its own Edit button —
+  // fetches the current bytes, reuses the same crop modal as uploads, then
+  // swaps the edited version in via /media/{id}/replace. Same MediaFile id,
+  // so this attachment (and any other listing sharing the same photo)
+  // automatically shows the edit with no re-attach needed.
+  const startEditPhoto = async (m: CharterMediaItem) => {
+    if (m.id == null) return;
+    try {
+      // Full-res url, not the thumbnail — cropping a thumbnail would bake in
+      // its lower resolution.
+      const res = await fetch(mediaUrl(m.url));
+      const blob = await res.blob();
+      const file = new File([blob], `charter-photo-${m.id}.jpg`, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(m.id);
+      setPendingCropFiles([file]);
+    } catch {
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditPhoto = async (edited: File[]) => {
+    const mediaId = editingMediaId;
+    setPendingCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const res = await fetch(apiUrl(`/media/${mediaId}/replace`), { method: 'POST', headers: authHeaders(), body: fd });
+      if (res.ok) {
+        await load();
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } finally {
+      setEditingBusy(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-gray-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -280,8 +325,12 @@ function CharterMediaSection({ charterId, ownerId }: { charterId: number; ownerI
                         Set cover
                       </button>
                     )}
+                    <button type="button" onClick={() => startEditPhoto(m)} title="Edit photo"
+                      className="ml-auto rounded-full bg-black/60 p-1 text-white hover:bg-[#10214F] disabled:opacity-50">
+                      <Edit2 size={11} />
+                    </button>
                     <button type="button" onClick={() => handleDelete(m.id as number)} disabled={busyId === m.id}
-                      className="ml-auto rounded-full bg-black/60 p-1 text-white hover:bg-red-600 disabled:opacity-50" title="Remove photo">
+                      className="rounded-full bg-black/60 p-1 text-white hover:bg-red-600 disabled:opacity-50" title="Remove photo">
                       <X size={11} />
                     </button>
                   </div>
@@ -305,6 +354,23 @@ function CharterMediaSection({ charterId, ownerId }: { charterId: number; ownerI
               </p>
             )}
             <DealerMediaGallery mode="picker" selectionMode="multiple" filterType="image" onSelectMedia={handlePicked} asDealerId={ownerId} />
+          </div>
+        </div>
+      )}
+
+      {pendingCropFiles && (
+        <ImageCropModal
+          files={pendingCropFiles}
+          onComplete={finishEditPhoto}
+          onCancel={() => { setPendingCropFiles(null); setEditingMediaId(null); }}
+        />
+      )}
+
+      {editingBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
           </div>
         </div>
       )}

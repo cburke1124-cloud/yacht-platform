@@ -17,7 +17,7 @@ import {
   Folder, FolderPlus, FolderOpen, FileText, Film, MoreVertical, Move, Filter,
   Loader2, AlertCircle, Ruler, Clock, Copy, AlertTriangle,
   UserPlus, Shield, LayoutDashboard, ClipboardList, ChevronLeft,
-  EyeOff, Briefcase, ChevronDown, ChevronUp, HelpCircle
+  EyeOff, Briefcase, ChevronDown, ChevronUp, HelpCircle, Edit2
 } from 'lucide-react';
 import BulkImportExportTools from '@/app/components/BulkImportExportTools';
 import MessagingCenter from '@/app/messages/page';
@@ -283,7 +283,10 @@ function EnhancedDealerDashboard() {
   const [showPersonalProfile, setShowPersonalProfile] = useState(false);
   const salesmanProfileRef = useRef<SalesmanProfileFormHandle>(null);
   const brokerProfileDirtyRef = useRef(false);
-  const [pendingBrokerCrop, setPendingBrokerCrop] = useState<{ field: 'logo_url' | 'banner_url'; file: File } | null>(null);
+  // mediaId set only when editing an already-uploaded logo/banner (via the
+  // Edit button); absent for a brand-new upload picked from the file input.
+  const [pendingBrokerCrop, setPendingBrokerCrop] = useState<{ field: 'logo_url' | 'banner_url'; file: File; mediaId?: number } | null>(null);
+  const [editingBrokerImage, setEditingBrokerImage] = useState<'logo_url' | 'banner_url' | null>(null);
 
   // Media manager inline state
   const [mediaFiles, setMediaFiles] = useState<MediaFileItem[]>([]);
@@ -301,6 +304,8 @@ function EnhancedDealerDashboard() {
   const [mediaMovingId, setMediaMovingId] = useState<number | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
   const [pendingMediaCropFiles, setPendingMediaCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [mediaEditBusy, setMediaEditBusy] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalListings: 0,
     activeListings: 0,
@@ -551,8 +556,7 @@ function EnhancedDealerDashboard() {
     } catch { /* non-fatal */ }
   };
 
-  // Logo/banner picked in the file input first go through the crop modal
-  // (see pendingBrokerCrop below); this uploads the resulting edited file.
+  // Newly picked logo/banner files upload immediately — no forced crop step.
   const handleBrokerImageUpload = async (field: 'logo_url' | 'banner_url', file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -578,7 +582,73 @@ function EnhancedDealerDashboard() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setPendingBrokerCrop({ field, file });
+    handleBrokerImageUpload(field, file);
+  };
+
+  // Edit an already-uploaded logo/banner. `brokerProfile` only stores the
+  // plain URL, so recover the MediaFile id by matching against the org's
+  // media library before re-opening the crop modal on the full-res image.
+  const startEditBrokerImage = async (field: 'logo_url' | 'banner_url') => {
+    const url = brokerProfile[field];
+    if (!url) return;
+    setEditingBrokerImage(field);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl('/media/my-media?limit=200'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      let mediaId: number | null = null;
+      if (res.ok) {
+        const data = await res.json();
+        const match = (data.media || []).find((m: any) => m.url === url);
+        if (match) mediaId = match.id;
+      }
+      if (mediaId == null) {
+        alert('Could not find this photo in the media library to edit it.');
+        return;
+      }
+      const imgRes = await fetch(mediaUrl(url));
+      const blob = await imgRes.blob();
+      const file = new File([blob], `${field}.jpg`, { type: blob.type || 'image/jpeg' });
+      setPendingBrokerCrop({ field, file, mediaId });
+    } catch {
+      alert('Could not load this photo for editing');
+    } finally {
+      setEditingBrokerImage(null);
+    }
+  };
+
+  const finishEditBrokerImage = async (edited: File[]) => {
+    if (!pendingBrokerCrop) return;
+    const { field, mediaId } = pendingBrokerCrop;
+    setPendingBrokerCrop(null);
+    if (!edited[0] || mediaId == null) return;
+
+    setEditingBrokerImage(field);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const r = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const url = data?.media?.url ?? data?.url;
+        if (url) {
+          setBrokerProfile(prev => ({ ...prev, [field]: url }));
+          if (field === 'logo_url') setDealerLogoUrl(url);
+        }
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch {
+      alert('Failed to save edited photo');
+    } finally {
+      setEditingBrokerImage(null);
+    }
   };
 
   const handleBrokerSave = async (overrideData?: Partial<typeof brokerProfile>) => {
@@ -679,14 +749,54 @@ function EnhancedDealerDashboard() {
     }
   };
 
-  // Every image goes through crop/rotate before it's uploaded. Non-image
-  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  // Crop/rotate is opt-in — click "Edit" on an already-uploaded photo, not
+  // forced on every upload. See startEditMediaPhoto/finishEditMediaPhoto below.
   const handleMediaFilesSelected = (fileList: FileList | File[]) => {
-    const all = Array.from(fileList);
-    const images = all.filter(f => f.type.startsWith('image/'));
-    const others = all.filter(f => !f.type.startsWith('image/'));
-    if (others.length) handleMediaUploadFiles(others);
-    if (images.length) setPendingMediaCropFiles(images);
+    handleMediaUploadFiles(fileList);
+  };
+
+  // Fetch an already-uploaded photo's bytes so it can be re-opened in the
+  // same crop/rotate modal used for uploads, then swap the edited version
+  // back in via /media/{id}/replace (same id, so anything already using
+  // this photo elsewhere just shows the edited version automatically).
+  const startEditMediaPhoto = async (file: MediaFileItem) => {
+    try {
+      const res = await fetch(mediaUrl(file.url));
+      const blob = await res.blob();
+      const f = new File([blob], file.filename, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(file.id);
+      setPendingMediaCropFiles([f]);
+    } catch {
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditMediaPhoto = async (edited: File[]) => {
+    const mediaId = editingMediaId;
+    setPendingMediaCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setMediaEditBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const res = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        await fetchMediaFiles();
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch {
+      alert('Failed to save edited photo');
+    } finally {
+      setMediaEditBusy(false);
+    }
   };
 
   const handleMediaDelete = async (id: number) => {
@@ -2503,6 +2613,17 @@ function EnhancedDealerDashboard() {
                                 )}
                               </div>
 
+                              {/* Edit (crop/rotate) button */}
+                              {isImg && (
+                                <button
+                                  onClick={() => startEditMediaPhoto(file)}
+                                  title="Edit photo"
+                                  className="absolute bottom-1 left-1 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-[#10214F] transition opacity-0 group-hover:opacity-100"
+                                >
+                                  <Edit2 size={10} />
+                                </button>
+                              )}
+
                               {/* Delete button */}
                               <button
                                 onClick={() => handleMediaDelete(file.id)}
@@ -3245,6 +3366,17 @@ function EnhancedDealerDashboard() {
                     <label className="absolute inset-0 cursor-pointer hover:bg-black/10 transition-all">
                       <input type="file" accept="image/*" onChange={(e) => handleBrokerImageSelected('banner_url', e)} className="hidden" />
                     </label>
+                    {brokerProfile.banner_url && (
+                      <button
+                        type="button"
+                        onClick={() => startEditBrokerImage('banner_url')}
+                        disabled={editingBrokerImage === 'banner_url'}
+                        title="Edit photo"
+                        className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/50 text-white hover:bg-[#10214F] disabled:opacity-50"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3298,11 +3430,22 @@ function EnhancedDealerDashboard() {
                 <div>
                   <label className="block text-xs font-semibold text-secondary mb-2">Company Logo</label>
                   <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-soft flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <div className="relative w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-soft flex items-center justify-center overflow-hidden flex-shrink-0">
                       {brokerProfile.logo_url ? (
                         <img src={mediaUrl(brokerProfile.logo_url)} alt="Logo" className="w-full h-full object-contain" onError={onImgError} />
                       ) : (
                         <Building2 className="text-gray-300" size={28} />
+                      )}
+                      {brokerProfile.logo_url && (
+                        <button
+                          type="button"
+                          onClick={() => startEditBrokerImage('logo_url')}
+                          disabled={editingBrokerImage === 'logo_url'}
+                          title="Edit photo"
+                          className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white hover:bg-[#10214F] disabled:opacity-50"
+                        >
+                          <Edit2 size={11} />
+                        </button>
                       )}
                     </div>
                     <div>
@@ -4310,21 +4453,35 @@ function EnhancedDealerDashboard() {
         <ImageCropModal
           files={[pendingBrokerCrop.file]}
           aspect={pendingBrokerCrop.field === 'logo_url' ? 1 : undefined}
-          onComplete={edited => {
-            const { field } = pendingBrokerCrop;
-            setPendingBrokerCrop(null);
-            if (edited[0]) handleBrokerImageUpload(field, edited[0]);
-          }}
+          onComplete={finishEditBrokerImage}
           onCancel={() => setPendingBrokerCrop(null)}
         />
+      )}
+
+      {editingBrokerImage && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-primary" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
 
       {pendingMediaCropFiles && (
         <ImageCropModal
           files={pendingMediaCropFiles}
-          onComplete={edited => { setPendingMediaCropFiles(null); handleMediaUploadFiles(edited); }}
-          onCancel={() => setPendingMediaCropFiles(null)}
+          onComplete={finishEditMediaPhoto}
+          onCancel={() => { setPendingMediaCropFiles(null); setEditingMediaId(null); }}
         />
+      )}
+
+      {mediaEditBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-primary" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -3,7 +3,7 @@
 import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import {
   User, Upload, Mail, Phone, Save, CheckCircle,
-  Briefcase, Globe, Instagram, Linkedin, Facebook
+  Briefcase, Globe, Instagram, Linkedin, Facebook, Edit2
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ImageCropModal from '../../components/ImageCropModal';
@@ -26,6 +26,9 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
   const [saved, setSaved] = useState(false);
   const [userType, setUserType] = useState<string>('team_member');
   const [pendingPhotoFile, setPendingPhotoFile] = useState<File[] | null>(null);
+  const [photoMediaId, setPhotoMediaId] = useState<number | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState(false);
+  const [editingPhotoBusy, setEditingPhotoBusy] = useState(false);
   const [profile, setProfile] = useState({
     first_name: '',
     last_name: '',
@@ -89,6 +92,7 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
       if (response.ok) {
         const data = await response.json();
         const url = data?.media?.url ?? data?.url ?? data?.photo_url;
+        if (data?.media?.id != null) setPhotoMediaId(data.media.id);
         if (url) setProfile(prev => ({ ...prev, photo_url: url }));
       }
     } catch (error) {
@@ -96,16 +100,54 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
     }
   };
 
-  // Headshots are displayed in a circular avatar, so route the picked file
-  // through a square crop before uploading.
+  // Upload proceeds immediately — no forced crop/rotate step. Editing the
+  // headshot afterward is available via the Edit button on the avatar.
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (file.type.startsWith('image/')) {
+    uploadPhoto(file);
+  };
+
+  // Edit an existing, already-uploaded headshot.
+  const startEditPhoto = async () => {
+    if (photoMediaId == null || !profile.photo_url) return;
+    try {
+      const res = await fetch(mediaUrl(profile.photo_url));
+      const blob = await res.blob();
+      const file = new File([blob], `photo-${photoMediaId}.jpg`, { type: blob.type || 'image/jpeg' });
+      setEditingPhoto(true);
       setPendingPhotoFile([file]);
-    } else {
-      uploadPhoto(file);
+    } catch {
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditPhoto = async (edited: File[]) => {
+    const mediaId = photoMediaId;
+    setPendingPhotoFile(null);
+    setEditingPhoto(false);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingPhotoBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const response = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const url = data?.media?.url ?? data?.url;
+        if (url) setProfile(prev => ({ ...prev, photo_url: url }));
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } finally {
+      setEditingPhotoBusy(false);
     }
   };
 
@@ -229,6 +271,16 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
                   <Upload size={11} /> Upload
                 </span>
               </label>
+              {profile.photo_url && photoMediaId != null && (
+                <button
+                  type="button"
+                  onClick={startEditPhoto}
+                  title="Edit photo"
+                  className="absolute top-0.5 right-0.5 p-1 rounded-full bg-black/50 text-white hover:bg-[#10214F]"
+                >
+                  <Edit2 size={10} />
+                </button>
+              )}
             </div>
             <p className="text-xs text-dark/50">Click to change</p>
           </div>
@@ -360,12 +412,20 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
         <ImageCropModal
           files={pendingPhotoFile}
           aspect={1}
-          onComplete={(edited) => {
+          onComplete={editingPhoto ? finishEditPhoto : (edited) => {
             setPendingPhotoFile(null);
             if (edited[0]) uploadPhoto(edited[0]);
           }}
-          onCancel={() => setPendingPhotoFile(null)}
+          onCancel={() => { setPendingPhotoFile(null); setEditingPhoto(false); }}
         />
+      )}
+      {editingPhotoBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
     </div>
   );

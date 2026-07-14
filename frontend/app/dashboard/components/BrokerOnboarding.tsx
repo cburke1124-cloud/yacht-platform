@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2, List, ChevronRight, CheckCircle, Upload, Globe,
-  ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, AlertTriangle
+  ArrowLeft, Loader2, LinkIcon, Layers, PenSquare, AlertTriangle, Edit2
 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ImageCropModal from '../../components/ImageCropModal';
@@ -511,6 +511,9 @@ function BrokerageProfileStep({
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pendingLogoFile, setPendingLogoFile] = useState<File[] | null>(null);
+  const [logoMediaId, setLogoMediaId] = useState<number | null>(null);
+  const [editingLogo, setEditingLogo] = useState(false);
+  const [editingLogoBusy, setEditingLogoBusy] = useState(false);
 
   // Seed form fields from the parent-fetched profile.
   // Two rules:
@@ -555,22 +558,64 @@ function BrokerageProfileStep({
       if (res.ok) {
         const data = await res.json();
         const url = data?.media?.url ?? data?.url;
+        if (data?.media?.id != null) setLogoMediaId(data.media.id);
         if (url) setProfile(p => ({ ...p, logo_url: url } as any));
       }
     } catch {}
     finally { setUploadingLogo(false); }
   };
 
-  // The logo goes through crop/rotate before upload — route the picked file
-  // into the crop queue instead of uploading it straight away.
+  // Upload proceeds immediately — no forced crop/rotate step. Editing is
+  // available afterward via the Edit button on the logo preview.
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (file.type.startsWith('image/')) {
+    uploadLogo(file);
+  };
+
+  // Edit an existing, already-uploaded logo.
+  const startEditLogo = async () => {
+    if (logoMediaId == null || !logoPreview) return;
+    try {
+      const res = await fetch(logoPreview);
+      const blob = await res.blob();
+      const file = new File([blob], `logo-${logoMediaId}.jpg`, { type: blob.type || 'image/jpeg' });
+      setEditingLogo(true);
       setPendingLogoFile([file]);
-    } else {
-      uploadLogo(file);
+    } catch {
+      alert('Could not load this logo for editing');
+    }
+  };
+
+  const finishEditLogo = async (edited: File[]) => {
+    const mediaId = logoMediaId;
+    setPendingLogoFile(null);
+    setEditingLogo(false);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingLogoBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const res = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data?.media?.url ?? data?.url;
+        if (url) {
+          setLogoPreview(url);
+          setProfile(p => ({ ...p, logo_url: url } as any));
+        }
+      } else {
+        alert('Failed to save edited logo');
+      }
+    } finally {
+      setEditingLogoBusy(false);
     }
   };
 
@@ -669,11 +714,21 @@ function BrokerageProfileStep({
           <div className="mt-4">
             <label className="block text-xs font-semibold text-secondary mb-2">Company Logo</label>
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-soft flex items-center justify-center overflow-hidden flex-shrink-0">
+              <div className="relative w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 bg-soft flex items-center justify-center overflow-hidden flex-shrink-0">
                 {logoPreview ? (
                   <img src={logoPreview} alt="Logo" className="w-full h-full object-contain" />
                 ) : (
                   <Upload size={24} className="text-gray-300" />
+                )}
+                {logoPreview && logoMediaId != null && (
+                  <button
+                    type="button"
+                    onClick={startEditLogo}
+                    title="Edit logo"
+                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/50 text-white hover:bg-[#10214F]"
+                  >
+                    <Edit2 size={12} />
+                  </button>
                 )}
               </div>
               <div>
@@ -692,12 +747,20 @@ function BrokerageProfileStep({
           <ImageCropModal
             files={pendingLogoFile}
             aspect={1}
-            onComplete={(edited) => {
+            onComplete={editingLogo ? finishEditLogo : (edited) => {
               setPendingLogoFile(null);
               if (edited[0]) uploadLogo(edited[0]);
             }}
-            onCancel={() => setPendingLogoFile(null)}
+            onCancel={() => { setPendingLogoFile(null); setEditingLogo(false); }}
           />
+        )}
+        {editingLogoBusy && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+            <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+              <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+              <span className="text-sm font-medium text-gray-700">Saving edited logo…</span>
+            </div>
+          </div>
         )}
 
         {/* Section 2: Social Media */}

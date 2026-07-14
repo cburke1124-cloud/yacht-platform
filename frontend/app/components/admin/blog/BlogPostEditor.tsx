@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  Image as ImageIcon, Upload, X, BarChart, Save, Send, Eye, History,
+  Image as ImageIcon, Upload, X, BarChart, Save, Send, Eye, History, Edit2,
 } from 'lucide-react';
 import type { PartialBlock } from '@blocknote/core';
 import { legacyTextToBlocks } from './BlogContentEditor';
 import BlogRevisionsPanel from './BlogRevisionsPanel';
 import ImageCropModal from '../../ImageCropModal';
+import { apiUrl } from '@/app/lib/apiRoot';
 
 // BlockNote/Prosemirror isn't SSR-safe.
 const BlogContentEditor = dynamic(() => import('./BlogContentEditor'), { ssr: false });
@@ -64,6 +65,8 @@ export default function BlogPostEditor({
   // Featured image goes through crop/rotate before it's handed to the
   // existing onImageUpload uploader (owned by the parent page).
   const [pendingFeaturedFile, setPendingFeaturedFile] = useState<File[] | null>(null);
+  const [editingFeatured, setEditingFeatured] = useState(false);
+  const [editingFeaturedBusy, setEditingFeaturedBusy] = useState(false);
   // Escape hatch for the first rollout cycle — writers can fall back to the
   // plain textarea if the block editor misbehaves. Defaults on whenever the
   // post already has block content (or is new); off only if explicitly chosen.
@@ -86,23 +89,60 @@ export default function BlogPostEditor({
     await onPostRestored();
   };
 
-  // onImageUpload (owned by the parent) expects a real ChangeEvent with
-  // target.files — synthesize one around the cropped/rotated File so the
-  // existing upload logic doesn't need to change.
-  const buildFakeFileEvent = (file: File): React.ChangeEvent<HTMLInputElement> => {
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    return { target: { files: dt.files } } as unknown as React.ChangeEvent<HTMLInputElement>;
+  // Upload proceeds immediately — no forced crop/rotate step. The existing
+  // onImageUpload uploader (owned by the parent page) is called directly.
+  const handleFeaturedImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onImageUpload(e);
   };
 
-  const handleFeaturedImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type.startsWith('image/')) {
+  // Edit an existing featured image. The parent's onImageUpload flow only
+  // hands back a URL (formData.featured_image), not a MediaFile id, so we
+  // recover the id by matching the URL against the userImages library list
+  // (the same media list the "Choose from Library" picker uses).
+  const featuredMediaId = (): number | null => {
+    const match = userImages.find((img) => img.url === formData.featured_image);
+    return match?.id ?? null;
+  };
+
+  const startEditFeatured = async () => {
+    const mediaId = featuredMediaId();
+    if (mediaId == null || !formData.featured_image) return;
+    try {
+      const res = await fetch(formData.featured_image);
+      const blob = await res.blob();
+      const file = new File([blob], `featured-${mediaId}.jpg`, { type: blob.type || 'image/jpeg' });
+      setEditingFeatured(true);
       setPendingFeaturedFile([file]);
-      e.target.value = '';
-    } else {
-      onImageUpload(e);
+    } catch {
+      alert('Could not load this image for editing');
+    }
+  };
+
+  const finishEditFeatured = async (edited: File[]) => {
+    const mediaId = featuredMediaId();
+    setPendingFeaturedFile(null);
+    setEditingFeatured(false);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingFeaturedBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      const res = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const url = data?.media?.url ?? data?.url;
+        if (url) setFormData({ ...formData, featured_image: url });
+      } else {
+        alert('Failed to save edited image');
+      }
+    } finally {
+      setEditingFeaturedBusy(false);
     }
   };
 
@@ -320,6 +360,16 @@ export default function BlogPostEditor({
                 >
                   <X size={16} />
                 </button>
+                {featuredMediaId() != null && (
+                  <button
+                    type="button"
+                    onClick={startEditFeatured}
+                    title="Edit image"
+                    className="absolute top-2 right-12 p-2 bg-black/50 text-white rounded-full hover:bg-[#10214F]"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                )}
                 <input
                   type="text"
                   placeholder="Alt text"
@@ -511,12 +561,17 @@ export default function BlogPostEditor({
       {pendingFeaturedFile && (
         <ImageCropModal
           files={pendingFeaturedFile}
-          onComplete={(edited) => {
-            setPendingFeaturedFile(null);
-            if (edited[0]) onImageUpload(buildFakeFileEvent(edited[0]));
-          }}
-          onCancel={() => setPendingFeaturedFile(null)}
+          onComplete={editingFeatured ? finishEditFeatured : () => setPendingFeaturedFile(null)}
+          onCancel={() => { setPendingFeaturedFile(null); setEditingFeatured(false); }}
         />
+      )}
+      {editingFeaturedBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited image…</span>
+          </div>
+        </div>
       )}
     </div>
   );

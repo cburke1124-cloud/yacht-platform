@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Upload, X, Video, FileText, Folder, Trash2, Search, Image, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, X, Video, FileText, Folder, Trash2, Search, Image, ZoomIn, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ImageCropModal from '@/app/components/ImageCropModal';
 
@@ -33,6 +33,8 @@ export default function MediaGallery() {
   const [totalFiles, setTotalFiles] = useState(0);
   const [lightboxFile, setLightboxFile] = useState<MediaFile | null>(null);
   const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingBusy, setEditingBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -104,13 +106,55 @@ export default function MediaGallery() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Every image goes through crop/rotate before it's uploaded. Non-image
-  // files (video, PDF) skip straight to upload — there's nothing to crop.
+  // Crop/rotate is opt-in — click "Edit" on an already-uploaded photo, not
+  // forced on every upload. See startEditPhoto/finishEditPhoto below.
   const handleFilesSelected = (files: File[]) => {
-    const images = files.filter(f => f.type.startsWith('image/'));
-    const others = files.filter(f => !f.type.startsWith('image/'));
-    if (others.length) uploadFiles(others);
-    if (images.length) setPendingCropFiles(images);
+    uploadFiles(files);
+  };
+
+  // Fetch an already-uploaded photo's bytes so it can be re-opened in the
+  // same crop/rotate modal used for uploads, then swap the edited version
+  // back in via /media/{id}/replace (same id, so anything already using
+  // this photo elsewhere just shows the edited version automatically).
+  const startEditPhoto = async (file: MediaFile) => {
+    try {
+      const res = await fetch(mediaUrl(file.url));
+      const blob = await res.blob();
+      const f = new File([blob], file.filename, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(file.id);
+      setPendingCropFiles([f]);
+    } catch (error) {
+      console.error('Failed to load photo for editing:', error);
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditPhoto = async (edited: File[]) => {
+    const mediaId = editingMediaId;
+    setPendingCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', edited[0]);
+      const res = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: formData,
+      });
+      if (res.ok) {
+        await fetchMedia();
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch (error) {
+      console.error('Failed to save edited photo:', error);
+      alert('Failed to save edited photo');
+    } finally {
+      setEditingBusy(false);
+    }
   };
 
   const uploadFiles = async (files: File[]) => {
@@ -350,12 +394,21 @@ export default function MediaGallery() {
 
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2">
                 {file.file_type === 'image' && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setLightboxFile(file); }}
-                    className="opacity-0 group-hover:opacity-100 p-2 bg-white/80 text-gray-800 rounded-full hover:bg-white transition-opacity"
-                  >
-                    <ZoomIn size={16} />
-                  </button>
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setLightboxFile(file); }}
+                      className="opacity-0 group-hover:opacity-100 p-2 bg-white/80 text-gray-800 rounded-full hover:bg-white transition-opacity"
+                    >
+                      <ZoomIn size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startEditPhoto(file); }}
+                      title="Edit photo"
+                      className="opacity-0 group-hover:opacity-100 p-2 bg-white/80 text-gray-800 rounded-full hover:bg-white transition-opacity"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteMedia(file.id); }}
@@ -395,6 +448,13 @@ export default function MediaGallery() {
             {lightboxIndex >= 0 && ` · ${lightboxIndex + 1} / ${imageFiles.length}`}
           </span>
           <div className="flex gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); startEditPhoto(lightboxFile); setLightboxFile(null); }}
+              className="p-2 bg-white/20 text-white rounded-full hover:bg-white/40 transition-colors"
+              title="Edit photo"
+            >
+              <Edit2 size={20} />
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); deleteMedia(lightboxFile.id); setLightboxFile(null); }}
               className="p-2 bg-red-600/80 text-white rounded-full hover:bg-red-600 transition-colors"
@@ -444,9 +504,18 @@ export default function MediaGallery() {
     {pendingCropFiles && (
       <ImageCropModal
         files={pendingCropFiles}
-        onComplete={edited => { setPendingCropFiles(null); uploadFiles(edited); }}
-        onCancel={() => setPendingCropFiles(null)}
+        onComplete={finishEditPhoto}
+        onCancel={() => { setPendingCropFiles(null); setEditingMediaId(null); }}
       />
+    )}
+
+    {editingBusy && (
+      <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+        <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+          <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+          <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+        </div>
+      </div>
     )}
     </>
   );

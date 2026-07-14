@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Upload, Trash2 } from 'lucide-react';
+import { X, Upload, Trash2, Edit2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ImageCropModal from '../ImageCropModal';
 
@@ -19,6 +19,8 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
   const [uploadingImages, setUploadingImages] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'specs' | 'media'>('basic');
   const [pendingCropFiles, setPendingCropFiles] = useState<File[] | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingBusy, setEditingBusy] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,8 +82,62 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
     const files = e.target.files ? Array.from(e.target.files) : [];
     e.target.value = '';
     if (files.length === 0) return;
-    // Every image goes through crop/rotate before it's uploaded.
-    setPendingCropFiles(files);
+    uploadImages(files);
+  };
+
+  const refreshListingImages = async () => {
+    const token = localStorage.getItem('token');
+    const updatedListing = await fetch(
+      apiUrl(`/listings/${listing.id}`),
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    if (updatedListing.ok) {
+      const data = await updatedListing.json();
+      setListing(data);
+    }
+  };
+
+  const startEditPhoto = async (image: any) => {
+    if (image.id == null) return;
+    try {
+      const res = await fetch(image.url);
+      const blob = await res.blob();
+      const file = new File([blob], `listing-photo-${image.id}.jpg`, { type: blob.type || 'image/jpeg' });
+      setEditingMediaId(image.id);
+      setPendingCropFiles([file]);
+    } catch (error) {
+      console.error('Failed to load photo for editing:', error);
+      alert('Could not load this photo for editing');
+    }
+  };
+
+  const finishEditPhoto = async (edited: File[]) => {
+    const mediaId = editingMediaId;
+    setPendingCropFiles(null);
+    setEditingMediaId(null);
+    if (mediaId == null || !edited[0]) return;
+
+    setEditingBusy(true);
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', edited[0]);
+      const response = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      if (response.ok) {
+        await refreshListingImages();
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch (error) {
+      console.error('Failed to save edited photo:', error);
+      alert('Failed to save edited photo');
+    } finally {
+      setEditingBusy(false);
+    }
   };
 
   const uploadImages = async (files: File[]) => {
@@ -643,6 +699,14 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
                           )}
                           <button
                             type="button"
+                            onClick={() => startEditPhoto(image)}
+                            className="p-1.5 bg-[#10214F] text-white rounded-lg hover:bg-[#1a3570]"
+                            title="Edit photo"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDeleteImage(image.id)}
                             className="bg-red-600 text-white p-2 rounded hover:bg-red-700"
                           >
@@ -680,9 +744,17 @@ export default function ListingEditor({ listing: initialListing, onClose, onSave
       {pendingCropFiles && (
         <ImageCropModal
           files={pendingCropFiles}
-          onComplete={edited => { setPendingCropFiles(null); uploadImages(edited); }}
-          onCancel={() => setPendingCropFiles(null)}
+          onComplete={finishEditPhoto}
+          onCancel={() => { setPendingCropFiles(null); setEditingMediaId(null); }}
         />
+      )}
+      {editingBusy && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-white px-5 py-3 shadow-lg">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-[#10214F]" />
+            <span className="text-sm font-medium text-gray-700">Saving edited photo…</span>
+          </div>
+        </div>
       )}
     </div>
   );

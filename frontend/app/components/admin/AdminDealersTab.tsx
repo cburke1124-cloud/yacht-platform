@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { Edit2 } from 'lucide-react';
 import ImageCropModal from '../ImageCropModal';
 
 const PAID_TIERS = new Set([
@@ -46,7 +47,9 @@ export default function AdminDealersTab() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [mediaUploading, setMediaUploading] = useState<Record<string, boolean>>({});
-  const [pendingCropFile, setPendingCropFile] = useState<{ key: string; file: File } | null>(null);
+  // Only used for the "Edit" flow on an already-uploaded logo/banner — new
+  // uploads go straight through (see handleFileSelected below).
+  const [pendingCropFile, setPendingCropFile] = useState<{ key: string; file: File; mediaId: number } | null>(null);
 
   // Team accordion state: dealerId → member list (null = not yet loaded)
   const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
@@ -137,21 +140,21 @@ export default function AdminDealersTab() {
       });
       if (res.ok) {
         const result = await res.json();
-        alert(result.message || 'Dealer created successfully. A password-setup email has been sent.');
+        alert(result.message || 'Broker created successfully. A password-setup email has been sent.');
         setShowCreateForm(false);
         setFormData({ name: '', company_name: '', email: '', phone: '', city: '', state: '', country: 'USA', verified: false, active: true });
         fetchDealers();
       } else {
         const err = await res.json();
-        alert(`Failed to create dealer: ${err.detail}`);
+        alert(`Failed to create broker: ${err.detail}`);
       }
     } catch {
-      alert('Failed to create dealer');
+      alert('Failed to create broker');
     }
   };
 
   const handleDeleteDealer = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this dealer?')) return;
+    if (!confirm('Are you sure you want to delete this broker?')) return;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(apiUrl(`/admin/dealers/${id}`), {
@@ -162,10 +165,10 @@ export default function AdminDealersTab() {
         setDealers(dealers.filter(d => d.id !== id));
         setTotal(t => t - 1);
       } else {
-        alert('Failed to delete dealer');
+        alert('Failed to delete broker');
       }
     } catch {
-      alert('Failed to delete dealer');
+      alert('Failed to delete broker');
     }
   };
 
@@ -191,6 +194,10 @@ export default function AdminDealersTab() {
       const token = localStorage.getItem('token');
       const fd = new FormData();
       fd.append('file', file);
+      // Attribute the upload to the dealer whose profile this is, not the
+      // admin doing the editing — otherwise it lands in the admin's own
+      // personal media library instead of this dealer's.
+      if (editingProfile) fd.append('as_dealer_id', String(editingProfile.dealerId));
       const res = await fetch(apiUrl('/media/upload'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -206,10 +213,73 @@ export default function AdminDealersTab() {
     }
   };
 
-  // Logo/banner are single-file uploads — route the picked image through the
-  // crop modal first, then reuse the existing upload logic unchanged.
+  // Logo/banner are single-file uploads — upload immediately, no forced
+  // crop modal. Use the "Edit" button on an existing logo/banner to crop it.
   const handleFileSelected = (key: string, file: File) => {
-    setPendingCropFile({ key, file });
+    handleMediaUpload(key, file);
+  };
+
+  // Edit an already-uploaded logo/banner. profileForm only stores the plain
+  // URL, so first recover the MediaFile id by matching against the org's
+  // media library, then re-open the crop modal on the full-res image.
+  const startEditLogoBanner = async (key: string, url: string) => {
+    setMediaUploading(prev => ({ ...prev, [key]: true }));
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams({ limit: '200' });
+      if (editingProfile) params.append('as_dealer_id', String(editingProfile.dealerId));
+      const res = await fetch(apiUrl(`/media/my-media?${params}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      let mediaId: number | null = null;
+      if (res.ok) {
+        const data = await res.json();
+        const match = (data.media || []).find((m: any) => m.url === url);
+        if (match) mediaId = match.id;
+      }
+      if (mediaId == null) {
+        alert('Could not find this photo in the media library to edit it.');
+        return;
+      }
+      const imgRes = await fetch(url);
+      const blob = await imgRes.blob();
+      const file = new File([blob], `${key}.jpg`, { type: blob.type || 'image/jpeg' });
+      setPendingCropFile({ key, file, mediaId });
+    } catch {
+      alert('Could not load this photo for editing');
+    } finally {
+      setMediaUploading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const finishEditLogoBanner = async (edited: File[]) => {
+    if (!pendingCropFile) return;
+    const { key, mediaId } = pendingCropFile;
+    setPendingCropFile(null);
+    if (!edited[0]) return;
+
+    setMediaUploading(prev => ({ ...prev, [key]: true }));
+    try {
+      const token = localStorage.getItem('token');
+      const fd = new FormData();
+      fd.append('file', edited[0]);
+      if (editingProfile) fd.append('as_dealer_id', String(editingProfile.dealerId));
+      const r = await fetch(apiUrl(`/media/${mediaId}/replace`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setProfileForm((f: Record<string, any>) => ({ ...f, [key]: data.media.url }));
+      } else {
+        alert('Failed to save edited photo');
+      }
+    } catch {
+      alert('Failed to save edited photo');
+    } finally {
+      setMediaUploading(prev => ({ ...prev, [key]: false }));
+    }
   };
 
   const openEditProfile = async (dealer: any) => {
@@ -281,14 +351,14 @@ export default function AdminDealersTab() {
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-secondary">Dealer Management</h2>
-          {!loading && <p className="text-xs text-dark/50 mt-0.5">{total.toLocaleString()} dealer{total !== 1 ? 's' : ''} found</p>}
+          <h2 className="text-2xl font-bold text-secondary">Broker Management</h2>
+          {!loading && <p className="text-xs text-dark/50 mt-0.5">{total.toLocaleString()} broker{total !== 1 ? 's' : ''} found</p>}
         </div>
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition"
         >
-          {showCreateForm ? 'Cancel' : '+ Add Dealer'}
+          {showCreateForm ? 'Cancel' : '+ Add Broker'}
         </button>
       </div>
 
@@ -323,7 +393,7 @@ export default function AdminDealersTab() {
       {/* Create Dealer Form */}
       {showCreateForm && (
         <div className="bg-white rounded-xl shadow border border-gray-100 p-6 mb-6">
-          <h3 className="text-lg font-semibold text-secondary mb-4">Create New Dealer</h3>
+          <h3 className="text-lg font-semibold text-secondary mb-4">Create New Broker</h3>
           <form onSubmit={handleCreateDealer} className="grid grid-cols-2 gap-4">
             {[
               { label: 'Name *', key: 'name', type: 'text', required: true },
@@ -340,7 +410,7 @@ export default function AdminDealersTab() {
               <label className="block text-sm font-medium text-dark/70 mb-1">Email *</label>
               <input type="email" required value={formData.email}
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
-                placeholder="dealer@example.com"
+                placeholder="broker@example.com"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
             </div>
             <div>
@@ -377,7 +447,7 @@ export default function AdminDealersTab() {
             </div>
             <div className="col-span-2">
               <button type="submit" className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium transition">
-                Create Dealer
+                Create Broker
               </button>
             </div>
           </form>
@@ -387,14 +457,14 @@ export default function AdminDealersTab() {
       {/* Dealers Table */}
       <div className="bg-white rounded-xl shadow border border-gray-100 overflow-x-auto">
         {loading ? (
-          <div className="text-center py-12 text-dark/50 text-sm">Loading dealers...</div>
+          <div className="text-center py-12 text-dark/50 text-sm">Loading brokers...</div>
         ) : dealers.length === 0 ? (
-          <div className="text-center py-12 text-dark/50 text-sm">No dealers match the current filters.</div>
+          <div className="text-center py-12 text-dark/50 text-sm">No brokers match the current filters.</div>
         ) : (
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-                {['', 'Dealer', 'Contact', 'Subscription', 'Listings', 'Verified', 'Actions'].map((h, i) => (
+                {['', 'Broker', 'Contact', 'Subscription', 'Listings', 'Verified', 'Actions'].map((h, i) => (
                   <th key={h} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap ${i === 6 ? 'text-right pr-6' : ''} ${i === 0 ? 'w-8' : ''}`}>
                     {h}
                   </th>
@@ -616,7 +686,7 @@ export default function AdminDealersTab() {
             {profileLoading ? (
               <div className="p-12 text-center text-sm text-dark/40">Loading profile...</div>
             ) : Object.keys(profileForm).length === 0 ? (
-              <div className="p-12 text-center text-sm text-dark/40">No profile found for this dealer.</div>
+              <div className="p-12 text-center text-sm text-dark/40">No profile found for this broker.</div>
             ) : (
               <div className="p-5 space-y-5">
                 {/* Basic info */}
@@ -708,11 +778,22 @@ export default function AdminDealersTab() {
                           </label>
                         </div>
                         {profileForm[key] && (
-                          <img
-                            src={profileForm[key]}
-                            alt=""
-                            className="mt-1.5 h-8 max-w-[120px] object-contain rounded border border-gray-100"
-                          />
+                          <div className="relative mt-1.5 inline-block">
+                            <img
+                              src={profileForm[key]}
+                              alt=""
+                              className="h-8 max-w-[120px] object-contain rounded border border-gray-100"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => startEditLogoBanner(key, profileForm[key])}
+                              disabled={!!mediaUploading[key]}
+                              title="Edit photo"
+                              className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-black/50 text-white hover:bg-[#10214F] disabled:opacity-50"
+                            >
+                              <Edit2 size={10} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -798,11 +879,7 @@ export default function AdminDealersTab() {
         <ImageCropModal
           files={[pendingCropFile.file]}
           aspect={pendingCropFile.key === 'logo_url' ? 1 : undefined}
-          onComplete={edited => {
-            const { key } = pendingCropFile;
-            setPendingCropFile(null);
-            if (edited[0]) handleMediaUpload(key, edited[0]);
-          }}
+          onComplete={finishEditLogoBanner}
           onCancel={() => setPendingCropFile(null)}
         />
       )}
