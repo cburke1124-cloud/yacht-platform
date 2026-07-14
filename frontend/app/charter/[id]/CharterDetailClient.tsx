@@ -501,10 +501,15 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
         )}
 
         {/* == FEATURED IMAGE + BOOKING CARD ===================================== */}
-        <div id="photos" className="scroll-mt-32 grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
+        {/* One continuous grid — not two stacked rows — so the left column's
+            specs/description/amenities/availability content can flow directly
+            under the photo gallery instead of waiting for the (much taller)
+            booking-card column on the right to finish first. */}
+        <div id="photos" className="scroll-mt-32 grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* Featured image -- 8 cols */}
-          <div className="lg:col-span-8 space-y-3">
+          {/* Featured image + gallery + specs -- 8 cols */}
+          <div className="lg:col-span-8">
+          <div className="space-y-3 mb-8">
             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100" style={{ height: 500 }}>
               <img src={mediaUrl(images[activeImg])} alt={charter.title} onError={onImgError} className="w-full h-full object-cover" />
               {images.length > 1 && (
@@ -544,6 +549,187 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 })}
               </div>
             )}
+          </div>
+
+          {/* VESSEL SPECIFICATIONS + KEY FEATURES + DESCRIPTION, still in the
+              same left column so it flows directly under the photo gallery */}
+          <div className="space-y-10">
+
+            {/* VESSEL SPECIFICATIONS — grid column count adapts to how much data
+                actually exists, so a thin listing (a handful of specs) doesn't
+                sit inside a grid built for a dozen and look like it's missing rows. */}
+            <div id="specs" className="scroll-mt-32">
+              <SectionHeading>Vessel Specifications</SectionHeading>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                <div className={`grid gap-x-6 gap-y-5 ${vesselSpecs.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                  {vesselSpecs.map((spec, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
+                        {spec.icon}
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#10214F]/55 uppercase tracking-wide" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{spec.label}</p>
+                        <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{spec.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* DESCRIPTION */}
+            {charter.description && (
+              <div>
+                <SectionHeading>About This Vessel</SectionHeading>
+                <div className="text-[15px] leading-[1.8] text-[#10214F] whitespace-pre-line" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {charter.description}
+                </div>
+              </div>
+            )}
+
+            {/* CREW — optional, only shown when at least one crew profile has been added */}
+            {charter.crew_profiles && charter.crew_profiles.length > 0 && (
+              <div>
+                <SectionHeading>Meet the Crew</SectionHeading>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {charter.crew_profiles.map((crew, i) => (
+                    <div key={i} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                      <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{crew.name}</p>
+                      <p className="text-xs text-[#01BBDC] font-medium uppercase tracking-wide mb-2">{crew.role}</p>
+                      {crew.bio && <p className="text-sm text-gray-600 leading-relaxed">{crew.bio}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* FEATURES & EQUIPMENT — grouped by category */}
+            {charter.amenities && charter.amenities.length > 0 && (
+              <div id="amenities" className="scroll-mt-32">
+                <SectionHeading>Features &amp; Equipment</SectionHeading>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                  <div className="grid sm:grid-cols-2 gap-x-8 gap-y-6">
+                    {groupAmenities(charter.amenities).map(group => (
+                      <div key={group.name}>
+                        <p className="text-sm font-bold text-[#10214F] mb-2.5" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{group.name}</p>
+                        <div className="space-y-1.5">
+                          {group.items.map((a, i) => (
+                            <div key={i} className="flex items-center gap-2 text-sm text-[#10214F]">
+                              <Check size={13} className="text-[#01BBDC] flex-shrink-0" />
+                              {a}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* AVAILABILITY */}
+            <div id="availability" className="scroll-mt-32">
+              <div className="mb-5 pl-4 border-l-4 border-[#01BBDC] flex items-center justify-between gap-4">
+                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Availability</h3>
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 flex-shrink-0">{availabilitySummary}</span>
+              </div>
+              {charter.availability_blocks?.length ? (
+                <AvailabilityCalendar blocks={charter.availability_blocks} monthsToShow={3} />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600">
+                  No blocked dates published yet. Availability is confirmed directly with the charter company.
+                </div>
+              )}
+            </div>
+
+            {/* SEASONAL + HOURLY RATES */}
+            {(seasonalRates.length > 0 || hourlyRates.length > 0) && (
+              <div id="rates" className="scroll-mt-32 space-y-8">
+
+                {/* SEASONAL PRICING — compact table instead of a stacked card list,
+                    so a handful of seasons reads at a glance rather than scrolling. */}
+                {seasonalRates.length > 0 && (
+                  <div>
+                    <SectionHeading>Seasonal Pricing</SectionHeading>
+                    <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Season</th>
+                            <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Dates</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Half Day</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Day</th>
+                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Week</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {seasonalRates.map((rate, index) => {
+                            const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
+                            return (
+                              <tr key={rate.id ?? `${rate.season_name}-${index}`} className="align-top">
+                                <td className="px-4 py-3">
+                                  <p className="font-semibold text-[#10214F]">{rate.season_name}</p>
+                                  {rate.min_charter_days ? <p className="text-xs text-gray-400 mt-0.5">Min {rate.min_charter_days} days</p> : null}
+                                  {rate.notes ? <p className="text-xs text-gray-400 mt-0.5">{rate.notes}</p> : null}
+                                </td>
+                                <td className="px-4 py-3 text-gray-500 text-xs">{rate.start_date || 'Open start'}{rate.end_date ? ` – ${rate.end_date}` : ''}</td>
+                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.half_day_rate ? `${moneyPrefix}${rate.half_day_rate.toLocaleString()}` : '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.day_rate ? `${moneyPrefix}${rate.day_rate.toLocaleString()}` : '—'}</td>
+                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.week_rate ? `${moneyPrefix}${rate.week_rate.toLocaleString()}` : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* HOURLY RATES */}
+                {hourlyRates.length > 0 && (
+                  <div>
+                    <SectionHeading>Hourly Rates</SectionHeading>
+                    <div className="flex flex-wrap gap-3">
+                      {hourlyRates.map((rate, index) => (
+                        <div key={rate.id ?? `${rate.hours}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 min-w-[140px]">
+                          <p className="text-sm font-semibold text-[#10214F]">{rate.hours} hour{rate.hours === 1 ? '' : 's'}</p>
+                          {rate.label && <p className="text-xs text-gray-500">{rate.label}</p>}
+                          <p className="mt-1 text-sm font-medium text-gray-700">{formatRate(rate.price, charter.currency)}</p>
+                          {rate.notes && <p className="mt-2 text-xs text-gray-500">{rate.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* HOW CHARTERING WORKS */}
+            <div className="bg-[#10214F] text-white rounded-2xl p-6">
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-[#C9A84C] font-semibold mb-1">How chartering works</p>
+                  <h2 className="text-lg font-semibold" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Simple, not complicated</h2>
+                </div>
+                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/70 hover:text-white flex-shrink-0">{showSimpleGuide ? 'Hide' : 'Show'}</button>
+              </div>
+              {showSimpleGuide && (
+                <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-100">
+                  {[
+                    { n: '1', title: 'Pick where you want to go', body: "Search by destination, dates, and group size." },
+                    { n: '2', title: 'Ask for availability', body: "Most charters are confirmed by inquiry. We show booked and tentative holds." },
+                    { n: '3', title: "Review what's included", body: "Some trips include crew and water toys. Others exclude taxes or gratuity." },
+                  ].map(s => (
+                    <div key={s.n} className="bg-white/5 rounded-xl p-4">
+                      <p className="font-semibold text-white mb-1">{s.n}. {s.title}</p>
+                      <p>{s.body}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
           </div>
 
           {/* Booking card -- 4 cols */}
@@ -826,186 +1012,6 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
           </div>
         </div>
 
-        {/* == VESSEL SPECIFICATIONS + KEY FEATURES + DESCRIPTION ================= */}
-        {/* Inquire card + Charter Policy card now live up in the booking-card
-            column instead of here — moved up closer to the company card. */}
-        <div className="mb-10 space-y-10">
-
-            {/* VESSEL SPECIFICATIONS — grid column count adapts to how much data
-                actually exists, so a thin listing (a handful of specs) doesn't
-                sit inside a grid built for a dozen and look like it's missing rows. */}
-            <div id="specs" className="scroll-mt-32">
-              <SectionHeading>Vessel Specifications</SectionHeading>
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
-                <div className={`grid gap-x-6 gap-y-5 ${vesselSpecs.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
-                  {vesselSpecs.map((spec, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
-                        {spec.icon}
-                      </div>
-                      <div>
-                        <p className="text-xs text-[#10214F]/55 uppercase tracking-wide" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{spec.label}</p>
-                        <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{spec.value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* DESCRIPTION */}
-            {charter.description && (
-              <div>
-                <SectionHeading>About This Vessel</SectionHeading>
-                <div className="text-[15px] leading-[1.8] text-[#10214F] whitespace-pre-line" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {charter.description}
-                </div>
-              </div>
-            )}
-
-            {/* CREW — optional, only shown when at least one crew profile has been added */}
-            {charter.crew_profiles && charter.crew_profiles.length > 0 && (
-              <div>
-                <SectionHeading>Meet the Crew</SectionHeading>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {charter.crew_profiles.map((crew, i) => (
-                    <div key={i} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="font-semibold text-[#10214F] text-sm" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{crew.name}</p>
-                      <p className="text-xs text-[#01BBDC] font-medium uppercase tracking-wide mb-2">{crew.role}</p>
-                      {crew.bio && <p className="text-sm text-gray-600 leading-relaxed">{crew.bio}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* FEATURES & EQUIPMENT — grouped by category */}
-            {charter.amenities && charter.amenities.length > 0 && (
-              <div id="amenities" className="scroll-mt-32">
-                <SectionHeading>Features &amp; Equipment</SectionHeading>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
-                  <div className="grid sm:grid-cols-2 gap-x-8 gap-y-6">
-                    {groupAmenities(charter.amenities).map(group => (
-                      <div key={group.name}>
-                        <p className="text-sm font-bold text-[#10214F] mb-2.5" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>{group.name}</p>
-                        <div className="space-y-1.5">
-                          {group.items.map((a, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm text-[#10214F]">
-                              <Check size={13} className="text-[#01BBDC] flex-shrink-0" />
-                              {a}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* AVAILABILITY */}
-            <div id="availability" className="scroll-mt-32">
-              <div className="mb-5 pl-4 border-l-4 border-[#01BBDC] flex items-center justify-between gap-4">
-                <h3 className="text-xl font-bold text-[#10214F]" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Availability</h3>
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 flex-shrink-0">{availabilitySummary}</span>
-              </div>
-              {charter.availability_blocks?.length ? (
-                <AvailabilityCalendar blocks={charter.availability_blocks} monthsToShow={3} />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-sm text-gray-600">
-                  No blocked dates published yet. Availability is confirmed directly with the charter company.
-                </div>
-              )}
-            </div>
-
-            {/* SEASONAL + HOURLY RATES */}
-            {(seasonalRates.length > 0 || hourlyRates.length > 0) && (
-              <div id="rates" className="scroll-mt-32 space-y-8">
-
-                {/* SEASONAL PRICING — compact table instead of a stacked card list,
-                    so a handful of seasons reads at a glance rather than scrolling. */}
-                {seasonalRates.length > 0 && (
-                  <div>
-                    <SectionHeading>Seasonal Pricing</SectionHeading>
-                    <div className="rounded-2xl border border-gray-100 overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Season</th>
-                            <th className="text-left px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Dates</th>
-                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Half Day</th>
-                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Day</th>
-                            <th className="text-right px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Week</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {seasonalRates.map((rate, index) => {
-                            const moneyPrefix = (rate.currency || charter.currency || 'USD') === 'USD' ? '$' : (rate.currency || charter.currency || 'USD');
-                            return (
-                              <tr key={rate.id ?? `${rate.season_name}-${index}`} className="align-top">
-                                <td className="px-4 py-3">
-                                  <p className="font-semibold text-[#10214F]">{rate.season_name}</p>
-                                  {rate.min_charter_days ? <p className="text-xs text-gray-400 mt-0.5">Min {rate.min_charter_days} days</p> : null}
-                                  {rate.notes ? <p className="text-xs text-gray-400 mt-0.5">{rate.notes}</p> : null}
-                                </td>
-                                <td className="px-4 py-3 text-gray-500 text-xs">{rate.start_date || 'Open start'}{rate.end_date ? ` – ${rate.end_date}` : ''}</td>
-                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.half_day_rate ? `${moneyPrefix}${rate.half_day_rate.toLocaleString()}` : '—'}</td>
-                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.day_rate ? `${moneyPrefix}${rate.day_rate.toLocaleString()}` : '—'}</td>
-                                <td className="px-4 py-3 text-right font-medium text-[#10214F]">{rate.week_rate ? `${moneyPrefix}${rate.week_rate.toLocaleString()}` : '—'}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* HOURLY RATES */}
-                {hourlyRates.length > 0 && (
-                  <div>
-                    <SectionHeading>Hourly Rates</SectionHeading>
-                    <div className="flex flex-wrap gap-3">
-                      {hourlyRates.map((rate, index) => (
-                        <div key={rate.id ?? `${rate.hours}-${index}`} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 min-w-[140px]">
-                          <p className="text-sm font-semibold text-[#10214F]">{rate.hours} hour{rate.hours === 1 ? '' : 's'}</p>
-                          {rate.label && <p className="text-xs text-gray-500">{rate.label}</p>}
-                          <p className="mt-1 text-sm font-medium text-gray-700">{formatRate(rate.price, charter.currency)}</p>
-                          {rate.notes && <p className="mt-2 text-xs text-gray-500">{rate.notes}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* HOW CHARTERING WORKS */}
-            <div className="bg-[#10214F] text-white rounded-2xl p-6">
-              <div className="flex items-center justify-between gap-4 mb-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-[#C9A84C] font-semibold mb-1">How chartering works</p>
-                  <h2 className="text-lg font-semibold" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Simple, not complicated</h2>
-                </div>
-                <button onClick={() => setShowSimpleGuide(v => !v)} className="text-sm text-white/70 hover:text-white flex-shrink-0">{showSimpleGuide ? 'Hide' : 'Show'}</button>
-              </div>
-              {showSimpleGuide && (
-                <div className="grid md:grid-cols-3 gap-3 text-sm text-blue-100">
-                  {[
-                    { n: '1', title: 'Pick where you want to go', body: "Search by destination, dates, and group size." },
-                    { n: '2', title: 'Ask for availability', body: "Most charters are confirmed by inquiry. We show booked and tentative holds." },
-                    { n: '3', title: "Review what's included", body: "Some trips include crew and water toys. Others exclude taxes or gratuity." },
-                  ].map(s => (
-                    <div key={s.n} className="bg-white/5 rounded-xl p-4">
-                      <p className="font-semibold text-white mb-1">{s.n}. {s.title}</p>
-                      <p>{s.body}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-        </div>
 
         {/* == SIMILAR YACHTS ==================================================== */}
         {similar.length > 0 && (

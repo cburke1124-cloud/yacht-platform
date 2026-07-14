@@ -769,10 +769,15 @@ export default function ListingDetailClient({
         </div>
 
         {/* ══ FEATURED IMAGE + CONTACT ════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
+        {/* One continuous grid — not two stacked rows — so the left column's
+            specs/features/description can flow directly under the photo
+            gallery instead of waiting for the (much taller) contact +
+            finance-calculator column on the right to finish first. */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
 
-          {/* ── Featured image: 8 cols ──────────────────────────────────────── */}
-          <div className="lg:col-span-8 space-y-3">
+          {/* ── Featured image + gallery + specs: 8 cols ───────────────────── */}
+          <div className="lg:col-span-8">
+          <div className="space-y-3 mb-8">
             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
               style={{ height: 500 }}
               onClick={() => {
@@ -852,6 +857,120 @@ export default function ListingDetailClient({
                 })}
               </div>
             )}
+          </div>
+
+          {/* PDF documents */}
+          {pdfItems.length > 0 && (
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5 mb-6">
+              <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
+                <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
+                Documents
+              </h4>
+              <div className="space-y-2">
+                {pdfItems.map((doc, idx) => (
+                  <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
+                    <span className="flex items-center gap-2 text-sm text-[#10214F] font-poppins">
+                      <FileText size={16} className="text-[#01BBDC]" />
+                      {doc.caption || doc.alt_text || `Document ${idx + 1}`}
+                    </span>
+                    <ExternalLink size={14} className="text-gray-500" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ══ KEY SPECS + KEY FEATURES + DESCRIPTION ══════════════════════ */}
+          <div className="space-y-8">
+
+            {/* KEY SPECIFICATIONS */}
+            <div>
+              <SectionHeading>Key Specifications</SectionHeading>
+              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+                {[
+                  { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: fmtLength(listing.length_feet, displayUnits) },
+                  { icon: <Users size={20} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
+                  { icon: <Bed size={20} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
+                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type, href: boatTypeLink?.href },
+                  { icon: <Wrench size={20} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make, href: makeLink?.href },
+                  { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
+                  { icon: <Waves size={20} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
+                  { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
+                  { icon: <Fuel size={20} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
+                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
+                  { icon: <MapPin size={20} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
+                  { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
+                ].filter(s => s.value).map(s => (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
+                      {s.icon}
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#10214F]/55 uppercase tracking-wide font-bahnschrift">{s.label}</p>
+                      {s.href ? (
+                        <Link href={s.href} className="font-semibold text-[#01BBDC] font-bahnschrift text-sm hover:underline">
+                          {s.value}
+                        </Link>
+                      ) : (
+                        <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </div>
+            </div>
+
+            {/* KEY FEATURES */}
+            {keyFeatures.length > 0 && (
+              <div>
+                <SectionHeading>Key Features</SectionHeading>
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+                  <ul className="space-y-2.5">
+                    {keyFeatures.map((feature, i) => (
+                      <li key={i} className="flex items-start gap-3 text-[15px] text-[#10214F] font-poppins leading-relaxed">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold text-white" style={{ backgroundColor: '#01BBDC' }}>✓</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* ══ DESCRIPTION ═══════════════════════════════════════════════ */}
+            {listing.description && (
+              <div>
+                <SectionHeading>Description</SectionHeading>
+                {isHtmlDesc ? (
+                  <div
+                    className="text-[15px] leading-relaxed text-[#10214F] font-poppins space-y-4 prose prose-lg max-w-none"
+                    dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {(showFullDesc ? descParagraphs : descParagraphs.slice(0, 3)).map((para, i) => (
+                      <p key={i} className="text-[15px] leading-[1.8] text-[#10214F] font-poppins">
+                        {para}
+                      </p>
+                    ))}
+                    {descParagraphs.length > 3 && (
+                      <button
+                        onClick={() => setShowFullDesc((v) => !v)}
+                        className="text-sm font-semibold text-[#01BBDC] hover:opacity-75 transition-opacity mt-1"
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        {showFullDesc ? '↑ Show less' : 'Read full description →'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
           </div>
 
           {/* ── Contact card: 4 cols ── */}
@@ -1174,121 +1293,6 @@ export default function ListingDetailClient({
               </div>
             )}
           </div>
-        </div>
-
-        {/* PDF documents */}
-        {pdfItems.length > 0 && (
-          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5 mb-6">
-            <h4 className="font-bold text-[#10214F] mb-4 text-xs uppercase tracking-widest font-bahnschrift flex items-center gap-2">
-              <span className="w-0.5 h-4 rounded-full bg-[#01BBDC] inline-block flex-shrink-0" />
-              Documents
-            </h4>
-            <div className="space-y-2">
-              {pdfItems.map((doc, idx) => (
-                <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer"
-                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50">
-                  <span className="flex items-center gap-2 text-sm text-[#10214F] font-poppins">
-                    <FileText size={16} className="text-[#01BBDC]" />
-                    {doc.caption || doc.alt_text || `Document ${idx + 1}`}
-                  </span>
-                  <ExternalLink size={14} className="text-gray-500" />
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ══ KEY SPECS + KEY FEATURES + DESCRIPTION ══════════════════════ */}
-        {/* Finance Calculator now lives up in the contact-card column instead
-            of here — moved up closer to the broker/company card. */}
-        <div className="mb-10 space-y-8">
-
-            {/* KEY SPECIFICATIONS */}
-            <div>
-              <SectionHeading>Key Specifications</SectionHeading>
-              <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
-                {[
-                  { icon: <Ruler size={20} className="text-[#01BBDC]" />, label: 'Length',       value: fmtLength(listing.length_feet, displayUnits) },
-                  { icon: <Users size={20} className="text-[#01BBDC]" />, label: 'Guests',        value: listing.berths ? String(listing.berths) : null },
-                  { icon: <Bed size={20} className="text-[#01BBDC]" />,   label: 'Cabins',        value: listing.cabins ? String(listing.cabins) : null },
-                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Type',          value: listing.boat_type, href: boatTypeLink?.href },
-                  { icon: <Wrench size={20} className="text-[#01BBDC]" />,label: 'Make',          value: listing.make, href: makeLink?.href },
-                  { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Year',          value: listing.year ? String(listing.year) : null },
-                  { icon: <Waves size={20} className="text-[#01BBDC]" />, label: 'Cruise Speed',  value: listing.cruising_speed_knots ? `${listing.cruising_speed_knots} kts` : null },
-                  { icon: <Gauge size={20} className="text-[#01BBDC]" />, label: 'Max Speed',     value: listing.max_speed_knots ? `${listing.max_speed_knots} kts` : null },
-                  { icon: <Fuel size={20} className="text-[#01BBDC]" />,  label: 'Fuel Type',     value: listing.fuel_type },
-                  { icon: <Ship size={20} className="text-[#01BBDC]" />,  label: 'Engines',       value: listing.engine_count ? String(listing.engine_count) : ((listing.additional_engines?.length || 0) > 0 ? String(listing.additional_engines?.length) : null) },
-                  { icon: <MapPin size={20} className="text-[#01BBDC]" />,label: 'Location',      value: locationString || null },
-                  { icon: <Calendar size={20} className="text-[#01BBDC]" />, label: 'Listed',     value: listing.published_at ? new Date(listing.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null },
-                ].filter(s => s.value).map(s => (
-                  <div key={s.label} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(1,187,220,0.1)' }}>
-                      {s.icon}
-                    </div>
-                    <div>
-                      <p className="text-xs text-[#10214F]/55 uppercase tracking-wide font-bahnschrift">{s.label}</p>
-                      {s.href ? (
-                        <Link href={s.href} className="font-semibold text-[#01BBDC] font-bahnschrift text-sm hover:underline">
-                          {s.value}
-                        </Link>
-                      ) : (
-                        <p className="font-semibold text-[#10214F] font-bahnschrift text-sm">{s.value}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              </div>
-            </div>
-
-            {/* KEY FEATURES */}
-            {keyFeatures.length > 0 && (
-              <div>
-                <SectionHeading>Key Features</SectionHeading>
-                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
-                  <ul className="space-y-2.5">
-                    {keyFeatures.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-3 text-[15px] text-[#10214F] font-poppins leading-relaxed">
-                        <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold text-white" style={{ backgroundColor: '#01BBDC' }}>✓</span>
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* ══ DESCRIPTION ═══════════════════════════════════════════════ */}
-            {listing.description && (
-              <div>
-                <SectionHeading>Description</SectionHeading>
-                {isHtmlDesc ? (
-                  <div
-                    className="text-[15px] leading-relaxed text-[#10214F] font-poppins space-y-4 prose prose-lg max-w-none"
-                    dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-                  />
-                ) : (
-                  <div className="space-y-4">
-                    {(showFullDesc ? descParagraphs : descParagraphs.slice(0, 3)).map((para, i) => (
-                      <p key={i} className="text-[15px] leading-[1.8] text-[#10214F] font-poppins">
-                        {para}
-                      </p>
-                    ))}
-                    {descParagraphs.length > 3 && (
-                      <button
-                        onClick={() => setShowFullDesc((v) => !v)}
-                        className="text-sm font-semibold text-[#01BBDC] hover:opacity-75 transition-opacity mt-1"
-                        style={{ fontFamily: 'Poppins, sans-serif' }}
-                      >
-                        {showFullDesc ? '↑ Show less' : 'Read full description →'}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
         </div>
 
         {/* ══ FULL SPECIFICATIONS ════════════════════════════════════════════ */}
