@@ -504,7 +504,7 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
         <div id="photos" className="scroll-mt-32 grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
           {/* Featured image -- 8 cols */}
-          <div className="lg:col-span-8">
+          <div className="lg:col-span-8 space-y-3">
             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100" style={{ height: 500 }}>
               <img src={mediaUrl(images[activeImg])} alt={charter.title} onError={onImgError} className="w-full h-full object-cover" />
               {images.length > 1 && (
@@ -521,10 +521,33 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 </>
               )}
             </div>
+
+            {/* Photo strip -- 3 thumbnails, fits beneath the featured image */}
+            {images.length > 1 && (
+              <div className="flex gap-3 overflow-hidden">
+                {images.slice(1, 4).map((src, idx) => {
+                  const isLast = idx === 2;
+                  const remaining = Math.max(images.length - 4, 0);
+                  return (
+                    <button key={idx} type="button"
+                      className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                      style={{ height: 130, width: 'calc(33.333% - 8px)' }}
+                      onClick={() => setActiveImg(idx + 1)}>
+                      <img src={src} alt={`${charter.title} photo ${idx + 2}`} onError={onImgError} className="w-full h-full object-cover" />
+                      {isLast && remaining > 0 && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="text-white text-xl font-bold" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>+{remaining}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Booking card -- 4 cols */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4 space-y-6">
             <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden sticky top-5">
               {/* ── Company section — single unified block, no separate broker tier
                     (charter listings don't have an individual sales-rep concept the
@@ -727,37 +750,86 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 </div>
               </div>
             </div>
+
+            {/* == INLINE INQUIRY FORM — moved up here, right under the company card.
+                Always present (not a modal) so the availability calendar and date
+                selection are available on every listing, whether or not it has a
+                direct booking_url — this is the one place across the site where a
+                visitor picks their preferred charter dates before contacting the
+                charter company. The calendar leads the card, single month, click to
+                pick a range — a hotel-booking feel rather than a form field. */}
+            <div id="inquiry" className="scroll-mt-32 rounded-3xl border border-gray-200 bg-white p-6">
+              <h4 className="text-lg font-bold text-[#10214F] mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Inquire About This Yacht</h4>
+              <p className="text-sm text-gray-500 mb-4">Pick your preferred dates and the charter company will confirm availability.</p>
+              {submitted ? (
+                <div className="text-center py-6">
+                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
+                  <p className="text-sm text-gray-400">The charter company will be in touch shortly.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleInquiry} className="space-y-3">
+                  <BookingRangeCalendar
+                    blocks={charter.availability_blocks ?? []}
+                    startDate={charterStartDate}
+                    endDate={charterEndDate}
+                    onChange={(start, end) => { setCharterStartDate(start); setCharterEndDate(end); }}
+                  />
+                  {dateConflict && (
+                    <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+                      These dates overlap a booked or tentatively held window — you can still send your inquiry, but confirm with the charter company before finalizing plans.
+                    </div>
+                  )}
+                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                    <input type="number" min={1} placeholder="Guests" value={inquiryForm.guests} onChange={e => setInquiryForm(f => ({ ...f, guests: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
+                  </div>
+                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
+                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
+                    {submitting ? 'Sending...' : 'Send Inquiry'}
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* CHARTER POLICY CARD */}
+            {(charter.included_items?.length || charter.excluded_items?.length || charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
+              <div className="rounded-3xl border border-gray-200 bg-white p-6">
+                <h4 className="text-lg font-bold text-[#10214F] mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter Terms</h4>
+                <div className="space-y-4 text-sm">
+                  {charter.included_items?.length ? (
+                    <div>
+                      <p className="font-medium text-[#10214F] mb-1">Usually included</p>
+                      <p className="text-gray-500">{charter.included_items.join(', ')}</p>
+                    </div>
+                  ) : null}
+                  {charter.excluded_items?.length ? (
+                    <div>
+                      <p className="font-medium text-[#10214F] mb-1">Usually excluded</p>
+                      <p className="text-gray-500">{charter.excluded_items.join(', ')}</p>
+                    </div>
+                  ) : null}
+                  {(charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
+                    <div className="space-y-2 text-gray-600 border-t border-gray-100 pt-4">
+                      {charter.apa_percentage ? <p><span className="font-medium text-[#10214F]">APA:</span> {charter.apa_percentage}% estimated advance provisioning.</p> : null}
+                      {charter.security_deposit ? <p><span className="font-medium text-[#10214F]">Security deposit:</span> {charter.currency === 'USD' ? '$' : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
+                      {charter.tax_notes ? <p><span className="font-medium text-[#10214F]">Taxes:</span> {charter.tax_notes}</p> : null}
+                      {charter.cancellation_policy ? <p><span className="font-medium text-[#10214F]">Cancellation:</span> {charter.cancellation_policy}</p> : null}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* == PHOTO STRIP ======================================================= */}
-        {images.length > 1 && (
-          <div className="flex justify-center gap-3 mb-12 overflow-hidden">
-            {images.slice(1, 5).map((src, idx) => {
-              const isLast = idx === 3;
-              const remaining = Math.max(images.length - 5, 0);
-              return (
-                <button key={idx} type="button"
-                  className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
-                  style={{ height: 160, width: 'calc(25% - 9px)' }}
-                  onClick={() => setActiveImg(idx + 1)}>
-                  <img src={src} alt={`${charter.title} photo ${idx + 2}`} onError={onImgError} className="w-full h-full object-cover" />
-                  {isLast && remaining > 0 && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <span className="text-white text-xl font-bold" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>+{remaining}</span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* == SPECS + SIDEBAR ==================================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
-
-          {/* Left -- 8 cols */}
-          <div className="lg:col-span-8 space-y-10">
+        {/* == VESSEL SPECIFICATIONS + KEY FEATURES + DESCRIPTION ================= */}
+        {/* Inquire card + Charter Policy card now live up in the booking-card
+            column instead of here — moved up closer to the company card. */}
+        <div className="mb-10 space-y-10">
 
             {/* VESSEL SPECIFICATIONS — grid column count adapts to how much data
                 actually exists, so a thin listing (a handful of specs) doesn't
@@ -933,85 +1005,6 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
               )}
             </div>
 
-          </div>
-
-          {/* Right sidebar -- 4 cols */}
-          <div className="lg:col-span-4 space-y-6">
-
-            {/* == INLINE INQUIRY FORM ==============================================
-                Always present (not a modal) so the availability calendar and date
-                selection are available on every listing, whether or not it has a
-                direct booking_url — this is the one place across the site where a
-                visitor picks their preferred charter dates before contacting the
-                charter company. The calendar leads the card, single month, click to
-                pick a range — a hotel-booking feel rather than a form field. */}
-            <div id="inquiry" className="scroll-mt-32 rounded-3xl border border-gray-200 bg-white p-6">
-              <h4 className="text-lg font-bold text-[#10214F] mb-1" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Inquire About This Yacht</h4>
-              <p className="text-sm text-gray-500 mb-4">Pick your preferred dates and the charter company will confirm availability.</p>
-              {submitted ? (
-                <div className="text-center py-6">
-                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <p className="text-lg font-bold text-[#10214F] mb-1">Request sent!</p>
-                  <p className="text-sm text-gray-400">The charter company will be in touch shortly.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleInquiry} className="space-y-3">
-                  <BookingRangeCalendar
-                    blocks={charter.availability_blocks ?? []}
-                    startDate={charterStartDate}
-                    endDate={charterEndDate}
-                    onChange={(start, end) => { setCharterStartDate(start); setCharterEndDate(end); }}
-                  />
-                  {dateConflict && (
-                    <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                      <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-                      These dates overlap a booked or tentatively held window — you can still send your inquiry, but confirm with the charter company before finalizing plans.
-                    </div>
-                  )}
-                  <input required placeholder="Your name" value={inquiryForm.name} onChange={e => setInquiryForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <input required type="email" placeholder="Email address" value={inquiryForm.email} onChange={e => setInquiryForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="Phone (optional)" value={inquiryForm.phone} onChange={e => setInquiryForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                    <input type="number" min={1} placeholder="Guests" value={inquiryForm.guests} onChange={e => setInquiryForm(f => ({ ...f, guests: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC]" />
-                  </div>
-                  <textarea required rows={4} placeholder="Tell them about your trip..." value={inquiryForm.message} onChange={e => setInquiryForm(f => ({ ...f, message: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01BBDC] resize-none" />
-                  <button type="submit" disabled={submitting} className="w-full bg-[#01BBDC] hover:bg-[#00a5c4] text-white py-3.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50">
-                    {submitting ? 'Sending...' : 'Send Inquiry'}
-                  </button>
-                </form>
-              )}
-            </div>
-
-            {/* CHARTER POLICY CARD */}
-            {(charter.included_items?.length || charter.excluded_items?.length || charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
-              <div className="rounded-3xl border border-gray-200 bg-white p-6">
-                <h4 className="text-lg font-bold text-[#10214F] mb-4" style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif' }}>Charter Terms</h4>
-                <div className="space-y-4 text-sm">
-                  {charter.included_items?.length ? (
-                    <div>
-                      <p className="font-medium text-[#10214F] mb-1">Usually included</p>
-                      <p className="text-gray-500">{charter.included_items.join(', ')}</p>
-                    </div>
-                  ) : null}
-                  {charter.excluded_items?.length ? (
-                    <div>
-                      <p className="font-medium text-[#10214F] mb-1">Usually excluded</p>
-                      <p className="text-gray-500">{charter.excluded_items.join(', ')}</p>
-                    </div>
-                  ) : null}
-                  {(charter.apa_percentage || charter.security_deposit || charter.tax_notes || charter.cancellation_policy) && (
-                    <div className="space-y-2 text-gray-600 border-t border-gray-100 pt-4">
-                      {charter.apa_percentage ? <p><span className="font-medium text-[#10214F]">APA:</span> {charter.apa_percentage}% estimated advance provisioning.</p> : null}
-                      {charter.security_deposit ? <p><span className="font-medium text-[#10214F]">Security deposit:</span> {charter.currency === 'USD' ? '$' : charter.currency}{charter.security_deposit.toLocaleString()}</p> : null}
-                      {charter.tax_notes ? <p><span className="font-medium text-[#10214F]">Taxes:</span> {charter.tax_notes}</p> : null}
-                      {charter.cancellation_policy ? <p><span className="font-medium text-[#10214F]">Cancellation:</span> {charter.cancellation_policy}</p> : null}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-          </div>
         </div>
 
         {/* == SIMILAR YACHTS ==================================================== */}

@@ -772,7 +772,7 @@ export default function ListingDetailClient({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-4">
 
           {/* ── Featured image: 8 cols ──────────────────────────────────────── */}
-          <div className="lg:col-span-8">
+          <div className="lg:col-span-8 space-y-3">
             <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 cursor-pointer"
               style={{ height: 500 }}
               onClick={() => {
@@ -811,10 +811,51 @@ export default function ListingDetailClient({
                 </div>
               )}
             </div>
+
+            {/* Photo strip — 3 thumbnails, fits beneath the featured image */}
+            {galleryItems.length > 1 && (
+              <div className="flex gap-3 overflow-hidden">
+                {galleryItems.slice(1, 4).map((item, idx) => {
+                  const isLast = idx === 2;
+                  const remaining = Math.max(galleryItems.length - 4, 0);
+                  return (
+                    <button key={item.id} type="button"
+                      className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
+                      style={{ height: 130, width: 'calc(33.333% - 8px)' }}
+                      onClick={() => {
+                        if (item.file_type === 'image') {
+                          const i = imageLightboxItems.findIndex(x => x.id === item.id);
+                          if (i >= 0) setLightbox(i);
+                        } else if (item.file_type === 'video') {
+                          window.open(item.url, '_blank');
+                        }
+                      }}>
+                      {item.file_type === 'video' ? (
+                        <>
+                          <img src={mediaUrl(item.thumbnail_url) || FALLBACK_IMAGE}
+                            alt={`${listing.title} video`} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <PlayCircle size={22} className="text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <img src={mediaUrl(item.thumbnail_url || item.url) || FALLBACK_IMAGE}
+                          alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
+                      )}
+                      {isLast && remaining > 0 && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* ── Contact card: 4 cols ── */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4 space-y-6">
             <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
               {(sc || dealer) ? (
                 <>
@@ -1056,49 +1097,84 @@ export default function ListingDetailClient({
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* ══ PHOTO STRIP: single row of thumbnails ═══════════════════════ */}
-        {galleryItems.length > 1 && (
-          <div className="flex justify-center gap-3 mb-12 overflow-hidden">
-            {galleryItems.slice(1, 5).map((item, idx) => {
-              const isLast = idx === 3;
-              const remaining = Math.max(galleryItems.length - 5, 0);
-              return (
-                <button key={item.id} type="button"
-                  className="relative flex-shrink-0 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100"
-                  style={{ height: 160, width: 'calc(25% - 9px)' }}
-                  onClick={() => {
-                    if (item.file_type === 'image') {
-                      const i = imageLightboxItems.findIndex(x => x.id === item.id);
-                      if (i >= 0) setLightbox(i);
-                    } else if (item.file_type === 'video') {
-                      window.open(item.url, '_blank');
-                    }
-                  }}>
-                  {item.file_type === 'video' ? (
-                    <>
-                      <img src={mediaUrl(item.thumbnail_url) || FALLBACK_IMAGE}
-                        alt={`${listing.title} video`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <PlayCircle size={22} className="text-white" />
-                      </div>
-                    </>
-                  ) : (
-                    <img src={mediaUrl(item.thumbnail_url || item.url) || FALLBACK_IMAGE}
-                      alt={`${listing.title} photo ${idx + 2}`} className="w-full h-full object-cover" />
-                  )}
-                  {isLast && remaining > 0 && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <span className="text-white text-xl font-bold font-bahnschrift">+{remaining}</span>
+            {/* FINANCE CALCULATOR — moved up here, right under the contact card */}
+            {listing.price && (
+              <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
+
+                {/* Inputs */}
+                <div className="p-6">
+                  <h4 className="text-lg font-bold text-[#10214F] mb-4 font-bahnschrift">Finance Calculator</h4>
+
+                  {([
+                    { label: 'Purchase Price',    key: null,                   type: 'readonly', val: `$${fmt(listing.price)}` },
+                    { label: 'Down Payment %',    key: 'down_payment_percent', type: 'number',   step: 5 },
+                    { label: 'Loan Amount',       key: null,                   type: 'readonly', val: `$${fmt(listing.price * (1 - finIn.down_payment_percent / 100))}` },
+                  ] as any[]).map(f => (
+                    <div key={f.label} className="mb-4">
+                      <p className="mb-2 text-sm font-semibold text-[#10214F] font-poppins">{f.label}</p>
+                      {f.type === 'readonly' ? (
+                        <div className="px-4 py-3 rounded-xl text-sm font-medium border border-gray-200 text-[#10214F] bg-white">
+                          {f.val}
+                        </div>
+                      ) : (
+                        <input type="number" step={f.step}
+                          value={(finIn as any)[f.key]}
+                          onChange={e => setFinIn(p => ({ ...p, [f.key]: Number(e.target.value) }))}
+                          className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-[#10214F] font-poppins">Term (years)</p>
+                      <input type="number" min={1} max={30} value={finIn.term_years}
+                        onChange={e => setFinIn(p => ({ ...p, term_years: Number(e.target.value) }))}
+                        className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
+                    </div>
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-[#10214F] font-poppins">Rate %</p>
+                      <input type="number" step={0.01} value={finIn.interest_rate}
+                        onChange={e => setFinIn(p => ({ ...p, interest_rate: Number(e.target.value) }))}
+                        className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
+                    </div>
+                  </div>
+
+                  <button onClick={calcFinance} disabled={finBusy}
+                    className="w-full py-3 rounded-xl text-white font-semibold hover:opacity-90 disabled:opacity-60 transition-all bg-[#01BBDC]">
+                    {finBusy ? 'Calculating…' : 'Calculate'}
+                  </button>
+                </div>
+
+                {/* Results */}
+                <div className="px-6 py-6 bg-white border-t border-gray-200">
+                  <p className="font-bold text-lg text-[#10214F] mb-2 font-bahnschrift">
+                    Monthly Payment
+                  </p>
+                  <p className="font-bold text-4xl text-[#10214F] mb-5 font-bahnschrift">
+                    {finOut ? `$${fmt(finOut.monthly_payment)}` : '—'}
+                  </p>
+                  {finOut && (
+                    <div className="space-y-3 text-sm">
+                      {[
+                        { label: 'Down payment',   val: `$${fmt(finOut.down_payment)}`   },
+                        { label: 'Loan amount',    val: `$${fmt(finOut.loan_amount)}`    },
+                        { label: 'Total interest', val: `$${fmt(finOut.total_interest)}`  },
+                        { label: 'Total cost',     val: `$${fmt(finOut.total_cost)}`     },
+                      ].map(r => (
+                        <div key={r.label} className="flex justify-between items-center py-2 border-b border-gray-200">
+                          <span className="text-[#10214F] font-poppins">{r.label}</span>
+                          <span className="font-bold text-[#10214F] font-poppins">{r.val}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
-                </button>
-              );
-            })}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* PDF documents */}
         {pdfItems.length > 0 && (
@@ -1122,11 +1198,10 @@ export default function ListingDetailClient({
           </div>
         )}
 
-        {/* ══ KEY SPECS (LEFT 8) + FINANCE (RIGHT 4) ══════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-10">
-
-          {/* Left column: Key Specs + Key Features — 8 cols */}
-          <div className="lg:col-span-8 space-y-8">
+        {/* ══ KEY SPECS + KEY FEATURES + DESCRIPTION ══════════════════════ */}
+        {/* Finance Calculator now lives up in the contact-card column instead
+            of here — moved up closer to the broker/company card. */}
+        <div className="mb-10 space-y-8">
 
             {/* KEY SPECIFICATIONS */}
             <div>
@@ -1213,89 +1288,6 @@ export default function ListingDetailClient({
                 )}
               </div>
             )}
-
-          </div>
-
-          {/* Right column: Finance — 4 cols */}
-          <div className="lg:col-span-4 space-y-6">
-
-            {/* FINANCE CALCULATOR */}
-            {listing.price && (
-              <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
-
-                {/* Inputs */}
-                <div className="p-6">
-                  <h4 className="text-lg font-bold text-[#10214F] mb-4 font-bahnschrift">Finance Calculator</h4>
-
-                  {([
-                    { label: 'Purchase Price',    key: null,                   type: 'readonly', val: `$${fmt(listing.price)}` },
-                    { label: 'Down Payment %',    key: 'down_payment_percent', type: 'number',   step: 5 },
-                    { label: 'Loan Amount',       key: null,                   type: 'readonly', val: `$${fmt(listing.price * (1 - finIn.down_payment_percent / 100))}` },
-                  ] as any[]).map(f => (
-                    <div key={f.label} className="mb-4">
-                      <p className="mb-2 text-sm font-semibold text-[#10214F] font-poppins">{f.label}</p>
-                      {f.type === 'readonly' ? (
-                        <div className="px-4 py-3 rounded-xl text-sm font-medium border border-gray-200 text-[#10214F] bg-white">
-                          {f.val}
-                        </div>
-                      ) : (
-                        <input type="number" step={f.step}
-                          value={(finIn as any)[f.key]}
-                          onChange={e => setFinIn(p => ({ ...p, [f.key]: Number(e.target.value) }))}
-                          className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
-                      )}
-                    </div>
-                  ))}
-
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div>
-                      <p className="mb-2 text-sm font-semibold text-[#10214F] font-poppins">Term (years)</p>
-                      <input type="number" min={1} max={30} value={finIn.term_years}
-                        onChange={e => setFinIn(p => ({ ...p, term_years: Number(e.target.value) }))}
-                        className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
-                    </div>
-                    <div>
-                      <p className="mb-2 text-sm font-semibold text-[#10214F] font-poppins">Rate %</p>
-                      <input type="number" step={0.01} value={finIn.interest_rate}
-                        onChange={e => setFinIn(p => ({ ...p, interest_rate: Number(e.target.value) }))}
-                        className="w-full px-4 py-3 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#01BBDC] border border-gray-200 transition-all" />
-                    </div>
-                  </div>
-
-                  <button onClick={calcFinance} disabled={finBusy}
-                    className="w-full py-3 rounded-xl text-white font-semibold hover:opacity-90 disabled:opacity-60 transition-all bg-[#01BBDC]">
-                    {finBusy ? 'Calculating…' : 'Calculate'}
-                  </button>
-                </div>
-
-                {/* Results */}
-                <div className="px-6 py-6 bg-white border-t border-gray-200">
-                  <p className="font-bold text-lg text-[#10214F] mb-2 font-bahnschrift">
-                    Monthly Payment
-                  </p>
-                  <p className="font-bold text-4xl text-[#10214F] mb-5 font-bahnschrift">
-                    {finOut ? `$${fmt(finOut.monthly_payment)}` : '—'}
-                  </p>
-                  {finOut && (
-                    <div className="space-y-3 text-sm">
-                      {[
-                        { label: 'Down payment',   val: `$${fmt(finOut.down_payment)}`   },
-                        { label: 'Loan amount',    val: `$${fmt(finOut.loan_amount)}`    },
-                        { label: 'Total interest', val: `$${fmt(finOut.total_interest)}`  },
-                        { label: 'Total cost',     val: `$${fmt(finOut.total_cost)}`     },
-                      ].map(r => (
-                        <div key={r.label} className="flex justify-between items-center py-2 border-b border-gray-200">
-                          <span className="text-[#10214F] font-poppins">{r.label}</span>
-                          <span className="font-bold text-[#10214F] font-poppins">{r.val}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-          </div>
 
         </div>
 
