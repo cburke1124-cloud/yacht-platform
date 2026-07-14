@@ -300,7 +300,7 @@ export default function ComparisonPage({
                       className="p-6 min-w-[280px] text-left bg-gradient-to-br from-primary/5 to-white"
                     >
                       <Link
-                        href={`/listings/${listing.id}`}
+                        href={listing.item_type === 'charter' ? `/charter/${listing.id}` : `/listings/${listing.id}`}
                         className="block group"
                       >
                         <div className="relative mb-3 rounded-xl overflow-hidden">
@@ -313,9 +313,10 @@ export default function ComparisonPage({
                         </div>
                         <p className="font-bold text-gray-900 group-hover:text-primary transition-colors line-clamp-2 mb-1">
                           {listing.title}
+                          {listing.item_type === 'charter' && <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Charter</span>}
                         </p>
                         <p className="text-sm text-secondary/70">
-                          {listing.year} • {listing.length_feet}ft
+                          {listing.item_type === 'charter' ? `${listing.max_guests ?? '—'} guests • ${listing.length_feet ?? '—'}ft` : `${listing.year} • ${listing.length_feet}ft`}
                         </p>
                       </Link>
                     </th>
@@ -374,7 +375,7 @@ export default function ComparisonPage({
                     <td key={listing.id} className="p-6">
                       <div className="flex flex-col gap-2">
                         <Link
-                          href={`/listings/${listing.id}`}
+                          href={listing.item_type === 'charter' ? `/charter/${listing.id}` : `/listings/${listing.id}`}
                           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all text-center font-semibold text-sm"
                         >
                           View Details

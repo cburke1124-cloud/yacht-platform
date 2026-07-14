@@ -338,20 +338,28 @@ def get_saved_listings(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get user's saved listings."""
+    """Get user's saved listings — for-sale and charter alike."""
     from app.models.listing import SavedListing
-    
+    from app.models.charter import CharterListing
+
     saved = db.query(SavedListing).filter(
         SavedListing.user_id == current_user.id
     ).all()
-    
-    return [
-        {
+
+    result = []
+    for s in saved:
+        item = {
             "id": s.id,
             "listing_id": s.listing_id,
+            "charter_id": s.charter_id,
+            "item_type": "charter" if s.charter_id else "listing",
             "notes": s.notes,
             "created_at": s.created_at.isoformat(),
-            "listing": {
+            "listing": None,
+            "charter": None,
+        }
+        if s.listing_id and s.listing:
+            item["listing"] = {
                 "id": s.listing.id,
                 "title": s.listing.title,
                 "price": s.listing.price,
@@ -360,10 +368,22 @@ def get_saved_listings(
                 "city": s.listing.city,
                 "state": s.listing.state,
                 "images": [img.url for img in s.listing.images[:1]]
-            } if s.listing else None
-        }
-        for s in saved
-    ]
+            }
+        elif s.charter_id:
+            charter = db.query(CharterListing).filter(CharterListing.id == s.charter_id).first()
+            if charter:
+                item["charter"] = {
+                    "id": charter.id,
+                    "title": charter.title,
+                    "day_rate": charter.day_rate,
+                    "week_rate": charter.week_rate,
+                    "currency": charter.currency,
+                    "home_port_city": charter.home_port_city,
+                    "home_port_state": charter.home_port_state,
+                    "images": (charter.images or [])[:1],
+                }
+        result.append(item)
+    return result
 
 
 @router.post("/saved-listings")
@@ -372,29 +392,40 @@ def save_listing(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Save a listing for the current user."""
+    """Save a for-sale or charter listing for the current user. Pass exactly
+    one of listing_id / charter_id."""
     from app.models.listing import SavedListing
+    from app.models.charter import CharterListing
 
     listing_id = data.get("listing_id")
-    if not listing_id:
-        raise ValidationException("Missing required field: listing_id")
+    charter_id = data.get("charter_id")
+    if not listing_id and not charter_id:
+        raise ValidationException("Missing required field: listing_id or charter_id")
+    if listing_id and charter_id:
+        raise ValidationException("Pass only one of listing_id or charter_id")
 
-    # Verify listing exists
-    listing = db.query(Listing).filter(Listing.id == listing_id).first()
-    if not listing:
-        raise ResourceNotFoundException("Listing", listing_id)
+    if listing_id:
+        if not db.query(Listing).filter(Listing.id == listing_id).first():
+            raise ResourceNotFoundException("Listing", listing_id)
+        existing = db.query(SavedListing).filter(
+            SavedListing.user_id == current_user.id,
+            SavedListing.listing_id == listing_id
+        ).first()
+    else:
+        if not db.query(CharterListing).filter(CharterListing.id == charter_id).first():
+            raise ResourceNotFoundException("Charter listing", charter_id)
+        existing = db.query(SavedListing).filter(
+            SavedListing.user_id == current_user.id,
+            SavedListing.charter_id == charter_id
+        ).first()
 
-    # Idempotent: return existing if already saved
-    existing = db.query(SavedListing).filter(
-        SavedListing.user_id == current_user.id,
-        SavedListing.listing_id == listing_id
-    ).first()
     if existing:
         return {"success": True, "saved_id": existing.id, "already_saved": True}
 
     saved = SavedListing(
         user_id=current_user.id,
         listing_id=listing_id,
+        charter_id=charter_id,
         notes=data.get("notes"),
     )
     db.add(saved)
@@ -438,6 +469,27 @@ def remove_saved_listing_by_listing_id(
 
     saved = db.query(SavedListing).filter(
         SavedListing.listing_id == listing_id,
+        SavedListing.user_id == current_user.id
+    ).first()
+
+    if saved:
+        db.delete(saved)
+        db.commit()
+
+    return {"success": True}
+
+
+@router.delete("/saved-listings/by-charter/{charter_id}")
+def remove_saved_charter_by_id(
+    charter_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove a saved charter listing by charter ID (idempotent)."""
+    from app.models.listing import SavedListing
+
+    saved = db.query(SavedListing).filter(
+        SavedListing.charter_id == charter_id,
         SavedListing.user_id == current_user.id
     ).first()
 

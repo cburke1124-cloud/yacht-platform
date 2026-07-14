@@ -7,7 +7,8 @@ import {
   ArrowLeft, MapPin, Anchor, Users, Ruler, Calendar,
   Mail, Phone, ChevronLeft, ChevronRight,
   Ship, Zap, Bed, Waves, Check, ExternalLink,
-  Facebook, Instagram, Twitter, Linkedin, Sparkles, AlertTriangle
+  Facebook, Instagram, Twitter, Linkedin, Sparkles, AlertTriangle,
+  MessageCircle, Link2, Printer
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
@@ -161,6 +162,14 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
   const [similar, setSimilar] = useState<CharterListing[]>([]);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  // Save / Compare / Share — mirrors the for-sale listing page, scoped to charter_id
+  const [saved, setSaved] = useState(false);
+  const [showComp, setShowComp] = useState(false);
+  const [inComp, setInComp] = useState(false);
+  const [comparisons, setComparisons] = useState<Array<{ id: number; name: string; listings?: unknown[] }>>([]);
+  const [showShare, setShowShare] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const charterDays = useMemo(() => {
     if (!charterStartDate || !charterEndDate) return 0;
     const diff = new Date(charterEndDate).getTime() - new Date(charterStartDate).getTime();
@@ -273,6 +282,78 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
     };
     fetchSimilar();
   }, [charter]);
+
+  const checkSaved = async () => {
+    const token = localStorage.getItem('token'); if (!token || !charter) return;
+    try {
+      const r = await fetch(apiUrl('/saved-listings'), { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) { const d = await r.json(); setSaved(d.some((i: { charter_id?: number }) => i.charter_id === charter.id)); }
+    } catch { /* non-critical */ }
+  };
+
+  const loadComps = async () => {
+    const token = localStorage.getItem('token'); if (!token || !charter) return;
+    try {
+      const r = await fetch(apiUrl('/comparisons'), { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) {
+        const d = await r.json();
+        setComparisons(d);
+        setInComp(d.some((c: { listings?: Array<{ id: number; item_type?: string }> }) => c.listings?.some(l => l.item_type === 'charter' && l.id === charter.id)));
+      }
+    } catch { /* non-critical */ }
+  };
+
+  useEffect(() => { checkSaved(); loadComps(); }, [charter]);
+
+  const toggleSave = async () => {
+    const token = localStorage.getItem('token'); if (!token) return alert('Please log in to save listings');
+    if (!charter) return;
+    if (saved) {
+      await fetch(apiUrl(`/saved-listings/by-charter/${charter.id}`), { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      setSaved(false);
+    } else {
+      await fetch(apiUrl('/saved-listings'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ charter_id: charter.id }) });
+      setSaved(true);
+    }
+  };
+
+  const addToComp = async (compId?: number) => {
+    const token = localStorage.getItem('token'); if (!token) return alert('Please log in');
+    if (!charter) return;
+    if (compId) {
+      await fetch(apiUrl(`/comparisons/${compId}/add-charter/${charter.id}`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      setInComp(true); setShowComp(false); loadComps();
+    } else {
+      const name = prompt('Name your comparison:') || 'My Comparison';
+      const r = await fetch(apiUrl('/comparisons'), { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      if (r.ok) {
+        const d = await r.json();
+        await fetch(apiUrl(`/comparisons/${d.id}/add-charter/${charter.id}`), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        router.push(`/comparison/${d.id}`);
+      }
+    }
+  };
+
+  const doShare = async (platform: string) => {
+    if (!charter) return;
+    const url = `${window.location.origin}/charter/${charter.id}`;
+    const text = `${charter.title}${charter.week_rate ? ` — ${formatRate(charter.week_rate, charter.currency, 'week')}` : ''}`;
+    const map: Record<string, string> = {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+      twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`,
+      email: `mailto:?subject=${encodeURIComponent(charter.title)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`,
+    };
+    if (map[platform]) window.open(map[platform], '_blank', 'width=600,height=400');
+    setShowShare(false);
+  };
+
+  const copyLink = async () => {
+    if (!charter) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/charter/${charter.id}`);
+    setCopied(true); setTimeout(() => { setCopied(false); setShowShare(false); }, 2000);
+  };
 
   const images = galleryImages ?? charter?.images?.map(img => mediaUrl(typeof img === 'string' ? img : img.url)) ?? [];
 
@@ -445,14 +526,15 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
           {/* Booking card -- 4 cols */}
           <div className="lg:col-span-4">
             <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden sticky top-5">
+              {/* ── Broker/company section (top tier, mirrors the for-sale contact card) ── */}
               <div className="p-6 text-center">
                 <div className="flex justify-center mb-4">
                   {charter.charter_company_logo_url ? (
                     <img src={mediaUrl(charter.charter_company_logo_url)} alt={charter.charter_company_name || 'Charter company'}
-                      className="w-20 h-20 rounded-full object-contain bg-gray-50 p-2 border border-gray-100"
+                      className="w-24 h-24 rounded-full object-contain bg-gray-50 p-2 border border-gray-100 shadow-sm"
                       onError={onImgError} />
                   ) : (
-                    <div className="w-20 h-20 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
+                    <div className="w-24 h-24 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center">
                       <Anchor className="w-10 h-10 text-[#01BBDC]" />
                     </div>
                   )}
@@ -460,11 +542,11 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 {charter.charter_company_name && (
                   charter.charter_company_slug ? (
                     <Link href={`/dealers/${charter.charter_company_slug}`} className="hover:underline"
-                      style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4, display: 'block' }}>
+                      style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 2, display: 'block' }}>
                       {charter.charter_company_name}
                     </Link>
                   ) : (
-                    <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 4 }}>
+                    <p style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 15, color: '#10214F', marginBottom: 2 }}>
                       {charter.charter_company_name}
                     </p>
                   )
@@ -474,40 +556,11 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                     <Phone size={13} /> {charter.charter_company_phone}
                   </a>
                 )}
-                {(charter.charter_company_city || charter.charter_company_state || charter.charter_company_country) && (
-                  <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-3">
+                {(charter.charter_company_city || charter.charter_company_state) && (
+                  <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-5">
                     <MapPin size={10} />
-                    {[charter.charter_company_city, charter.charter_company_state, charter.charter_company_country].filter(Boolean).join(', ')}
+                    {[charter.charter_company_city, charter.charter_company_state].filter(Boolean).join(', ')}
                   </p>
-                )}
-                {charter.charter_company_description && (
-                  <p className="text-xs text-gray-500 leading-relaxed mb-4 line-clamp-4 text-left">
-                    {charter.charter_company_description}
-                  </p>
-                )}
-                {(charter.charter_company_facebook_url || charter.charter_company_instagram_url || charter.charter_company_twitter_url || charter.charter_company_linkedin_url) && (
-                  <div className="flex items-center justify-center gap-3 mb-4">
-                    {charter.charter_company_facebook_url && (
-                      <a href={charter.charter_company_facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-                        <Facebook size={16} className="text-[#1877F2]" />
-                      </a>
-                    )}
-                    {charter.charter_company_instagram_url && (
-                      <a href={charter.charter_company_instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                        <Instagram size={16} className="text-[#E4405F]" />
-                      </a>
-                    )}
-                    {charter.charter_company_twitter_url && (
-                      <a href={charter.charter_company_twitter_url} target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-                        <Twitter size={16} className="text-[#1DA1F2]" />
-                      </a>
-                    )}
-                    {charter.charter_company_linkedin_url && (
-                      <a href={charter.charter_company_linkedin_url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                        <Linkedin size={16} className="text-[#0A66C2]" />
-                      </a>
-                    )}
-                  </div>
                 )}
 
                 {/* Rates */}
@@ -566,24 +619,130 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 )}
               </div>
 
-              {(charter.charter_company_email || charter.charter_company_website) && (
-                <div className="border-t border-gray-100 p-5 bg-gray-50">
-                  <div className="space-y-2">
-                    {charter.charter_company_email && (
-                      <a href={`mailto:${charter.charter_company_email}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#01BBDC] transition-colors">
-                        <Mail size={14} /> {charter.charter_company_email}
-                      </a>
-                    )}
-                    {charter.charter_company_website && (
-                      <a href={charter.charter_company_website} target="_blank" rel="noopener noreferrer"
-                        className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80 mt-2"
-                        style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.06em', border: '1.5px solid #10214F', color: '#10214F' }}>
-                        VISIT WEBSITE
-                      </a>
+              {/* ── Company section (bottom tier, gray bg — logo, bio, socials, website) ── */}
+              {charter.charter_company_name && (
+                <div className="border-t border-gray-100 p-5" style={{ backgroundColor: '#F8F9FC' }}>
+                  <div className="flex justify-center mb-3">
+                    {charter.charter_company_logo_url ? (
+                      <img src={mediaUrl(charter.charter_company_logo_url)} alt={`${charter.charter_company_name} logo`}
+                        className="h-12 max-w-[140px] object-contain"
+                        onError={onImgError} />
+                    ) : (
+                      <img src="/logo/logo-icon.png" alt="YachtVersal" className="h-10 w-auto object-contain opacity-30" />
                     )}
                   </div>
+                  {(charter.charter_company_city || charter.charter_company_state || charter.charter_company_country) && (
+                    <p className="text-center text-[11px] text-gray-400 flex items-center justify-center gap-1 mb-3">
+                      <MapPin size={10} />
+                      {[charter.charter_company_city, charter.charter_company_state, charter.charter_company_country].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                  {charter.charter_company_description && (
+                    <p className="text-center text-xs text-gray-500 leading-relaxed mb-3 line-clamp-4">
+                      {charter.charter_company_description}
+                    </p>
+                  )}
+                  {charter.charter_company_email && (
+                    <a href={`mailto:${charter.charter_company_email}`}
+                      className="flex items-center justify-center gap-1.5 text-xs hover:text-[#01BBDC] transition-colors mb-3"
+                      style={{ color: '#10214F' }}>
+                      <Mail size={12} /> {charter.charter_company_email}
+                    </a>
+                  )}
+                  {(charter.charter_company_facebook_url || charter.charter_company_instagram_url || charter.charter_company_twitter_url || charter.charter_company_linkedin_url) && (
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      {charter.charter_company_facebook_url && (
+                        <a href={charter.charter_company_facebook_url} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                          <Facebook size={16} className="text-[#1877F2]" />
+                        </a>
+                      )}
+                      {charter.charter_company_instagram_url && (
+                        <a href={charter.charter_company_instagram_url} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                          <Instagram size={16} className="text-[#E4405F]" />
+                        </a>
+                      )}
+                      {charter.charter_company_twitter_url && (
+                        <a href={charter.charter_company_twitter_url} target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+                          <Twitter size={16} className="text-[#1DA1F2]" />
+                        </a>
+                      )}
+                      {charter.charter_company_linkedin_url && (
+                        <a href={charter.charter_company_linkedin_url} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                          <Linkedin size={16} className="text-[#0A66C2]" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  {charter.charter_company_website && (
+                    <a href={charter.charter_company_website.startsWith('http') ? charter.charter_company_website : `https://${charter.charter_company_website}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="block w-full py-2.5 rounded-xl text-center text-xs font-semibold transition-all hover:opacity-80"
+                      style={{ fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.06em', border: '1.5px solid #10214F', color: '#10214F' }}>
+                      VISIT WEBSITE
+                    </a>
+                  )}
                 </div>
               )}
+
+              {/* ── Action buttons row: Save / Compare / Share ── */}
+              <div className="grid grid-cols-3 divide-x divide-gray-200 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
+                <button onClick={toggleSave}
+                  className="flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
+                  style={{ color: '#10214F' }}>
+                  {saved ? 'Saved' : 'Save'}
+                </button>
+                <div className="relative">
+                  <button onClick={() => setShowComp(!showComp)}
+                    className="w-full flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors"
+                    style={{ color: '#10214F' }}>
+                    {inComp ? 'In Compare' : 'Compare'}
+                  </button>
+                  {showComp && (
+                    <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl border border-gray-200 z-20 max-h-52 overflow-y-auto shadow-lg">
+                      <div className="p-2">
+                        <button onClick={() => addToComp()} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm font-semibold text-[#01BBDC]">+ New Comparison</button>
+                        {comparisons.map(c => (
+                          <button key={c.id} onClick={() => addToComp(c.id)} className="w-full px-4 py-3 hover:bg-gray-50 rounded-xl text-left text-sm text-gray-700">
+                            {c.name} ({c.listings?.length || 0})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <button onClick={() => setShowShare(!showShare)}
+                    className="w-full flex flex-col items-center gap-1.5 py-4 text-xs font-semibold hover:bg-white transition-colors" style={{ color: '#10214F' }}>
+                    Share
+                  </button>
+                  {showShare && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200 z-50 shadow-lg">
+                      <div className="p-2 space-y-1">
+                        {[
+                          { icon: <Facebook size={16} className="text-[#1877F2]" />,      label: 'Facebook',  p: 'facebook' },
+                          { icon: <Twitter size={16} className="text-[#1DA1F2]" />,       label: 'Twitter',   p: 'twitter'  },
+                          { icon: <Linkedin size={16} className="text-[#0A66C2]" />,      label: 'LinkedIn',  p: 'linkedin' },
+                          { icon: <MessageCircle size={16} className="text-[#25D366]" />, label: 'WhatsApp',  p: 'whatsapp' },
+                          { icon: <Mail size={16} className="text-gray-500" />,           label: 'Email',     p: 'email'    },
+                        ].map(s => (
+                          <button key={s.p} onClick={() => doShare(s.p)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                            {s.icon} {s.label}
+                          </button>
+                        ))}
+                        <div className="border-t border-gray-100 my-1" />
+                        <button onClick={() => { window.print(); setShowShare(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                          <Printer size={16} className="text-gray-500" /> Print
+                        </button>
+                        <button onClick={copyLink}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl text-sm text-gray-700 transition-colors">
+                          <Link2 size={16} className="text-gray-500" /> {copied ? '✓ Copied!' : 'Copy Link'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

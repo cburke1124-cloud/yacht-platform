@@ -490,10 +490,13 @@ class Comparison(Base):
 
 class ComparisonItem(Base):
     __tablename__ = "comparison_items"
-    
+
     id = Column(Integer, primary_key=True)
     comparison_id = Column(Integer, ForeignKey("comparisons.id"))
     listing_id = Column(Integer, ForeignKey("listings.id"))
+    # Exactly one of listing_id / charter_id is set — a comparison can mix
+    # for-sale and charter items side by side, each item is one or the other.
+    charter_id = Column(Integer, ForeignKey("charter_listings.id", ondelete="CASCADE"), nullable=True)
     added_at = Column(DateTime, default=datetime.utcnow)
 
 

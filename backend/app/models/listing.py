@@ -176,6 +176,9 @@ class SavedListing(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     listing_id = Column(Integer, ForeignKey("listings.id"))
+    # Exactly one of listing_id / charter_id is set — a saved item is either
+    # a for-sale listing or a charter listing, never both.
+    charter_id = Column(Integer, ForeignKey("charter_listings.id", ondelete="CASCADE"), nullable=True)
 
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
