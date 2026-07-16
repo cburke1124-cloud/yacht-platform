@@ -365,7 +365,10 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
   const [aiQuery, setAiQuery] = useState('');
   const [aiSearchContext, setAiSearchContext] = useState<{ no_exact_make?: string; exact_make?: string; showing_similar?: boolean } | null>(null);
   const [sort, setSort] = useState<string>('nearest');
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(() => {
+    const p = parseInt(searchParams.get('page') || '1', 10);
+    return !isNaN(p) && p > 1 ? p - 1 : 0;
+  });
   const [total, setTotal] = useState<number>(initialTotal);
   const [pageSize, setPageSize] = useState<number>(20);
   const [currency, setCurrency] = useState('USD');
@@ -401,16 +404,31 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
     country:    searchParams.get('country')    || '',
   });
 
+  // Keep the current page number in the URL so browser Back/Forward restores it
+  // instead of always landing on page 1 when this component remounts.
+  const updatePageInUrl = useCallback((newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newPage > 0) {
+      params.set('page', String(newPage + 1));
+    } else {
+      params.delete('page');
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/listings?${qs}` : '/listings', { scroll: false });
+  }, [searchParams, router]);
+
   const handleFilterChange = useCallback((key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPage(0);
-  }, []);
+    updatePageInUrl(0);
+  }, [updatePageInUrl]);
 
   const clearFilters = () => {
     setFilters({ ...EMPTY_FILTERS });
     setAiQuery('');
     setSearchType('basic');
     setPage(0);
+    updatePageInUrl(0);
   };
 
   // Currency — read saved preference or auto-detect from browser locale
@@ -507,6 +525,13 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
       if (!controller.signal.aborted) setLoading(false);
     }
   }, [filters, aiQuery, page, sort, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const goToPage = useCallback((newPage: number) => {
+    setPage(newPage);
+    fetchListings(false, newPage, sort, pageSize);
+    updatePageInUrl(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [fetchListings, sort, pageSize, updatePageInUrl]);
 
   useEffect(() => { fetchListings(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -610,7 +635,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
             Skip the Filters
           </h2>
           <form
-            onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } }}
+            onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); updatePageInUrl(0); fetchListings(true, 0, sort); } }}
             className="flex items-center gap-2 mx-auto"
             style={{ maxWidth: 960 }}
             role="search"
@@ -621,7 +646,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                 type="search"
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setPage(0); fetchListings(true, 0, sort); } } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setPage(0); updatePageInUrl(0); fetchListings(true, 0, sort); } } }}
                 placeholder="Describe your ideal yacht — size, lifestyle, budget, cruising plans…"
                 className="w-full focus:outline-none"
                 style={{
@@ -922,7 +947,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
               </select>
               <select
                 value={sort}
-                onChange={(e) => { const newSort = e.target.value; setSort(newSort); setPage(0); fetchListings(false, 0, newSort, pageSize); }}
+                onChange={(e) => { const newSort = e.target.value; setSort(newSort); setPage(0); updatePageInUrl(0); fetchListings(false, 0, newSort, pageSize); }}
                 className="focus:outline-none"
                 style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, border: '1.5px solid rgba(16,33,79,0.15)', borderRadius: 6, padding: '6px 10px', color: '#10214F', backgroundColor: '#FAFAFA' }}
               >
@@ -1188,7 +1213,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                   <div className="flex items-center gap-2 flex-wrap justify-center">
                     {/* Skip to first */}
                     <button
-                      onClick={() => { setPage(0); fetchListings(false, 0, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onClick={() => goToPage(0)}
                       disabled={page === 0}
                       title="First page"
                       className="flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
@@ -1198,7 +1223,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                     </button>
 
                     <button
-                      onClick={() => { const np = Math.max(0, page - 1); setPage(np); fetchListings(false, np, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onClick={() => goToPage(Math.max(0, page - 1))}
                       disabled={page === 0}
                       className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
                       style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
@@ -1212,7 +1237,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                         return (
                           <button
                             key={i}
-                            onClick={() => { setPage(i); fetchListings(false, i, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                            onClick={() => goToPage(i)}
                             className="w-8 h-8 rounded-lg text-sm font-medium transition-all"
                             style={{
                               fontFamily: 'Poppins, sans-serif',
@@ -1232,7 +1257,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                             <span style={{ color: 'rgba(16,33,79,0.3)', fontSize: 13, padding: '0 2px' }}>…</span>
                           )}
                           <button
-                            onClick={() => { setPage(totalPages - 1); fetchListings(false, totalPages - 1, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                            onClick={() => goToPage(totalPages - 1)}
                             className="w-8 h-8 rounded-lg text-sm font-medium transition-all"
                             style={{ fontFamily: 'Poppins, sans-serif', backgroundColor: '#FFFFFF', color: 'rgba(16,33,79,0.6)', border: '1.5px solid rgba(16,33,79,0.12)' }}
                           >
@@ -1243,7 +1268,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                     </div>
 
                     <button
-                      onClick={() => { const np = Math.min(totalPages - 1, page + 1); setPage(np); fetchListings(false, np, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onClick={() => goToPage(Math.min(totalPages - 1, page + 1))}
                       disabled={page >= totalPages - 1}
                       className="flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
                       style={{ backgroundColor: '#FFFFFF', border: '1.5px solid rgba(16,33,79,0.12)', color: '#10214F', fontFamily: 'Poppins, sans-serif' }}
@@ -1253,7 +1278,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
 
                     {/* Skip to last */}
                     <button
-                      onClick={() => { setPage(totalPages - 1); fetchListings(false, totalPages - 1, sort, pageSize); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onClick={() => goToPage(totalPages - 1)}
                       disabled={page >= totalPages - 1}
                       title="Last page"
                       className="flex items-center px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
@@ -1271,7 +1296,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                     <span>Show</span>
                     <select
                       value={pageSize}
-                      onChange={(e) => { const ps = Number(e.target.value); setPageSize(ps); setPage(0); fetchListings(false, 0, sort, ps); }}
+                      onChange={(e) => { const ps = Number(e.target.value); setPageSize(ps); setPage(0); updatePageInUrl(0); fetchListings(false, 0, sort, ps); }}
                       className="focus:outline-none"
                       style={{
                         border: '1.5px solid rgba(16,33,79,0.15)',
