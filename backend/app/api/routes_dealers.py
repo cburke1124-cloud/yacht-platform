@@ -10,6 +10,7 @@ from app.models.listing import Listing, ListingImage
 from app.exceptions import ResourceNotFoundException
 from app.api.deps import get_current_user
 from app.api.routes_listings import _get_primary_images_for_listings
+from app.services.billing_status import user_has_paid
 
 router = APIRouter()
 
@@ -66,11 +67,19 @@ def get_all_dealers(
                 func.count(Listing.id).label('total'),
                 func.count(case((Listing.status == 'active', 1))).label('active'),
             )
-            .filter(Listing.user_id.in_(dealer_ids))
+            .filter(Listing.user_id.in_(dealer_ids), Listing.deleted_at.is_(None))
             .group_by(Listing.user_id)
             .all()
         )
         stats_by_dealer = {row.user_id: (row.total, row.active) for row in stats_rows}
+
+    # Unpaid dealers' listings are hidden everywhere else (browse, detail,
+    # broker page) — zero their counts here too so the directory doesn't
+    # advertise listings a visitor can't actually click into.
+    paid_dealer_ids = {user.id for user, _ in results if user_has_paid(user)}
+    for dealer_id in list(stats_by_dealer.keys()):
+        if dealer_id not in paid_dealer_ids:
+            stats_by_dealer[dealer_id] = (0, 0)
 
     dealers = []
     for user, profile in results:
@@ -119,20 +128,30 @@ def get_dealer_by_slug(
     ).first()
     
     if not profile:
-        raise ResourceNotFoundException("Dealer", slug)
+        raise ResourceNotFoundException("Broker", slug)
     
     user = db.query(User).filter(User.id == profile.user_id).first()
     
     if not user or not user.active:
-        raise ResourceNotFoundException("Dealer", slug)
-    
+        raise ResourceNotFoundException("Broker", slug)
+
+    # Listings are hidden for unpaid dealers everywhere else (browse, detail
+    # page, directory) — match that here so the broker page never shows a
+    # card that 404s on click. The profile itself still loads either way.
+    is_paid = user_has_paid(user)
+
     # Get dealer's active listings with pagination
     listings_query = db.query(Listing).filter(
         Listing.user_id == user.id,
-        Listing.status == "active"
+        Listing.status == "active",
+        Listing.deleted_at.is_(None),
     )
-    total_active = listings_query.count()
-    listings = listings_query.order_by(Listing.created_at.desc()).offset(skip).limit(limit).all()
+    if is_paid:
+        total_active = listings_query.count()
+        listings = listings_query.order_by(Listing.created_at.desc()).offset(skip).limit(limit).all()
+    else:
+        total_active = 0
+        listings = []
 
     # Batch-fetch primary images — new media system first, legacy fallback
     listing_ids = [l.id for l in listings]
@@ -156,9 +175,10 @@ def get_dealer_by_slug(
         func.count(Listing.id).label('total'),
         func.count(Listing.id.distinct()).filter(Listing.status == 'active').label('active'),
         func.sum(Listing.views).label('total_views')
-    ).filter(Listing.user_id == user.id).first()
+    ).filter(Listing.user_id == user.id, Listing.deleted_at.is_(None)).first()
+    active_listings_stat = (listing_stats.active or 0) if is_paid else 0
 
-    
+
     return {
         "dealer": {
             "id": user.id,
@@ -184,7 +204,7 @@ def get_dealer_by_slug(
             "is_verified": True,  # Can add verification logic later
             "is_featured": user.subscription_tier == "premium",
             "member_since": user.created_at.isoformat() if user.created_at else None,
-            "active_listings": listing_stats.active or 0,
+            "active_listings": active_listings_stat,
             "show_team_on_profile": profile.show_team_on_profile or False,
         },
         "total": total_active,
