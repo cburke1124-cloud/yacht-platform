@@ -39,7 +39,7 @@ from app.services.media_storage import get_storage_health, run_storage_test
 from app.services.clamav_service import health_check as clamav_health_check
 from app.security.auth import get_password_hash
 from app.services.email_service import email_service
-from app.services.demo_fixtures import get_demo_listing_data, create_demo_account_for_owner
+from app.services.demo_fixtures import get_demo_listing_data, create_demo_account_for_owner, create_demo_inquiries
 from app.models.documentation import Documentation
 from app.services.default_documentation import get_default_doc_by_slug
 
@@ -3316,11 +3316,29 @@ def reset_demo_account(
         
         # Delete all existing listings
         db.query(Listing).filter(Listing.user_id == demo_account_id).delete()
-        
+
+        # Delete all existing messages/inquiries (and any notes on those
+        # inquiries) so the reset actually clears conversations, as the
+        # docstring above promises, instead of leaving stale ones in place.
+        from sqlalchemy import or_
+        from app.models.misc import Inquiry, LeadNote, Message
+
+        old_inquiry_ids = [
+            row[0] for row in db.query(Inquiry.id)
+            .filter(Inquiry.assigned_to_id == demo_account_id).all()
+        ]
+        if old_inquiry_ids:
+            db.query(LeadNote).filter(LeadNote.inquiry_id.in_(old_inquiry_ids)).delete(synchronize_session=False)
+            db.query(Inquiry).filter(Inquiry.id.in_(old_inquiry_ids)).delete(synchronize_session=False)
+        db.query(Message).filter(
+            or_(Message.recipient_id == demo_account_id, Message.sender_id == demo_account_id)
+        ).delete(synchronize_session=False)
+
         # Recreate sample listings
         demo_listing_data = get_demo_listing_data()
         listings_restored = 0
-        
+        restored_listings: list[Listing] = []
+
         now = datetime.utcnow()
         for idx, listing_data in enumerate(demo_listing_data):
             try:
@@ -3368,10 +3386,14 @@ def reset_demo_account(
                 )
                 db.add(listing)
                 listings_restored += 1
+                restored_listings.append(listing)
             except Exception as e:
                 print(f"Error creating listing during reset: {str(e)}")
                 continue
-        
+
+        db.flush()
+        create_demo_inquiries(db, demo_user, restored_listings, now)
+
         db.commit()
         
         return {

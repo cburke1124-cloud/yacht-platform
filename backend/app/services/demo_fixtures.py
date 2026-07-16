@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.models.listing import Listing
+from app.models.misc import Inquiry, Message
 from app.security.auth import get_password_hash
 
 DEMO_SAMPLE_LISTINGS = [
@@ -279,6 +280,12 @@ def create_demo_account_for_owner(db: Session, owner: User, created_by_user_id: 
         company_name=f"[DEMO] {owner.first_name or 'Demo'}'s Demo Brokerage",
         subscription_tier="premium",
         is_demo=True,
+        # Demo accounts never touch Stripe, but should look and behave like a
+        # fully paid broker — same convention as sales-rep/admin-comped
+        # accounts (see routes_sales.py) and required by billing_status.py's
+        # user_has_paid() check, which the dashboard's payment banner and the
+        # listing-creation payment gate both rely on.
+        always_free=True,
         demo_owner_sales_rep_id=owner.id,
         active=True,
         verified=True,
@@ -299,6 +306,7 @@ def create_demo_account_for_owner(db: Session, owner: User, created_by_user_id: 
 
     demo_listings = get_demo_listing_data()
     listings_created = 0
+    created_listings: list[Listing] = []
     now = datetime.utcnow()
 
     for idx, listing_data in enumerate(demo_listings):
@@ -350,6 +358,7 @@ def create_demo_account_for_owner(db: Session, owner: User, created_by_user_id: 
             )
             db.add(listing)
             listings_created += 1
+            created_listings.append(listing)
         except Exception as e:
             # Log but continue creating other listings
             print(f"Error creating listing: {str(e)}")
@@ -357,8 +366,100 @@ def create_demo_account_for_owner(db: Session, owner: User, created_by_user_id: 
 
     db.flush()
 
+    create_demo_inquiries(db, demo_user, created_listings, now)
+    db.flush()
+
     return {
         "demo_user": demo_user,
         "listings_created": listings_created,
         "temp_password": temp_password,
     }
+
+
+def create_demo_inquiries(db: Session, demo_user: User, listings: list[Listing], now: datetime) -> None:
+    """
+    Seed a couple of sample buyer inquiries so the Messages tab isn't empty
+    on a fresh demo. Mirrors the shape POST /inquiries and
+    POST /inquiries/{id}/reply produce (see routes_inquiries.py) so the
+    dashboard's Messages tab and inquiries counter render exactly as they
+    would for a real lead.
+    """
+    if len(listings) < 2:
+        return
+
+    threads = [
+        {
+            "listing": listings[0],
+            "sender_name": "James Whitfield",
+            "sender_email": "jwhitfield@example.com",
+            "sender_phone": "+1 305-555-0142",
+            "message": "Hi, is the Azimut 55 still available? I'd love to schedule a showing this weekend if possible.",
+            "lead_stage": "new",
+            "days_ago": 4,
+            "reply": None,
+        },
+        {
+            "listing": listings[1],
+            "sender_name": "Marie Devereux",
+            "sender_email": "marie.devereux@example.com",
+            "sender_phone": "+1 954-555-0198",
+            "message": "Interested in the Sunseeker 76 — can you send over recent service records and let me know if the price is negotiable?",
+            "lead_stage": "contacted",
+            "days_ago": 6,
+            "reply": "Hi Marie, thanks for reaching out! I'll get the service records over to you today. The listing price has some flexibility for a serious buyer — happy to discuss further on a call whenever works for you.",
+        },
+    ]
+
+    for thread in threads:
+        listing = thread["listing"]
+        created_at = now - timedelta(days=thread["days_ago"])
+
+        inquiry = Inquiry(
+            listing_id=listing.id,
+            sender_name=thread["sender_name"],
+            sender_email=thread["sender_email"],
+            sender_phone=thread["sender_phone"],
+            message=thread["message"],
+            assigned_to_id=demo_user.id,
+            lead_stage=thread["lead_stage"],
+            lead_score=25 if thread["reply"] else 10,
+            status="replied" if thread["reply"] else "new",
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        db.add(inquiry)
+        db.flush()
+
+        root_message = Message(
+            ticket_number=f"INQ-{inquiry.id}",
+            sender_id=None,
+            recipient_id=demo_user.id,
+            listing_id=listing.id,
+            message_type="inquiry",
+            subject=f"Inquiry from {thread['sender_name']}: {listing.title}",
+            body=f"From {thread['sender_name']} ({thread['sender_email']}):\n{thread['message']}",
+            status="replied" if thread["reply"] else "new",
+            visible_to_dealer=True,
+            external_sender_email=thread["sender_email"],
+            category="inquiry",
+            created_at=created_at,
+            replied_at=created_at + timedelta(hours=5) if thread["reply"] else None,
+        )
+        db.add(root_message)
+        db.flush()
+
+        if thread["reply"]:
+            reply_message = Message(
+                sender_id=demo_user.id,
+                recipient_id=None,
+                parent_message_id=root_message.id,
+                listing_id=listing.id,
+                message_type="inquiry",
+                subject=f"Re: {root_message.subject}",
+                body=thread["reply"],
+                status="new",
+                visible_to_dealer=True,
+                category="inquiry",
+                created_at=created_at + timedelta(hours=5),
+            )
+            db.add(reply_message)
