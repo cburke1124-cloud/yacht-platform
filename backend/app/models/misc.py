@@ -599,3 +599,28 @@ class FoundingBrokerSignup(Base):
     status = Column(String, default="new")   # new | contacted | approved | declined
     notes = Column(Text, nullable=True)      # admin-only internal notes
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PendingRegistration(Base):
+    """Holds a dealer/private-seller registration form (password already
+    hashed) while they complete the one-time setup-fee payment. The real
+    User row is only created in finalize_registration (routes_payments.py)
+    once Stripe confirms payment, so nobody ends up with an account that
+    never paid — see resulting_user_id, set once that happens."""
+    __tablename__ = "pending_registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    company_name = Column(String, nullable=True)
+    website = Column(String, nullable=True)
+    user_type = Column(String, nullable=False)  # dealer | private
+    subscription_tier = Column(String, nullable=False)  # pro | private_active
+    referral_code = Column(String, nullable=True)
+    marketing_opt_in = Column(Boolean, default=False)
+    stripe_checkout_session_id = Column(String, nullable=True, index=True)
+    resulting_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

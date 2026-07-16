@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, BackgroundTasks
 from sqlalchemy.orm import Session
-from datetime import datetime
+from sqlalchemy import text
+from datetime import datetime, timedelta
 from typing import Optional
 import os
 
@@ -9,9 +10,12 @@ import stripe
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.misc import Payment, Invoice
+from app.models.misc import Payment, Invoice, PendingRegistration
 from app.services.stripe_service import stripe_service, STRIPE_PRICES, TIER_TRIAL_DAYS
 from app.services.email_service import email_service
+from app.schemas.auth import UserRegister
+from app.security.auth import create_access_token, set_auth_cookie
+from app.api.routes_auth import provision_user_account
 
 # Reverse map: Stripe price ID → tier key (used to restore tier on subscription reactivation)
 STRIPE_PRICES_REVERSE: dict[str, str] = {v: k for k, v in STRIPE_PRICES.items()}
@@ -265,20 +269,16 @@ async def create_setup_fee_session(
 ):
     """
     Create a Stripe Checkout Session for the one-time setup fee.
-    Uses mode='payment' (not a subscription).
-    By default returns a hosted checkout_url to redirect to. Pass
-    embedded=True (with a return_url) to instead get back a client_secret
-    for Stripe's Embedded Checkout, rendered inline on the calling page.
+    Uses mode='payment' (not a subscription). The frontend redirects the
+    browser to the returned checkout_url. Used by existing accounts paying
+    after the fact (e.g. from the billing dashboard) — new dealer signups
+    go through start_registration_checkout instead, which never creates the
+    account until payment is confirmed.
     After payment the webhook activates the user with tier='pro'.
     """
-    embedded = bool(data.get("embedded"))
-    return_url = data.get("return_url")
     success_url = data.get("success_url")
     cancel_url = data.get("cancel_url")
-    if embedded:
-        if not return_url:
-            raise ValidationException("return_url is required for embedded checkout")
-    elif not success_url or not cancel_url:
+    if not success_url or not cancel_url:
         raise ValidationException("success_url and cancel_url are required")
 
     # Get or create Stripe customer
@@ -295,33 +295,24 @@ async def create_setup_fee_session(
             logger.error("Stripe customer creation failed: %s", e)
             raise ExternalServiceException(f"Stripe error: {e}")
 
-    session_params: dict = {
-        "customer": current_user.stripe_customer_id,
-        "mode": "payment",
-        "line_items": [{"price": SETUP_FEE_PRICE_ID, "quantity": 1}],
-        "customer_update": {"address": "auto"},
-        "metadata": {
-            "user_id": str(current_user.id),
-            "subscription_tier": "pro",
-        },
-    }
-    if embedded:
-        session_params["ui_mode"] = "embedded"
-        session_params["return_url"] = return_url
-        session_params["redirect_on_completion"] = "if_required"
-    else:
-        session_params["success_url"] = success_url
-        session_params["cancel_url"] = cancel_url
-
     try:
-        session = stripe.checkout.Session.create(**session_params)
+        session = stripe.checkout.Session.create(
+            customer=current_user.stripe_customer_id,
+            mode="payment",
+            line_items=[{"price": SETUP_FEE_PRICE_ID, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_update={"address": "auto"},
+            metadata={
+                "user_id": str(current_user.id),
+                "subscription_tier": "pro",
+            },
+        )
     except stripe.error.StripeError as e:
         logger.error("Setup fee checkout session creation failed: %s", e)
         raise ExternalServiceException(f"Stripe error: {e}")
 
     logger.info("Created setup-fee session %s for user %s", session.id, current_user.id)
-    if embedded:
-        return {"client_secret": session.client_secret, "session_id": session.id}
     return {"checkout_url": session.url, "session_id": session.id}
 
 
@@ -341,20 +332,14 @@ async def create_private_setup_fee_session(
     """
     Create a Stripe Checkout Session for the private seller's one-time $149
     listing fee. Uses mode='payment' (not a subscription) — mirrors
-    create_setup_fee_session above for brokers.
-    By default returns a hosted checkout_url to redirect to. Pass
-    embedded=True (with a return_url) to instead get back a client_secret
-    for Stripe's Embedded Checkout, rendered inline on the calling page.
+    create_setup_fee_session above for brokers. Used by existing accounts
+    paying after the fact — new private-seller signups go through
+    start_registration_checkout instead.
     After payment the webhook activates the user with tier='private_active'.
     """
-    embedded = bool(data.get("embedded"))
-    return_url = data.get("return_url")
     success_url = data.get("success_url")
     cancel_url = data.get("cancel_url")
-    if embedded:
-        if not return_url:
-            raise ValidationException("return_url is required for embedded checkout")
-    elif not success_url or not cancel_url:
+    if not success_url or not cancel_url:
         raise ValidationException("success_url and cancel_url are required")
 
     # Get or create Stripe customer
@@ -371,34 +356,201 @@ async def create_private_setup_fee_session(
             logger.error("Stripe customer creation failed: %s", e)
             raise ExternalServiceException(f"Stripe error: {e}")
 
-    session_params: dict = {
-        "customer": current_user.stripe_customer_id,
-        "mode": "payment",
-        "line_items": [{"price": PRIVATE_SETUP_FEE_PRICE_ID, "quantity": 1}],
-        "customer_update": {"address": "auto"},
-        "metadata": {
-            "user_id": str(current_user.id),
-            "subscription_tier": "private_active",
-        },
-    }
-    if embedded:
-        session_params["ui_mode"] = "embedded"
-        session_params["return_url"] = return_url
-        session_params["redirect_on_completion"] = "if_required"
-    else:
-        session_params["success_url"] = success_url
-        session_params["cancel_url"] = cancel_url
-
     try:
-        session = stripe.checkout.Session.create(**session_params)
+        session = stripe.checkout.Session.create(
+            customer=current_user.stripe_customer_id,
+            mode="payment",
+            line_items=[{"price": PRIVATE_SETUP_FEE_PRICE_ID, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_update={"address": "auto"},
+            metadata={
+                "user_id": str(current_user.id),
+                "subscription_tier": "private_active",
+            },
+        )
     except stripe.error.StripeError as e:
         logger.error("Private setup fee checkout session creation failed: %s", e)
         raise ExternalServiceException(f"Stripe error: {e}")
 
     logger.info("Created private setup-fee session %s for user %s", session.id, current_user.id)
-    if embedded:
-        return {"client_secret": session.client_secret, "session_id": session.id}
     return {"checkout_url": session.url, "session_id": session.id}
+
+
+# ==================== PAY-FIRST REGISTRATION (no account until payment) ====================
+#
+# Dealer and private-seller signups pay a one-time setup fee. To avoid ever
+# creating a User row for someone who abandons payment, the register page
+# does NOT call /auth/register directly for these two account types. Instead:
+#   1. start_registration_checkout stores the form (password already hashed)
+#      in PendingRegistration and returns an embedded Checkout client_secret.
+#   2. finalize_registration (called by the frontend right after payment
+#      completes, and also from the webhook below as a safety net if the
+#      tab closes first) verifies payment with Stripe, then creates the
+#      real account via provision_user_account — the same helper /register
+#      uses — passing initial_tier since payment is already confirmed.
+
+def _create_user_from_pending(pending: PendingRegistration, stripe_customer_id: Optional[str], db: Session) -> User:
+    """Turns a paid PendingRegistration into a real User account. Idempotent:
+    if this pending record was already consumed (by the webhook racing the
+    frontend's own finalize call, or vice versa), just returns that user."""
+    if pending.resulting_user_id:
+        return db.query(User).filter(User.id == pending.resulting_user_id).first()
+
+    synthetic_registration = UserRegister(
+        email=pending.email,
+        password="unused-password-hash-precomputed",  # provision_user_account uses precomputed_password_hash instead
+        first_name=pending.first_name,
+        last_name=pending.last_name,
+        phone=pending.phone,
+        user_type=pending.user_type,
+        company_name=pending.company_name,
+        website=pending.website,
+        subscription_tier=pending.subscription_tier,
+        agree_terms=True,
+        agree_communications=True,
+        marketing_opt_in=pending.marketing_opt_in,
+        referral_code=pending.referral_code,
+    )
+    user, _token = provision_user_account(
+        synthetic_registration,
+        db,
+        skip_terms_check=True,
+        initial_tier=pending.subscription_tier,
+        precomputed_password_hash=pending.password_hash,
+    )
+    user.stripe_customer_id = stripe_customer_id
+    user.subscription_start_date = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+
+    pending.resulting_user_id = user.id
+    db.commit()
+
+    logger.info("finalize_registration: created user %s from pending registration %s", user.id, pending.id)
+    return user
+
+
+@router.post("/payments/start-registration-checkout")
+async def start_registration_checkout(data: dict, db: Session = Depends(get_db)):
+    """
+    Pay-first signup for dealer/private-seller accounts: validates the
+    registration form and creates an embedded Stripe Checkout session for
+    the one-time setup fee WITHOUT creating a User row. No auth required —
+    there is no account yet. See finalize_registration for the next step.
+    """
+    user_type = (data.get("user_type") or "").strip().lower()
+    if user_type not in ("dealer", "private"):
+        raise ValidationException("user_type must be 'dealer' or 'private'")
+
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    return_url = data.get("return_url")
+    if not email or not password:
+        raise ValidationException("email and password are required")
+    if len(password) < 6:
+        raise ValidationException("Password must be at least 6 characters")
+    if not return_url:
+        raise ValidationException("return_url is required")
+    if not data.get("agree_terms"):
+        raise ValidationException("You must agree to the Terms and Privacy Policy")
+    if not data.get("agree_communications"):
+        raise ValidationException("You must agree to receive account communications")
+    phone = (data.get("phone") or "").strip()
+    if user_type == "dealer" and not phone:
+        raise ValidationException("Phone number is required")
+
+    existing = db.execute(text("SELECT id FROM users WHERE email = :e LIMIT 1"), {"e": email}).first()
+    if existing:
+        raise ValidationException("Email already registered")
+
+    from app.security.auth import get_password_hash
+    password_hash = get_password_hash(password)
+
+    tier = "private_active" if user_type == "private" else "pro"
+    price_id = PRIVATE_SETUP_FEE_PRICE_ID if user_type == "private" else SETUP_FEE_PRICE_ID
+
+    pending = PendingRegistration(
+        email=email,
+        password_hash=password_hash,
+        first_name=data.get("first_name"),
+        last_name=data.get("last_name"),
+        phone=phone or None,
+        company_name=data.get("company_name"),
+        website=data.get("website") if user_type == "dealer" else None,
+        user_type=user_type,
+        subscription_tier=tier,
+        referral_code=data.get("referral_code"),
+        marketing_opt_in=bool(data.get("marketing_opt_in", False)),
+    )
+    db.add(pending)
+    db.commit()
+    db.refresh(pending)
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            ui_mode="embedded",
+            customer_email=email,
+            customer_creation="always",
+            line_items=[{"price": price_id, "quantity": 1}],
+            return_url=return_url,
+            redirect_on_completion="if_required",
+            metadata={
+                "pending_registration_id": str(pending.id),
+                "subscription_tier": tier,
+            },
+        )
+    except stripe.error.StripeError as e:
+        db.delete(pending)
+        db.commit()
+        logger.error("start_registration_checkout: session creation failed: %s", e)
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    pending.stripe_checkout_session_id = session.id
+    db.commit()
+
+    logger.info("Created pending registration %s (session %s) for %s", pending.id, session.id, email)
+    return {"client_secret": session.client_secret, "session_id": session.id}
+
+
+@router.post("/payments/finalize-registration")
+async def finalize_registration(data: dict, response: Response, db: Session = Depends(get_db)):
+    """
+    Called by the register page right after the embedded Checkout completes.
+    Verifies payment with Stripe, creates the real account from the pending
+    registration (or reuses it if the webhook already did), and logs the
+    user in. No auth required — this IS how the user gets their first token.
+    """
+    session_id = data.get("session_id")
+    if not session_id:
+        raise ValidationException("session_id is required")
+
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except stripe.error.StripeError as e:
+        raise ExternalServiceException(f"Stripe error: {e}")
+
+    if session.payment_status not in ("paid", "no_payment_required"):
+        raise HTTPException(status_code=402, detail=f"Payment not complete (status: {session.payment_status})")
+
+    pending_id = (session.metadata or {}).get("pending_registration_id")
+    if not pending_id:
+        raise ValidationException("Session is not a pending registration")
+
+    pending = db.query(PendingRegistration).filter(PendingRegistration.id == int(pending_id)).first()
+    if not pending:
+        raise ResourceNotFoundException("Pending registration", pending_id)
+
+    user = _create_user_from_pending(pending, session.customer, db)
+
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    set_auth_cookie(response, access_token)
+
+    return {"access_token": access_token, "token_type": "bearer", "subscription_tier": user.subscription_tier}
 
 
 # ==================== PLAN DISCOVERY ====================
@@ -979,6 +1131,18 @@ async def stripe_webhook(
         metadata = obj.get("metadata", {})
         user_id = metadata.get("user_id")
         tier = metadata.get("subscription_tier")
+        pending_registration_id = metadata.get("pending_registration_id")
+
+        if pending_registration_id and obj.get("payment_status") in ("paid", "no_payment_required"):
+            # Pay-first registration (register page): the account may not
+            # exist yet if the browser tab closed before finalize_registration
+            # ran. Safety net so a confirmed payment never leaves nobody able
+            # to log in — _create_user_from_pending is idempotent.
+            pending = db.query(PendingRegistration).filter(PendingRegistration.id == int(pending_registration_id)).first()
+            if pending:
+                user = _create_user_from_pending(pending, customer_id, db)
+                logger.info("checkout.session.completed → pending registration %s → user %s", pending.id, user.id)
+            return {"success": True}
 
         user = None
         if user_id:

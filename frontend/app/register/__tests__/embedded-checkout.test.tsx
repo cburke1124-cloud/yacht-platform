@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
+const pushMock = vi.fn();
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: pushMock, replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams('user_type=private'),
 }));
 
@@ -11,7 +13,14 @@ vi.mock('@stripe/stripe-js', () => ({
 }));
 
 vi.mock('@stripe/react-stripe-js', () => ({
-  EmbeddedCheckoutProvider: ({ children }: any) => <div data-testid="embedded-checkout-provider">{children}</div>,
+  EmbeddedCheckoutProvider: ({ children, options }: any) => (
+    <div data-testid="embedded-checkout-provider">
+      <button data-testid="simulate-complete" onClick={() => options.onComplete()}>
+        simulate complete
+      </button>
+      {children}
+    </div>
+  ),
   EmbeddedCheckout: () => <div data-testid="embedded-checkout" />,
 }));
 
@@ -20,15 +29,17 @@ vi.stubGlobal('fetch', fetchMock);
 
 import RegisterPage from '../page';
 
-describe('Register page embedded checkout', () => {
+describe('Register page pay-first embedded checkout', () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    pushMock.mockReset();
   });
 
-  it('swaps the registration form for EmbeddedCheckout after account creation + session creation', async () => {
-    fetchMock
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'tok_123' }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ client_secret: 'cs_test_123', session_id: 'cs_test_123' }) });
+  it('starts checkout without creating an account, then finalizes registration on payment completion', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ client_secret: 'cs_test_123_secret', session_id: 'cs_test_123' }),
+    });
 
     render(<RegisterPage />);
 
@@ -45,15 +56,34 @@ describe('Register page embedded checkout', () => {
     await waitFor(() => {
       expect(screen.getByTestId('embedded-checkout')).toBeInTheDocument();
     });
-
     expect(screen.getByText('Complete Your Payment')).toBeInTheDocument();
     expect(screen.queryByLabelText(/First Name/)).not.toBeInTheDocument();
 
+    // Exactly one call so far: start-registration-checkout. No /auth/register
+    // call at all — no account should exist yet.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [firstUrl, firstInit] = fetchMock.mock.calls[0];
+    expect(firstUrl).toContain('/payments/start-registration-checkout');
+    expect(firstInit.headers.Authorization).toBeUndefined();
+    const firstBody = JSON.parse(firstInit.body);
+    expect(firstBody.email).toBe('test@example.com');
+    expect(firstBody.user_type).toBe('private');
+    expect(firstBody.return_url).toContain('payment=complete');
+
+    // Now simulate Stripe's embedded Checkout finishing the payment.
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ access_token: 'tok_abc', token_type: 'bearer', subscription_tier: 'private_active' }),
+    });
+    fireEvent.click(screen.getByTestId('simulate-complete'));
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/dashboard');
+    });
+
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [secondUrl, secondInit] = fetchMock.mock.calls[1];
-    expect(secondUrl).toContain('/payments/create-private-setup-fee-session');
-    const body = JSON.parse(secondInit.body);
-    expect(body.embedded).toBe(true);
-    expect(body.return_url).toContain('/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}');
+    expect(secondUrl).toContain('/payments/finalize-registration');
+    expect(JSON.parse(secondInit.body)).toEqual({ session_id: 'cs_test_123' });
   });
 });

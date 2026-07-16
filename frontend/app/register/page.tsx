@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -66,9 +66,40 @@ function RegisterContent() {
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
+
+  // If the embedded Checkout had to redirect (e.g. a redirect-based payment
+  // method), Stripe sends the browser back here with payment=complete —
+  // finish account creation the same way onComplete would have.
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    if (searchParams.get('payment') !== 'complete' || !sessionId) return;
+
+    setFinalizing(true);
+    fetch(apiUrl('/payments/finalize-registration'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          setFinalizing(false);
+          setError(data?.detail || data?.error || 'Payment could not be confirmed. Please contact support.');
+          return;
+        }
+        markLoggedIn();
+        window.dispatchEvent(new Event('authChange'));
+        router.push('/dashboard');
+      })
+      .catch(() => {
+        setFinalizing(false);
+        setError('Payment could not be confirmed. Please contact support.');
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +132,38 @@ function RegisterContent() {
 
     setLoading(true);
     try {
-      const regRes = await fetch(apiUrl('/auth/register'), {
+      if (isBuyer) {
+        // Buyer accounts are free — create immediately, no payment involved.
+        const regRes = await fetch(apiUrl('/auth/register'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            user_type: 'buyer',
+            company_name: formData.company_name,
+            subscription_tier: 'free',
+            agree_terms: formData.agree_terms,
+            agree_communications: formData.agree_communications,
+          }),
+        });
+        const regData = await regRes.json();
+        if (!regRes.ok) throw new Error(regData.detail || regData.error || 'Registration failed');
+
+        markLoggedIn();
+        window.dispatchEvent(new Event('authChange'));
+        router.push('/account');
+        return;
+      }
+
+      // Dealer/private-seller accounts pay a one-time setup fee. No account
+      // is created yet — the form is held server-side until Stripe confirms
+      // payment (see finalize-registration / handleCheckoutComplete below),
+      // so nobody ends up with an account that never paid.
+      const checkoutRes = await fetch(apiUrl('/payments/start-registration-checkout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -110,68 +172,57 @@ function RegisterContent() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone: formData.phone,
-          user_type: isPrivate ? 'private' : isBuyer ? 'buyer' : 'dealer',
+          user_type: isPrivate ? 'private' : 'dealer',
           company_name: formData.company_name,
-          ...(!isBuyer && !isPrivate ? { website: formData.website } : {}),
-          subscription_tier: isPrivate ? 'private_active' : isBuyer ? 'free' : 'pro',
+          ...(!isPrivate ? { website: formData.website } : {}),
           agree_terms: formData.agree_terms,
           agree_communications: formData.agree_communications,
-          ...(!isBuyer && ref ? { referral_code: ref } : {}),
-        }),
-      });
-
-      const regData = await regRes.json();
-      if (!regRes.ok) throw new Error(regData.detail || regData.error || 'Registration failed');
-
-      markLoggedIn();
-      window.dispatchEvent(new Event('authChange'));
-
-      if (isBuyer) {
-        router.push('/account');
-        return;
-      }
-
-      setRedirecting(true);
-      setLoading(false);
-
-      const checkoutRes = await fetch(apiUrl(isPrivate ? '/payments/create-private-setup-fee-session' : '/payments/create-setup-fee-session'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${regData.access_token}`,
-        },
-        body: JSON.stringify({
-          embedded: true,
-          return_url: `${window.location.origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+          ...(!isPrivate && ref ? { referral_code: ref } : {}),
+          return_url: `${window.location.origin}/register?user_type=${isPrivate ? 'private' : 'dealer'}&payment=complete&session_id={CHECKOUT_SESSION_ID}`,
         }),
       });
 
       const checkoutData = await checkoutRes.json();
-      setRedirecting(false);
       if (!checkoutRes.ok) {
-        const msg = checkoutData?.detail || checkoutData?.error || 'Payment setup failed. You can complete payment from your billing dashboard.';
-        setError(`Account created, but payment setup failed: ${msg}`);
-        setTimeout(() => router.push('/dashboard/billing?payment=required'), 3000);
-        return;
+        throw new Error(checkoutData?.detail || checkoutData?.error || 'Could not start checkout. Please try again.');
       }
       setCheckoutSecret(checkoutData.client_secret);
       setCheckoutSessionId(checkoutData.session_id);
     } catch (err: any) {
       setError(err.message || 'Failed to register. Please try again.');
-      setRedirecting(false);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCheckoutComplete = () => {
-    router.push(`/dashboard?payment=success&session_id=${checkoutSessionId}`);
+    setFinalizing(true);
+    fetch(apiUrl('/payments/finalize-registration'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: checkoutSessionId }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          setFinalizing(false);
+          setError(data?.detail || data?.error || 'Payment could not be confirmed. Please contact support.');
+          return;
+        }
+        markLoggedIn();
+        window.dispatchEvent(new Event('authChange'));
+        router.push('/dashboard');
+      })
+      .catch(() => {
+        setFinalizing(false);
+        setError('Payment could not be confirmed. Please contact support.');
+      });
   };
 
-  const submitLabel = redirecting
-    ? 'Redirecting to payment...'
-    : loading
-    ? 'Creating account...'
+  const submitLabel = loading
+    ? isBuyer
+      ? 'Creating account...'
+      : 'Starting checkout...'
     : isBuyer
     ? 'Create Free Account'
     : 'Register Account';
@@ -275,7 +326,18 @@ function RegisterContent() {
 
           {/* -- Right: registration form / embedded payment ----------------- */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
-            {checkoutSecret ? (
+            {error && (
+              <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+
+            {finalizing ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 size={28} className="animate-spin text-primary" />
+                <p className="text-sm text-dark/60">Confirming your payment...</p>
+              </div>
+            ) : checkoutSecret ? (
               <>
                 <h2 className="text-xl font-semibold text-secondary mb-6">Complete Your Payment</h2>
                 <EmbeddedCheckoutProvider
@@ -288,12 +350,6 @@ function RegisterContent() {
             ) : (
             <>
             <h2 className="text-xl font-semibold text-secondary mb-6">Create Your Account</h2>
-
-            {error && (
-              <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -474,10 +530,10 @@ function RegisterContent() {
 
               <button
                 type="submit"
-                disabled={loading || redirecting}
+                disabled={loading}
                 className="w-full py-3 px-4 rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {(loading || redirecting) && <Loader2 size={16} className="animate-spin" />}
+                {loading && <Loader2 size={16} className="animate-spin" />}
                 {submitLabel}
               </button>
 

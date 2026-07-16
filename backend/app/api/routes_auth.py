@@ -78,35 +78,36 @@ def _apply_deal_price(base_price: float, deal: PartnerDeal) -> float:
     return base_price
 
 
-@router.post("/register", response_model=Token)
-@limiter.limit("5/minute")
-async def register(request: Request, response: Response, user_data: UserRegister, db: Session = Depends(get_db)):
-    try:
-        # If an authenticated admin or dealer is creating this account, skip terms check
-        caller_is_privileged = False
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            try:
-                from jose import jwt as _jwt
-                payload = _jwt.decode(auth_header[7:], settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-                caller_email = payload.get("sub")
-                if caller_email:
-                    caller = db.execute(
-                        text("SELECT user_type FROM users WHERE email = :e LIMIT 1"),
-                        {"e": caller_email},
-                    ).first()
-                    if caller and caller[0] in ("admin", "dealer"):
-                        caller_is_privileged = True
-            except Exception:
-                pass  # Invalid token — treat as self-registration
+def provision_user_account(
+    user_data: UserRegister,
+    db: Session,
+    *,
+    skip_terms_check: bool = False,
+    initial_tier: Optional[str] = None,
+    precomputed_password_hash: Optional[str] = None,
+) -> tuple[User, Optional[str]]:
+    """Creates the User row plus all first-run provisioning (dealer profile,
+    referral/deal-code application, admin + sales-rep notifications, email
+    verification token). Shared by the normal /register flow and by
+    finalize_registration (routes_payments.py), which calls this only after
+    Stripe confirms the one-time setup fee has been paid — passing
+    initial_tier so the account starts at the paid tier instead of "free",
+    and precomputed_password_hash since that caller already hashed the
+    password when the PendingRegistration was created (user_data.password
+    is a required but unused placeholder in that case).
 
-        if not caller_is_privileged:
+    Returns (user, email_verification_token_or_None).
+    """
+    try:
+        if not skip_terms_check:
             if not user_data.agree_terms:
                 raise ValidationException("You must agree to the Terms and Privacy Policy")
             if not user_data.agree_communications:
                 raise ValidationException("You must agree to receive account communications")
             if user_data.user_type == "dealer" and not (user_data.phone or "").strip():
                 raise ValidationException("Phone number is required")
+
+        caller_is_privileged = skip_terms_check
 
         try:
             existing_user = db.execute(
@@ -170,7 +171,7 @@ async def register(request: Request, response: Response, user_data: UserRegister
         elif partner_deal and partner_deal.owner_sales_rep_id:
             assigned_sales_rep_id = partner_deal.owner_sales_rep_id
 
-        hashed_password = get_password_hash(user_data.password)
+        hashed_password = precomputed_password_hash or get_password_hash(user_data.password)
 
         user = None
         try:
@@ -182,10 +183,11 @@ async def register(request: Request, response: Response, user_data: UserRegister
                 phone=user_data.phone,
                 user_type=user_data.user_type,
                 company_name=user_data.company_name,
-                # Always start at "free" — the Stripe webhook (checkout.session.completed)
-                # is the authoritative source that upgrades the tier after payment clears.
-                # Setting the tier here before payment would bypass the paywall.
-                subscription_tier="free",
+                # Defaults to "free" — the Stripe webhook / finalize_registration
+                # is the authoritative source that upgrades the tier after payment
+                # clears. Only finalize_registration passes initial_tier, and only
+                # after Stripe has already confirmed payment.
+                subscription_tier=initial_tier or "free",
                 assigned_sales_rep_id=assigned_sales_rep_id,
             )
             db.add(user)
@@ -211,7 +213,7 @@ async def register(request: Request, response: Response, user_data: UserRegister
                 "phone": user_data.phone,
                 "user_type": user_data.user_type,
                 "company_name": user_data.company_name,
-                "subscription_tier": "free",  # Tier set by Stripe webhook after payment
+                "subscription_tier": initial_tier or "free",
                 "assigned_sales_rep_id": assigned_sales_rep_id,
                 "active": True,
                 "created_at": datetime.utcnow(),
@@ -248,7 +250,7 @@ async def register(request: Request, response: Response, user_data: UserRegister
                     phone=user_data.phone,
                     user_type=user_data.user_type,
                     company_name=user_data.company_name,
-                    subscription_tier="free",  # Tier set by Stripe webhook after payment
+                    subscription_tier=initial_tier or "free",
                     permissions={},
                 )
 
@@ -426,13 +428,7 @@ async def register(request: Request, response: Response, user_data: UserRegister
             except Exception:
                 logger.exception("Verification email send failed for user %s", user.id)
 
-        access_token = create_access_token(
-            data={"sub": user.email},
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
-        )
-        set_auth_cookie(response, access_token)
-
-        return {"access_token": access_token, "token_type": "bearer"}
+        return user, token
     except HTTPException:
         raise
     except YachtVersalException:
@@ -441,6 +437,38 @@ async def register(request: Request, response: Response, user_data: UserRegister
         db.rollback()
         logger.exception("Unhandled registration failure")
         raise HTTPException(status_code=500, detail=f"Registration failed: {exc}")
+
+
+@router.post("/register", response_model=Token)
+@limiter.limit("5/minute")
+async def register(request: Request, response: Response, user_data: UserRegister, db: Session = Depends(get_db)):
+    # If an authenticated admin or dealer is creating this account, skip terms check
+    caller_is_privileged = False
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from jose import jwt as _jwt
+            payload = _jwt.decode(auth_header[7:], settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            caller_email = payload.get("sub")
+            if caller_email:
+                caller = db.execute(
+                    text("SELECT user_type FROM users WHERE email = :e LIMIT 1"),
+                    {"e": caller_email},
+                ).first()
+                if caller and caller[0] in ("admin", "dealer"):
+                    caller_is_privileged = True
+        except Exception:
+            pass  # Invalid token — treat as self-registration
+
+    user, _token = provision_user_account(user_data, db, skip_terms_check=caller_is_privileged)
+
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    set_auth_cookie(response, access_token)
+
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post("/login")
