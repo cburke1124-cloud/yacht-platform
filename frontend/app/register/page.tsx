@@ -5,7 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Check, Loader2, ChevronLeft, ShieldCheck, Zap, Users } from 'lucide-react';
+import { loadStripe } from '@stripe/stripe-js';
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
 import { apiUrl, markLoggedIn } from '@/app/lib/apiRoot';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
 // --- One-time signup fees ------------------------------------------------------
 const SIGNUP_FEE = 199;
@@ -63,6 +67,8 @@ function RegisterContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,26 +141,31 @@ function RegisterContent() {
           Authorization: `Bearer ${regData.access_token}`,
         },
         body: JSON.stringify({
-          success_url: `${window.location.origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${window.location.origin}/register?payment=cancelled`,
+          embedded: true,
+          return_url: `${window.location.origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
         }),
       });
 
       const checkoutData = await checkoutRes.json();
+      setRedirecting(false);
       if (!checkoutRes.ok) {
-        setRedirecting(false);
         const msg = checkoutData?.detail || checkoutData?.error || 'Payment setup failed. You can complete payment from your billing dashboard.';
         setError(`Account created, but payment setup failed: ${msg}`);
         setTimeout(() => router.push('/dashboard/billing?payment=required'), 3000);
         return;
       }
-      window.location.href = checkoutData.checkout_url;
+      setCheckoutSecret(checkoutData.client_secret);
+      setCheckoutSessionId(checkoutData.session_id);
     } catch (err: any) {
       setError(err.message || 'Failed to register. Please try again.');
       setRedirecting(false);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCheckoutComplete = () => {
+    router.push(`/dashboard?payment=success&session_id=${checkoutSessionId}`);
   };
 
   const submitLabel = redirecting
@@ -262,8 +273,20 @@ function RegisterContent() {
             </div>
           </div>
 
-          {/* -- Right: registration form ----------------------------------- */}
+          {/* -- Right: registration form / embedded payment ----------------- */}
           <div className="bg-white rounded-2xl shadow-xl p-8">
+            {checkoutSecret ? (
+              <>
+                <h2 className="text-xl font-semibold text-secondary mb-6">Complete Your Payment</h2>
+                <EmbeddedCheckoutProvider
+                  stripe={stripePromise}
+                  options={{ clientSecret: checkoutSecret, onComplete: handleCheckoutComplete }}
+                >
+                  <EmbeddedCheckout />
+                </EmbeddedCheckoutProvider>
+              </>
+            ) : (
+            <>
             <h2 className="text-xl font-semibold text-secondary mb-6">Create Your Account</h2>
 
             {error && (
@@ -435,7 +458,7 @@ function RegisterContent() {
                 <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
                   <p className="font-medium mb-0.5">Secure payment via Stripe</p>
                   <p className="text-blue-600">
-                    After creating your account you will be taken to Stripe checkout to pay the{' '}
+                    After creating your account, enter your card right here to pay the{' '}
                     <strong>${PRIVATE_SIGNUP_FEE} one-time fee</strong>. Your account activates immediately after payment.
                   </p>
                 </div>
@@ -443,7 +466,7 @@ function RegisterContent() {
                 <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800">
                   <p className="font-medium mb-0.5">Secure payment via Stripe</p>
                   <p className="text-blue-600">
-                    After creating your account you will be taken to Stripe checkout to pay the{' '}
+                    After creating your account, enter your card right here to pay the{' '}
                     <strong>${SIGNUP_FEE} setup fee</strong>. Your account activates immediately after payment.
                   </p>
                 </div>
@@ -465,6 +488,8 @@ function RegisterContent() {
                 <ChevronLeft size={14} /> Already have an account? Sign in
               </Link>
             </form>
+            </>
+            )}
           </div>
         </div>
 

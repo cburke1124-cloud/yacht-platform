@@ -266,11 +266,19 @@ async def create_setup_fee_session(
     """
     Create a Stripe Checkout Session for the one-time setup fee.
     Uses mode='payment' (not a subscription).
+    By default returns a hosted checkout_url to redirect to. Pass
+    embedded=True (with a return_url) to instead get back a client_secret
+    for Stripe's Embedded Checkout, rendered inline on the calling page.
     After payment the webhook activates the user with tier='pro'.
     """
+    embedded = bool(data.get("embedded"))
+    return_url = data.get("return_url")
     success_url = data.get("success_url")
     cancel_url = data.get("cancel_url")
-    if not success_url or not cancel_url:
+    if embedded:
+        if not return_url:
+            raise ValidationException("return_url is required for embedded checkout")
+    elif not success_url or not cancel_url:
         raise ValidationException("success_url and cancel_url are required")
 
     # Get or create Stripe customer
@@ -287,24 +295,33 @@ async def create_setup_fee_session(
             logger.error("Stripe customer creation failed: %s", e)
             raise ExternalServiceException(f"Stripe error: {e}")
 
+    session_params: dict = {
+        "customer": current_user.stripe_customer_id,
+        "mode": "payment",
+        "line_items": [{"price": SETUP_FEE_PRICE_ID, "quantity": 1}],
+        "customer_update": {"address": "auto"},
+        "metadata": {
+            "user_id": str(current_user.id),
+            "subscription_tier": "pro",
+        },
+    }
+    if embedded:
+        session_params["ui_mode"] = "embedded"
+        session_params["return_url"] = return_url
+        session_params["redirect_on_completion"] = "if_required"
+    else:
+        session_params["success_url"] = success_url
+        session_params["cancel_url"] = cancel_url
+
     try:
-        session = stripe.checkout.Session.create(
-            customer=current_user.stripe_customer_id,
-            mode="payment",
-            line_items=[{"price": SETUP_FEE_PRICE_ID, "quantity": 1}],
-            success_url=success_url,
-            cancel_url=cancel_url,
-            customer_update={"address": "auto"},
-            metadata={
-                "user_id": str(current_user.id),
-                "subscription_tier": "pro",
-            },
-        )
+        session = stripe.checkout.Session.create(**session_params)
     except stripe.error.StripeError as e:
         logger.error("Setup fee checkout session creation failed: %s", e)
         raise ExternalServiceException(f"Stripe error: {e}")
 
     logger.info("Created setup-fee session %s for user %s", session.id, current_user.id)
+    if embedded:
+        return {"client_secret": session.client_secret, "session_id": session.id}
     return {"checkout_url": session.url, "session_id": session.id}
 
 
@@ -325,11 +342,19 @@ async def create_private_setup_fee_session(
     Create a Stripe Checkout Session for the private seller's one-time $149
     listing fee. Uses mode='payment' (not a subscription) — mirrors
     create_setup_fee_session above for brokers.
+    By default returns a hosted checkout_url to redirect to. Pass
+    embedded=True (with a return_url) to instead get back a client_secret
+    for Stripe's Embedded Checkout, rendered inline on the calling page.
     After payment the webhook activates the user with tier='private_active'.
     """
+    embedded = bool(data.get("embedded"))
+    return_url = data.get("return_url")
     success_url = data.get("success_url")
     cancel_url = data.get("cancel_url")
-    if not success_url or not cancel_url:
+    if embedded:
+        if not return_url:
+            raise ValidationException("return_url is required for embedded checkout")
+    elif not success_url or not cancel_url:
         raise ValidationException("success_url and cancel_url are required")
 
     # Get or create Stripe customer
@@ -346,24 +371,33 @@ async def create_private_setup_fee_session(
             logger.error("Stripe customer creation failed: %s", e)
             raise ExternalServiceException(f"Stripe error: {e}")
 
+    session_params: dict = {
+        "customer": current_user.stripe_customer_id,
+        "mode": "payment",
+        "line_items": [{"price": PRIVATE_SETUP_FEE_PRICE_ID, "quantity": 1}],
+        "customer_update": {"address": "auto"},
+        "metadata": {
+            "user_id": str(current_user.id),
+            "subscription_tier": "private_active",
+        },
+    }
+    if embedded:
+        session_params["ui_mode"] = "embedded"
+        session_params["return_url"] = return_url
+        session_params["redirect_on_completion"] = "if_required"
+    else:
+        session_params["success_url"] = success_url
+        session_params["cancel_url"] = cancel_url
+
     try:
-        session = stripe.checkout.Session.create(
-            customer=current_user.stripe_customer_id,
-            mode="payment",
-            line_items=[{"price": PRIVATE_SETUP_FEE_PRICE_ID, "quantity": 1}],
-            success_url=success_url,
-            cancel_url=cancel_url,
-            customer_update={"address": "auto"},
-            metadata={
-                "user_id": str(current_user.id),
-                "subscription_tier": "private_active",
-            },
-        )
+        session = stripe.checkout.Session.create(**session_params)
     except stripe.error.StripeError as e:
         logger.error("Private setup fee checkout session creation failed: %s", e)
         raise ExternalServiceException(f"Stripe error: {e}")
 
     logger.info("Created private setup-fee session %s for user %s", session.id, current_user.id)
+    if embedded:
+        return {"client_secret": session.client_secret, "session_id": session.id}
     return {"checkout_url": session.url, "session_id": session.id}
 
 
