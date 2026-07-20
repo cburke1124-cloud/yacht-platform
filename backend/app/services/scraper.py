@@ -1209,6 +1209,8 @@ except Exception as e:
             r"-sales/",          # e.g. /yacht-sales/year-make-model
             r"-prk/",            # yacht broker CMS individual listing pages (e.g. rickobeyyachtsales.com)
             r"second-hand",      # e.g. /en/second-hand-boats-offers/boat-slug/ (totnautic.com)
+            r"/our-boats/[^/]+/?$",   # e.g. /our-boats/boat-slug/ (tot-nautic.com EN inventory)
+            r"/our-yachts/[^/]+/?$",
         ]
 
         # Keywords in a path that suggest an inventory index page worth crawling deeper
