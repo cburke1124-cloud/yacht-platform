@@ -2427,7 +2427,12 @@ except Exception as e:
             r'similar[-_]yacht|similar[-_]boat|'
             r'featured[-_]listing|featured[-_]yacht|featured[-_]boat|'
             r'more[-_]listing|other[-_]listing|recommended[-_]listing|'
-            r'footer|sidebar[-_]widget|newsletter|testimonial[-_]section',
+            r'footer|sidebar[-_]widget|newsletter|testimonial[-_]section|'
+            # Broker/agent "contact card" widgets (headshot + name/title) — not
+            # part of the vessel's own gallery, but nothing in the URL-based
+            # skip_re below catches an arbitrarily-named uploaded headshot file.
+            r'contact[-_]?details|contact[-_]?card|team[-_]?member|'
+            r'staff[-_]?card|agent[-_]?card|broker[-_]?card|salesperson[-_]?card',
             re.IGNORECASE,
         )
         for _tag in soup.find_all(True):
@@ -2452,22 +2457,25 @@ except Exception as e:
         )
         for _hdg in soup.find_all(['h2', 'h3', 'h4', 'h5']):
             if _hdg_text_re.search(_hdg.get_text(strip=True)):
-                # Ascend to the nearest block ancestor then remove it and all
-                # sibling blocks that follow it (handles column-layout pages).
+                # The heading is often wrapped in its own thin container, with the
+                # actual gallery/card grid living a level or two further up the
+                # tree (a sibling of that thin wrapper) rather than directly after
+                # it in document order. Walk up until we reach a container that
+                # actually holds images/links, then remove that whole container —
+                # this naturally captures the heading and its gallery together
+                # regardless of how deep the heading itself is nested.
                 _ancestor = (
                     _hdg.find_parent(['section', 'div', 'article', 'aside'])
                     or _hdg.parent
                 )
+                _hops = 0
+                while _ancestor and not _ancestor.find_all(['img', 'a']) and _hops < 4:
+                    _wider = _ancestor.find_parent(['section', 'div', 'article', 'aside'])
+                    if not _wider:
+                        break
+                    _ancestor = _wider
+                    _hops += 1
                 if _ancestor:
-                    try:
-                        _next_sibs = list(_ancestor.find_all_next_siblings())
-                    except TypeError:
-                        _next_sibs = []
-                    for _sib in _next_sibs:
-                        try:
-                            _sib.decompose()
-                        except Exception:
-                            pass
                     try:
                         _ancestor.decompose()
                     except Exception:
