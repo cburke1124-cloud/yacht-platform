@@ -15,7 +15,7 @@ from app.models.media import MediaFile, ListingMediaAttachment
 from app.models.misc import Inquiry, Notification, Message
 from app.models.user import User
 from app.models.dealer import DealerProfile
-from app.exceptions import ResourceNotFoundException, AuthorizationException
+from app.exceptions import ResourceNotFoundException, AuthorizationException, ValidationException
 from app.services.email_service import email_service
 from app.services.billing_status import user_has_paid, paid_owner_filter
 from app.services.media_scope import org_media_ids
@@ -1493,7 +1493,16 @@ def get_listing_media(
                 }
             )
 
-    return {"listing_id": listing_id, "media": items, "total": len(items)}
+    return {
+        "listing_id": listing_id,
+        "media": items,
+        "total": len(items),
+        # Tells callers whether `items[].id` are MediaFile.id (safe to pass to
+        # /media/attach) or legacy ListingImage.id (a different ID space —
+        # sending those to /media/attach would delete the legacy rows and
+        # attach nothing, since they'd never match a MediaFile.id).
+        "using_new_media_system": bool(attachments),
+    }
 
 
 @router.post("/{listing_id}/media/attach")
@@ -1515,27 +1524,15 @@ def attach_listing_media(
 
     media_ids = [mid for mid in payload.media_ids if isinstance(mid, int)]
 
-    # Permanently remove legacy ListingImage rows for this listing.
-    # Once the new media system is used (media/attach called), scraped fallback
-    # images are superseded and should never reappear after attachment deletion.
-    db.query(ListingImage).filter(ListingImage.listing_id == listing_id).delete()
-
     if not media_ids:
+        # Explicit "clear all" — only meaningful for the new media system.
+        # Legacy ListingImage rows are deliberately NOT touched here: a caller
+        # with no IDs to attach has nothing to supersede them with, and a
+        # frontend bug sending an unresolvable/empty ID set should never be
+        # able to wipe out scraped photos with nothing to replace them.
         db.query(ListingMediaAttachment).filter(ListingMediaAttachment.listing_id == listing_id).delete()
         db.commit()
         return {"success": True, "attached": 0}
-
-    media_files = (
-        db.query(MediaFile)
-        .filter(
-            MediaFile.id.in_(media_ids),
-            MediaFile.deleted_at == None,  # noqa: E711
-        )
-        .all()
-    )
-    media_by_id = {m.id: m for m in media_files}
-
-    db.query(ListingMediaAttachment).filter(ListingMediaAttachment.listing_id == listing_id).delete()
 
     # Which media org this attach call is allowed to pull from. Admins default
     # to their own org — cross-org attachment only happens if they explicitly
@@ -1549,6 +1546,29 @@ def attach_listing_media(
             raise ResourceNotFoundException("User", payload.as_dealer_id)
         scope_user = target
     allowed_ids = org_media_ids(scope_user, db)
+
+    media_files = (
+        db.query(MediaFile)
+        .filter(
+            MediaFile.id.in_(media_ids),
+            MediaFile.deleted_at == None,  # noqa: E711
+        )
+        .all()
+    )
+    media_by_id = {m.id: m for m in media_files}
+    valid_media_files = [mf for mf in media_files if mf.user_id in allowed_ids]
+
+    if not valid_media_files:
+        # None of the given IDs resolved to a real, in-scope MediaFile — most
+        # likely a stale ID set (e.g. legacy ListingImage.id values, which
+        # live in a different ID space). Reject instead of silently wiping
+        # the listing's existing photos with nothing valid to replace them.
+        raise ValidationException("None of the provided media_ids are valid uploaded media for this listing")
+
+    # Only now that we have at least one real, in-scope replacement do we
+    # retire the legacy scraped images — they're superseded, not discarded.
+    db.query(ListingImage).filter(ListingImage.listing_id == listing_id).delete()
+    db.query(ListingMediaAttachment).filter(ListingMediaAttachment.listing_id == listing_id).delete()
 
     from app.services.alt_text import generate_listing_image_alt_text
 

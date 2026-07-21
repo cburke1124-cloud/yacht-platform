@@ -83,6 +83,12 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [loading, setLoading]           = useState(false);
   const [initializing, setInitializing] = useState(isEditMode);
   const [uploadedMedia, setUploadedMedia] = useState<any[]>([]);
+  // True once uploadedMedia[].id values are known to be real MediaFile.id
+  // (from a fresh upload/library pick, or a listing already on the new media
+  // system). False means they're legacy ListingImage.id values — a different
+  // ID space that must never be sent to /media/attach (see saveAsDraft /
+  // handleSubmit below).
+  const [usingNewMediaSystem, setUsingNewMediaSystem] = useState(false);
   const [showLibraryPicker, setShowLibraryPicker] = useState(false);
   const [activeTab, setActiveTab]       = useState<Tab>('basic');
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -354,6 +360,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         if (mediaRes.ok) {
           const mediaPayload = await mediaRes.json();
           setUploadedMedia(mediaPayload.media || []);
+          setUsingNewMediaSystem(!!mediaPayload.using_new_media_system);
         }
       } catch (error) {
         console.error('Failed to load listing for editing:', error);
@@ -1042,9 +1049,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       const result = await res.json();
       const resolvedId = isEditMode ? Number(listingId) : result.id;
 
-      // Attach any already-uploaded media
+      // Attach any already-uploaded media. Only when we know uploadedMedia
+      // holds real MediaFile.id values — never send legacy ListingImage.id
+      // values here, that would wipe the scraped photos (see /media/attach).
       const mediaIds = uploadedMedia.map(m => m?.id).filter(Boolean);
-      if (mediaIds.length > 0) {
+      if (usingNewMediaSystem && mediaIds.length > 0) {
         await fetch(`${API_ROOT}/listings/${resolvedId}/media/attach`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1195,8 +1204,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       const resolvedListingId = isEditMode ? Number(listingId) : result.id;
 
       // Attach media (images/videos/pdfs). PDFs are ordered last by backend.
+      // Only when we know uploadedMedia holds real MediaFile.id values —
+      // never send legacy ListingImage.id values here, that would wipe the
+      // scraped photos (see /media/attach).
       const mediaIds = uploadedMedia.map(m => m?.id).filter(Boolean);
-      if (mediaIds.length > 0) {
+      if (usingNewMediaSystem && mediaIds.length > 0) {
         await fetch(`${API_ROOT}/listings/${resolvedListingId}/media/attach`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -1771,7 +1783,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <MediaUpload
-                      onUploadComplete={(m: any[]) => setUploadedMedia(p => [...p, ...m])}
+                      onUploadComplete={(m: any[]) => { setUploadedMedia(p => [...p, ...m]); setUsingNewMediaSystem(true); }}
                       maxFiles={20}
                       maxFileSize={50}
                       acceptImages
@@ -1782,6 +1794,12 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     />
                   </div>
                 </div>
+
+                {!usingNewMediaSystem && uploadedMedia.length > 0 && (
+                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    These are scraped external images. Upload new images above (or pick from the Media Library) to replace them with hosted copies — the × button on individual photos below won't be saved until you do.
+                  </p>
+                )}
 
                 <div className="text-center -mt-2">
                   <span className="text-xs text-gray-400">— or —</span>
@@ -1805,6 +1823,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                         const existingIds = new Set(prev.map((m: any) => m.id));
                         return [...prev, ...picked.filter(p => !existingIds.has(p.id))];
                       });
+                      setUsingNewMediaSystem(true);
                     }}
                     onClose={() => setShowLibraryPicker(false)}
                   />
