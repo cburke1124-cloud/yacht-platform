@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.listing import Listing, ListingImage
 from app.exceptions import AuthorizationException
+from app.services.geocoding import geocode_location
 
 router = APIRouter()
 
@@ -81,6 +82,9 @@ async def import_listings(
                 "status": row.get("status") or "draft",
                 "description": row.get("description"),
             }
+            payload["latitude"], payload["longitude"] = geocode_location(
+                payload["city"], payload["state"], payload["country"]
+            )
 
             listing_id_raw = (row.get("id") or "").strip()
             listing = None

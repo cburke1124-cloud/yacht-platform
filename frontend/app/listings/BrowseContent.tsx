@@ -553,6 +553,15 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
     sorted.sort((a, b) => {
       const da = (a.latitude && a.longitude) ? haversineMiles(userLat, userLng, a.latitude, a.longitude) : Infinity;
       const db = (b.latitude && b.longitude) ? haversineMiles(userLat, userLng, b.latitude, b.longitude) : Infinity;
+      // da - db is NaN when both sides are Infinity (no location on either
+      // listing) — Array.sort coerces a NaN comparator result to 0 and is
+      // stable, so it silently fell back to preserving fetch order (newest
+      // first) instead of leaving genuinely un-locatable listings tied.
+      // That let freshly-imported listings with no location at all (e.g.
+      // Tot Nautic right after a scrape) appear to rank as "nearest".
+      if (da === Infinity && db === Infinity) return 0;
+      if (da === Infinity) return 1;
+      if (db === Infinity) return -1;
       return da - db;
     });
   }

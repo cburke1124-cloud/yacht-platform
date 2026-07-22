@@ -65,6 +65,7 @@ from app.models.user import User
 from app.models.guest_broker import GuestBroker
 from app.db.session import get_db, SessionLocal
 from app.services.media_storage import store_media_bytes
+from app.services.geocoding import geocode_location
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -4113,6 +4114,7 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
         setattr(listing, f, v)
 
     # Normalize and infer location fields
+    _prior_city, _prior_state, _prior_country = listing.city, listing.state, listing.country
     city, state, country = OptimizedYachtScraper.normalize_location(
         raw.get("city"), raw.get("state"), raw.get("country")
     )
@@ -4124,6 +4126,19 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
         listing.state = None  # explicitly cleared (was actually a country)
     if country is not None:
         listing.country = country
+
+    # Re-geocode when the location actually changed, or when it hasn't been
+    # geocoded yet at all (covers the backfill case: existing listings with a
+    # location but no coordinates get geocoded the next time this job touches
+    # them). Skipped otherwise so a routine re-sync of an unchanged listing
+    # doesn't burn a geocoding API call every cycle.
+    if (
+        listing.city != _prior_city or listing.state != _prior_state or listing.country != _prior_country
+        or listing.latitude is None or listing.longitude is None
+    ):
+        listing.latitude, listing.longitude = geocode_location(
+            listing.city, listing.state, listing.country, listing.zip_code
+        )
 
     # Always keep dealer / salesman linkage
     listing.user_id = job.dealer_id

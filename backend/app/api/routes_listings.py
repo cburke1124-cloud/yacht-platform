@@ -19,6 +19,7 @@ from app.exceptions import ResourceNotFoundException, AuthorizationException, Va
 from app.services.email_service import email_service
 from app.services.billing_status import user_has_paid, paid_owner_filter
 from app.services.media_scope import org_media_ids
+from app.services.geocoding import geocode_location, needs_geocoding
 from app.core.reply_token import generate_reply_token
 import os
 
@@ -1009,10 +1010,19 @@ def create_listing(
         if field_name in listing_payload and (not _has_listing_column(field_name) or field_name == "allow_cobrokering"):
             listing_payload.pop(field_name, None)
 
+    lat, lng = geocode_location(
+        listing_payload.get("city"),
+        listing_payload.get("state"),
+        listing_payload.get("country"),
+        listing_payload.get("zip_code"),
+    )
+
     new_listing = Listing(
         user_id=current_user.id,
         created_by_user_id=current_user.id,
         **listing_payload,
+        latitude=lat,
+        longitude=lng,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -1063,6 +1073,20 @@ def update_listing(
     # Normalize legacy status values to awaiting_review
     if update_payload.get("status") in ("needs_approval", "pending"):
         update_payload["status"] = "awaiting_review"
+
+    if needs_geocoding(
+        listing,
+        update_payload.get("city"),
+        update_payload.get("state"),
+        update_payload.get("country"),
+        update_payload.get("zip_code"),
+    ):
+        update_payload["latitude"], update_payload["longitude"] = geocode_location(
+            update_payload.get("city", listing.city),
+            update_payload.get("state", listing.state),
+            update_payload.get("country", listing.country),
+            update_payload.get("zip_code", listing.zip_code),
+        )
 
     for field, value in update_payload.items():
         setattr(listing, field, value)
