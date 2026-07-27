@@ -480,8 +480,8 @@ def _validate_dealer_scrape_url(url: str, dealer_website: str) -> None:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Your dealer profile does not have a valid website on file. "
-                "Please update your Dealer Profile before using the scraper."
+                "Your broker profile does not have a valid website on file. "
+                "Please update your Broker Profile before using the scraper."
             ),
         )
 
@@ -521,7 +521,7 @@ def _get_dealer_profile(current_user: User, db: Session):
         raise HTTPException(
             status_code=400,
             detail=(
-                "Please add your brokerage website to your Dealer Profile before "
+                "Please add your brokerage website to your Broker Profile before "
                 "using the listing scraper."
             ),
         )
@@ -885,7 +885,7 @@ def import_single_listing(
     # Check dealer exists
     dealer = db.query(User).filter(User.id == data.dealer_id).first()
     if not dealer:
-        raise HTTPException(status_code=404, detail="Dealer not found")
+        raise HTTPException(status_code=404, detail="Broker not found")
 
     # Build a job-like namespace so _apply_scraped_data can set ownership
     job_like = SimpleNamespace(dealer_id=data.dealer_id, salesman_id=data.salesman_id)
@@ -960,10 +960,19 @@ def get_dealer_team_members(
 # JOB MANAGEMENT
 # -----------------------------------------------------------------------
 
-def _job_to_dict(job: ScraperJob) -> dict:
+def _job_to_dict(job: ScraperJob, dealer: Optional[User] = None) -> dict:
     return {
         "id": job.id,
         "dealer_id": job.dealer_id,
+        # Included so the admin edit form can always show/pre-populate the
+        # job's actual dealer even if that account falls outside whatever
+        # page/limit the broker-picker dropdown happens to be showing —
+        # previously a dealer missing from that list rendered as a blank
+        # required field, which invited admins to "fix" it by picking a
+        # different broker and silently reassigning every one of that
+        # dealer's listings on the next run.
+        "dealer_email": dealer.email if dealer else None,
+        "dealer_company_name": (dealer.company_name if dealer else None) or None,
         "salesman_id": job.salesman_id,
         "created_by_id": job.created_by_id,
         "site_name": job.site_name,
@@ -995,7 +1004,15 @@ def list_scraper_jobs(
 ):
     _require_admin(current_user)
     jobs = db.query(ScraperJob).order_by(ScraperJob.created_at.desc()).all()
-    return {"success": True, "jobs": [_job_to_dict(j) for j in jobs]}
+    dealer_ids = {j.dealer_id for j in jobs if j.dealer_id}
+    dealers_by_id = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(dealer_ids)).all()}
+        if dealer_ids else {}
+    )
+    return {
+        "success": True,
+        "jobs": [_job_to_dict(j, dealers_by_id.get(j.dealer_id)) for j in jobs],
+    }
 
 
 @router.post("/scraper/jobs")
@@ -1035,7 +1052,8 @@ def get_scraper_job(
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return {"success": True, "job": _job_to_dict(job)}
+    dealer = db.query(User).filter(User.id == job.dealer_id).first() if job.dealer_id else None
+    return {"success": True, "job": _job_to_dict(job, dealer)}
 
 
 @router.put("/scraper/jobs/{job_id}")
@@ -1053,7 +1071,8 @@ def update_scraper_job(
         setattr(job, field, value)
     db.commit()
     db.refresh(job)
-    return {"success": True, "job": _job_to_dict(job)}
+    dealer = db.query(User).filter(User.id == job.dealer_id).first() if job.dealer_id else None
+    return {"success": True, "job": _job_to_dict(job, dealer)}
 
 
 @router.delete("/scraper/jobs/{job_id}")
@@ -2547,7 +2566,7 @@ def create_master_ocean_job(
     # Validate dealer exists
     dealer = db.query(User).filter(User.id == data.dealer_id).first()
     if not dealer:
-        raise HTTPException(status_code=404, detail="Dealer not found")
+        raise HTTPException(status_code=404, detail="Broker not found")
 
     template = {
         "api_type": "master_ocean",

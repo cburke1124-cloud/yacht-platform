@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X, Terminal } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ScraperReviewPage from '@/app/admin/scraper-review/page';
@@ -17,6 +17,8 @@ interface LogLine {
 interface ScraperJob {
   id: number;
   dealer_id: number;
+  dealer_email?: string | null;
+  dealer_company_name?: string | null;
   salesman_id?: number;
   site_name?: string;
   broker_url: string;
@@ -809,11 +811,11 @@ function BulkEnrichSection({ dealers, apiUrl, authHeaders }: { dealers: Dealer[]
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Dealer (optional)</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Broker (optional)</label>
             <select value={dealerId} onChange={e => setDealerId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="">All dealers</option>
-              {dealers.map(d => <option key={d.id} value={d.id}>{d.name || `Dealer #${d.id}`}</option>)}
+              <option value="">All brokers</option>
+              {dealers.map(d => <option key={d.id} value={d.id}>{d.name || `Broker #${d.id}`}</option>)}
             </select>
           </div>
           <div>
@@ -929,7 +931,7 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
 
   async function handleSaveJob(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
+    if (!form.dealer_id) { setFormError('Please select a broker'); return; }
     if (!form.api_endpoint) { setFormError('Feed URL is required'); return; }
     if (form.feed_type === 'boats_group' && !editingJob && !form.api_key) { setFormError('API key is required for Boats Group feeds'); return; }
     setFormSaving(true); setFormError('');
@@ -1112,10 +1114,10 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
           <h4 className="text-sm font-semibold text-gray-800 mb-4">{editingJob ? 'Edit Feed Job' : 'New Feed Job'}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Dealer *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Broker *</label>
               <select value={form.dealer_id} onChange={e => setForm(f => ({ ...f, dealer_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <option value="">— Select a dealer —</option>
+                <option value="">— Select a broker —</option>
                 {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
               </select>
             </div>
@@ -1234,7 +1236,7 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                       {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                      <span>Dealer: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
+                      <span>Broker: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
                       <span>Every {job.schedule_hours}h</span>
                       <span>Runs: {job.total_runs}</span>
                       {job.last_run_at && <span>Last: {fmtDate(job.last_run_at)}</span>}
@@ -1415,7 +1417,7 @@ function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeader
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.dealer_id) { setSaveMsg({ ok: false, text: 'Select a dealer' }); return; }
+    if (!form.dealer_id) { setSaveMsg({ ok: false, text: 'Select a broker' }); return; }
     if (!form.api_key.trim()) { setSaveMsg({ ok: false, text: 'Enter the API key' }); return; }
     if (!form.sync_types.length) { setSaveMsg({ ok: false, text: 'Select at least one type to sync' }); return; }
     setSaving(true); setSaveMsg(null);
@@ -1645,10 +1647,10 @@ function MasterOceanSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeader
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Assign listings to dealer *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Assign listings to broker *</label>
               <select value={form.dealer_id} onChange={e => setForm(f => ({ ...f, dealer_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
-                <option value="">— Select dealer —</option>
+                <option value="">— Select broker —</option>
                 {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
               </select>
             </div>
@@ -1824,7 +1826,7 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
 
   async function handleCreate() {
     if (!preview) return;
-    if (!dealerId) { setSaveMsg({ ok: false, text: 'Select which dealer/brokerage account should own this listing' }); return; }
+    if (!dealerId) { setSaveMsg({ ok: false, text: 'Select which broker account should own this listing' }); return; }
     setSaving(true); setSaveMsg(null);
     try {
       const payload: Record<string, unknown> = { ...preview, user_id: Number(dealerId) };
@@ -1936,12 +1938,12 @@ function CharterScraperSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHea
           )}
 
           <div>
-            <label className={lbl}>Assign to dealer / brokerage account *</label>
+            <label className={lbl}>Assign to broker account *</label>
             <select className={inp} value={dealerId} onChange={e => setDealerId(e.target.value)}>
-              <option value="">— Select dealer —</option>
+              <option value="">— Select broker —</option>
               {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>)}
             </select>
-            <p className="text-xs text-gray-400 mt-1">Without this, the scraped listing won&apos;t show up under any dealer&apos;s account.</p>
+            <p className="text-xs text-gray-400 mt-1">Without this, the scraped listing won&apos;t show up under any broker&apos;s account.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -2352,6 +2354,28 @@ export default function AdminScraperTab() {
     } catch { flash('Failed to reset job'); }
   }
 
+  // The broker picker only loads the 200 most-recently-created dealers
+  // (GET /admin/dealers?limit=200). If a job's dealer falls outside that
+  // window, the <select> below would render as if nothing were selected —
+  // even though form.dealer_id still correctly holds it — which invites an
+  // admin editing the job for an unrelated reason (e.g. just the schedule)
+  // to "fix" the apparently-blank required field by picking a different
+  // broker, silently reassigning every one of that dealer's listings on the
+  // next run. Guarantee the job's own dealer is always a real option using
+  // the dealer_email/dealer_company_name the job GET already returns.
+  const dealerOptions = useMemo(() => {
+    if (!editingJob || dealers.some(d => d.id === editingJob.dealer_id)) return dealers;
+    return [
+      ...dealers,
+      {
+        id: editingJob.dealer_id,
+        company_name: editingJob.dealer_company_name || undefined,
+        name: editingJob.dealer_company_name || `Dealer #${editingJob.dealer_id}`,
+        email: editingJob.dealer_email || 'unknown',
+      },
+    ];
+  }, [dealers, editingJob]);
+
   function handleStartEdit(job: ScraperJob) {
     setEditingJob(job);
     setForm({
@@ -2385,8 +2409,19 @@ export default function AdminScraperTab() {
 
   async function handleSaveJob(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.dealer_id) { setFormError('Please select a dealer'); return; }
+    if (!form.dealer_id) { setFormError('Please select a broker'); return; }
     if (!form.broker_url) { setFormError('Broker URL is required'); return; }
+    // Reassigning the broker on an existing job reassigns EVERY listing it
+    // owns to the new broker on the next run (scraper.py always re-stamps
+    // listing.user_id = job.dealer_id) — confirm this was intentional rather
+    // than an accidental dropdown change.
+    if (editingJob && parseInt(form.dealer_id) !== editingJob.dealer_id) {
+      const ok = confirm(
+        `This changes the job's broker from "${editingJob.dealer_company_name || `#${editingJob.dealer_id}`}" ` +
+        `to a different one. Every listing this job owns will be reassigned to the new broker the next time it runs. Continue?`
+      );
+      if (!ok) return;
+    }
     setFormSaving(true); setFormError('');
     try {
       const body = {
@@ -2547,11 +2582,11 @@ export default function AdminScraperTab() {
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Broker / Dealer *</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Broker *</label>
                   <select value={form.dealer_id} onChange={e => { setForm(f => ({ ...f, dealer_id: e.target.value, salesman_id: '' })); loadTeamMembers(e.target.value, setFormTeamMembers); }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
-                    <option value="">— Select a dealer —</option>
-                    {dealers.map(d => (
+                    <option value="">— Select a broker —</option>
+                    {dealerOptions.map(d => (
                       <option key={d.id} value={d.id}>{d.company_name || d.name} ({d.email})</option>
                     ))}
                   </select>
@@ -2561,7 +2596,7 @@ export default function AdminScraperTab() {
                   <select value={form.salesman_id} onChange={e => setForm(f => ({ ...f, salesman_id: e.target.value }))}
                     disabled={!form.dealer_id || formTeamMembers.length === 0}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-400">
-                    <option value="">{formTeamMembers.length === 0 ? (form.dealer_id ? 'No team members' : 'Select dealer first') : '— All listings (no specific salesman) —'}</option>
+                    <option value="">{formTeamMembers.length === 0 ? (form.dealer_id ? 'No team members' : 'Select broker first') : '— All listings (no specific salesman) —'}</option>
                     {formTeamMembers.map(m => (
                       <option key={m.id} value={m.id}>{m.name} ({m.role || 'salesperson'})</option>
                     ))}
@@ -2903,7 +2938,7 @@ export default function AdminScraperTab() {
                             {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
                           </div>
                           <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                            <span>Dealer: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
+                            <span>Broker: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
                             <span>Every {job.schedule_hours}h</span>
                             <span>Runs: {job.total_runs}</span>
                             {job.last_run_at && <span>Last: {fmtDate(job.last_run_at)}</span>}
@@ -3404,7 +3439,7 @@ export default function AdminScraperTab() {
                           value={singleDealerId}
                           onChange={e => { setSingleDealerId(e.target.value); setSingleSalesmanId(''); loadTeamMembers(e.target.value, setSingleTeamMembers); }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary">
-                          <option value="">— Select dealer —</option>
+                          <option value="">— Select broker —</option>
                           {dealers.map(d => (
                             <option key={d.id} value={d.id}>{d.company_name || d.name}</option>
                           ))}
@@ -3420,7 +3455,7 @@ export default function AdminScraperTab() {
                           onChange={e => setSingleSalesmanId(e.target.value)}
                           disabled={!singleDealerId || singleTeamMembers.length === 0}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-400">
-                          <option value="">{singleTeamMembers.length === 0 ? (singleDealerId ? 'No team members' : 'Select dealer first') : '— Unassigned —'}</option>
+                          <option value="">{singleTeamMembers.length === 0 ? (singleDealerId ? 'No team members' : 'Select broker first') : '— Unassigned —'}</option>
                           {singleTeamMembers.map(m => (
                             <option key={m.id} value={m.id}>{m.name}</option>
                           ))}
