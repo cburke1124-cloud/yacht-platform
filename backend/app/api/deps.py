@@ -46,7 +46,13 @@ def get_optional_user(
     except JWTError:
         return None
 
-    user = db.query(User).filter(User.email == email).first()
+    # The unique index on email only covers non-deleted rows (a soft-deleted
+    # account's email can be reused), so two rows can legitimately share the
+    # same email string. Without this filter, .first() on an unordered query
+    # can resolve to the wrong one -- e.g. an old soft-deleted duplicate with
+    # a password the user still remembers -- silently authenticating them as
+    # an account that isn't the one their real data (listings, etc.) is on.
+    user = db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first()
     if not user or not user.active:
         return None
     return user
@@ -74,7 +80,8 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.email == email).first()
+    # See get_optional_user above for why deleted_at must be excluded here.
+    user = db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first()
     if not user:
         raise credentials_exception
     if not user.active:

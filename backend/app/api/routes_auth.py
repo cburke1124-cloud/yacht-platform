@@ -475,8 +475,16 @@ async def register(request: Request, response: Response, user_data: UserRegister
 @limiter.limit("10/minute")
 async def login(request: Request, response: Response, user_data: UserLogin, db: Session = Depends(get_db)):
     try:
+        # deleted_at IS NULL: the unique index on email only covers
+        # non-deleted rows, so a soft-deleted duplicate can share the same
+        # email as the real active account. Without this filter, an
+        # unordered LIMIT 1 can non-deterministically authenticate the user
+        # against the wrong row.
         row = db.execute(
-            text("SELECT id, email, password_hash, COALESCE(active, true) AS active FROM users WHERE email = :email LIMIT 1"),
+            text(
+                "SELECT id, email, password_hash, COALESCE(active, true) AS active "
+                "FROM users WHERE email = :email AND deleted_at IS NULL LIMIT 1"
+            ),
             {"email": user_data.email},
         ).mappings().first()
     except Exception:
@@ -544,7 +552,9 @@ async def complete_2fa_login(request: Request, response: Response, data: dict, d
     if not email or not code:
         raise ValidationException("Email and code are required")
 
-    user = db.query(User).filter(User.email == email).first()
+    # See /login above for why deleted_at must be excluded here too -- this
+    # endpoint also mints a session token for whichever row it resolves to.
+    user = db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first()
     if not user or not user.two_factor_enabled:
         raise AuthenticationException("Invalid request")
 
