@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { API_ROOT } from '@/app/lib/apiRoot';
 import BlogPostClient from './BlogPostClient';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 interface BlogPostPageProps {
   params: Promise<{ slug: string }>;

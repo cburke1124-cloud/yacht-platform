@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getDestinations, getAllSubregions, Destination } from '@/app/lib/destinationData';
 import DestinationCard from '@/app/components/charter-destinations/DestinationCard';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 export const metadata: Metadata = {
   title: 'Yacht Charter Destinations',

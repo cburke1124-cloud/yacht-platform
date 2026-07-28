@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { API_ROOT } from '@/app/lib/apiRoot';
 import BlogBrowseContent from './BlogBrowseContent';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 const TITLE = 'YachtVersal Blog — Yacht Buying Guides & Market Insights';
 const DESCRIPTION = 'Guides, market insights, and practical ownership content for yacht buyers and sellers.';

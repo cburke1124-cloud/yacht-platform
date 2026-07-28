@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getBoatTypes } from '@/app/lib/boatTypeData';
 import BoatTypeCard from '@/app/components/boat-types/BoatTypeCard';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 export const metadata: Metadata = {
   title: 'Find Your Type of Boat',

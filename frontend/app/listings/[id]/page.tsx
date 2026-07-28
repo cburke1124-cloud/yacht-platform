@@ -3,7 +3,7 @@ import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import { getBoatTypes } from '@/app/lib/boatTypeData';
 import ListingDetailClient from './ListingDetailClient';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 interface CatalogLink {
   href: string;

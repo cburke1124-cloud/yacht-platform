@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import DealerProfileClient from './DealerProfileClient';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 interface DealerPageProps {
   params: Promise<{ slug: string }>;

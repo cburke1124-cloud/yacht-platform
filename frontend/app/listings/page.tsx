@@ -1,5 +1,14 @@
+import type { Metadata } from 'next';
 import { API_ROOT } from '@/app/lib/apiRoot';
 import BrowseContent from './BrowseContent';
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
+
+export const metadata: Metadata = {
+  title: 'Yachts For Sale',
+  description: 'Browse yachts for sale from trusted brokers and private sellers. Filter by boat type, make, model, price, length, year, and location.',
+  alternates: { canonical: `${SITE_URL}/listings` },
+};
 
 const FILTER_KEYS = [
   'search', 'boat_type', 'make', 'model', 'propulsion',

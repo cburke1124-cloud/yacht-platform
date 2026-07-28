@@ -5,7 +5,7 @@ import BoatTypeHero from '@/app/components/boat-types/BoatTypeHero';
 import BoatTypeInfo from '@/app/components/boat-types/BoatTypeInfo';
 import BoatTypeMakes from '@/app/components/boat-types/BoatTypeMakes';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 interface BoatTypeDetailProps {
   params: Promise<{ slug: string }>;

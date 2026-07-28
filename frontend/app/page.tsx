@@ -6,7 +6,7 @@ import HomeSearchTabs from '@/app/components/HomeSearchTabs';
 import HomeFeaturedListings, { type Listing } from '@/app/components/HomeFeaturedListings';
 import { API_ROOT } from '@/app/lib/apiRoot';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 const TITLE = 'YachtVersal - Buy, Sell & Charter Luxury Yachts';
 const DESCRIPTION = 'A smarter way to buy, sell, and charter yachts. Browse verified listings from trusted brokers and private sellers worldwide, with AI-powered search matched to your budget, size, and destination.';

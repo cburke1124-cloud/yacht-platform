@@ -4,7 +4,7 @@ import { getBoatTypes } from '@/app/lib/boatTypeData';
 import { getDestinations } from '@/app/lib/destinationData';
 import { fetchLocationNodes } from '@/app/lib/listingLocationsData';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') || 'https://www.yachtversal.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '') || 'https://yachtversal.com';
 const API_ROOT = (process.env.NEXT_PUBLIC_API_URL || 'https://yacht-platform.onrender.com/api').replace(/\/+$/, '');
 
 // Static pages with their priority and change frequency

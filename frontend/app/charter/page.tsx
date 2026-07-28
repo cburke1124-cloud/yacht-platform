@@ -3,7 +3,7 @@ import { API_ROOT } from '@/app/lib/apiRoot';
 import CharterBrowseContent from './CharterBrowseContent';
 import type { CharterListing } from '@/app/components/CharterCard';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 const TITLE = 'Yacht Charters — Search Crewed & Bareboat Charters | YachtVersal';
 const DESCRIPTION = 'Search yacht charters worldwide by destination, dates, guests, and budget. Browse crewed and bareboat charters from verified charter companies.';

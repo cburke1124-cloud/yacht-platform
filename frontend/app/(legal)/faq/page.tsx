@@ -4,7 +4,7 @@ import { ChevronRight, Mail } from 'lucide-react';
 import { FAQ_ITEMS } from './faqData';
 import FaqAccordion from './FaqAccordion';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 export const metadata: Metadata = {
   title: 'Frequently Asked Questions',

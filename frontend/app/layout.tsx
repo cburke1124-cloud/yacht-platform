@@ -17,7 +17,7 @@ const poppins = Poppins({
   display: 'swap',
 });
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 interface ListingSummary {
   title?: string;

@@ -11,7 +11,7 @@ import {
 } from '@/app/lib/listingLocationsData';
 import ListingCard from '@/app/components/ListingCard';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://www.yachtversal.com';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '')) || 'https://yachtversal.com';
 
 interface LocationPageProps {
   params: Promise<{ slug: string[] }>;

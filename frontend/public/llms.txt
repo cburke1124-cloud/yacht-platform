@@ -1,6 +1,6 @@
 # YachtVersal
 
-> YachtVersal is a yacht marketplace at https://www.yachtversal.com for buying, selling, and chartering yachts. Buyers browse and contact sellers for free; verified yacht brokers and private sellers list vessels with no transaction fees or sales commissions.
+> YachtVersal is a yacht marketplace at https://yachtversal.com for buying, selling, and chartering yachts. Buyers browse and contact sellers for free; verified yacht brokers and private sellers list vessels with no transaction fees or sales commissions.
 
 Key facts:
 - Buying, searching, saving yachts, price alerts, and contacting sellers are free for buyers.
@@ -10,26 +10,26 @@ Key facts:
 
 ## Buy
 
-- [Yachts for sale](https://www.yachtversal.com/listings): All current listings, filterable by boat type, make, model, price, length, year, condition, and location.
-- [AI yacht search](https://www.yachtversal.com/ai-search): Describe the boat you want in plain English and get matched listings.
-- [Boat types guide](https://www.yachtversal.com/boat-types): What each boat category (motor yacht, sailing yacht, catamaran, trawler, sport fisher, and more) is built for, who it suits, and which builders make it.
-- [Boat makes directory](https://www.yachtversal.com/makes): Builders and their model ranges.
-- [How buying works](https://www.yachtversal.com/resources/how-buying-works): The yacht buying process step by step.
-- [Financing guide](https://www.yachtversal.com/resources/financing): How marine lending works.
+- [Yachts for sale](https://yachtversal.com/listings): All current listings, filterable by boat type, make, model, price, length, year, condition, and location.
+- [AI yacht search](https://yachtversal.com/ai-search): Describe the boat you want in plain English and get matched listings.
+- [Boat types guide](https://yachtversal.com/boat-types): What each boat category (motor yacht, sailing yacht, catamaran, trawler, sport fisher, and more) is built for, who it suits, and which builders make it.
+- [Boat makes directory](https://yachtversal.com/makes): Builders and their model ranges.
+- [How buying works](https://yachtversal.com/resources/how-buying-works): The yacht buying process step by step.
+- [Financing guide](https://yachtversal.com/resources/financing): How marine lending works.
 
 ## Charter
 
-- [Yacht charters](https://www.yachtversal.com/charter): Yachts available for charter with rates and regions.
-- [Charter destinations](https://www.yachtversal.com/charter-destinations): Cruising region guides with conditions, highlights, and available yachts.
+- [Yacht charters](https://yachtversal.com/charter): Yachts available for charter with rates and regions.
+- [Charter destinations](https://yachtversal.com/charter-destinations): Cruising region guides with conditions, highlights, and available yachts.
 
 ## Sell
 
-- [For yacht brokers](https://www.yachtversal.com/sell/brokers): Broker listing plans and tools, including AI listing import and team management.
-- [For private sellers](https://www.yachtversal.com/sell/private): Private seller listing plans.
-- [Yacht broker directory](https://www.yachtversal.com/dealers): Verified broker profiles and their listings.
+- [For yacht brokers](https://yachtversal.com/sell/brokers): Broker listing plans and tools, including AI listing import and team management.
+- [For private sellers](https://yachtversal.com/sell/private): Private seller listing plans.
+- [Yacht broker directory](https://yachtversal.com/dealers): Verified broker profiles and their listings.
 
 ## Support
 
-- [FAQ](https://www.yachtversal.com/faq): Answers about buying, chartering, selling, pricing, and security.
-- [Contact](https://www.yachtversal.com/contact): Reach the YachtVersal team.
-- [Blog](https://www.yachtversal.com/blog): Guides and market articles.
+- [FAQ](https://yachtversal.com/faq): Answers about buying, chartering, selling, pricing, and security.
+- [Contact](https://yachtversal.com/contact): Reach the YachtVersal team.
+- [Blog](https://yachtversal.com/blog): Guides and market articles.
