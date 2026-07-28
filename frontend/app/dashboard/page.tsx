@@ -1753,7 +1753,11 @@ function EnhancedDealerDashboard() {
     { id: 'help', label: 'Help Center', icon: HelpCircle },
   ] as { id: TabId; label: string; icon: any }[];
 
-  const paidTiers = new Set(['basic','plus','pro','premium','private_basic','private_plus','private_pro']);
+  // private_active is the flat one-time-fee tier private sellers get today
+  // (see routes_payments.py's PRIVATE_SELLER_PLANS comment) — private_basic/
+  // plus/pro are kept here only for historical accounts from before that
+  // pivot, not because they're still issued.
+  const paidTiers = new Set(['basic','plus','pro','premium','private_active','private_basic','private_plus','private_pro']);
   // subscription_start_date is only ever set by a confirmed Stripe webhook /
   // session-confirm — never by a sales-rep/admin manually creating a broker
   // account. A manually-created account can have subscription_tier set to a

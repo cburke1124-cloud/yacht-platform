@@ -429,7 +429,9 @@ def get_all_users(
     db: Session = Depends(get_db)
 ):
     """Get all users with filtering."""
-    _PAID_TIERS = ["basic", "plus", "pro", "premium", "private_basic", "private_plus", "private_pro"]
+    # private_active is the flat one-time-fee tier private sellers get today;
+    # private_basic/plus/pro are kept only for historical pre-pivot accounts.
+    _PAID_TIERS = ["basic", "plus", "pro", "premium", "private_active", "private_basic", "private_plus", "private_pro"]
 
     query = db.query(User)
 
