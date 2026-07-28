@@ -87,4 +87,11 @@ def get_current_user(
     if not user.active:
         raise credentials_exception
 
+    # Surface impersonation metadata (set only by POST /admin/users/{id}/
+    # impersonate) on the request, so GET /auth/me can show a "viewing as"
+    # banner and POST /admin/impersonate/exit can restore the original
+    # admin's session -- without changing this function's return type for
+    # the hundreds of existing callers that just want the User.
+    request.state.impersonator_email = payload.get("impersonator_email")
+
     return user

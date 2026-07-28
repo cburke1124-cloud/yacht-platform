@@ -131,6 +131,32 @@ export default function AdminUsersTab() {
     }
   };
 
+  const handleViewAs = async (user: any) => {
+    if (!confirm(`View the platform as ${user.email}? This is logged, and you can exit back to your admin account any time via the banner shown while viewing as them.`)) return;
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/impersonate`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const dest =
+          user.user_type === 'salesman' ? '/sales-rep/dashboard' :
+          user.user_type === 'user' ? '/account' :
+          '/dashboard';
+        window.location.href = dest;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showMsg(user.id, 'error', err.detail || 'Failed to view as this user');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleDeleteUser = async (id: number) => {
     if (!confirm('Deactivate this user? Their data will be preserved. Use "Force Delete" to permanently remove an account.')) return;
     try {
@@ -403,7 +429,7 @@ export default function AdminUsersTab() {
         >
           <option value="">All Account Types</option>
           <option value="admin">Admin</option>
-          <option value="dealer">Broker / Dealer</option>
+          <option value="dealer">Broker</option>
           <option value="private">Private Seller</option>
           <option value="salesman">Sales Rep</option>
         </select>
@@ -462,7 +488,7 @@ export default function AdminUsersTab() {
                 onChange={e => setFormData({ ...formData, user_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
                 <option value="admin">Admin</option>
-                <option value="dealer">Dealer / Broker</option>
+                <option value="dealer">Broker</option>
                 <option value="private">Private Seller</option>
               </select>
             </div>
@@ -560,6 +586,16 @@ export default function AdminUsersTab() {
                           >
                             {actionLoading === user.id ? '...' : 'Reset Link'}
                           </button>
+                          {user.user_type !== 'admin' && (
+                            <button
+                              onClick={() => handleViewAs(user)}
+                              disabled={actionLoading === user.id}
+                              title="See exactly what this account sees, for troubleshooting"
+                              className="px-2.5 py-1 text-xs bg-cyan-50 text-cyan-700 rounded-md hover:bg-cyan-100 transition disabled:opacity-50"
+                            >
+                              {actionLoading === user.id ? '...' : 'View As'}
+                            </button>
+                          )}
                           <button
                             onClick={() => { setEditingEmailId(editingEmailId === user.id ? null : user.id); setNewEmail(user.email); }}
                             className="px-2.5 py-1 text-xs bg-amber-50 text-amber-700 rounded-md hover:bg-amber-100 transition"

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
@@ -20,7 +20,7 @@ from app.core.logging import memory_log_handler
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.dealer import DealerProfile, EmailVerification
+from app.models.dealer import DealerProfile, EmailVerification, ActivityLog
 from app.models.listing import Listing, ListingImage
 from app.models.charter import CharterListing
 from app.models.api_keys import APIKey, ListingAPIBlock
@@ -37,7 +37,8 @@ from app.exceptions import (
 )
 from app.services.media_storage import get_storage_health, run_storage_test
 from app.services.clamav_service import health_check as clamav_health_check
-from app.security.auth import get_password_hash
+from app.security.auth import get_password_hash, create_access_token, set_auth_cookie
+from app.core.config import settings
 from app.services.email_service import email_service
 from app.services.demo_fixtures import get_demo_listing_data, create_demo_account_for_owner, create_demo_inquiries
 from app.models.documentation import Documentation
@@ -589,6 +590,91 @@ def update_user(
         "user_type": user.user_type,
         "subscription_tier": user.subscription_tier
     }}
+
+
+# Deliberately shorter than a normal session (ACCESS_TOKEN_EXPIRE_MINUTES,
+# currently 7 days) -- an impersonation session left open is a standing
+# ability to act as that user, so it should lapse on its own well before a
+# forgotten tab becomes a real exposure window.
+_IMPERSONATION_SESSION_MINUTES = 60
+
+
+@router.post("/users/{user_id}/impersonate")
+def impersonate_user(
+    user_id: int,
+    response: Response,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """"View As" for troubleshooting: mint a real, time-limited session for
+    the target user's own account so an admin sees exactly what they see,
+    without needing their password. Logged to ActivityLog on both start and
+    end (see POST /impersonate/exit)."""
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+    if target.deleted_at is not None:
+        raise ValidationException("Cannot view as a deleted account")
+    if not target.active:
+        raise ValidationException("Cannot view as an inactive account")
+    if target.user_type == "admin":
+        raise AuthorizationException("Cannot view as another admin account")
+
+    token = create_access_token(
+        data={"sub": target.email, "impersonator_email": current_user.email},
+        expires_delta=timedelta(minutes=_IMPERSONATION_SESSION_MINUTES),
+    )
+    set_auth_cookie(response, token)
+
+    db.add(ActivityLog(
+        user_id=target.id,
+        action="admin_impersonation_start",
+        details={"admin_id": current_user.id, "admin_email": current_user.email},
+    ))
+    db.commit()
+
+    return {
+        "success": True,
+        "access_token": token,
+        "user": {"id": target.id, "email": target.email, "user_type": target.user_type},
+    }
+
+
+@router.post("/impersonate/exit")
+def exit_impersonation(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Restore the original admin's own session after a View As. Uses plain
+    get_current_user (not require_admin): during an impersonation session,
+    current_user IS the target account, not the admin. Validity comes from
+    the signed impersonator_email claim, not from current_user's role."""
+    impersonator_email = getattr(request.state, "impersonator_email", None)
+    if not impersonator_email:
+        raise ValidationException("Not currently viewing as another user")
+
+    admin = db.query(User).filter(
+        User.email == impersonator_email, User.deleted_at.is_(None)
+    ).first()
+    if not admin or admin.user_type != "admin":
+        raise AuthorizationException("Original admin account is no longer valid")
+
+    token = create_access_token(
+        data={"sub": admin.email},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    set_auth_cookie(response, token)
+
+    db.add(ActivityLog(
+        user_id=current_user.id,
+        action="admin_impersonation_end",
+        details={"admin_id": admin.id, "admin_email": admin.email},
+    ))
+    db.commit()
+
+    return {"success": True, "access_token": token}
 
 
 @router.post("/users/{user_id}/confirm-email")

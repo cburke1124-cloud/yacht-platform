@@ -619,7 +619,7 @@ async def resend_verification_email_public(request: Request, data: dict, db: Ses
 
 
 @router.get("/me")
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get current user with permissions and role info."""
     
     permissions = current_user.permissions
@@ -672,6 +672,17 @@ def get_me(current_user: User = Depends(get_current_user)):
                 "can_view_analytics": False
             }
     
+    impersonator_email = getattr(request.state, "impersonator_email", None)
+    impersonator = None
+    if impersonator_email:
+        admin = db.query(User).filter(User.email == impersonator_email, User.deleted_at.is_(None)).first()
+        if admin:
+            impersonator = {
+                "id": admin.id,
+                "email": admin.email,
+                "name": f"{admin.first_name or ''} {admin.last_name or ''}".strip() or admin.email,
+            }
+
     return {
         "id": current_user.id,
         "email": current_user.email,
@@ -693,6 +704,8 @@ def get_me(current_user: User = Depends(get_current_user)):
         "email_verified": bool(current_user.email_verified),
         "two_factor_enabled": bool(current_user.two_factor_enabled),
         "subscription_start_date": current_user.subscription_start_date.isoformat() if getattr(current_user, "subscription_start_date", None) else None,
+        # Present only when this session was minted by POST /admin/users/{id}/impersonate.
+        "impersonator": impersonator,
     }
 
 

@@ -7,6 +7,8 @@ import Footer from "./components/Footer";
 import CookieConsentBanner from "./components/CookieConsentBanner";
 import LayoutShell from "./components/LayoutShell";
 import AuthGuard from "./components/AuthGuard";
+import ImpersonationBanner from "./components/ImpersonationBanner";
+import ChatbotWidget from "./components/ChatbotWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -110,6 +112,7 @@ export default function RootLayout({
         {/* Mounted first so its effect patches window.fetch before any other
             component's mount-time fetch calls (e.g. Navbar's auth check) run. */}
         <AuthGuard />
+        <ImpersonationBanner />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-primary focus:text-white focus:rounded-lg focus:text-sm focus:font-medium"
@@ -122,6 +125,7 @@ export default function RootLayout({
           </main>
         </LayoutShell>
         <CookieConsentBanner />
+        {process.env.NEXT_PUBLIC_ENABLE_CHATBOT === 'true' && <ChatbotWidget />}
         <Script
           src="https://widgets.leadconnectorhq.com/loader.js"
           strategy="afterInteractive"
