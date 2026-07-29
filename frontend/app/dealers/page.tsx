@@ -299,7 +299,7 @@ export default function DealersPage() {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/sell"
+                href="/register"
                 className="px-8 py-4 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all font-semibold shadow-lg hover:shadow-xl hover:scale-105"
               >
                 Join as a Broker

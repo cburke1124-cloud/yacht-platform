@@ -257,7 +257,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           return;
         }
 
-        router.replace('/sell');
+        router.replace('/dashboard/billing?payment=required');
       } catch {
         router.replace('/login?redirect=/listings/create');
       } finally {

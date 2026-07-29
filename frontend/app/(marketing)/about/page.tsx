@@ -332,7 +332,7 @@ export default function AboutPage() {
                 Contact Us
               </Link>
               <Link
-                href="/sell"
+                href="/register"
                 className="px-8 py-4 border-2 border-primary text-primary rounded-xl font-semibold hover:bg-primary/5 transition-all"
               >
                 Become a Dealer
