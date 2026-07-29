@@ -86,7 +86,11 @@ export default function AuthGuard() {
     fetch(apiUrl('/auth/me'))
       .then((res) => (res.ok ? res.json() : null))
       .then((user) => {
-        if (user && ['admin', 'dealer'].includes(user.user_type) && !user.two_factor_enabled) {
+        // Skip the gate during an admin "View As" session (user.impersonator
+        // set) — it's the target account's own 2FA status, not the admin's,
+        // and forcing them through 2FA setup on someone else's account just
+        // to look at their dashboard isn't the point of that feature.
+        if (user && !user.impersonator && ['admin', 'dealer'].includes(user.user_type) && !user.two_factor_enabled) {
           router.replace('/2fa-required');
         }
       })
