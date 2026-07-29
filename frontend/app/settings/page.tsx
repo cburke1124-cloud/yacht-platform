@@ -1,13 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Mail, Save, Shield, Globe, DollarSign } from 'lucide-react';
+import { Bell, Mail, Save, Shield, Globe, DollarSign, User, Phone } from 'lucide-react';
 import SecuritySettings from '@/app/components/SecuritySettings';
 import ActivityLog from '@/app/components/ActivityLog';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'preferences' | 'security' | 'activity'>('preferences');
+  const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'security' | 'activity'>('profile');
+
+  const [profile, setProfile] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSaved, setProfileSaved] = useState(false);
 
   const [settings, setSettings] = useState({
     // Email Notifications
@@ -28,7 +39,60 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (activeTab === 'preferences') fetchSettings();
+    if (activeTab === 'profile') fetchProfile();
   }, [activeTab]);
+
+  const fetchProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/salesman-profile'), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProfile({
+          first_name: data.first_name || '',
+          last_name: data.last_name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    setProfileError('');
+    setProfileSaved(false);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/salesman-profile'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(profile)
+      });
+      if (response.ok) {
+        setProfileSaved(true);
+        setTimeout(() => setProfileSaved(false), 2500);
+      } else {
+        const data = await response.json().catch(() => null);
+        setProfileError(data?.detail || 'Failed to save profile');
+      }
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      setProfileError('Failed to save profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -87,6 +151,17 @@ export default function SettingsPage() {
         {/* Tabs */}
         <div className="flex gap-4 mb-6 border-b">
           <button
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+              activeTab === 'profile'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-dark/70 hover:text-dark'
+            }`}
+          >
+            Profile
+          </button>
+
+          <button
             onClick={() => setActiveTab('preferences')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
               activeTab === 'preferences'
@@ -121,6 +196,84 @@ export default function SettingsPage() {
         </div>
 
         {/* Content */}
+        {activeTab === 'profile' && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-center gap-3 mb-6">
+              <User size={24} className="text-primary" />
+              <h2 className="text-xl font-bold text-secondary">Profile Information</h2>
+            </div>
+
+            {profileLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-dark mb-2">First Name</label>
+                    <input
+                      type="text"
+                      value={profile.first_name}
+                      onChange={(e) => setProfile({ ...profile, first_name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-dark mb-2">Last Name</label>
+                    <input
+                      type="text"
+                      value={profile.last_name}
+                      onChange={(e) => setProfile({ ...profile, last_name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-dark mb-2">
+                      <span className="flex items-center gap-1.5"><Mail size={14} /> Email</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={profile.email}
+                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-dark mb-2">
+                      <span className="flex items-center gap-1.5"><Phone size={14} /> Phone</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={profile.phone}
+                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                {profileError && (
+                  <p className="text-sm text-red-600 mt-4">{profileError}</p>
+                )}
+
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={saveProfile}
+                    disabled={profileSaving}
+                    className="px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-gray-400 font-medium flex items-center gap-2"
+                  >
+                    <Save size={20} />
+                    {profileSaving ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Profile'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {activeTab === 'preferences' && (
           <>
             {/* Email Notifications */}
