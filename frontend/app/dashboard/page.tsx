@@ -3142,6 +3142,17 @@ function EnhancedDealerDashboard() {
           {/* Account Settings Tab */}
           {activeTab === 'account' && (
             <div className="max-w-4xl mx-auto space-y-6">
+              {currentUser?.user_type === 'private' && (
+                <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="p-5 border-b border-gray-100">
+                    <h3 className="font-bold text-secondary">My Profile</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Your name, email, and phone number</p>
+                  </div>
+                  <div className="p-5">
+                    <SalesmanProfileForm />
+                  </div>
+                </div>
+              )}
               <div className="mb-6">
                 <h2 className="text-3xl font-bold text-secondary mb-2">Regional Preferences</h2>
                 <p className="text-gray-600">Customize language, currency, and units for your region</p>
