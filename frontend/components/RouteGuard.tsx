@@ -62,7 +62,7 @@ export default function RouteGuard({
         return;
       }
 
-      if (pathname.startsWith('/dashboard') && user.user_type !== 'dealer' && user.user_type !== 'admin' && user.user_type !== 'team_member') {
+      if (pathname.startsWith('/dashboard') && user.user_type !== 'dealer' && user.user_type !== 'admin' && user.user_type !== 'team_member' && user.user_type !== 'private') {
         redirectToDashboard(user.user_type);
         return;
       }
@@ -133,7 +133,7 @@ export function SalesRepRouteGuard({ children }: { children: React.ReactNode }) 
 
 export function DealerRouteGuard({ children }: { children: React.ReactNode }) {
   return (
-    <RouteGuard allowedUserTypes={['dealer', 'admin']} requiresAuth={true}>
+    <RouteGuard allowedUserTypes={['dealer', 'admin', 'team_member', 'private']} requiresAuth={true}>
       {children}
     </RouteGuard>
   );

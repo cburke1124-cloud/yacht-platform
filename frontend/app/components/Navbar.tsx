@@ -288,6 +288,8 @@ export default function Navbar() {
       case 'admin': return '/admin';
       case 'salesman': return '/sales-rep/dashboard';
       case 'dealer': return '/dashboard?tab=listings';
+      case 'team_member': return '/dashboard?tab=listings';
+      case 'private': return '/dashboard?tab=listings';
       case 'user': return '/account';
       default: return '/';
     }
@@ -544,7 +546,7 @@ export default function Navbar() {
                 </div>
 
                 {/* My Dashboard button — far right for dealers/team members */}
-                {(user.user_type === 'dealer' || user.user_type === 'team_member') && (
+                {(user.user_type === 'dealer' || user.user_type === 'team_member' || user.user_type === 'private') && (
                   <Link
                     href="/dashboard?tab=listings"
                     className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"

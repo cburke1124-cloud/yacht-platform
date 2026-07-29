@@ -134,6 +134,7 @@ export function useAuth() {
         break;
       case 'dealer':
       case 'team_member':
+      case 'private':
         router.push('/dashboard');
         break;
       case 'user':
@@ -175,7 +176,7 @@ export function useAuth() {
 
     // Dealer dashboard routes
     if (route.startsWith('/dashboard')) {
-      return userType === 'dealer' || userType === 'admin' || userType === 'team_member';
+      return userType === 'dealer' || userType === 'admin' || userType === 'team_member' || userType === 'private';
     }
 
     // User account routes
