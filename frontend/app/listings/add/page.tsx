@@ -1,15 +1,28 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, PenSquare, LinkIcon, Layers } from 'lucide-react';
+import { apiUrl } from '@/app/lib/apiRoot';
 
-const options = [
+type Option = {
+  icon: typeof PenSquare;
+  title: string;
+  desc1: string;
+  desc2: string;
+  href: string;
+  brokerOnly: boolean;
+};
+
+const options: Option[] = [
   {
     icon: PenSquare,
     title: 'CREATE LISTING MANUALLY',
     desc1: 'Enter your listing details manually, including photos, specifications, pricing, and descriptions.',
     desc2: 'This option gives you full control over how each listing appears and is ideal if you are adding listings one at a time.',
     href: '/listings/create',
+    brokerOnly: false,
   },
   {
     icon: LinkIcon,
@@ -17,6 +30,7 @@ const options = [
     desc1: 'Paste the link to a specific yacht listing from your website, and YachtVersal will automatically pull in the details, photos, and information for you.',
     desc2: 'Use the direct URL for an actual vessel page — not your homepage or a page showing multiple listings.',
     href: '/dashboard/bulk-tools?mode=scraper',
+    brokerOnly: true,
   },
   {
     icon: Layers,
@@ -24,10 +38,47 @@ const options = [
     desc1: 'Paste the link to your listings page on your website (where multiple yachts are shown), and YachtVersal will automatically import your listings in bulk.',
     desc2: 'This is the easiest way to add multiple listings at once.',
     href: '/dashboard/bulk-tools?mode=bulk',
+    brokerOnly: true,
   },
 ];
 
 export default function AddListingPage() {
+  const router = useRouter();
+  const [canImportBulk, setCanImportBulk] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+    fetch(apiUrl('/auth/me'), { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((u) => {
+        if (!u) {
+          router.replace('/login');
+          return;
+        }
+        const perms = (u.permissions || {}) as Record<string, boolean>;
+        setCanImportBulk(
+          u.user_type === 'dealer' || u.user_type === 'admin' ||
+          !!(perms.create_listings ?? perms.can_create_listings)
+        );
+        setLoading(false);
+      });
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  const visibleOptions = options.filter((o) => !o.brokerOnly || canImportBulk);
+
   return (
     <div className="min-h-screen bg-white py-12 px-4">
       <div className="max-w-3xl mx-auto">
@@ -52,8 +103,8 @@ export default function AddListingPage() {
         </div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {options.map((card) => {
+        <div className={`grid grid-cols-1 ${visibleOptions.length > 1 ? 'md:grid-cols-3' : ''} gap-5`}>
+          {visibleOptions.map((card) => {
             const Icon = card.icon;
             return (
               <Link key={card.title} href={card.href} className="flex flex-col border-2 border-secondary/20 rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
@@ -79,4 +130,3 @@ export default function AddListingPage() {
     </div>
   );
 }
-

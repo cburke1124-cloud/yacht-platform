@@ -213,7 +213,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         const tier = String(me.subscription_tier || '').toLowerCase();
 
         const paidDealerTiers = new Set(['basic', 'plus', 'pro', 'premium', 'demo']);
-        const paidPrivateTiers = new Set(['private_basic', 'private_plus', 'private_pro']);
+        const paidPrivateTiers = new Set(['private_active', 'private_basic', 'private_plus', 'private_pro']);
 
         const isAdmin = userType === 'admin';
         if (isAdmin) setIsAdminUser(true);

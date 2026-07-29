@@ -190,7 +190,7 @@ export function useAuth() {
 
           const tier = (user.subscription_tier || '').toLowerCase();
           const paidDealerTiers = new Set(['basic', 'plus', 'pro', 'premium']);
-          const paidPrivateTiers = new Set(['private_basic', 'private_plus', 'private_pro']);
+          const paidPrivateTiers = new Set(['private_active', 'private_basic', 'private_plus', 'private_pro']);
 
           return (userType === 'dealer' && paidDealerTiers.has(tier)) ||
             (userType === 'private' && paidPrivateTiers.has(tier)) ||
