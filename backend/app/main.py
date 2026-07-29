@@ -60,6 +60,7 @@ from app.api.routes_email_inbound import router as email_inbound_router
 from app.api.routes_catalog import router as catalog_router
 from app.api.routes_sms_inbound import router as sms_inbound_router
 from app.api.routes_inquiries import router as inquiries_router
+from app.api.routes_chatbot import router as chatbot_router
 from app.api.routes_contact import router as contact_router
 from app.api.routes_preview import router as preview_router
 from app.api.routes_charter import router as charter_router
@@ -263,6 +264,7 @@ app.include_router(plugin_licenses_router, prefix="/api", tags=["plugin-licenses
 app.include_router(email_inbound_router, tags=["inbound"])
 app.include_router(sms_inbound_router, tags=["inbound"])
 app.include_router(inquiries_router, prefix="/api", tags=["inquiries"])
+app.include_router(chatbot_router, prefix="/api", tags=["chatbot"])
 app.include_router(contact_router, prefix="/api", tags=["contact"])
 app.include_router(catalog_router, prefix="/api/catalog", tags=["catalog"])
 app.include_router(preview_router, prefix="/api/preview/listings", tags=["preview"])

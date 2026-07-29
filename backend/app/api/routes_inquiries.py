@@ -223,30 +223,28 @@ def list_inquiries(
 
 # ── Create inquiry (public endpoint for listing inquiries) ─────────────────────
 
-@router.post("/inquiries")
-async def create_inquiry(
-    data: dict,
+def create_inquiry_and_notify(
+    db: Session,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-):
+    sender_name: str,
+    sender_email: str,
+    message: str,
+    sender_phone: Optional[str] = None,
+    listing_id: Optional[int] = None,
+) -> Inquiry:
     """
-    Create a new inquiry (public endpoint, no auth required).
-    
-    Required fields:
-      - sender_name: str
-      - sender_email: str
-      - message: str
-      - listing_id: int (optional)
-    
-    Optional fields:
-      - sender_phone: str
+    Shared pipeline: validate → create Inquiry → create Message thread row →
+    Notification → SendGrid email w/ reply-to token → dispatch webhook.
+
+    Used by both the public POST /inquiries endpoint and the chatbot's
+    broker-routing flow so every inquiry lands in the identical broker
+    inbox/email pipeline regardless of where it originated.
     """
-    sender_name = data.get("sender_name", "").strip()
-    sender_email = data.get("sender_email", "").strip()
-    message = data.get("message", "").strip()
-    sender_phone = data.get("sender_phone", "").strip() if data.get("sender_phone") else None
-    listing_id = data.get("listing_id")
-    
+    sender_name = (sender_name or "").strip()
+    sender_email = (sender_email or "").strip()
+    message = (message or "").strip()
+    sender_phone = sender_phone.strip() if sender_phone else None
+
     # Validate required fields
     if not sender_name:
         raise ValidationException("sender_name is required")
@@ -254,7 +252,7 @@ async def create_inquiry(
         raise ValidationException("valid sender_email is required")
     if not message:
         raise ValidationException("message is required")
-    
+
     # Resolve who should receive this inquiry (salesman > dealer owner > admin)
     from app.models.listing import Listing
     notify_user_id = None
@@ -380,6 +378,37 @@ async def create_inquiry(
 
     # Dispatch webhook in background
     background_tasks.add_task(dispatch_webhook_for_inquiry_bg, inquiry.id)
+
+    return inquiry
+
+
+@router.post("/inquiries")
+async def create_inquiry(
+    data: dict,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a new inquiry (public endpoint, no auth required).
+
+    Required fields:
+      - sender_name: str
+      - sender_email: str
+      - message: str
+      - listing_id: int (optional)
+
+    Optional fields:
+      - sender_phone: str
+    """
+    inquiry = create_inquiry_and_notify(
+        db=db,
+        background_tasks=background_tasks,
+        sender_name=data.get("sender_name", ""),
+        sender_email=data.get("sender_email", ""),
+        message=data.get("message", ""),
+        sender_phone=data.get("sender_phone"),
+        listing_id=data.get("listing_id"),
+    )
 
     return {
         "success": True,
@@ -633,7 +662,7 @@ def update_inquiry(
     if "assigned_to_id" in data:
         # Only dealers / admins may reassign
         if current_user.user_type not in ("dealer", "admin"):
-            raise AuthorizationException("Only dealers can reassign inquiries")
+            raise AuthorizationException("Only brokers can reassign inquiries")
         new_assignee = db.query(User).filter(User.id == data["assigned_to_id"]).first()
         if not new_assignee:
             raise ResourceNotFoundException("User", data["assigned_to_id"])
