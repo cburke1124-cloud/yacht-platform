@@ -3,12 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import MediaUpload from '@/app/components/MediaUpload';
 import MediaLibraryPicker from '@/app/components/MediaLibraryPicker';
 import ScraperModal from '@/app/components/ScraperModal';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film, ArrowLeft } from 'lucide-react';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import { COUNTRIES, STATES_BY_COUNTRY, COUNTRY_TO_CONTINENT } from '@/app/lib/locationData';
+import type { ListingDescriptionEditorHandle } from './ListingDescriptionEditor';
+
+// BlockNote/Prosemirror isn't SSR-safe.
+const ListingDescriptionEditor = dynamic(() => import('./ListingDescriptionEditor'), { ssr: false });
 
 const TABS = ['basic', 'specs', 'engine', 'media'] as const;
 type Tab = typeof TABS[number];
@@ -76,6 +81,8 @@ function deriveFeatureBullets(form: {
 export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorPageProps) {
   const router = useRouter();
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const descriptionEditorRef = useRef<ListingDescriptionEditorHandle>(null);
+  const [useClassicEditor, setUseClassicEditor] = useState(false);
   const isEditMode = mode === 'edit' && !!listingId;
   const [accessChecking, setAccessChecking] = useState(true);
   const [hasListingAccess, setHasListingAccess] = useState(false);
@@ -466,7 +473,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       '<p>This listing is presented in good faith and can be customized with additional operational history, recent upgrades, and service records.</p>',
     ].join('\n');
 
-    setForm(p => ({ ...p, description: html }));
+    if (useClassicEditor) {
+      setForm(p => ({ ...p, description: html }));
+    } else {
+      descriptionEditorRef.current?.setHTML(html);
+    }
   };
 
   const aiPolishDescription = () => {
@@ -476,7 +487,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       .replace(/\n{3,}/g, '\n\n')
       .replace(/\bi\b/g, 'I')
       .trim();
-    setForm(p => ({ ...p, description: polished }));
+    if (useClassicEditor) {
+      setForm(p => ({ ...p, description: polished }));
+    } else {
+      descriptionEditorRef.current?.setHTML(polished);
+    }
   };
 
   const aiGenerateFeatureBullets = () => {
@@ -1113,6 +1128,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         setActiveTab('specs');
         return;
       }
+      if (!form.description.replace(/<[^>]*>/g, '').trim()) {
+        alert('Please enter a description');
+        setActiveTab('basic');
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -1383,36 +1403,54 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                 </div>
 
                 <div>
-                  <label className={lbl} style={{ color: '#10214F' }}>Description *</label>
+                  <div className="flex items-center justify-between">
+                    <label className={lbl} style={{ color: '#10214F' }}>Description *</label>
+                    <button
+                      type="button"
+                      onClick={() => setUseClassicEditor(v => !v)}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      {useClassicEditor ? 'Switch to visual editor' : 'Switch to HTML editor'}
+                    </button>
+                  </div>
                   <div className="space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" title="Heading" onClick={() => wrapDescriptionSelection('<h2>', '</h2>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Heading2 size={14} /></button>
-                      <button type="button" title="Subheading" onClick={() => wrapDescriptionSelection('<h3>', '</h3>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Heading3 size={14} /></button>
-                      <button type="button" title="Bold" onClick={() => wrapDescriptionSelection('<strong>', '</strong>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Bold size={14} /></button>
-                      <button type="button" title="Italic" onClick={() => wrapDescriptionSelection('<em>', '</em>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Italic size={14} /></button>
-                      <button type="button" title="Underline" onClick={() => wrapDescriptionSelection('<u>', '</u>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Underline size={14} /></button>
-                      <button type="button" title="Highlight" onClick={() => wrapDescriptionSelection('<mark>', '</mark>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Highlighter size={14} /></button>
-                      <button type="button" title="Link" onClick={insertLink} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Link2 size={14} /></button>
-                      <button type="button" title="Bulleted list" onClick={() => wrapDescriptionSelection('<ul>\n  <li>', '</li>\n</ul>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><List size={14} /></button>
-                      <button type="button" title="Numbered list" onClick={() => wrapDescriptionSelection('<ol>\n  <li>', '</li>\n</ol>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><ListOrdered size={14} /></button>
-                      <button type="button" title="Quote" onClick={() => wrapDescriptionSelection('<blockquote>', '</blockquote>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Quote size={14} /></button>
-                      <button type="button" title="Paragraph" onClick={() => wrapDescriptionSelection('<p>', '</p>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Pilcrow size={14} /></button>
-                    </div>
                     <div className="flex flex-wrap gap-2 items-center">
                       <button type="button" onClick={aiGenerateDescription} title="Generates a boilerplate description template using the specs, location, and feature bullets you've already entered" className="px-3 py-1.5 text-xs rounded-md text-white" style={{ background: '#01BBDC' }}>Draft from Specs</button>
                       <button type="button" onClick={aiPolishDescription} title="Collapses extra whitespace and fixes line breaks in the current description" className="px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-50">Fix Spacing</button>
                       <span className="text-xs text-gray-400">Builds from fields you've already filled in</span>
                     </div>
-                    <textarea
-                      ref={descriptionRef}
-                      name="description"
-                      value={form.description}
-                      onChange={set}
-                      required
-                      rows={10}
-                      className={inp}
-                      placeholder="Use plain text or HTML (h2, h3, p, ul, li, strong, em, mark)…"
-                    />
+                    {useClassicEditor ? (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" title="Heading" onClick={() => wrapDescriptionSelection('<h2>', '</h2>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Heading2 size={14} /></button>
+                          <button type="button" title="Subheading" onClick={() => wrapDescriptionSelection('<h3>', '</h3>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Heading3 size={14} /></button>
+                          <button type="button" title="Bold" onClick={() => wrapDescriptionSelection('<strong>', '</strong>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Bold size={14} /></button>
+                          <button type="button" title="Italic" onClick={() => wrapDescriptionSelection('<em>', '</em>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Italic size={14} /></button>
+                          <button type="button" title="Underline" onClick={() => wrapDescriptionSelection('<u>', '</u>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Underline size={14} /></button>
+                          <button type="button" title="Highlight" onClick={() => wrapDescriptionSelection('<mark>', '</mark>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Highlighter size={14} /></button>
+                          <button type="button" title="Link" onClick={insertLink} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Link2 size={14} /></button>
+                          <button type="button" title="Bulleted list" onClick={() => wrapDescriptionSelection('<ul>\n  <li>', '</li>\n</ul>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><List size={14} /></button>
+                          <button type="button" title="Numbered list" onClick={() => wrapDescriptionSelection('<ol>\n  <li>', '</li>\n</ol>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><ListOrdered size={14} /></button>
+                          <button type="button" title="Quote" onClick={() => wrapDescriptionSelection('<blockquote>', '</blockquote>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Quote size={14} /></button>
+                          <button type="button" title="Paragraph" onClick={() => wrapDescriptionSelection('<p>', '</p>')} className="p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50"><Pilcrow size={14} /></button>
+                        </div>
+                        <textarea
+                          ref={descriptionRef}
+                          name="description"
+                          value={form.description}
+                          onChange={set}
+                          rows={10}
+                          className={inp}
+                          placeholder="Use plain text or HTML (h2, h3, p, ul, li, strong, em, mark)…"
+                        />
+                      </>
+                    ) : (
+                      <ListingDescriptionEditor
+                        ref={descriptionEditorRef}
+                        initialHTML={form.description}
+                        onChange={(html) => setForm(p => ({ ...p, description: html }))}
+                      />
+                    )}
                   </div>
                 </div>
 
