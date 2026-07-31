@@ -285,7 +285,7 @@ export default function DashboardV2Home() {
             ) : listings.map(listing => (
               <Link
                 key={listing.id}
-                href={`/dashboard/listings/${listing.id}/edit`}
+                href={`/listings/${listing.id}/edit`}
                 className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/80 transition-colors group"
               >
                 <div className="w-14 h-11 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-100">

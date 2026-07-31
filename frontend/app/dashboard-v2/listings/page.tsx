@@ -246,7 +246,7 @@ export default function DashboardV2ListingsPage() {
                     </div>
                     {/* Actions */}
                     <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link href={`/dashboard/listings/${listing.id}/edit`} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#10214F]/8 text-gray-400 hover:text-[#10214F] transition-colors" title="Edit">
+                      <Link href={`/listings/${listing.id}/edit`} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#10214F]/8 text-gray-400 hover:text-[#10214F] transition-colors" title="Edit">
                         <Edit2 size={14} />
                       </Link>
                       <Link href={`/listings/${listing.id}`} target="_blank" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#10214F]/8 text-gray-400 hover:text-[#10214F] transition-colors" title="View public page">

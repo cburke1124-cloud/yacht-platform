@@ -80,6 +80,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [accessChecking, setAccessChecking] = useState(true);
   const [hasListingAccess, setHasListingAccess] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isDealerUser, setIsDealerUser] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [initializing, setInitializing] = useState(isEditMode);
   const [uploadedMedia, setUploadedMedia] = useState<any[]>([]);
@@ -217,6 +218,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
         const isAdmin = userType === 'admin';
         if (isAdmin) setIsAdminUser(true);
+        setIsDealerUser(userType === 'dealer');
         const isPaidDealer = userType === 'dealer' && paidDealerTiers.has(tier);
         const isPaidPrivate = userType === 'private' && paidPrivateTiers.has(tier);
         const hasPermission = me.permissions?.can_create_listings === true;
@@ -1457,8 +1459,8 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   </select>
                 </div>
 
-                {/* Co-Brokering opt-out — only shown when dealer has account-level co-brokering ON */}
-                {dealerCobrokingEnabled && (
+                {/* Co-Brokering opt-out — dealer/admin only, and only when account-level co-brokering is ON */}
+                {(isDealerUser || isAdminUser) && dealerCobrokingEnabled && (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>

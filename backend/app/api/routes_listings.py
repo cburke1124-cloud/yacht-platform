@@ -1007,7 +1007,7 @@ def create_listing(
     if _has_listing_column("feature_bullets"):
         listing_payload["feature_bullets"] = _derive_feature_bullets(listing_payload)
     for field_name in ("additional_engines", "generators", "feature_bullets", "additional_specs", "allow_cobrokering"):
-        if field_name in listing_payload and (not _has_listing_column(field_name) or field_name == "allow_cobrokering"):
+        if field_name in listing_payload and not _has_listing_column(field_name):
             listing_payload.pop(field_name, None)
 
     lat, lng = geocode_location(
