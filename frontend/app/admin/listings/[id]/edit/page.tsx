@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { ArrowLeft, Save, Trash2, Star, Upload, ExternalLink, AlertCircle, CheckCircle, GripVertical, Edit2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ImageCropModal from '@/app/components/ImageCropModal';
+
+// BlockNote/Prosemirror isn't SSR-safe.
+const ListingDescriptionEditor = dynamic(() => import('@/app/listings/create/ListingDescriptionEditor'), { ssr: false });
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -467,7 +471,10 @@ export default function AdminListingEditPage() {
 
               <div>
                 <label className={labelCls}>Description</label>
-                <textarea className={inputCls} rows={8} value={listing.description || ''} onChange={e => set('description', e.target.value)} />
+                <ListingDescriptionEditor
+                  initialHTML={listing.description || ''}
+                  onChange={(html) => set('description', html)}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
