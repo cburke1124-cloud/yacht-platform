@@ -62,16 +62,24 @@ const ListingDescriptionEditor = forwardRef<ListingDescriptionEditorHandle, List
     // text editors. This persistent row makes the same actions the old
     // textarea toolbar had always visible, applied through BlockNote's real
     // block/style API instead of raw text wrapping.
+    // Programmatic edits made through these buttons (as opposed to the user
+    // typing directly into the editor) aren't guaranteed to trigger
+    // BlockNoteView's onChange prop on their own, so each action explicitly
+    // calls handleChange() afterward — otherwise the parent's form state
+    // (and whatever gets sent to the backend on save) can silently stay on
+    // the pre-edit HTML even though the editor visually shows the change.
     const setBlockType = (type: string, props?: Record<string, unknown>) => {
       editor.focus();
       const selection = editor.getSelection();
       const blocks = selection?.blocks?.length ? selection.blocks : [editor.getTextCursorPosition().block];
       blocks.forEach((b) => editor.updateBlock(b, { type, props } as any));
+      handleChange();
     };
 
     const toggleStyle = (style: 'bold' | 'italic' | 'underline') => {
       editor.focus();
       editor.toggleStyles({ [style]: true } as any);
+      handleChange();
     };
 
     const toggleHighlight = () => {
@@ -82,6 +90,7 @@ const ListingDescriptionEditor = forwardRef<ListingDescriptionEditorHandle, List
       } else {
         editor.addStyles({ backgroundColor: 'yellow' } as any);
       }
+      handleChange();
     };
 
     const insertLink = () => {
@@ -94,6 +103,7 @@ const ListingDescriptionEditor = forwardRef<ListingDescriptionEditorHandle, List
         const text = window.prompt('Link text', url) || url;
         editor.createLink(url, text);
       }
+      handleChange();
     };
 
     const btnCls = 'p-2 text-xs border border-gray-200 rounded-md hover:bg-gray-50';
