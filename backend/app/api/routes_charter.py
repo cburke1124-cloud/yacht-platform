@@ -19,6 +19,7 @@ from app.api.deps import get_current_user, get_optional_user
 from app.models.user import User
 from app.services.billing_status import user_has_paid
 from app.services.media_scope import org_media_ids
+from app.utils.phone import normalize_phone
 
 logger = logging.getLogger(__name__)
 CHARTER_INQUIRY_EMAIL = os.getenv("CONTACT_EMAIL", "info@yachtversal.com")
@@ -1183,6 +1184,9 @@ def create_charter(
     if is_admin and payload.get("user_id"):
         owner_id = int(payload["user_id"])
 
+    if "charter_company_phone" in payload:
+        payload["charter_company_phone"] = normalize_phone(payload["charter_company_phone"])
+
     allowed_keys = {col.name for col in CharterListing.__table__.columns}
     charter = CharterListing(
         user_id=owner_id,
@@ -1252,6 +1256,8 @@ def update_charter(
         exclude.add("user_id")  # only admins may reassign ownership
     for key, val in payload.items():
         if key in allowed_keys and key not in exclude:
+            if key == "charter_company_phone":
+                val = normalize_phone(val)
             setattr(charter, key, val)
 
     db.commit()

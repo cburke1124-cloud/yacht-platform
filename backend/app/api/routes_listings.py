@@ -16,6 +16,7 @@ from app.models.misc import Inquiry, Notification, Message
 from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.exceptions import ResourceNotFoundException, AuthorizationException, ValidationException
+from app.utils.phone import normalize_phone
 from app.services.email_service import email_service
 from app.services.billing_status import user_has_paid, paid_owner_filter
 from app.services.media_scope import org_media_ids
@@ -1735,7 +1736,7 @@ def submit_inquiry(
         listing_id=listing_id,
         sender_name=data.sender_name,
         sender_email=data.sender_email,
-        sender_phone=data.sender_phone,
+        sender_phone=normalize_phone(data.sender_phone),
         message=data.message,
         status="new",
         assigned_to_id=notify_user_id,

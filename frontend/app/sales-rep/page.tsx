@@ -11,6 +11,7 @@ import {
 import { apiUrl, markLoggedIn, markLoggedOut } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
 import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
+import PhoneInput from '@/app/components/PhoneInput';
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -949,8 +950,7 @@ export default function SalesRepDashboard() {
             </div>
             <div>
               <label className="block text-sm font-medium text-dark/70 mb-1">Phone</label>
-              <input type="tel" placeholder="+1 (555) 123-4567" value={brokerForm.phone} onChange={(e) => setBrokerForm({ ...brokerForm, phone: e.target.value })}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
+              <PhoneInput value={brokerForm.phone} onChange={(value) => setBrokerForm({ ...brokerForm, phone: value })} />
             </div>
 
             {/* Deal / Discount options */}

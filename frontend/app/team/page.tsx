@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus, Edit, Trash2, Shield } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 interface TeamMember {
   id: number;
@@ -333,11 +334,9 @@ export default function TeamManagementPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-dark mb-2">Phone</label>
-                  <input
-                    type="tel"
+                  <PhoneInput
                     value={inviteForm.phone}
-                    onChange={(e) => setInviteForm({...inviteForm, phone: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                    onChange={(value) => setInviteForm({...inviteForm, phone: value})}
                   />
                 </div>
 

@@ -19,6 +19,7 @@ from app.db.session import get_db
 from app.models.misc import Message, Notification
 from app.models.misc import FoundingBrokerSignup
 from app.models.user import User
+from app.utils.phone import normalize_phone
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -193,7 +194,7 @@ async def submit_founding_broker_form(request: Request, data: FoundingBrokerRequ
             email=str(data.email).strip().lower(),
             company_name=data.company_name.strip(),
             website=data.website.strip() if data.website else None,
-            phone=data.phone.strip() if data.phone else None,
+            phone=normalize_phone(data.phone),
             years_experience=data.years_experience if data.years_experience else None,
             message=data.message.strip() if data.message else None,
             status="new",

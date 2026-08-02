@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Mail, Clock, MapPin, Send, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 const SUBJECTS = [
   'General Inquiry',
@@ -187,13 +188,10 @@ export default function ContactPage() {
                     <label htmlFor="contact-phone" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                       Phone <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span>
                     </label>
-                    <input
+                    <PhoneInput
                       id="contact-phone"
-                      type="tel"
                       value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      placeholder="+1 (555) 000-0000"
-                      style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                      onChange={value => setPhone(value)}
                     />
                   </div>
                 </div>

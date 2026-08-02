@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Send, X, Mail } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 interface ContactSellerButtonProps {
   listingId: number;
@@ -37,7 +38,7 @@ export default function ContactSellerButton({ listingId, listingTitle, dealerNam
       });
 
       if (response.ok) {
-        alert('✅ Message sent! The dealer will contact you soon.');
+        alert('✅ Message sent! The broker will contact you soon.');
         setShowModal(false);
         setFormData({
           sender_name: '',
@@ -124,12 +125,9 @@ export default function ContactSellerButton({ listingId, listingTitle, dealerNam
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Phone Number
                 </label>
-                <input
-                  type="tel"
+                <PhoneInput
                   value={formData.sender_phone}
-                  onChange={(e) => setFormData({...formData, sender_phone: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="(555) 123-4567"
+                  onChange={(value) => setFormData({...formData, sender_phone: value})}
                 />
               </div>
 

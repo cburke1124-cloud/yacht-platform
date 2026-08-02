@@ -29,6 +29,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-markdown": "^10.1.0",
+    "react-phone-number-input": "^3.4.17",
     "stripe": "^20.0.0"
   },
   "devDependencies": {

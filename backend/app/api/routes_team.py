@@ -15,6 +15,7 @@ from app.exceptions import AuthorizationException, ValidationException, Resource
 from app.services.permissions import Permission, has_permission, TEAM_ROLE_PERMISSIONS, TeamMemberRole
 from app.security.auth import get_password_hash
 from app.services.email_service import email_service
+from app.utils.phone import normalize_phone
 
 router = APIRouter()
 
@@ -250,7 +251,7 @@ def invite_team_member(
         password_hash=get_password_hash(temp_password, skip_validation=True),
         first_name=data.get("first_name"),
         last_name=data.get("last_name"),
-        phone=data.get("phone"),
+        phone=normalize_phone(data.get("phone")),
         user_type="team_member",
         parent_dealer_id=dealer_id,
         role=role,
@@ -844,7 +845,7 @@ def create_guest_broker(
         first_name=data["first_name"].strip(),
         last_name=(data.get("last_name") or "").strip(),
         email=data.get("email"),
-        phone=data.get("phone"),
+        phone=normalize_phone(data.get("phone")),
         title=data.get("title"),
         bio=data.get("bio"),
         photo_url=data.get("photo_url"),
@@ -871,7 +872,8 @@ def update_guest_broker(
 
     for field in ("first_name", "last_name", "email", "phone", "title", "bio", "photo_url", "social_links"):
         if field in data:
-            setattr(broker, field, data[field])
+            value = normalize_phone(data[field]) if field == "phone" else data[field]
+            setattr(broker, field, value)
     db.commit()
     db.refresh(broker)
     return _serialize_guest_broker(broker)

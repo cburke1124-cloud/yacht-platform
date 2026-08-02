@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserPlus, Edit, Trash2, Mail, Phone, Shield, X, LayoutDashboard, MessageSquare, ClipboardList, ChevronLeft, User } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 interface TeamMember {
   id: number;
@@ -623,9 +624,8 @@ export default function TeamManagementPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-                  <input type="tel" value={guestForm.phone}
-                    onChange={e => setGuestForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                  <PhoneInput value={guestForm.phone}
+                    onChange={value => setGuestForm(f => ({ ...f, phone: value }))} />
                 </div>
               </div>
               <div>
@@ -701,11 +701,9 @@ export default function TeamManagementPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Phone
                 </label>
-                <input
-                  type="tel"
+                <PhoneInput
                   value={inviteForm.phone}
-                  onChange={(e) => setInviteForm({...inviteForm, phone: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                  onChange={(value) => setInviteForm({...inviteForm, phone: value})}
                 />
               </div>
 

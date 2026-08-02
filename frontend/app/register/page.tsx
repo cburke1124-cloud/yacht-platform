@@ -8,6 +8,7 @@ import { Check, Loader2, ChevronLeft, ShieldCheck, Zap, Users } from 'lucide-rea
 import { loadStripe } from '@stripe/stripe-js';
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
 import { apiUrl, markLoggedIn } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
@@ -406,14 +407,11 @@ function RegisterContent() {
                 <label htmlFor="reg-phone" className="block text-sm font-medium text-dark mb-1.5">
                   Phone Number{!isBuyer && !isPrivate ? ' *' : ''}
                 </label>
-                <input
+                <PhoneInput
                   id="reg-phone"
-                  type="tel"
                   required={!isBuyer && !isPrivate}
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+1 (555) 000-0000"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  onChange={(value) => setFormData({ ...formData, phone: value })}
                 />
               </div>
 

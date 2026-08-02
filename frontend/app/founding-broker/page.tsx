@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 export default function FoundingBrokerPage() {
   const router = useRouter();
@@ -157,12 +158,9 @@ export default function FoundingBrokerPage() {
               <label className="block text-sm font-semibold text-[#10214F] mb-1.5">
                 Phone Number
               </label>
-              <input
-                type="tel"
+              <PhoneInput
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="+1 (555) 000-0000"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#01BBDC] transition-colors text-[#2E2E2E] placeholder-gray-400"
+                onChange={value => setPhone(value)}
               />
             </div>
             <div>

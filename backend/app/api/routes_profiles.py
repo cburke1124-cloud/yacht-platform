@@ -11,6 +11,7 @@ from app.models.listing import Listing
 from app.models.guest_broker import GuestBroker
 from app.exceptions import ResourceNotFoundException, AuthorizationException
 from app.api.routes_listings import _get_primary_images_for_listings
+from app.utils.phone import normalize_phone
 
 router = APIRouter()
 
@@ -274,7 +275,7 @@ def update_salesman_profile(
             raise HTTPException(status_code=400, detail="Email already in use")
         current_user.email = data["email"]
     if "phone" in data:
-        current_user.phone = data["phone"]
+        current_user.phone = normalize_phone(data["phone"])
     if "photo_url" in data:
         current_user.profile_photo_url = data["photo_url"]
     if "title" in data:
@@ -526,7 +527,7 @@ def update_dealer_profile(
     if "email" in data:
         profile.email = data["email"]
     if "phone" in data:
-        profile.phone = data["phone"]
+        profile.phone = normalize_phone(data["phone"])
     if "address" in data:
         profile.address = data["address"]
     if "city" in data:

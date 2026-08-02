@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bell, Mail, Save, Shield, Globe, DollarSign, User, Phone } from 'lucide-react';
 import SecuritySettings from '@/app/components/SecuritySettings';
 import ActivityLog from '@/app/components/ActivityLog';
+import PhoneInput from '@/app/components/PhoneInput';
 import { apiUrl } from '@/app/lib/apiRoot';
 
 export default function SettingsPage() {
@@ -246,11 +247,9 @@ export default function SettingsPage() {
                     <label className="block text-sm font-medium text-dark mb-2">
                       <span className="flex items-center gap-1.5"><Phone size={14} /> Phone</span>
                     </label>
-                    <input
-                      type="tel"
+                    <PhoneInput
                       value={profile.phone}
-                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary"
+                      onChange={(value) => setProfile({ ...profile, phone: value })}
                     />
                   </div>
                 </div>

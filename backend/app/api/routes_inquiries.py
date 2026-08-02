@@ -20,6 +20,7 @@ from app.models.user import User, UserPreferences
 from app.models.misc import Inquiry, LeadNote, Message, Notification
 from app.services.email_service import email_service
 from app.core.reply_token import generate_reply_token
+from app.utils.phone import normalize_phone
 from app.exceptions import (
     ResourceNotFoundException,
     AuthorizationException,
@@ -243,7 +244,7 @@ def create_inquiry_and_notify(
     sender_name = (sender_name or "").strip()
     sender_email = (sender_email or "").strip()
     message = (message or "").strip()
-    sender_phone = sender_phone.strip() if sender_phone else None
+    sender_phone = normalize_phone(sender_phone)
 
     # Validate required fields
     if not sender_name:

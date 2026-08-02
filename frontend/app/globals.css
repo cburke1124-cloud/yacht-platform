@@ -310,3 +310,29 @@ nav {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* =========================
+   react-phone-number-input — reskinned to match the app's existing
+   Tailwind input look (border-gray-300 rounded-lg + focus ring on primary)
+   instead of the library's own default styling.
+   ========================= */
+.yv-phone-input.PhoneInput {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid #d1d5db; /* gray-300 */
+  border-radius: var(--radius-lg);
+  background-color: #fff;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.yv-phone-input.PhoneInput--focus {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+.yv-phone-input .PhoneInputCountry {
+  margin-left: 0.75rem;
+  margin-right: 0.5rem;
+}
+.yv-phone-input .PhoneInputCountrySelectArrow {
+  opacity: 0.6;
+}

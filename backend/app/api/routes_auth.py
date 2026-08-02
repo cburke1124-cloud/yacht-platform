@@ -21,6 +21,7 @@ from app.models.user import User, UserPreferences
 from app.models.dealer import DealerProfile, EmailVerification
 from app.models.listing import Listing
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup
+from app.utils.phone import normalize_phone
 from app.exceptions import (
     ValidationException,
     AuthenticationException,
@@ -107,6 +108,8 @@ def provision_user_account(
             if user_data.user_type == "dealer" and not (user_data.phone or "").strip():
                 raise ValidationException("Phone number is required")
 
+        normalized_phone = normalize_phone(user_data.phone)
+
         caller_is_privileged = skip_terms_check
 
         try:
@@ -180,7 +183,7 @@ def provision_user_account(
                 password_hash=hashed_password,
                 first_name=user_data.first_name,
                 last_name=user_data.last_name,
-                phone=user_data.phone,
+                phone=normalized_phone,
                 user_type=user_data.user_type,
                 company_name=user_data.company_name,
                 # Defaults to "free" — the Stripe webhook / finalize_registration
@@ -210,7 +213,7 @@ def provision_user_account(
                 "password_hash": hashed_password,
                 "first_name": user_data.first_name,
                 "last_name": user_data.last_name,
-                "phone": user_data.phone,
+                "phone": normalized_phone,
                 "user_type": user_data.user_type,
                 "company_name": user_data.company_name,
                 "subscription_tier": initial_tier or "free",
@@ -247,7 +250,7 @@ def provision_user_account(
                     email=user_data.email,
                     first_name=user_data.first_name,
                     last_name=user_data.last_name,
-                    phone=user_data.phone,
+                    phone=normalized_phone,
                     user_type=user_data.user_type,
                     company_name=user_data.company_name,
                     subscription_tier=initial_tier or "free",
@@ -747,7 +750,7 @@ async def start_trial(data: TrialStart, db: Session = Depends(get_db)):
         password_hash=get_password_hash(data.password),
         first_name=data.first_name,
         last_name=data.last_name,
-        phone=data.phone,
+        phone=normalize_phone(data.phone),
         company_name=data.company_name,
         user_type="dealer",
         subscription_tier="trial",

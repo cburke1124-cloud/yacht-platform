@@ -30,6 +30,7 @@ from app.models.partner_growth import PartnerDeal
 from app.models.partner_growth import PartnerOffer
 from app.models.misc import SiteSettings, ScraperJob, ScrapedListing
 from app.models.misc import FoundingBrokerSignup
+from app.utils.phone import normalize_phone
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -580,8 +581,9 @@ def update_user(
     
     for field in updatable_fields:
         if field in data:
-            setattr(user, field, data[field])
-    
+            value = normalize_phone(data[field]) if field == "phone" else data[field]
+            setattr(user, field, value)
+
     user.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(user)
@@ -1301,13 +1303,14 @@ def create_dealer(
 
     verified = bool(data.get("verified", False))
     active = bool(data.get("active", True))
+    phone = normalize_phone(data.get("phone"))
 
     dealer = User(
         email=email,
         password_hash=dummy_hash,
         first_name=first_name,
         last_name=last_name,
-        phone=data.get("phone"),
+        phone=phone,
         company_name=data.get("company_name"),
         user_type="dealer",
         subscription_tier="free",
@@ -1325,7 +1328,7 @@ def create_dealer(
         name=raw_name,
         company_name=data.get("company_name"),
         email=email,
-        phone=data.get("phone"),
+        phone=phone,
         city=data.get("city"),
         state=data.get("state"),
         country=data.get("country") or "USA",
@@ -1394,7 +1397,8 @@ def update_dealer(
                  "verified", "active", "subscription_tier"]
     for field in updatable:
         if field in data:
-            setattr(dealer, field, data[field])
+            value = normalize_phone(data[field]) if field == "phone" else data[field]
+            setattr(dealer, field, value)
 
     db.commit()
     db.refresh(dealer)
@@ -2031,7 +2035,7 @@ def create_sales_rep(
         password_hash=get_password_hash(data["password"]),
         first_name=data["first_name"],
         last_name=data["last_name"],
-        phone=data.get("phone"),
+        phone=normalize_phone(data.get("phone")),
         user_type="salesman",
         commission_rate=float(data.get("commission_rate", 10.0)),
         active=True
@@ -3868,7 +3872,7 @@ def register_broker_admin(
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
     company_name = (data.get("company_name") or "").strip()
-    phone = (data.get("phone") or "").strip()
+    phone = normalize_phone(data.get("phone"))
     tier = (data.get("subscription_tier") or "basic").strip().lower()
     sales_rep_id = data.get("sales_rep_id")
     

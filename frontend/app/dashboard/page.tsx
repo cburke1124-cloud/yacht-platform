@@ -7,6 +7,7 @@ import NextLink from 'next/link';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import DealerFeaturedTab from '@/app/components/DealerFeaturedTab';
 import ImageCropModal from '@/app/components/ImageCropModal';
+import PhoneInput from '@/app/components/PhoneInput';
 import {
   PlusCircle, Eye, Edit, Trash2, Star, Users, Settings, User,
   BarChart3, MessageSquare, Bell, Globe, Heart, Search,
@@ -3412,10 +3413,8 @@ function EnhancedDealerDashboard() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-secondary mb-1">Phone Number</label>
-                    <input type="tel" value={brokerProfile.phone}
-                      onChange={(e) => setBrokerProfile(p => ({...p, phone: e.target.value}))}
-                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                      placeholder="+1 (555) 000-0000" />
+                    <PhoneInput value={brokerProfile.phone}
+                      onChange={(value) => setBrokerProfile(p => ({...p, phone: value}))} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-secondary mb-1">Email Address *</label>
@@ -4010,9 +4009,8 @@ function EnhancedDealerDashboard() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                    <input type="tel" value={inviteForm.phone}
-                      onChange={(e) => setInviteForm({...inviteForm, phone: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                    <PhoneInput value={inviteForm.phone}
+                      onChange={(value) => setInviteForm({...inviteForm, phone: value})} />
                   </div>
                   <div className="border-t pt-4">
                     <h3 className="font-semibold mb-3">Permissions</h3>
@@ -4075,9 +4073,8 @@ function EnhancedDealerDashboard() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-                      <input type="tel" value={guestForm.phone}
-                        onChange={e => setGuestForm(f => ({ ...f, phone: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary" />
+                      <PhoneInput value={guestForm.phone}
+                        onChange={value => setGuestForm(f => ({ ...f, phone: value }))} />
                     </div>
                   </div>
                   <div>

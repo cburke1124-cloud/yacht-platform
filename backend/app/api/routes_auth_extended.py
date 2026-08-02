@@ -15,6 +15,7 @@ from app.models.partner_growth import ReferralSignup, AffiliateAccount
 from app.services.email_service import email_service
 from app.exceptions import ValidationException, AuthenticationException
 from app.security.auth import get_password_hash
+from app.utils.phone import normalize_phone
 
 router = APIRouter()
 
@@ -379,7 +380,7 @@ async def register_with_invitation(
         password_hash=get_password_hash(password),
         first_name=data.get("first_name") or invitation.first_name,
         last_name=data.get("last_name") or invitation.last_name,
-        phone=data.get("phone"),
+        phone=normalize_phone(data.get("phone")),
         company_name=data.get("company_name") or invitation.company_name,
         user_type="dealer",
         subscription_tier=data.get("subscription_tier", "free"),

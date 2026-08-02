@@ -7,28 +7,12 @@ Environment variables required:
   TWILIO_PHONE_NUMBER  – Your purchased Twilio number in E.164 (+12223334444)
 """
 import os
-import re
 import logging
 from sqlalchemy.orm import Session
 
+from app.utils.phone import normalize_phone
+
 logger = logging.getLogger(__name__)
-
-
-def normalize_phone(phone: str) -> str:
-    """
-    Convert a phone number to E.164 format (+1XXXXXXXXXX for US numbers).
-    Returns the original string if it can't be parsed.
-    """
-    if not phone:
-        return phone
-    digits = re.sub(r"[^\d+]", "", phone)
-    if digits.startswith("+"):
-        return digits
-    if len(digits) == 10:
-        return f"+1{digits}"
-    if len(digits) == 11 and digits.startswith("1"):
-        return f"+{digits}"
-    return digits  # international — pass through as-is
 
 
 class SmsService:

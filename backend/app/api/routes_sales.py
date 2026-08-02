@@ -17,6 +17,7 @@ from app.exceptions import AuthorizationException, ResourceNotFoundException, Va
 from app.security.auth import get_password_hash, pwd_context
 from app.services.email_service import email_service
 from app.utils.slug import create_slug
+from app.utils.phone import normalize_phone
 from app.services.api_key_service import generate_api_key_for_dealer
 from app.services.demo_fixtures import create_demo_account_for_owner
 from app.models.misc import SiteSettings
@@ -626,7 +627,7 @@ def register_broker_for_sales_rep(
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
     company_name = (data.get("company_name") or "").strip()
-    phone = (data.get("phone") or "").strip()
+    phone = normalize_phone(data.get("phone"))
     tier = (data.get("subscription_tier") or "basic").strip().lower()
     always_free = bool(data.get("always_free", False))
 

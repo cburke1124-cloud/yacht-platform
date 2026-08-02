@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ImageCropModal from '../../components/ImageCropModal';
+import PhoneInput from '../../components/PhoneInput';
 
 export interface SalesmanProfileFormHandle {
   save: () => Promise<void>;
@@ -343,12 +344,9 @@ const SalesmanProfileForm = forwardRef<SalesmanProfileFormHandle, SalesmanProfil
             <label className="block text-sm font-medium text-dark/70 mb-1">
               <span className="flex items-center gap-1"><Phone size={13} /> Phone</span>
             </label>
-            <input
-              type="tel"
+            <PhoneInput
               value={profile.phone}
-              onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-              placeholder="(555) 123-4567"
+              onChange={(value) => setProfile({ ...profile, phone: value })}
             />
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import PhoneInput from '@/app/components/PhoneInput';
 
 const PAID_TIERS = new Set([
   'basic', 'plus', 'pro', 'premium',
@@ -478,9 +479,8 @@ export default function AdminUsersTab() {
             </div>
             <div>
               <label className="block text-sm font-medium text-dark/70 mb-1">Phone</label>
-              <input type="tel" value={formData.phone}
-                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+              <PhoneInput value={formData.phone}
+                onChange={value => setFormData({ ...formData, phone: value })} />
             </div>
             <div>
               <label className="block text-sm font-medium text-dark/70 mb-1">User Type *</label>

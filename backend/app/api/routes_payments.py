@@ -23,6 +23,7 @@ from app.services.notification_service import notification_service
 from app.exceptions import ValidationException, ResourceNotFoundException, ExternalServiceException
 from app.core.config import settings
 from app.models.partner_growth import PartnerOffer
+from app.utils.phone import normalize_phone
 
 import logging
 logger = logging.getLogger(__name__)
@@ -459,6 +460,7 @@ async def start_registration_checkout(data: dict, db: Session = Depends(get_db))
     phone = (data.get("phone") or "").strip()
     if user_type == "dealer" and not phone:
         raise ValidationException("Phone number is required")
+    phone = normalize_phone(phone)
 
     existing = db.execute(text("SELECT id FROM users WHERE email = :e LIMIT 1"), {"e": email}).first()
     if existing:

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import ImageCropModal from '@/app/components/ImageCropModal';
+import PhoneInput from '@/app/components/PhoneInput';
 import {
   Building2,
   Upload,
@@ -447,12 +448,10 @@ export default function DealerProfileEditPage() {
                     Phone *
                   </div>
                 </label>
-                <input
-                  type="tel"
+                <PhoneInput
+                  required
                   value={profile.phone}
-                  onChange={(e) => setProfile({...profile, phone: e.target.value})}
-                  className="w-full px-4 py-2 border border-primary/20 rounded-lg focus:ring-2 focus:ring-primary"
-                  placeholder="(555) 123-4567"
+                  onChange={(value) => setProfile({...profile, phone: value})}
                 />
               </div>
 
