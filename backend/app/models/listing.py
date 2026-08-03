@@ -83,6 +83,10 @@ class Listing(Base):
     # Only evaluated if the dealer's cobrokering_enabled is also True.
     allow_cobrokering = Column(Boolean, default=True)
 
+    # When True (default), the interactive finance calculator shows on this
+    # listing's public detail page. Seller-controlled opt-out.
+    show_financing_calculator = Column(Boolean, default=True)
+
     # Featured/Sponsored
     featured = Column(Boolean, default=False)
     featured_until = Column(DateTime)

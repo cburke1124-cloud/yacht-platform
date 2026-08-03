@@ -148,6 +148,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     condition:       'used',
     status:          'draft',
     allow_cobrokering: true,
+    show_financing_calculator: true,
     // Location
     city:            '',
     state:           '',
@@ -341,6 +342,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             feature_bullets: listing.feature_bullets?.length ? listing.feature_bullets : ['', '', '', '', ''],
             features_text: listing.features || '',
             allow_cobrokering: listing.allow_cobrokering !== false,
+            show_financing_calculator: listing.show_financing_calculator !== false,
             additional_engines: listing.additional_engines?.length
               ? listing.additional_engines
                   .map((engine: any) => ({
@@ -908,6 +910,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         condition: form.condition,
         status: isEditMode ? form.status : 'draft',
         allow_cobrokering: form.allow_cobrokering,
+        show_financing_calculator: form.show_financing_calculator,
         city: form.city || null,
         state: form.state || null,
         country: form.country || null,
@@ -1013,6 +1016,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         condition:       form.condition,
         status:          'draft',
         allow_cobrokering: form.allow_cobrokering,
+        show_financing_calculator: form.show_financing_calculator,
         city:            form.city     || null,
         state:           form.state    || null,
         country:         form.country  || null,
@@ -1155,6 +1159,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
         condition:       form.condition,
         status:          submitStatus,
         allow_cobrokering: form.allow_cobrokering,
+        show_financing_calculator: form.show_financing_calculator,
         // Location
         city:            form.city     || null,
         state:           form.state    || null,
@@ -1530,6 +1535,37 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                     </div>
                   </div>
                 )}
+
+                {/* Finance calculator opt-out — available to every seller */}
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: '#10214F' }}>Finance Calculator</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Shows an interactive monthly-payment estimator on this listing's public page. Turn off to hide it.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, show_financing_calculator: !p.show_financing_calculator }))}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                          form.show_financing_calculator ? 'bg-[#01BBDC]' : 'bg-gray-300'
+                        }`}
+                        aria-pressed={form.show_financing_calculator}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                            form.show_financing_calculator ? 'translate-x-8' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      <span className={`text-xs font-semibold ${form.show_financing_calculator ? 'text-[#01BBDC]' : 'text-gray-400'}`}>
+                        {form.show_financing_calculator ? 'Shown' : 'Hidden'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

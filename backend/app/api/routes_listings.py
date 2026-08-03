@@ -126,6 +126,8 @@ class ListingCreate(BaseModel):
     additional_specs: Optional[dict[str, Any]] = None
     # Co-brokering: set False to exclude this listing from the public co-brokering API
     allow_cobrokering: Optional[bool] = True
+    # Finance calculator: set False to hide it on this listing's public page
+    show_financing_calculator: Optional[bool] = True
 
 
 class ListingUpdate(BaseModel):
@@ -170,6 +172,7 @@ class ListingUpdate(BaseModel):
     additional_specs: Optional[dict[str, Any]] = None
     # Co-brokering opt-out at listing level
     allow_cobrokering: Optional[bool] = None
+    show_financing_calculator: Optional[bool] = None
 
 
 class ListingQuickEdit(BaseModel):
@@ -332,6 +335,8 @@ def _serialize_listing(listing: Listing, db: Session = None) -> dict:
         # Meta
         "views": listing.views or 0,
         "featured": listing.featured or False,
+        "allow_cobrokering": listing.allow_cobrokering is not False,
+        "show_financing_calculator": listing.show_financing_calculator is not False,
         "previous_owners": listing.previous_owners,
         "source": listing.source,
         "published_at": listing.published_at.isoformat() if listing.published_at else None,

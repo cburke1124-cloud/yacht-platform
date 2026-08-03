@@ -49,6 +49,7 @@ interface Listing {
   };
   youtube_video_url?: string; vimeo_video_url?: string; video_tour_url?: string;
   has_video?: boolean; featured?: boolean; published_at?: string;
+  show_financing_calculator?: boolean;
   previous_owners?: number;
   additional_engines?: Array<{
     make?: string;
@@ -1211,7 +1212,7 @@ export default function ListingDetailClient({
             </div>
 
             {/* FINANCE CALCULATOR — moved up here, right under the contact card */}
-            {listing.price && (
+            {listing.price && listing.show_financing_calculator !== false && (
               <div className="rounded-3xl border border-gray-200 bg-white overflow-hidden">
 
                 {/* Inputs */}
