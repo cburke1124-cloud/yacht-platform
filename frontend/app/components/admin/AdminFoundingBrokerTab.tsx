@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, Clock, Phone, Globe, Mail, MessageSquare, X } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
@@ -207,7 +208,7 @@ export default function AdminFoundingBrokerTab() {
                 </a>
                 {selected.phone && (
                   <a href={`tel:${selected.phone}`} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                    <Phone size={14} />{selected.phone}
+                    <Phone size={14} />{formatPhoneDisplay(selected.phone)}
                   </a>
                 )}
                 {selected.website && (

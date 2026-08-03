@@ -31,6 +31,7 @@ from app.models.partner_growth import PartnerOffer
 from app.models.misc import SiteSettings, ScraperJob, ScrapedListing
 from app.models.misc import FoundingBrokerSignup
 from app.utils.phone import normalize_phone
+from app.utils.revalidate import trigger_revalidation
 from app.exceptions import (
     AuthorizationException,
     ValidationException,
@@ -1402,6 +1403,11 @@ def update_dealer(
 
     db.commit()
     db.refresh(dealer)
+
+    slug = db.query(DealerProfile.slug).filter(DealerProfile.user_id == dealer_id).scalar()
+    if slug:
+        trigger_revalidation([f"/dealers/{slug}"])
+
     return {"success": True, "id": dealer.id, "verified": dealer.verified, "active": dealer.active}
 
 
@@ -1467,10 +1473,15 @@ def update_dealer_profile(
     ]
     for field in updatable:
         if field in data:
-            setattr(profile, field, data[field])
+            value = normalize_phone(data[field]) if field == "phone" else data[field]
+            setattr(profile, field, value)
 
     db.commit()
     db.refresh(profile)
+
+    if profile.slug:
+        trigger_revalidation([f"/dealers/{profile.slug}"])
+
     return {"success": True}
 
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 import { Award, Building2, Mail, MapPin, MessageSquare, Phone, User } from 'lucide-react';
 
 interface DealerSalesmanCardProps {
@@ -148,7 +149,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-500">Direct Line</p>
-                    <p className="font-medium text-sm">{salesman.phone}</p>
+                    <p className="font-medium text-sm">{formatPhoneDisplay(salesman.phone)}</p>
                   </div>
                 </a>
               )}
@@ -183,7 +184,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500">Main Phone</p>
-                <p className="font-medium text-sm">{dealer.phone}</p>
+                <p className="font-medium text-sm">{formatPhoneDisplay(dealer.phone)}</p>
               </div>
             </a>
           </div>
@@ -209,7 +210,7 @@ export default function DealerSalesmanCard({ listingId }: DealerSalesmanCardProp
         <div className="pt-4 border-t border-primary/20">
           <div className="flex items-center justify-center gap-2 text-sm text-primary bg-primary/10 px-4 py-2 rounded-lg">
             <Award size={16} />
-            <span className="font-medium">Verified Dealer</span>
+            <span className="font-medium">Verified Broker</span>
           </div>
         </div>
       </div>

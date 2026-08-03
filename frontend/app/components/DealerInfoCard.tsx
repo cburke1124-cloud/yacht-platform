@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, ExternalLink, User, Building2, Award } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 interface DealerInfo {
   id: number;
@@ -151,7 +152,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
             </div>
             <div>
               <p className="text-xs text-gray-500">Phone</p>
-              <p className="font-medium">{dealer.phone}</p>
+              <p className="font-medium">{formatPhoneDisplay(dealer.phone)}</p>
             </div>
           </a>
         </div>
@@ -176,7 +177,7 @@ export default function DealerInfoCard({ dealerId, salesmanId }: DealerInfoCardP
         <div className="pt-4 border-t border-gray-200">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Award size={16} className="text-green-600" />
-            <span>Verified Dealer</span>
+            <span>Verified Broker</span>
           </div>
         </div>
       </div>

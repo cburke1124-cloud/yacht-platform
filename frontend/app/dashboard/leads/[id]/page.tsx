@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { MessageSquare, Mail, Phone, Calendar, ArrowLeft, Copy, Link as LinkIcon } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 interface Lead {
   id: number;
@@ -202,7 +203,7 @@ export default function LeadDetailPage() {
                     <Phone className="text-primary mt-1 flex-shrink-0" size={20} />
                     <div className="flex-1">
                       <p className="text-xs text-gray-600 mb-1">Phone</p>
-                      <p className="text-sm font-semibold text-secondary">{lead.phone}</p>
+                      <p className="text-sm font-semibold text-secondary">{formatPhoneDisplay(lead.phone)}</p>
                     </div>
                     <button
                       onClick={() => copyToClipboard(lead.phone)}

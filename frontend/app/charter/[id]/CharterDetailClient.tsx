@@ -11,6 +11,7 @@ import {
   MessageCircle, Link2, Printer
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 import AvailabilityCalendar, { type AvailabilityBlock } from '@/app/components/charter/AvailabilityCalendar';
 import BookingRangeCalendar from '@/app/components/charter/BookingRangeCalendar';
 
@@ -775,7 +776,7 @@ export default function CharterDetailClient({ id, initialCharter, initialGallery
                 )}
                 {charter.charter_company_phone && (
                   <a href={`tel:${charter.charter_company_phone}`} className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2" style={{ color: '#10214F' }}>
-                    <Phone size={13} /> {charter.charter_company_phone}
+                    <Phone size={13} /> {formatPhoneDisplay(charter.charter_company_phone)}
                   </a>
                 )}
                 {charter.charter_company_email && (

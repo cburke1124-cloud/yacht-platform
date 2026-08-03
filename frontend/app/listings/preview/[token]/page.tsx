@@ -12,6 +12,7 @@ import {
   Instagram, Facebook, Linkedin, Twitter,
 } from 'lucide-react';
 import { API_ROOT, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -352,7 +353,7 @@ export default function PreviewListingPage() {
                       {data.seller_phone && (
                         <a href={`tel:${data.seller_phone}`}
                           className="text-sm text-[#10214F] hover:text-[#01BBDC] transition-colors flex items-center gap-1">
-                          <Phone size={12} /> {data.seller_phone}
+                          <Phone size={12} /> {formatPhoneDisplay(data.seller_phone)}
                         </a>
                       )}
                       {/* Email xs gray — matches real page sc.email display */}

@@ -8,6 +8,7 @@ import {
   Globe, Instagram, Linkedin, Facebook, ArrowLeft, Anchor
 } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 import ListingCard from '@/app/components/ListingCard';
 
 interface SalesmanProfile {
@@ -203,7 +204,7 @@ export default function SalesmanProfilePage() {
                     className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all text-sm font-semibold shadow-sm"
                   >
                     <Phone size={15} />
-                    {salesman.phone}
+                    {formatPhoneDisplay(salesman.phone)}
                   </a>
                 )}
               </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Send, User, StickyNote, Settings2, Trash2 } from "lucide-react";
 import { apiUrl } from "@/app/lib/apiRoot";
+import { formatPhoneDisplay } from "@/app/lib/formatPhoneDisplay";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -264,7 +265,7 @@ function DetailPanel({
                 )}
                 {inquiry.sender_phone && (
                   <a href={`tel:${inquiry.sender_phone}`} className="text-xs text-white/60 hover:text-white transition-colors">
-                    {inquiry.sender_phone}
+                    {formatPhoneDisplay(inquiry.sender_phone)}
                   </a>
                 )}
               </div>
@@ -464,7 +465,7 @@ function DetailPanel({
                 {inquiry.sender_phone && (
                   <p className="flex gap-2">
                     <span className="text-gray-400 w-16 shrink-0">Phone</span>
-                    <a href={`tel:${inquiry.sender_phone}`} className="text-[#01BBDC] hover:underline">{inquiry.sender_phone}</a>
+                    <a href={`tel:${inquiry.sender_phone}`} className="text-[#01BBDC] hover:underline">{formatPhoneDisplay(inquiry.sender_phone)}</a>
                   </p>
                 )}
                 {inquiry.assigned_to_name && (

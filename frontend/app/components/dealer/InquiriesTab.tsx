@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Mail, MailOpen, Clock, Check } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 interface Inquiry {
   id: number;
@@ -261,7 +262,7 @@ export default function InquiriesTab() {
                       href={`tel:${selectedInquiry.sender_phone}`}
                       className="block text-sm text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      {selectedInquiry.sender_phone}
+                      {formatPhoneDisplay(selectedInquiry.sender_phone)}
                     </a>
                   </div>
                 )}

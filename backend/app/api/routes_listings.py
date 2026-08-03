@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.dealer import DealerProfile
 from app.exceptions import ResourceNotFoundException, AuthorizationException, ValidationException
 from app.utils.phone import normalize_phone
+from app.utils.revalidate import trigger_revalidation
 from app.services.email_service import email_service
 from app.services.billing_status import user_has_paid, paid_owner_filter
 from app.services.media_scope import org_media_ids
@@ -1095,6 +1096,7 @@ def update_listing(
     listing.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(listing)
+    trigger_revalidation([f"/listings/{listing.id}"])
     return {
         "id": listing.id,
         "title": listing.title,
@@ -1140,6 +1142,7 @@ def quick_edit_listing(
     listing.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(listing)
+    trigger_revalidation([f"/listings/{listing.id}"])
     return {
         "id": listing.id,
         "title": listing.title,

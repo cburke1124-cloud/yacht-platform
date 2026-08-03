@@ -15,6 +15,7 @@ import {
 import DOMPurify from 'dompurify';
 import { API_ROOT, mediaUrl, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
 import { detectLocaleDefaults, fmtLength, fmtCapacity, fmtWeight, fmtFuelBurn } from '@/app/lib/locale';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,14 +101,6 @@ interface CurrencyRates {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmt    = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-
-function formatPhone(raw?: string): string {
-  if (!raw) return '';
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  if (digits.length === 11 && digits[0] === '1') return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  return raw;
-}
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -1028,7 +1021,7 @@ export default function ListingDetailClient({
                       <a href={`tel:${sc?.phone || dealer?.phone}`}
                         className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2"
                         style={{ color: '#10214F' }}>
-                        <Phone size={13} /> {formatPhone(sc?.phone || dealer?.phone)}
+                        <Phone size={13} /> {formatPhoneDisplay(sc?.phone || dealer?.phone)}
                       </a>
                     )}
 

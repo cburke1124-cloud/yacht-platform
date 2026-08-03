@@ -7,6 +7,7 @@ import { MapPin, Phone, Mail, Globe, Facebook, Instagram, Twitter, Linkedin, Che
 import ListingCard from '@/app/components/ListingCard';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 interface TeamMember {
   id: number;
@@ -215,7 +216,7 @@ export default function DealerProfileClient({
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-light rounded-xl hover:bg-primary/90 transition-all font-semibold shadow-sm"
                   >
                     <Phone size={17} />
-                    {dealer.phone}
+                    {formatPhoneDisplay(dealer.phone)}
                   </a>
                 )}
                 {dealer.email && (

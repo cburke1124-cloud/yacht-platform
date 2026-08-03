@@ -12,6 +12,7 @@ from app.models.guest_broker import GuestBroker
 from app.exceptions import ResourceNotFoundException, AuthorizationException
 from app.api.routes_listings import _get_primary_images_for_listings
 from app.utils.phone import normalize_phone
+from app.utils.revalidate import trigger_revalidation
 
 router = APIRouter()
 
@@ -561,7 +562,10 @@ def update_dealer_profile(
 
     db.commit()
     db.refresh(profile)
-    
+
+    if profile.slug:
+        trigger_revalidation([f"/dealers/{profile.slug}"])
+
     return {
         "success": True,
         "message": "Dealer profile updated successfully"

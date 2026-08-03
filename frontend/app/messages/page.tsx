@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, Mail, Clock, Search, User, Users, Paperclip, FileText, HelpCircle, Trash2, Archive, RotateCcw } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 interface Message {
   id: number;
@@ -772,7 +773,7 @@ export default function MessagingCenter({ embedded = false }: { embedded?: boole
                     <div className="flex items-center gap-3 mt-1 text-xs text-white/60 flex-wrap">
                       <a href={`mailto:${selectedInquiry.sender_email}`} className="hover:text-white">{selectedInquiry.sender_email}</a>
                       {selectedInquiry.sender_phone && (
-                        <a href={`tel:${selectedInquiry.sender_phone}`} className="hover:text-white">{selectedInquiry.sender_phone}</a>
+                        <a href={`tel:${selectedInquiry.sender_phone}`} className="hover:text-white">{formatPhoneDisplay(selectedInquiry.sender_phone)}</a>
                       )}
                       <span>{toUtc(selectedInquiry.created_at).toLocaleString()}</span>
                     </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Send, Clock, CheckCircle, AlertCircle, Trash2, Archive } from 'lucide-react';
 import { apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 // Type definitions
 type Message = {
@@ -540,7 +541,7 @@ export default function MessagesPage() {
                   </p>
                   {selectedInquiry.sender_phone && (
                     <p className="text-sm text-gray-900">
-                      <a href={`tel:${selectedInquiry.sender_phone}`} className="text-primary hover:underline">{selectedInquiry.sender_phone}</a>
+                      <a href={`tel:${selectedInquiry.sender_phone}`} className="text-primary hover:underline">{formatPhoneDisplay(selectedInquiry.sender_phone)}</a>
                     </p>
                   )}
                 </div>

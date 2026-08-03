@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Mail, Phone, User, Building2, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
 
 interface ContactInfo {
   dealer: {
@@ -129,7 +130,7 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
                     className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 transition-colors"
                   >
                     <Phone size={14} />
-                    {contact.dealer.phone}
+                    {formatPhoneDisplay(contact.dealer.phone)}
                   </a>
                 )}
               </div>
@@ -201,7 +202,7 @@ export default function ListingContactCard({ listingId }: ListingContactCardProp
                       className="flex items-center gap-2 text-sm text-gray-700 hover:text-blue-600 transition-colors"
                     >
                       <Phone size={14} />
-                      {contact.sales_contact.phone}
+                      {formatPhoneDisplay(contact.sales_contact.phone)}
                     </a>
                   )}
                 </div>
