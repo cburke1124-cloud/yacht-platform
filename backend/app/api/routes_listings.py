@@ -1671,6 +1671,7 @@ def get_listing_contact_info(listing_id: int, db: Session = Depends(get_db)):
             "linkedin_url": profile.linkedin_url if profile else None,
             "description": profile.description if profile else None,
             "is_demo": getattr(user, "is_demo", False),
+            "is_private_seller": user.user_type == "private",
         }
 
     # ── Sales rep listed under a parent dealer ────────────────────────────

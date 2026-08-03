@@ -82,6 +82,7 @@ interface ContactInfo {
     country?: string; website?: string; description?: string;
     facebook_url?: string; instagram_url?: string; twitter_url?: string; linkedin_url?: string;
     is_demo?: boolean;
+    is_private_seller?: boolean;
   };
   sales_contact?: {
     id?: number; name?: string; title?: string; email?: string;
@@ -395,6 +396,7 @@ export default function ListingDetailClient({
   const dealer = contact?.dealer;
   const primaryPhone = sc?.phone || dealer?.phone;
   const recipientName = sc?.name || dealer?.company_name || dealer?.name || 'Seller';
+  const isPrivateSeller = !!dealer?.is_private_seller && !sc;
 
   // Construct location string
   const locationParts = [listing?.city, listing?.state, listing?.country].filter(Boolean);
@@ -1026,6 +1028,15 @@ export default function ListingDetailClient({
                       </a>
                     )}
 
+                    {/* Email — private sellers have no company section, so surface it here */}
+                    {isPrivateSeller && dealer?.email && (
+                      <a href={`mailto:${dealer.email}`}
+                        className="flex items-center justify-center gap-1.5 text-sm hover:text-[#01BBDC] transition-colors mb-2"
+                        style={{ color: '#10214F' }}>
+                        <Mail size={13} /> {dealer.email}
+                      </a>
+                    )}
+
                     {/* Location */}
                     {(dealer?.city || dealer?.state) && (
                       <p className="text-xs text-gray-400 uppercase tracking-wider flex items-center justify-center gap-1 mb-5">
@@ -1038,12 +1049,12 @@ export default function ListingDetailClient({
                     <button onClick={() => setShowMsg(true)}
                       className="w-full py-3.5 rounded-2xl text-white font-semibold transition-all hover:opacity-90"
                       style={{ backgroundColor: '#10214F', fontFamily: 'Bahnschrift, DIN Alternate, sans-serif', letterSpacing: '0.08em', fontSize: 13 }}>
-                      CONTACT BROKER
+                      {isPrivateSeller ? 'CONTACT SELLER' : 'CONTACT BROKER'}
                     </button>
                   </div>
 
-                  {/* ── Company section ──────────────────────────────── */}
-                  {dealer && (dealer.company_name || dealer.name) && (
+                  {/* ── Company section (dealers/brokers only — private sellers have no company/logo) ── */}
+                  {dealer && !isPrivateSeller && (dealer.company_name || dealer.name) && (
                     <div className="border-t border-gray-100 p-5" style={{ backgroundColor: '#F8F9FC' }}>
                       {/* Logo */}
                       <div className="flex justify-center mb-3">
