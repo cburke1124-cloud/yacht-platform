@@ -178,7 +178,7 @@ function RegisterContent() {
           ...(!isPrivate ? { website: formData.website } : {}),
           agree_terms: formData.agree_terms,
           agree_communications: formData.agree_communications,
-          ...(!isPrivate && ref ? { referral_code: ref } : {}),
+          ...(ref ? { referral_code: ref } : {}),
           return_url: `${window.location.origin}/register?user_type=${isPrivate ? 'private' : 'dealer'}&payment=complete&session_id={CHECKOUT_SESSION_ID}`,
         }),
       });

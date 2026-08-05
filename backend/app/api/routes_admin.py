@@ -151,7 +151,7 @@ def system_health(
     # Scheduler / email metadata (minimal)
     scheduler = {"status": "unknown", "jobs": None}
     email_status = {
-        "status": "set" if os.getenv("SENDGRID_API_KEY") else "missing",
+        "status": "set" if email_service.api_key else "missing",
         "provider": "sendgrid",
     }
 
@@ -268,10 +268,11 @@ _EMAIL_PREVIEW_SAMPLES: dict[str, dict] = {
         "broker_name": "Jane Broker",
         "broker_email": "jane@janebroker-yachts.com",
         "company_name": "Jane Broker Yachts",
+        "account_type_label": "Broker",
         "admin_url": f"{email_service.base_url}/admin",
     },
     "sales_rep_referral_signup.html": {
-        "sales_rep_name": "Alex Sales",
+        "recipient_name": "Alex Sales",
         "signup_name": "Jane Broker",
         "signup_email": "jane@janebroker-yachts.com",
         "account_type_label": "Broker",
@@ -2829,9 +2830,8 @@ def system_health(
         results["scheduler"] = {"status": "error", "message": str(exc)}
 
     # Email service
-    sendgrid_key = os.environ.get("SENDGRID_API_KEY", "")
     results["email"] = {
-        "status": "ok" if sendgrid_key else "missing_key",
+        "status": "ok" if email_service.api_key else "missing_key",
         "provider": "SendGrid",
     }
 

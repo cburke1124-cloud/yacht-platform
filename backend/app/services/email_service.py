@@ -7,6 +7,8 @@ from sendgrid.helpers.mail import Mail
 from dotenv import load_dotenv, find_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+logger = logging.getLogger(__name__)
+
 # Templates live next to this file in email_templates/
 _TEMPLATE_DIR = Path(__file__).parent / "email_templates"
 
@@ -20,6 +22,12 @@ class EmailService:
             raw_api_key = None
 
         self.api_key = raw_api_key
+        if not self.api_key:
+            logger.critical(
+                "SENDGRID_API_KEY is not set (or is a placeholder). All notification and "
+                "transactional emails will silently fail until this is fixed. Set SENDGRID_API_KEY "
+                "in the Render environment."
+            )
         self.from_email = os.getenv("FROM_EMAIL", "noreply@yachtversal.com")
         self.from_name = os.getenv("FROM_NAME", "YachtVersal")
         self.notifications_email = os.getenv("NOTIFICATIONS_EMAIL", "inquiries@yachtversal.com")
@@ -58,7 +66,7 @@ class EmailService:
         """
         if not self.api_key:
             message = f"SendGrid not configured. Failed to send email to {to_email}: {subject}"
-            logging.error(message)
+            logger.critical(message)
             raise RuntimeError(message)
 
         try:
@@ -77,11 +85,11 @@ class EmailService:
             sg = SendGridAPIClient(self.api_key)
             response = sg.send(message)
 
-            logging.info(f"Email sent to {to_email}: {subject} (Status: {response.status_code})")
+            logger.info(f"Email sent to {to_email}: {subject} (Status: {response.status_code})")
             return True
 
         except Exception as e:
-            logging.error(f"Failed to send email to {to_email}: {str(e)}")
+            logger.error(f"SENDGRID SEND FAILURE: failed to send email to {to_email}: {subject} — {str(e)}")
             return False
 
     # ------------------------------------------------------------------
@@ -206,17 +214,51 @@ class EmailService:
         )
         return self.send_email(to_email, "Reset Your YachtVersal Password", html)
 
-    def send_admin_new_broker_alert(self, to_email: str, broker_name: str, broker_email: str, company_name: str = None):
-        """Notify an admin that a new broker/dealer account was created."""
+    def send_admin_new_broker_alert(
+        self,
+        to_email: str,
+        broker_name: str,
+        broker_email: str,
+        company_name: str = None,
+        account_type_label: str = "Broker",
+    ):
+        """Notify an admin that a new broker/dealer or private-seller account was created."""
         html = self._render(
             "admin_new_broker_signup.html",
             broker_name=broker_name,
             broker_email=broker_email,
             company_name=company_name,
+            account_type_label=account_type_label,
             admin_url=f"{self.base_url}/admin",
         )
-        subject = f"New Broker Signup: {company_name}" if company_name else f"New Broker Signup: {broker_name}"
+        subject = (
+            f"New {account_type_label} Signup: {company_name}"
+            if company_name
+            else f"New {account_type_label} Signup: {broker_name}"
+        )
         return self.send_email(to_email, subject, html)
+
+    def _send_referral_signup_alert(
+        self,
+        to_email: str,
+        recipient_name: str,
+        signup_name: str,
+        signup_email: str,
+        account_type_label: str,
+        company_name: str = None,
+        dashboard_url: str = None,
+    ):
+        """Shared renderer for sales-rep and affiliate referral-signup notifications."""
+        html = self._render(
+            "sales_rep_referral_signup.html",
+            recipient_name=recipient_name,
+            signup_name=signup_name,
+            signup_email=signup_email,
+            account_type_label=account_type_label,
+            company_name=company_name,
+            dashboard_url=dashboard_url,
+        )
+        return self.send_email(to_email, f"New Referral Signup: {signup_name}", html)
 
     def send_sales_rep_referral_signup_alert(
         self,
@@ -228,16 +270,35 @@ class EmailService:
         company_name: str = None,
     ):
         """Notify a sales rep that someone signed up through their referral link."""
-        html = self._render(
-            "sales_rep_referral_signup.html",
-            sales_rep_name=sales_rep_name,
+        return self._send_referral_signup_alert(
+            to_email=to_email,
+            recipient_name=sales_rep_name,
             signup_name=signup_name,
             signup_email=signup_email,
             account_type_label=account_type_label,
             company_name=company_name,
             dashboard_url=f"{self.base_url}/sales-rep",
         )
-        return self.send_email(to_email, f"New Referral Signup: {signup_name}", html)
+
+    def send_affiliate_referral_signup_alert(
+        self,
+        to_email: str,
+        affiliate_name: str,
+        signup_name: str,
+        signup_email: str,
+        account_type_label: str,
+        company_name: str = None,
+    ):
+        """Notify a non-platform-user affiliate that someone signed up through their referral link."""
+        return self._send_referral_signup_alert(
+            to_email=to_email,
+            recipient_name=affiliate_name,
+            signup_name=signup_name,
+            signup_email=signup_email,
+            account_type_label=account_type_label,
+            company_name=company_name,
+            dashboard_url=None,
+        )
 
 
 # Singleton instance

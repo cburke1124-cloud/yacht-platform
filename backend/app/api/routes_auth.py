@@ -364,21 +364,35 @@ def provision_user_account(
             db.rollback()
             logger.exception("Post-registration provisioning failed for user %s; continuing", user.id)
 
-        # Notify admins whenever a new broker account is created
-        if user.user_type == "dealer":
+        # Notify admins whenever a new broker or private-seller account is created
+        if user.user_type in ("dealer", "private"):
             try:
                 admins = db.query(User).filter(User.user_type == "admin").all()
                 broker_name = f"{user.first_name} {user.last_name}".strip()
+                account_type_label = "Private Seller" if user.user_type == "private" else "Broker"
+                if not admins:
+                    logger.warning(
+                        "No admin users found — new %s signup for user %s got no admin alert",
+                        account_type_label, user.id,
+                    )
                 for admin in admins:
-                    if admin.email:
-                        email_service.send_admin_new_broker_alert(
-                            to_email=admin.email,
-                            broker_name=broker_name,
-                            broker_email=user.email,
-                            company_name=user.company_name,
+                    if not admin.email:
+                        continue
+                    sent = email_service.send_admin_new_broker_alert(
+                        to_email=admin.email,
+                        broker_name=broker_name,
+                        broker_email=user.email,
+                        company_name=user.company_name,
+                        account_type_label=account_type_label,
+                    )
+                    if not sent:
+                        logger.error(
+                            "NOTIFICATION FAILED: admin_new_broker_alert to %s for new %s signup "
+                            "(user_id=%s) — send_email returned False; check SendGrid config.",
+                            admin.email, account_type_label, user.id,
                         )
             except Exception:
-                logger.exception("Failed to notify admins of new broker signup for user %s", user.id)
+                logger.exception("Failed to notify admins of new %s signup for user %s", user.user_type, user.id)
 
         # Notify the connected sales rep when someone signs up through their affiliate/referral link
         if assigned_sales_rep_id:
@@ -387,7 +401,7 @@ def provision_user_account(
                 if sales_rep and sales_rep.email:
                     account_type_labels = {"dealer": "Broker", "buyer": "Buyer", "private": "Private Seller"}
                     signup_name = f"{user.first_name} {user.last_name}".strip()
-                    email_service.send_sales_rep_referral_signup_alert(
+                    sent = email_service.send_sales_rep_referral_signup_alert(
                         to_email=sales_rep.email,
                         sales_rep_name=sales_rep.first_name or "there",
                         signup_name=signup_name,
@@ -395,8 +409,47 @@ def provision_user_account(
                         account_type_label=account_type_labels.get(user.user_type, user.user_type.title()),
                         company_name=user.company_name,
                     )
+                    if not sent:
+                        logger.error(
+                            "NOTIFICATION FAILED: sales_rep_referral_alert to %s (sales_rep_id=%s) "
+                            "for user %s — send_email returned False; check SendGrid config.",
+                            sales_rep.email, assigned_sales_rep_id, user.id,
+                        )
             except Exception:
                 logger.exception("Failed to notify sales rep %s of new referral signup", assigned_sales_rep_id)
+
+        # Notify a non-platform-user affiliate (account_type == "affiliate") when someone
+        # signs up through their referral code. Sales-rep-type affiliates are already
+        # handled above via assigned_sales_rep_id (they're platform Users).
+        if affiliate_account and affiliate_account.account_type == "affiliate":
+            if not affiliate_account.email:
+                logger.warning(
+                    "Affiliate account %s (code=%s) has no email on file; skipping referral "
+                    "signup notification for user %s", affiliate_account.id, affiliate_account.code, user.id,
+                )
+            else:
+                try:
+                    account_type_labels = {"dealer": "Broker", "buyer": "Buyer", "private": "Private Seller"}
+                    signup_name = f"{user.first_name} {user.last_name}".strip()
+                    sent = email_service.send_affiliate_referral_signup_alert(
+                        to_email=affiliate_account.email,
+                        affiliate_name=affiliate_account.name or "there",
+                        signup_name=signup_name,
+                        signup_email=user.email,
+                        account_type_label=account_type_labels.get(user.user_type, user.user_type.title()),
+                        company_name=user.company_name,
+                    )
+                    if not sent:
+                        logger.error(
+                            "NOTIFICATION FAILED: affiliate_referral_signup_alert to %s "
+                            "(affiliate_id=%s) for user %s — send_email returned False; check SendGrid config.",
+                            affiliate_account.email, affiliate_account.id, user.id,
+                        )
+                except Exception:
+                    logger.exception(
+                        "Failed to notify affiliate %s of new referral signup for user %s",
+                        affiliate_account.id, user.id,
+                    )
 
         token = None
         try:
