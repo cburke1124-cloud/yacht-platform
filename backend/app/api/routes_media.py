@@ -19,6 +19,7 @@ from app.models.listing import Listing
 from app.exceptions import ValidationException, ResourceNotFoundException
 from app.services.media_storage import store_media_bytes, delete_media_by_url
 from app.services.media_scope import org_media_ids
+from app.utils.sales_rep import sales_rep_manages_user
 
 router = APIRouter()
 
@@ -475,15 +476,22 @@ def _resolve_media_scope_user(
 ) -> User:
     """Resolve which user's org media scope a media-library call should use.
 
-    Only admins may pass as_dealer_id, to browse/upload into a different
-    dealer's library — e.g. an admin managing a scraped charter listing on
-    behalf of that dealer, rather than accidentally reading from or writing
-    into the admin's own personal media pool.
+    Only admins, or a sales rep managing that specific dealer/private seller
+    (per sales_rep_manages_user), may pass as_dealer_id, to browse/upload
+    into a different dealer's library — e.g. an admin managing a scraped
+    charter listing on behalf of that dealer, or a sales rep updating a
+    referred dealer's logo/photos, rather than accidentally reading from or
+    writing into their own personal media pool.
     """
     if as_dealer_id is None:
         return current_user
-    if (current_user.user_type or "").lower() != "admin":
-        raise HTTPException(status_code=403, detail="Only admins may act on behalf of another broker")
+    user_type = (current_user.user_type or "").lower()
+    is_admin = user_type == "admin"
+    is_managing_sales_rep = user_type == "salesman" and sales_rep_manages_user(
+        current_user.id, as_dealer_id, db
+    )
+    if not (is_admin or is_managing_sales_rep):
+        raise HTTPException(status_code=403, detail="Not authorized to act on behalf of another broker")
     target = db.query(User).filter(User.id == as_dealer_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target broker not found")

@@ -18,6 +18,7 @@ from app.models.dealer import DealerProfile
 from app.exceptions import ResourceNotFoundException, AuthorizationException, ValidationException
 from app.utils.phone import normalize_phone
 from app.utils.revalidate import trigger_revalidation
+from app.utils.sales_rep import sales_rep_manages_user
 from app.services.email_service import email_service
 from app.services.billing_status import user_has_paid, paid_owner_filter
 from app.services.media_scope import org_media_ids
@@ -1057,7 +1058,12 @@ def update_listing(
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
         owner = db.query(User).filter(User.id == listing.user_id).first()
-        if not (owner and owner.parent_dealer_id == current_user.id):
+        is_team_member = owner and owner.parent_dealer_id == current_user.id
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not (is_team_member or is_managing_sales_rep):
             raise AuthorizationException("Not authorized to update this listing")
 
     if listing_data.bin and listing_data.bin != listing.bin:
@@ -1123,7 +1129,12 @@ def quick_edit_listing(
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
         owner = db.query(User).filter(User.id == listing.user_id).first()
-        if not (owner and owner.parent_dealer_id == current_user.id):
+        is_team_member = owner and owner.parent_dealer_id == current_user.id
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not (is_team_member or is_managing_sales_rep):
             raise AuthorizationException("Not authorized to update this listing")
 
     update_payload = listing_data.dict(exclude_unset=True)
@@ -1190,7 +1201,12 @@ def delete_listing(
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
         owner = db.query(User).filter(User.id == listing.user_id).first()
-        if not (owner and owner.parent_dealer_id == current_user.id):
+        is_team_member = owner and owner.parent_dealer_id == current_user.id
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not (is_team_member or is_managing_sales_rep):
             raise AuthorizationException("Not authorized")
     if permanent:
         db.delete(listing)
@@ -1240,7 +1256,12 @@ def restore_listing(
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
         owner = db.query(User).filter(User.id == listing.user_id).first()
-        if not (owner and owner.parent_dealer_id == current_user.id):
+        is_team_member = owner and owner.parent_dealer_id == current_user.id
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not (is_team_member or is_managing_sales_rep):
             raise AuthorizationException("Not authorized")
     if not listing.deleted_at:
         return {"message": "Listing is not deleted"}
@@ -1418,9 +1439,15 @@ def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_opti
     # Treat soft-deleted listings as not found for public access
     if listing.deleted_at is not None:
         raise ResourceNotFoundException("Listing", listing_id)
-    # Admins can always access any listing regardless of subscription
+    # Admins, and sales reps managing this listing's owner, can always access
+    # any listing regardless of subscription status.
     is_admin = current_user and current_user.user_type == "admin"
-    if not is_admin:
+    is_managing_sales_rep = (
+        current_user is not None
+        and current_user.user_type == "salesman"
+        and sales_rep_manages_user(current_user.id, listing.user_id, db)
+    )
+    if not (is_admin or is_managing_sales_rep):
         # Hide listing if the owner hasn't actually paid (or lapsed)
         owner = listing.owner
         if owner and not user_has_paid(owner):
@@ -1461,7 +1488,12 @@ def get_listing_media(
         if current_user and not is_owner:
             owner = db.query(User).filter(User.id == listing.user_id).first()
             is_dealer_team = bool(owner and owner.parent_dealer_id == current_user.id)
-        if not (is_admin or is_owner or is_assigned or is_dealer_team):
+        is_managing_sales_rep = (
+            current_user is not None
+            and current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not (is_admin or is_owner or is_assigned or is_dealer_team or is_managing_sales_rep):
             raise ResourceNotFoundException("Listing", listing_id)
 
     items = []
@@ -1553,7 +1585,12 @@ def attach_listing_media(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized to update listing media")
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not is_managing_sales_rep:
+            raise AuthorizationException("Not authorized to update listing media")
 
     media_ids = [mid for mid in payload.media_ids if isinstance(mid, int)]
 
@@ -1567,13 +1604,19 @@ def attach_listing_media(
         db.commit()
         return {"success": True, "attached": 0}
 
-    # Which media org this attach call is allowed to pull from. Admins default
-    # to their own org — cross-org attachment only happens if they explicitly
-    # declare which dealer they're acting for (matches the picker's
-    # as_dealer_id), so an admin can never silently attach one broker's media
-    # to a different broker's listing.
+    # Which media org this attach call is allowed to pull from. Admins and
+    # managing sales reps default to their own org — cross-org attachment
+    # only happens if they explicitly declare which dealer they're acting
+    # for (matches the picker's as_dealer_id), so a caller can never
+    # silently attach one broker's media to a different broker's listing.
     scope_user = current_user
-    if current_user.user_type == "admin" and payload.as_dealer_id is not None:
+    if payload.as_dealer_id is not None and (
+        current_user.user_type == "admin"
+        or (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, payload.as_dealer_id, db)
+        )
+    ):
         target = db.query(User).filter(User.id == payload.as_dealer_id).first()
         if not target:
             raise ResourceNotFoundException("User", payload.as_dealer_id)
@@ -1998,7 +2041,12 @@ def reorder_listing_media(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized to reorder listing media")
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not is_managing_sales_rep:
+            raise AuthorizationException("Not authorized to reorder listing media")
 
     ids = [a["id"] for a in payload.attachments if "id" in a]
     attachments = db.query(ListingMediaAttachment).filter(
@@ -2047,7 +2095,12 @@ def set_primary_image(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized to edit this listing")
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not is_managing_sales_rep:
+            raise AuthorizationException("Not authorized to edit this listing")
 
     # Try new media attachment system first
     attachments = db.query(ListingMediaAttachment).filter(
@@ -2088,7 +2141,12 @@ def delete_listing_image(
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
     if listing.user_id != current_user.id and current_user.user_type != "admin":
-        raise AuthorizationException("Not authorized to edit this listing")
+        is_managing_sales_rep = (
+            current_user.user_type == "salesman"
+            and sales_rep_manages_user(current_user.id, listing.user_id, db)
+        )
+        if not is_managing_sales_rep:
+            raise AuthorizationException("Not authorized to edit this listing")
 
     # Try new system: find attachment by media_id (MediaFile.id)
     att = (

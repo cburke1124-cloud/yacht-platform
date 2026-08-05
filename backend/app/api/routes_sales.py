@@ -18,9 +18,12 @@ from app.security.auth import get_password_hash, pwd_context
 from app.services.email_service import email_service
 from app.utils.slug import create_slug
 from app.utils.phone import normalize_phone
+from app.utils.sales_rep import sales_rep_manages_user
+from app.utils.revalidate import trigger_revalidation
 from app.services.api_key_service import generate_api_key_for_dealer
 from app.services.demo_fixtures import create_demo_account_for_owner
 from app.models.misc import SiteSettings
+from app.api.routes_listings import _get_primary_images_for_listings
 
 router = APIRouter()
 
@@ -242,6 +245,198 @@ def get_sales_rep_analytics(
             "commission_rate": float(affiliate_account.commission_rate or current_user.commission_rate or 10.0),
             "referred_signups": len(referrals),
         }
+    }
+
+
+def _get_managed_account_or_403(user_id: int, current_user: User, db: Session) -> User:
+    """Shared guard for the /dealers/{user_id}... management endpoints below:
+    caller must be a sales rep, and the target account must be one they
+    personally referred (per sales_rep_manages_user), and must be a
+    dealer or private-seller account."""
+    if current_user.user_type != "salesman":
+        raise AuthorizationException("Sales rep access required")
+    if not sales_rep_manages_user(current_user.id, user_id, db):
+        raise AuthorizationException("You can only manage accounts you referred")
+    target = db.query(User).filter(
+        User.id == user_id, User.user_type.in_(["dealer", "private"])
+    ).first()
+    if not target:
+        raise ResourceNotFoundException("Account", user_id)
+    return target
+
+
+@router.get("/dealers/{user_id}")
+def get_managed_account(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Read-only account summary for a dealer/private-seller this rep
+    referred. verified/active/subscription_tier are included for display
+    only — they're not editable via the PUT below."""
+    target = _get_managed_account_or_403(user_id, current_user, db)
+    return {
+        "id": target.id,
+        "user_type": target.user_type,
+        "first_name": target.first_name,
+        "last_name": target.last_name,
+        "email": target.email,
+        "phone": target.phone,
+        "company_name": target.company_name,
+        "verified": target.verified,
+        "active": target.active,
+        "subscription_tier": target.subscription_tier,
+        "created_at": target.created_at.isoformat() if target.created_at else None,
+    }
+
+
+@router.put("/dealers/{user_id}")
+def update_managed_account(
+    user_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update basic User-row fields for a referred dealer/private seller.
+
+    verified/active/subscription_tier are deliberately NOT in the allowlist
+    — those stay admin-only trust/billing flags. If a caller includes them
+    in the request body they're silently ignored, matching the equivalent
+    admin endpoint's "only touch allowlisted fields" behavior.
+    """
+    target = _get_managed_account_or_403(user_id, current_user, db)
+
+    updatable = ["first_name", "last_name", "phone"]
+    if target.user_type == "dealer":
+        updatable.append("company_name")
+
+    for field in updatable:
+        if field in data:
+            value = normalize_phone(data[field]) if field == "phone" else data[field]
+            setattr(target, field, value)
+
+    db.commit()
+    db.refresh(target)
+    return {"success": True, "id": target.id}
+
+
+@router.get("/dealers/{user_id}/profile")
+def get_managed_account_profile(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mirrors GET /admin/dealers/{id}/profile. Always returns {} for
+    private sellers (they never have a DealerProfile row) — expected, not
+    an error; the frontend should not call this for user_type == 'private'."""
+    _get_managed_account_or_403(user_id, current_user, db)
+
+    profile = db.query(DealerProfile).filter(DealerProfile.user_id == user_id).first()
+    if not profile:
+        return {}
+    return {
+        "id": profile.id,
+        "name": profile.name,
+        "company_name": profile.company_name,
+        "email": profile.email,
+        "phone": profile.phone,
+        "address": profile.address,
+        "city": profile.city,
+        "state": profile.state,
+        "country": profile.country,
+        "zip_code": profile.zip_code,
+        "website": profile.website,
+        "description": profile.description,
+        "logo_url": profile.logo_url,
+        "banner_url": profile.banner_url,
+        "facebook_url": profile.facebook_url,
+        "instagram_url": profile.instagram_url,
+        "twitter_url": profile.twitter_url,
+        "linkedin_url": profile.linkedin_url,
+        "primary_color": profile.primary_color,
+        "about_section": profile.about_section,
+        "meta_title": profile.meta_title,
+        "meta_description": profile.meta_description,
+        "cobrokering_enabled": profile.cobrokering_enabled,
+        "show_team_on_profile": profile.show_team_on_profile,
+        "verified": profile.verified,
+        "active": profile.active,
+    }
+
+
+@router.put("/dealers/{user_id}/profile")
+def update_managed_account_profile(
+    user_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mirrors PUT /admin/dealers/{id}/profile, minus verified/active in the
+    allowlist (admin-only trust flags). 404s if there's no DealerProfile row
+    — always true for private sellers; the frontend must not call this for
+    them."""
+    _get_managed_account_or_403(user_id, current_user, db)
+
+    profile = db.query(DealerProfile).filter(DealerProfile.user_id == user_id).first()
+    if not profile:
+        raise ResourceNotFoundException("Broker profile", user_id)
+
+    updatable = [
+        "name", "company_name", "email", "phone",
+        "address", "city", "state", "country", "zip_code",
+        "website", "description", "logo_url", "banner_url",
+        "facebook_url", "instagram_url", "twitter_url", "linkedin_url",
+        "primary_color", "about_section", "meta_title", "meta_description",
+        "cobrokering_enabled", "show_team_on_profile",
+    ]
+    for field in updatable:
+        if field in data:
+            value = normalize_phone(data[field]) if field == "phone" else data[field]
+            setattr(profile, field, value)
+
+    db.commit()
+    db.refresh(profile)
+
+    if profile.slug:
+        trigger_revalidation([f"/dealers/{profile.slug}"])
+
+    return {"success": True}
+
+
+@router.get("/dealers/{user_id}/listings")
+def get_managed_account_listings(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Listing rows (not just aggregate counts) for a referred dealer/
+    private seller, for the sales-rep management page's listings table."""
+    _get_managed_account_or_403(user_id, current_user, db)
+
+    listings = (
+        db.query(Listing)
+        .filter(Listing.user_id == user_id, Listing.deleted_at.is_(None))
+        .order_by(Listing.created_at.desc())
+        .all()
+    )
+    image_map = _get_primary_images_for_listings(db, [l.id for l in listings])
+
+    return {
+        "listings": [
+            {
+                "id": l.id,
+                "title": l.title,
+                "status": l.status,
+                "price": l.price,
+                "currency": l.currency,
+                "views": l.views,
+                "inquiries": l.inquiries,
+                "created_at": l.created_at.isoformat() if l.created_at else None,
+                "updated_at": l.updated_at.isoformat() if l.updated_at else None,
+                "primary_image": (image_map.get(l.id) or [{}])[0].get("url"),
+            }
+            for l in listings
+        ]
     }
 
 

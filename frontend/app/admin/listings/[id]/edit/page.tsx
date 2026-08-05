@@ -26,6 +26,7 @@ export default function AdminListingEditPage() {
   const params = useParams();
   const listingId = Number(params?.id);
 
+  const [viewerRole, setViewerRole] = useState<'admin' | 'salesman' | null>(null);
   const [listing, setListing] = useState<any>(null);
   const [dealers, setDealers] = useState<any[]>([]);
   const [salespeople, setSalespeople] = useState<any[]>([]);
@@ -47,15 +48,33 @@ export default function AdminListingEditPage() {
   const [editingBusy, setEditingBusy] = useState(false);
 
   useEffect(() => {
-    if (!listingId) return;
+    const token = localStorage.getItem('token');
+    if (!token) { router.push('/login'); return; }
+    fetch(apiUrl('/auth/me'), { headers: authHeaders() })
+      .then(r => (r.ok ? r.json() : Promise.reject()))
+      .then(me => {
+        if (me.user_type !== 'admin' && me.user_type !== 'salesman') {
+          router.push('/');
+          return;
+        }
+        setViewerRole(me.user_type);
+      })
+      .catch(() => router.push('/login'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!listingId || !viewerRole) return;
     Promise.all([
       fetch(apiUrl(`/listings/${listingId}`), { headers: authHeaders() }).then(r => r.json()),
-      fetch(apiUrl('/admin/users?user_type=dealer&limit=500'), { headers: authHeaders() }).then(r => r.json()),
+      viewerRole === 'admin'
+        ? fetch(apiUrl('/admin/users?user_type=dealer&limit=500'), { headers: authHeaders() }).then(r => r.json())
+        : Promise.resolve({ users: [] }),
       fetch(apiUrl(`/listings/${listingId}/media`), { headers: authHeaders() }).then(r => r.json()),
     ]).then(([lData, uData, mData]) => {
       setListing(lData);
       setDealers(uData.users || []);
-      if (lData?.user_id) loadSalespeople(lData.user_id);
+      if (viewerRole === 'admin' && lData?.user_id) loadSalespeople(lData.user_id);
 
       const items: any[] = mData.media || [];
       setMediaItems(items);
@@ -68,7 +87,7 @@ export default function AdminListingEditPage() {
       // We'll set usingNewMediaSystem=true after the first successful upload.
       setUsingNewMediaSystem(items.length > 0 && items.some((i: any) => i.width !== undefined && i.width !== null));
     });
-  }, [listingId]);
+  }, [listingId, viewerRole]);
 
   async function refreshMedia() {
     try {
@@ -158,7 +177,7 @@ export default function AdminListingEditPage() {
     if (!confirm(`Permanently delete listing #${listingId}? This cannot be undone.`)) return;
     const res = await fetch(apiUrl(`/listings/${listingId}`), { method: 'DELETE', headers: authHeaders() });
     if (res.ok) {
-      router.push('/admin');
+      router.push(viewerRole === 'admin' ? '/admin' : `/sales-rep/dealers/${listing.user_id}`);
     } else {
       showToast(false, 'Delete failed');
     }
@@ -406,12 +425,19 @@ export default function AdminListingEditPage() {
       <div className="max-w-4xl mx-auto px-6 py-8">
         {/* Tabs */}
         <div className="flex border-b mb-6 bg-white rounded-t-lg shadow-sm px-4">
-          {([
-            ['basic', 'Basic Info'],
-            ['specs', 'Specifications'],
-            ['media', 'Photos'],
-            ['admin', 'Admin Fields'],
-          ] as [Tab, string][]).map(([id, label]) => (
+          {((viewerRole === 'admin'
+            ? [
+                ['basic', 'Basic Info'],
+                ['specs', 'Specifications'],
+                ['media', 'Photos'],
+                ['admin', 'Admin Fields'],
+              ]
+            : [
+                ['basic', 'Basic Info'],
+                ['specs', 'Specifications'],
+                ['media', 'Photos'],
+              ]
+          ) as [Tab, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -661,7 +687,7 @@ export default function AdminListingEditPage() {
           )}
 
           {/* ── ADMIN FIELDS ── */}
-          {tab === 'admin' && (
+          {viewerRole === 'admin' && tab === 'admin' && (
             <>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
                 These fields are only visible to admins and affect platform-level behaviour.

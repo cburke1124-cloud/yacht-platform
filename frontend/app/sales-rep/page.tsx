@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   DollarSign, Users, TrendingUp, Eye, MessageSquare, BarChart3,
   BookOpen, ChevronRight, X, Link2, Plus, Monitor, Copy, ExternalLink,
   Handshake, UserPlus, Activity, Check, ChevronDown, Star, Shield,
-  Zap, Crown,
+  Zap, Crown, Edit2,
 } from 'lucide-react';
 import { apiUrl, markLoggedIn, markLoggedOut } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
@@ -802,8 +803,9 @@ export default function SalesRepDashboard() {
                 <td className="px-5 py-4">
                   <span className="font-semibold text-primary">{dealerCommission(dealer)}</span>
                 </td>
-                <td className="px-5 py-4">
+                <td className="px-5 py-4 flex items-center gap-3">
                   <button onClick={() => setSelectedDealer(dealer)} className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1"><BarChart3 size={16} /> Details</button>
+                  <Link href={`/sales-rep/dealers/${dealer.dealer_id}`} className="text-secondary hover:text-secondary/80 text-sm font-medium flex items-center gap-1"><Edit2 size={16} /> Manage</Link>
                 </td>
               </tr>
             ))}
@@ -828,12 +830,13 @@ export default function SalesRepDashboard() {
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listings</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {!analytics || analytics.private_sellers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-dark/50">
+                <td colSpan={5} className="px-5 py-12 text-center text-dark/50">
                   <UserPlus size={40} className="mx-auto mb-3 text-gray-300" />
                   <p>No private sellers yet</p>
                   <p className="text-sm mt-1">Share your private seller referral link above</p>
@@ -853,6 +856,9 @@ export default function SalesRepDashboard() {
                   ) : (
                     <span className="text-dark/50 text-sm">Pending payment</span>
                   )}
+                </td>
+                <td className="px-5 py-4">
+                  <Link href={`/sales-rep/dealers/${seller.user_id}`} className="text-secondary hover:text-secondary/80 text-sm font-medium flex items-center gap-1"><Edit2 size={16} /> Manage</Link>
                 </td>
               </tr>
             ))}
