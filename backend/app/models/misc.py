@@ -463,6 +463,24 @@ class CommissionRateHistory(Base):
     sales_rep = relationship("User", foreign_keys=[sales_rep_id])
     changed_by = relationship("User", foreign_keys=[changed_by_user_id])
 
+class CommissionPayout(Base):
+    """A confirmed commission payout to a sales rep. Once created, every
+    ReferralSignup row included in it gets payout_id set to this row's id,
+    so future accrual computations exclude it — the rep's owed total starts
+    counting from $0 again until new activity accrues."""
+    __tablename__ = "commission_payouts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    referral_count = Column(Integer, nullable=False, default=0)
+    notes = Column(Text)
+    paid_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    paid_at = Column(DateTime, default=datetime.utcnow)
+
+    sales_rep = relationship("User", foreign_keys=[sales_rep_id])
+    paid_by = relationship("User", foreign_keys=[paid_by_user_id])
+
 class AccountDeletionRequest(Base):
     __tablename__ = "account_deletion_requests"
     

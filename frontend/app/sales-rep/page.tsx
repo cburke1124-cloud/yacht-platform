@@ -420,7 +420,7 @@ export default function SalesRepDashboard() {
     if (dealer.subscription_tier === 'ultimate') return 'Custom';
     const price = dealer.effective_monthly_price ?? getTierPrice(dealer.subscription_tier);
     const rate = dealer.commission_rate ?? analytics?.affiliate?.commission_rate ?? 10;
-    return price > 0 ? `$${(price * (rate / 100)).toFixed(2)}/mo` : '$0.00/mo';
+    return price > 0 ? `$${(price * (rate / 100)).toFixed(2)}` : '$0.00';
   };
 
   const affiliateLink = analytics?.affiliate
@@ -514,7 +514,7 @@ export default function SalesRepDashboard() {
       {[
         { label: 'Total Brokers',      value: analytics?.total_dealers || 0,                                   icon: Users,      bg: 'bg-blue-50',    ic: 'text-blue-600' },
         { label: 'Active Brokers',     value: analytics?.active_dealers || 0,                                  icon: TrendingUp, bg: 'bg-green-50',   ic: 'text-green-600' },
-        { label: 'Monthly Commission', value: `$${analytics?.monthly_commission?.toFixed(2) || '0.00'}`,       icon: DollarSign, bg: 'bg-primary/10', ic: 'text-primary' },
+        { label: 'Commission Owed',    value: `$${analytics?.monthly_commission?.toFixed(2) || '0.00'}`,       icon: DollarSign, bg: 'bg-primary/10', ic: 'text-primary' },
         { label: 'Total Revenue',      value: `$${analytics?.monthly_revenue?.toFixed(2) || '0.00'}`,          icon: DollarSign, bg: 'bg-amber-50',   ic: 'text-amber-600' },
       ].map((s, i) => (
         <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
@@ -533,7 +533,7 @@ export default function SalesRepDashboard() {
     <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-6 mb-6 text-white">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p className="text-white/70 text-sm font-medium mb-1">Monthly Commission (brokers)</p>
+          <p className="text-white/70 text-sm font-medium mb-1">Commission Owed (brokers)</p>
           <h3 className="text-3xl font-bold">${analytics?.monthly_commission?.toFixed(2) || '0.00'}</h3>
         </div>
         <div>

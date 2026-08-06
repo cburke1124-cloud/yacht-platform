@@ -145,6 +145,8 @@ def get_sales_rep_analytics(
         if not dealer.subscription_start_date:
             continue
         referral = referral_map.get(dealer.id)
+        if referral is not None and referral.payout_id is not None:
+            continue  # this referral's commission has already been paid out
         base_price = float(TIER_PRICES.get(dealer.subscription_tier, 0.0))
         effective_price = float(referral.effective_monthly_price) if referral and referral.effective_monthly_price is not None else base_price
         commission_rate = float(referral.commission_rate) if referral and referral.commission_rate is not None else float(current_user.commission_rate or 10.0)
@@ -209,8 +211,14 @@ def get_sales_rep_analytics(
         referral = referral_map.get(seller.id)
         commission_rate = float(referral.commission_rate) if referral and referral.commission_rate is not None else float(current_user.commission_rate or 10.0)
         paid = bool(seller.subscription_start_date)
-        one_time_commission = (PRIVATE_SETUP_FEE * (commission_rate / 100.0)) if paid else 0.0
-        if paid:
+        # "paid" reflects whether the seller themselves paid the platform —
+        # unrelated to whether the rep's commission on this referral has
+        # already been paid out. Already-paid-out referrals contribute $0 to
+        # the current owed total (not to be confused with the seller's own
+        # payment status).
+        already_paid_out = referral is not None and referral.payout_id is not None
+        one_time_commission = (PRIVATE_SETUP_FEE * (commission_rate / 100.0)) if (paid and not already_paid_out) else 0.0
+        if paid and not already_paid_out:
             private_seller_commission_total += one_time_commission
 
         listing_count = db.query(Listing).filter(Listing.user_id == seller.id).count()

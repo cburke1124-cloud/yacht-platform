@@ -30,6 +30,8 @@ from app.models.partner_growth import PartnerDeal
 from app.models.partner_growth import PartnerOffer
 from app.models.misc import SiteSettings, ScraperJob, ScrapedListing
 from app.models.misc import FoundingBrokerSignup
+from app.models.misc import CommissionPayout
+from app.utils.commission_payout import compute_rep_payout
 from app.utils.phone import normalize_phone
 from app.utils.revalidate import trigger_revalidation
 from app.exceptions import (
@@ -417,6 +419,74 @@ def get_commission_history(
             "changed_by": h.changed_by_user_id
         }
         for h in history
+    ]
+
+
+@router.get("/sales-reps/{rep_id}/payout-statement")
+def get_payout_statement(
+    rep_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Preview what would be paid out to a rep right now. Read-only — does
+    not create, backfill, or mark anything. Calling this repeatedly with no
+    new activity in between returns the same total; calling it again after a
+    confirm-payout with no new activity returns $0."""
+    sales_rep = db.query(User).filter(
+        User.id == rep_id,
+        User.user_type == "salesman"
+    ).first()
+    if not sales_rep:
+        raise ResourceNotFoundException("Sales rep", rep_id)
+
+    return compute_rep_payout(sales_rep, db, current_user.id, dry_run=True)
+
+
+@router.post("/sales-reps/{rep_id}/confirm-payout")
+def confirm_payout(
+    rep_id: int,
+    data: dict,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Mark the rep's currently-owed commission as paid out. Backfills any
+    referral-less assigned accounts for real, creates a CommissionPayout
+    record, and stamps payout_id on every ReferralSignup row included —
+    after this, the rep's commission total starts counting from $0 again."""
+    sales_rep = db.query(User).filter(
+        User.id == rep_id,
+        User.user_type == "salesman"
+    ).first()
+    if not sales_rep:
+        raise ResourceNotFoundException("Sales rep", rep_id)
+
+    notes = (data or {}).get("notes")
+    result = compute_rep_payout(sales_rep, db, current_user.id, dry_run=False, notes=notes)
+    db.commit()
+    return {"success": True, **result}
+
+
+@router.get("/sales-reps/{rep_id}/payouts")
+def get_payout_history(
+    rep_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Payout history for a rep — same shape/precedent as commission-history."""
+    payouts = db.query(CommissionPayout).filter(
+        CommissionPayout.sales_rep_id == rep_id
+    ).order_by(CommissionPayout.paid_at.desc()).all()
+
+    return [
+        {
+            "id": p.id,
+            "amount": float(p.amount),
+            "referral_count": p.referral_count,
+            "notes": p.notes,
+            "paid_by": p.paid_by_user_id,
+            "paid_at": p.paid_at.isoformat() if p.paid_at else None,
+        }
+        for p in payouts
     ]
 
 # ============= USERS MANAGEMENT =============
@@ -1184,13 +1254,18 @@ def get_all_dealers(
     limit: int = 100,
     search: Optional[str] = None,
     subscription_status: Optional[str] = None,  # active, lapsed, trial, never_paid, always_free
+    include_private: bool = False,
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Get all dealers with their stats."""
-    _PAID_TIERS = ["basic", "plus", "pro", "premium", "private_basic", "private_plus", "private_pro"]
+    """Get all dealers with their stats. include_private also returns
+    private-seller accounts (user_type == 'private') — defaults to False so
+    existing callers (e.g. the Broker Management tab) keep dealer-only
+    behavior unchanged."""
+    _PAID_TIERS = ["basic", "plus", "pro", "premium", "private_active", "private_basic", "private_plus", "private_pro"]
 
-    query = db.query(User).filter(User.user_type == "dealer")
+    user_types = ["dealer", "private"] if include_private else ["dealer"]
+    query = db.query(User).filter(User.user_type.in_(user_types))
 
     if search:
         sp = f"%{search}%"
@@ -1244,6 +1319,7 @@ def get_all_dealers(
 
         dealer_list.append({
             "id": dealer.id,
+            "user_type": dealer.user_type,
             "name": f"{dealer.first_name or ''} {dealer.last_name or ''}".strip() or dealer.email,
             "email": dealer.email,
             "first_name": dealer.first_name,
@@ -1943,22 +2019,12 @@ def get_all_sales_reps(
     db: Session = Depends(get_db)
 ):
     """Get all sales reps with their assigned dealers and revenue."""
+    from app.api.routes_sales import TIER_PRICES as tier_prices
+
     sales_reps = db.query(User).filter(
         User.user_type == "salesman"
     ).all()
-    
-    tier_prices = {
-        "free": 0.0,
-        "trial": 0.0,
-        "basic": 29.0,
-        "plus": 59.0,
-        "premium": 99.0,
-        "pro": 99.0,
-        "private_basic": 9.0,
-        "private_plus": 19.0,
-        "private_pro": 39.0,
-    }
-    
+
     result = []
     for rep in sales_reps:
         affiliate_account = _ensure_sales_rep_affiliate_account(rep, db, current_user.id)
@@ -1998,6 +2064,8 @@ def get_all_sales_reps(
             if not dealer.subscription_start_date:
                 continue
             signup = referral_map.get(dealer.id)
+            if signup is not None and signup.payout_id is not None:
+                continue  # this referral's commission has already been paid out
             effective_price = float(signup.effective_monthly_price) if signup and signup.effective_monthly_price is not None else float(tier_prices.get(dealer.subscription_tier, 0.0))
             commission_rate = float(signup.commission_rate) if signup and signup.commission_rate is not None else float(rep.commission_rate or affiliate_account.commission_rate or 10.0)
             total_revenue += effective_price
@@ -2075,18 +2143,39 @@ def assign_sales_rep(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
+    """Assign, reassign, or unassign a broker/private-seller's sales rep.
+
+    - sales_rep_id present -> assign/reassign.
+    - sales_rep_id omitted/null -> unassign (clears User.assigned_sales_rep_id
+      only; any existing ReferralSignup row is left alone so a later
+      reassignment can correct it).
+    """
+    from app.api.routes_sales import TIER_PRICES
+
     dealer_id = data.get("dealer_id")
     sales_rep_id = data.get("sales_rep_id")
 
-    if not dealer_id or not sales_rep_id:
-        raise ValidationException("dealer_id and sales_rep_id are required")
+    if not dealer_id:
+        raise ValidationException("dealer_id is required")
 
-    dealer = db.query(User).filter(
+    target = db.query(User).filter(
         User.id == dealer_id,
-        User.user_type == "dealer"
+        User.user_type.in_(["dealer", "private"])
     ).first()
-    if not dealer:
-        raise ResourceNotFoundException("Broker", dealer_id)
+    if not target:
+        raise ResourceNotFoundException("Broker or private seller", dealer_id)
+
+    if not sales_rep_id:
+        previous_rep_id = target.assigned_sales_rep_id
+        target.assigned_sales_rep_id = None
+        db.commit()
+        return {
+            "success": True,
+            "dealer_id": target.id,
+            "sales_rep_id": None,
+            "previous_sales_rep_id": previous_rep_id,
+            "action": "unassigned",
+        }
 
     sales_rep = db.query(User).filter(
         User.id == sales_rep_id,
@@ -2095,13 +2184,43 @@ def assign_sales_rep(
     if not sales_rep:
         raise ResourceNotFoundException("Sales rep", sales_rep_id)
 
-    dealer.assigned_sales_rep_id = sales_rep.id
+    previous_rep_id = target.assigned_sales_rep_id
+    target.assigned_sales_rep_id = sales_rep.id
+
+    # Correct commission attribution. An unpaid referral row (payout_id is
+    # null) is safe to relabel in place — nothing has been paid on it yet,
+    # so this is just fixing a mistake. A paid-out row is historical record
+    # and must not be touched; instead a fresh row credits the new rep from
+    # this point forward.
+    existing_unpaid = db.query(ReferralSignup).filter(
+        ReferralSignup.dealer_user_id == target.id,
+        ReferralSignup.payout_id.is_(None),
+    ).order_by(ReferralSignup.created_at.desc()).first()
+
+    if existing_unpaid:
+        existing_unpaid.sales_rep_id = sales_rep.id
+        existing_unpaid.source_type = "admin_reassign"
+    else:
+        affiliate_account = _ensure_sales_rep_affiliate_account(sales_rep, db, current_user.id)
+        price = float(TIER_PRICES.get(target.subscription_tier, 0.0))
+        new_referral = ReferralSignup(
+            dealer_user_id=target.id,
+            source_type="admin_reassign",
+            sales_rep_id=sales_rep.id,
+            affiliate_account_id=affiliate_account.id,
+            effective_monthly_price=price,
+            commission_rate=float(sales_rep.commission_rate or 10.0),
+        )
+        db.add(new_referral)
+
     db.commit()
 
     return {
         "success": True,
-        "dealer_id": dealer.id,
+        "dealer_id": target.id,
         "sales_rep_id": sales_rep.id,
+        "previous_sales_rep_id": previous_rep_id,
+        "action": "reassigned" if previous_rep_id else "assigned",
     }
 
 
@@ -2241,8 +2360,15 @@ def get_deal_performance(
             # paid — manually created broker accounts never touch Stripe and
             # shouldn't accrue revenue/commission until they actually pay.
             has_paid = bool(dealer.subscription_start_date)
+            # Separate from has_paid: whether this referral's commission is
+            # still outstanding. A referral already paid out to the rep
+            # (payout_id set) still counts toward active_paid_accounts (the
+            # customer is still a real paying customer) but contributes $0 to
+            # the current revenue/commission totals.
+            commission_owed = has_paid and referral.payout_id is None
             if has_paid:
                 active_paid_count += 1
+            if commission_owed:
                 monthly_revenue += effective_price
                 monthly_commission += effective_price * (commission_rate / 100.0)
 
@@ -2258,6 +2384,7 @@ def get_deal_performance(
                 rep_row["signup_count"] += 1
                 if has_paid:
                     rep_row["active_paid_accounts"] += 1
+                if commission_owed:
                     rep_row["monthly_revenue"] += effective_price
                     rep_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
 
@@ -2274,6 +2401,7 @@ def get_deal_performance(
                 affiliate_row["signup_count"] += 1
                 if has_paid:
                     affiliate_row["active_paid_accounts"] += 1
+                if commission_owed:
                     affiliate_row["monthly_revenue"] += effective_price
                     affiliate_row["monthly_commission"] += effective_price * (commission_rate / 100.0)
 

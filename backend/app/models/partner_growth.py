@@ -81,16 +81,20 @@ class ReferralSignup(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     dealer_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    source_type = Column(String(32), nullable=False)  # sales_rep | affiliate
+    source_type = Column(String(32), nullable=False)  # sales_rep | affiliate | sales_rep_manual | admin_manual | admin_reassign
     sales_rep_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     affiliate_account_id = Column(Integer, ForeignKey("affiliate_accounts.id"), nullable=True, index=True)
     deal_id = Column(Integer, ForeignKey("partner_deals.id"), nullable=True)
     referral_code_used = Column(String(64), nullable=True)
     effective_monthly_price = Column(Float, nullable=True)
     commission_rate = Column(Float, default=10.0)
+    # Set once this referral's commission has been paid out to the rep (see
+    # CommissionPayout in app/models/misc.py) — null means still owed.
+    payout_id = Column(Integer, ForeignKey("commission_payouts.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     dealer_user = relationship("User", foreign_keys=[dealer_user_id])
     sales_rep = relationship("User", foreign_keys=[sales_rep_id])
     affiliate_account = relationship("AffiliateAccount", foreign_keys=[affiliate_account_id])
     deal = relationship("PartnerDeal", foreign_keys=[deal_id])
+    payout = relationship("CommissionPayout", foreign_keys=[payout_id])

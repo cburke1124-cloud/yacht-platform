@@ -70,7 +70,10 @@ interface DealPerformanceResponse {
 
 interface Dealer {
   id: number;
+  user_type: string;
   company_name: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   subscription_tier: string;
   assigned_sales_rep_id?: number;
@@ -89,6 +92,37 @@ interface CommissionHistory {
   changed_by: number;
 }
 
+interface PayoutLineItem {
+  referral_signup_id: number | null;
+  account_id: number;
+  account_name: string;
+  account_email: string;
+  user_type: string;
+  price: number;
+  commission_rate: number;
+  commission_amount: number;
+  backfilled: boolean;
+}
+
+interface PayoutStatement {
+  sales_rep_id: number;
+  sales_rep_name: string;
+  generated_at: string;
+  total_commission_owed: number;
+  line_item_count: number;
+  line_items: PayoutLineItem[];
+  payout_id: number | null;
+}
+
+interface PayoutHistoryEntry {
+  id: number;
+  amount: number;
+  referral_count: number;
+  notes: string | null;
+  paid_by: number | null;
+  paid_at: string | null;
+}
+
 export default function AdminSalesRepTab() {
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
   const [dealers, setDealers] = useState<Dealer[]>([]);
@@ -105,6 +139,14 @@ export default function AdminSalesRepTab() {
   const [affiliates, setAffiliates] = useState<AffiliateAccount[]>([]);
   const [dealPerformance, setDealPerformance] = useState<DealPerformanceResponse | null>(null);
   const [expandedReps, setExpandedReps] = useState<Set<number>>(new Set());
+
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [payoutRep, setPayoutRep] = useState<SalesRep | null>(null);
+  const [payoutStatement, setPayoutStatement] = useState<PayoutStatement | null>(null);
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [confirmingPayout, setConfirmingPayout] = useState(false);
+  const [showPayoutHistoryModal, setShowPayoutHistoryModal] = useState(false);
+  const [payoutHistory, setPayoutHistory] = useState<PayoutHistoryEntry[]>([]);
 
   const TIER_PRICES: Record<string, number> = {
     basic: 29, plus: 59, pro: 99, premium: 99,
@@ -235,7 +277,7 @@ export default function AdminSalesRepTab() {
         fetch(apiUrl('/admin/sales-reps'), {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(apiUrl('/admin/dealers'), {
+        fetch(apiUrl('/admin/dealers?include_private=true'), {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(apiUrl('/admin/affiliates'), {
@@ -370,7 +412,7 @@ export default function AdminSalesRepTab() {
     }
   };
 
-  const handleAssignDealer = async (repId: number) => {
+  const handleAssignDealer = async (repId: number | null) => {
     if (!selectedDealer) return;
 
     try {
@@ -388,16 +430,127 @@ export default function AdminSalesRepTab() {
       });
 
       if (response.ok) {
-        alert('Broker assigned successfully!');
+        alert(repId ? 'Account assigned successfully!' : 'Account unassigned successfully!');
         setShowAssignModal(false);
         setSelectedDealer(null);
         fetchData();
       } else {
-        alert('Failed to assign broker');
+        alert(repId ? 'Failed to assign account' : 'Failed to unassign account');
       }
     } catch (error) {
       console.error('Failed to assign:', error);
-      alert('Failed to assign broker');
+      alert('Failed to assign account');
+    }
+  };
+
+  const fetchPayoutStatement = async (rep: SalesRep) => {
+    setPayoutRep(rep);
+    setPayoutStatement(null);
+    setShowPayoutModal(true);
+    setPayoutLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/admin/sales-reps/${rep.id}/payout-statement`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPayoutStatement(data);
+      } else {
+        alert('Failed to generate statement');
+        setShowPayoutModal(false);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payout statement:', error);
+      alert('Failed to generate statement');
+      setShowPayoutModal(false);
+    } finally {
+      setPayoutLoading(false);
+    }
+  };
+
+  const handleConfirmPayout = async () => {
+    if (!payoutRep || !payoutStatement) return;
+    setConfirmingPayout(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/admin/sales-reps/${payoutRep.id}/confirm-payout`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({})
+      });
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Paid $${result.total_commission_owed.toFixed(2)} to ${payoutRep.name} — commission now starts at $0.`);
+        setShowPayoutModal(false);
+        setPayoutRep(null);
+        setPayoutStatement(null);
+        fetchData();
+      } else {
+        alert('Failed to confirm payout');
+      }
+    } catch (error) {
+      console.error('Failed to confirm payout:', error);
+      alert('Failed to confirm payout');
+    } finally {
+      setConfirmingPayout(false);
+    }
+  };
+
+  const exportPayoutStatementCsv = () => {
+    if (!payoutStatement || payoutStatement.line_items.length === 0) {
+      alert('No statement data to export');
+      return;
+    }
+
+    const headers = ['account_name', 'account_email', 'user_type', 'price', 'commission_rate', 'commission_amount', 'backfilled'];
+    const escapeCsv = (value: unknown) => {
+      const stringValue = String(value ?? '');
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    };
+
+    const rows = payoutStatement.line_items.map((item) => [
+      item.account_name,
+      item.account_email,
+      item.user_type,
+      item.price.toFixed(2),
+      item.commission_rate.toFixed(1),
+      item.commission_amount.toFixed(2),
+      item.backfilled ? 'true' : 'false',
+    ]);
+
+    const csv = [headers, ...rows].map((line) => line.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const datePart = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.setAttribute('download', `commission-statement-${payoutStatement.sales_rep_id}-${datePart}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const fetchPayoutHistory = async (repId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/admin/sales-reps/${repId}/payouts`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPayoutHistory(data);
+        setShowPayoutHistoryModal(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payout history:', error);
     }
   };
 
@@ -544,7 +697,7 @@ export default function AdminSalesRepTab() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Brokers</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission Rate</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monthly Commission</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission Owed</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Referral</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -617,7 +770,7 @@ export default function AdminSalesRepTab() {
                         </td>
                         <td className="px-6 py-4">
                           <span className="font-semibold text-green-600">
-                            ${(rep.monthly_commission || 0).toFixed(2)}/mo
+                            ${(rep.monthly_commission || 0).toFixed(2)} owed
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -655,35 +808,60 @@ export default function AdminSalesRepTab() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <button
-                            onClick={() => fetchCommissionHistory(rep.id)}
-                            className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
-                            title="View commission history"
-                          >
-                            <History size={16} />
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => fetchCommissionHistory(rep.id)}
+                              className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
+                              title="View commission rate history"
+                            >
+                              <History size={16} /> Rate History
+                            </button>
+                            <button
+                              onClick={() => fetchPayoutHistory(rep.id)}
+                              className="text-gray-600 hover:text-gray-900 text-sm flex items-center gap-1"
+                              title="View payout history"
+                            >
+                              <History size={16} /> Payout History
+                            </button>
+                            <button
+                              onClick={() => fetchPayoutStatement(rep)}
+                              className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1"
+                              title="Generate commission statement"
+                            >
+                              <DollarSign size={16} /> Payout
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       {isExpanded && (
                         <tr className="bg-blue-50/40">
                           <td colSpan={7} className="px-6 py-4">
                             {repDealers.length === 0 ? (
-                              <p className="text-sm text-gray-500 italic">No brokers assigned to this rep yet.</p>
+                              <p className="text-sm text-gray-500 italic">No accounts assigned to this rep yet.</p>
                             ) : (
                               <table className="w-full text-sm">
                                 <thead>
                                   <tr className="border-b border-gray-200">
-                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Company</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Name / Company</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Type</th>
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Email</th>
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Tier</th>
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Monthly Price</th>
-                                    <th className="text-left pb-2 font-medium text-gray-600 text-xs uppercase">Signed Up</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Signed Up</th>
+                                    <th className="text-left pb-2 font-medium text-gray-600 text-xs uppercase">Actions</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                   {repDealers.map(dealer => (
                                     <tr key={dealer.id} className="hover:bg-blue-50/60">
-                                      <td className="py-2 pr-4 font-medium text-gray-900">{dealer.company_name || '—'}</td>
+                                      <td className="py-2 pr-4 font-medium text-gray-900">
+                                        {dealer.company_name || `${dealer.first_name || ''} ${dealer.last_name || ''}`.trim() || '—'}
+                                      </td>
+                                      <td className="py-2 pr-4">
+                                        <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700 capitalize">
+                                          {dealer.user_type === 'private' ? 'Private Seller' : 'Broker'}
+                                        </span>
+                                      </td>
                                       <td className="py-2 pr-4 text-gray-600">{dealer.email}</td>
                                       <td className="py-2 pr-4">
                                         <span className="px-2 py-0.5 rounded text-xs font-semibold bg-secondary/10 text-secondary capitalize">
@@ -700,10 +878,21 @@ export default function AdminSalesRepTab() {
                                           return fallback != null ? `$${fallback}/mo` : '—';
                                         })()}
                                       </td>
-                                      <td className="py-2 text-gray-500">
+                                      <td className="py-2 pr-4 text-gray-500">
                                         {dealer.created_at
                                           ? new Date(dealer.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
                                           : '—'}
+                                      </td>
+                                      <td className="py-2">
+                                        <button
+                                          onClick={() => {
+                                            setSelectedDealer(dealer);
+                                            setShowAssignModal(true);
+                                          }}
+                                          className="text-primary hover:text-primary/90 text-xs font-medium"
+                                        >
+                                          Reassign
+                                        </button>
                                       </td>
                                     </tr>
                                   ))}
@@ -833,8 +1022,8 @@ export default function AdminSalesRepTab() {
                     <td className="px-6 py-4 text-sm text-gray-700">{row.owner_sales_rep_name || row.affiliate_name || '—'}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900">{row.signup_count}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-primary">{row.active_paid_accounts}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">${(row.monthly_revenue || 0).toFixed(2)}/mo</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-green-700">${(row.monthly_commission || 0).toFixed(2)}/mo</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">${(row.monthly_revenue || 0).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-green-700">${(row.monthly_commission || 0).toFixed(2)} owed</td>
                   </tr>
                 ))
               )}
@@ -850,7 +1039,7 @@ export default function AdminSalesRepTab() {
                 {dealPerformance.summary_by_sales_rep.map((row) => (
                   <div key={row.sales_rep_id} className="text-sm text-gray-700 flex items-center justify-between">
                     <span>{row.sales_rep_name || `Rep #${row.sales_rep_id}`}</span>
-                    <span className="font-medium">{row.signup_count} signups • ${row.monthly_commission.toFixed(2)}/mo</span>
+                    <span className="font-medium">{row.signup_count} signups • ${row.monthly_commission.toFixed(2)} owed</span>
                   </div>
                 ))}
               </div>
@@ -861,7 +1050,7 @@ export default function AdminSalesRepTab() {
                 {dealPerformance.summary_by_affiliate.map((row) => (
                   <div key={row.affiliate_account_id} className="text-sm text-gray-700 flex items-center justify-between">
                     <span>{row.affiliate_name || `Affiliate #${row.affiliate_account_id}`}</span>
-                    <span className="font-medium">{row.signup_count} signups • ${row.monthly_commission.toFixed(2)}/mo</span>
+                    <span className="font-medium">{row.signup_count} signups • ${row.monthly_commission.toFixed(2)} owed</span>
                   </div>
                 ))}
               </div>
@@ -872,15 +1061,16 @@ export default function AdminSalesRepTab() {
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6 border-b">
-          <h3 className="text-xl font-semibold">Unassigned Brokers</h3>
-          <p className="text-sm text-gray-600 mt-1">Assign these brokers to a sales rep for account management</p>
+          <h3 className="text-xl font-semibold">Unassigned Accounts</h3>
+          <p className="text-sm text-gray-600 mt-1">Assign these brokers or private sellers to a sales rep for account management</p>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -888,16 +1078,23 @@ export default function AdminSalesRepTab() {
             <tbody className="divide-y divide-gray-200">
               {dealers.filter(d => !d.assigned_sales_rep_id).length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
-                    All brokers are assigned to sales reps
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    All accounts are assigned to sales reps
                   </td>
                 </tr>
               ) : (
                 dealers.filter(d => !d.assigned_sales_rep_id).map((dealer) => (
                   <tr key={dealer.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{dealer.company_name}</div>
+                      <div className="font-medium text-gray-900">
+                        {dealer.company_name || `${dealer.first_name || ''} ${dealer.last_name || ''}`.trim() || '—'}
+                      </div>
                       <div className="text-sm text-gray-500">{dealer.email}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700 capitalize">
+                        {dealer.user_type === 'private' ? 'Private Seller' : 'Broker'}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-3 py-1 rounded-full text-xs font-semibold capitalize bg-gray-100 text-gray-800">
@@ -1034,9 +1231,9 @@ export default function AdminSalesRepTab() {
                   <div className="text-sm">
                     <p className="font-medium text-secondary mb-1">Estimated Impact</p>
                     <p className="text-primary">
-                      Current: <span className="font-semibold">${(selectedRep.monthly_commission || 0).toFixed(2)}/mo</span>
+                      Current owed: <span className="font-semibold">${(selectedRep.monthly_commission || 0).toFixed(2)}</span>
                       <br />
-                      New: <span className="font-semibold">${((selectedRep.total_revenue || 0) * (commissionForm.commission_rate / 100)).toFixed(2)}/mo</span>
+                      Estimated at new rate: <span className="font-semibold">${((selectedRep.total_revenue || 0) * (commissionForm.commission_rate / 100)).toFixed(2)}</span>
                     </p>
                   </div>
                 </div>
@@ -1248,15 +1445,15 @@ export default function AdminSalesRepTab() {
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
             <div className="p-6 border-b">
               <h3 className="text-xl font-bold">
-                Assign {selectedDealer.company_name}
+                {selectedDealer.assigned_sales_rep_id ? 'Reassign' : 'Assign'} {selectedDealer.company_name || `${selectedDealer.first_name || ''} ${selectedDealer.last_name || ''}`.trim()}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
-                Select a sales rep to manage this broker
+                Select a sales rep to manage this {selectedDealer.user_type === 'private' ? 'private seller' : 'broker'}
               </p>
             </div>
 
             <div className="p-6 space-y-3">
-              {salesReps.map((rep) => (
+              {salesReps.filter(rep => rep.id !== selectedDealer.assigned_sales_rep_id).map((rep) => (
                 <button
                   key={rep.id}
                   onClick={() => handleAssignDealer(rep.id)}
@@ -1264,10 +1461,19 @@ export default function AdminSalesRepTab() {
                 >
                   <div className="font-semibold text-gray-900">{rep.name}</div>
                   <div className="text-sm text-gray-600">
-                    {rep.dealer_count} brokers · ${rep.monthly_commission.toFixed(2)}/mo commission
+                    {rep.dealer_count} accounts · ${rep.monthly_commission.toFixed(2)} owed
                   </div>
                 </button>
               ))}
+
+              {selectedDealer.assigned_sales_rep_id && (
+                <button
+                  onClick={() => handleAssignDealer(null)}
+                  className="w-full p-4 border-2 border-red-200 rounded-lg hover:border-red-400 hover:bg-red-50 transition-all text-left text-red-700 font-semibold"
+                >
+                  Unassign from current rep
+                </button>
+              )}
 
               <button
                 onClick={() => {
@@ -1278,6 +1484,112 @@ export default function AdminSalesRepTab() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPayoutModal && payoutRep && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold">Commission Statement — {payoutRep.name}</h3>
+                <p className="text-sm text-gray-600 mt-1">Review before confirming payout. Confirming marks everything below as paid and resets the owed total to $0.</p>
+              </div>
+              <button onClick={() => { setShowPayoutModal(false); setPayoutRep(null); setPayoutStatement(null); }} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {payoutLoading ? (
+                <div className="text-center py-8 text-gray-500">Generating statement...</div>
+              ) : !payoutStatement || payoutStatement.line_items.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">Nothing owed — commission is already at $0.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Account</th>
+                      <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Type</th>
+                      <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Price</th>
+                      <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Rate</th>
+                      <th className="text-left pb-2 font-medium text-gray-600 text-xs uppercase">Commission</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {payoutStatement.line_items.map((item) => (
+                      <tr key={item.referral_signup_id ?? `${item.account_id}-backfilled`}>
+                        <td className="py-2 pr-4">
+                          <div className="font-medium text-gray-900">{item.account_name}</div>
+                          <div className="text-xs text-gray-500">{item.account_email}</div>
+                        </td>
+                        <td className="py-2 pr-4 capitalize text-gray-700">{item.user_type === 'private' ? 'Private Seller' : 'Broker'}</td>
+                        <td className="py-2 pr-4 text-gray-700">${item.price.toFixed(2)}</td>
+                        <td className="py-2 pr-4 text-gray-700">{item.commission_rate.toFixed(1)}%</td>
+                        <td className="py-2 font-semibold text-green-700">${item.commission_amount.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="p-6 border-t bg-gray-50 flex items-center justify-between">
+              <div className="text-lg">
+                Total owed: <span className="font-bold text-secondary">${(payoutStatement?.total_commission_owed || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={exportPayoutStatementCsv}
+                  disabled={!payoutStatement || payoutStatement.line_items.length === 0}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 text-sm font-medium disabled:opacity-50"
+                >
+                  Download CSV
+                </button>
+                <button
+                  onClick={handleConfirmPayout}
+                  disabled={confirmingPayout || !payoutStatement || payoutStatement.total_commission_owed <= 0}
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-50"
+                >
+                  {confirmingPayout ? 'Confirming...' : 'Confirm Payout'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPayoutHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full">
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-xl font-bold">Payout History</h3>
+              <button onClick={() => setShowPayoutHistoryModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 max-h-96 overflow-y-auto">
+              {payoutHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No payouts recorded yet</div>
+              ) : (
+                <div className="space-y-4">
+                  {payoutHistory.map((record) => (
+                    <div key={record.id} className="border-l-4 border-primary pl-4 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-900">
+                          ${record.amount.toFixed(2)} · {record.referral_count} account{record.referral_count !== 1 ? 's' : ''}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {record.paid_at ? new Date(record.paid_at).toLocaleDateString() : '—'}
+                        </span>
+                      </div>
+                      {record.notes && <p className="text-sm text-gray-600">{record.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
