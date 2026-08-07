@@ -1442,8 +1442,8 @@ export default function AdminSalesRepTab() {
 
       {showAssignModal && selectedDealer && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-            <div className="p-6 border-b">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[85vh] flex flex-col">
+            <div className="p-6 border-b flex-shrink-0">
               <h3 className="text-xl font-bold">
                 {selectedDealer.assigned_sales_rep_id ? 'Reassign' : 'Assign'} {selectedDealer.company_name || `${selectedDealer.first_name || ''} ${selectedDealer.last_name || ''}`.trim()}
               </h3>
@@ -1452,7 +1452,7 @@ export default function AdminSalesRepTab() {
               </p>
             </div>
 
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-3 overflow-y-auto">
               {salesReps.filter(rep => rep.id !== selectedDealer.assigned_sales_rep_id).map((rep) => (
                 <button
                   key={rep.id}
