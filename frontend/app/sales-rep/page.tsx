@@ -7,7 +7,7 @@ import {
   DollarSign, Users, TrendingUp, Eye, MessageSquare, BarChart3,
   BookOpen, ChevronRight, X, Link2, Plus, Monitor, Copy, ExternalLink,
   Handshake, UserPlus, Activity, Check, ChevronDown, Star, Shield,
-  Zap, Crown, Edit2,
+  Zap, Crown, Edit2, Ship,
 } from 'lucide-react';
 import { apiUrl, markLoggedIn, markLoggedOut } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
@@ -62,6 +62,23 @@ interface AnalyticsData {
     commission_rate: number;
     referred_signups: number;
   };
+}
+
+interface ManagedListingRow {
+  id: number;
+  title: string;
+  status: string;
+  price: number | null;
+  currency: string | null;
+  views: number;
+  inquiries: number;
+  created_at: string | null;
+  updated_at: string | null;
+  primary_image: string | null;
+  owner_id: number;
+  owner_name: string;
+  owner_type: string;
+  company_name: string | null;
 }
 
 interface SalesDeal {
@@ -121,7 +138,7 @@ interface TierData {
   one_time?: boolean;
 }
 
-type Tab = 'overview' | 'deals' | 'dealers' | 'register' | 'demo' | 'resources' | 'preview';
+type Tab = 'overview' | 'deals' | 'dealers' | 'listings' | 'register' | 'demo' | 'resources' | 'preview';
 
 /* ================================================================== */
 /*  Sidebar tabs                                                       */
@@ -131,6 +148,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: 'overview',  label: 'Overview',         icon: BarChart3 },
   { id: 'deals',     label: 'Deals & Links',    icon: Handshake },
   { id: 'dealers',   label: 'My Brokers',       icon: Users },
+  { id: 'listings',  label: 'Listings',         icon: Ship },
   { id: 'register',  label: 'Register Broker',  icon: UserPlus },
   { id: 'demo',      label: 'Demo Portal',      icon: Monitor },
   { id: 'resources', label: 'Resources',        icon: BookOpen },
@@ -164,6 +182,7 @@ export default function SalesRepDashboard() {
   const [loading, setLoading]               = useState(true);
   const [selectedDealer, setSelectedDealer] = useState<DealerStats | null>(null);
   const [deals, setDeals]                   = useState<SalesDeal[]>([]);
+  const [listings, setListings]             = useState<ManagedListingRow[]>([]);
   const [offers, setOffers]                 = useState<PartnerOffer[]>([]);
   const [offersLoading, setOffersLoading]   = useState(false);
   const [docs, setDocs]                     = useState<DocItem[]>([]);
@@ -216,6 +235,13 @@ export default function SalesRepDashboard() {
     } catch (e) { console.error('Failed to fetch deals:', e); }
   };
 
+  const fetchListings = async (token: string) => {
+    try {
+      const r = await fetch(apiUrl('/sales-rep/listings'), { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) { const d = await r.json(); setListings(Array.isArray(d.listings) ? d.listings : []); }
+    } catch (e) { console.error('Failed to fetch listings:', e); }
+  };
+
   const fetchOffers = async (token: string) => {
     setOffersLoading(true);
     try {
@@ -256,7 +282,7 @@ export default function SalesRepDashboard() {
       setUser(userData);
       await Promise.all([
         fetchAnalytics(token), fetchDeals(token), fetchOffers(token),
-        fetchDocs(token), fetchDemo(token), fetchTiers(token),
+        fetchDocs(token), fetchDemo(token), fetchTiers(token), fetchListings(token),
       ]);
     } catch (e) { console.error('Auth check failed:', e); markLoggedOut(); router.push('/login'); }
     finally { setLoading(false); }
@@ -859,6 +885,85 @@ export default function SalesRepDashboard() {
                 </td>
                 <td className="px-5 py-4">
                   <Link href={`/sales-rep/dealers/${seller.user_id}`} className="text-secondary hover:text-secondary/80 text-sm font-medium flex items-center gap-1"><Edit2 size={16} /> Manage</Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </>
+)}
+
+{/* ====== TAB: LISTINGS ========================================== */}
+{activeTab === 'listings' && (
+  <>
+    <div className="mb-6">
+      <h2 className="text-2xl font-bold text-secondary">Listings</h2>
+      <p className="text-dark/70 mt-1">Every listing across the brokers and private sellers you manage.</p>
+    </div>
+
+    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listing</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Activity</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {listings.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-16 text-center text-dark/50">
+                  <Ship size={48} className="mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg mb-2">No listings yet</p>
+                  <p className="text-sm">Listings from your brokers and private sellers will show up here.</p>
+                </td>
+              </tr>
+            ) : listings.map((listing) => (
+              <tr key={listing.id} className="hover:bg-gray-50">
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    {listing.primary_image && (
+                      <img src={listing.primary_image} alt="" className="w-12 h-9 object-cover rounded border border-gray-100" />
+                    )}
+                    <span className="font-medium text-secondary">{listing.title}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <Link href={`/sales-rep/dealers/${listing.owner_id}`} className="text-sm font-medium text-secondary hover:text-primary">
+                    {listing.company_name || listing.owner_name}
+                  </Link>
+                  <div className="text-xs text-dark/50 capitalize">{listing.owner_type}</div>
+                </td>
+                <td className="px-5 py-4">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${
+                    listing.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {listing.status}
+                  </span>
+                </td>
+                <td className="px-5 py-4 text-sm text-secondary">
+                  {listing.price != null ? `${listing.currency || 'USD'} ${listing.price.toLocaleString()}` : '—'}
+                </td>
+                <td className="px-5 py-4 text-sm space-y-1">
+                  <div className="flex items-center gap-2"><Eye size={14} className="text-gray-400" />{listing.views}</div>
+                  <div className="flex items-center gap-2"><MessageSquare size={14} className="text-gray-400" />{listing.inquiries}</div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <Link href={`/admin/listings/${listing.id}/edit`} className="text-primary hover:text-primary/90 text-sm font-medium flex items-center gap-1">
+                      <Edit2 size={14} /> Edit
+                    </Link>
+                    <a href={`/listings/${listing.id}`} target="_blank" rel="noreferrer" className="text-dark/60 hover:text-dark text-sm font-medium flex items-center gap-1">
+                      <ExternalLink size={14} /> View
+                    </a>
+                  </div>
                 </td>
               </tr>
             ))}

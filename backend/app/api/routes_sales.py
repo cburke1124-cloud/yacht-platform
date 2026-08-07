@@ -448,6 +448,63 @@ def get_managed_account_listings(
     }
 
 
+@router.get("/listings")
+def get_sales_rep_listings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Aggregate listing rows across every dealer/private-seller account this
+    sales rep has referred or is assigned to — powers the dashboard's Listings tab."""
+    if current_user.user_type != "salesman":
+        raise AuthorizationException("Sales rep access required")
+
+    referred_user_ids = {
+        r.dealer_user_id for r in
+        db.query(ReferralSignup).filter(ReferralSignup.sales_rep_id == current_user.id).all()
+    }
+    assigned_users = db.query(User).filter(User.assigned_sales_rep_id == current_user.id).all()
+    user_map = {u.id: u for u in assigned_users}
+    if referred_user_ids:
+        for u in db.query(User).filter(User.id.in_(list(referred_user_ids))).all():
+            user_map[u.id] = u
+    managed_users = {
+        u.id: u for u in user_map.values() if (u.user_type or "").lower() in ("dealer", "private")
+    }
+
+    if not managed_users:
+        return {"listings": []}
+
+    listings = (
+        db.query(Listing)
+        .filter(Listing.user_id.in_(list(managed_users.keys())), Listing.deleted_at.is_(None))
+        .order_by(Listing.created_at.desc())
+        .all()
+    )
+    image_map = _get_primary_images_for_listings(db, [l.id for l in listings])
+
+    return {
+        "listings": [
+            {
+                "id": l.id,
+                "title": l.title,
+                "status": l.status,
+                "price": l.price,
+                "currency": l.currency,
+                "views": l.views,
+                "inquiries": l.inquiries,
+                "created_at": l.created_at.isoformat() if l.created_at else None,
+                "updated_at": l.updated_at.isoformat() if l.updated_at else None,
+                "primary_image": (image_map.get(l.id) or [{}])[0].get("url"),
+                "owner_id": l.user_id,
+                "owner_name": f"{managed_users[l.user_id].first_name or ''} {managed_users[l.user_id].last_name or ''}".strip() or managed_users[l.user_id].email,
+                "owner_type": managed_users[l.user_id].user_type,
+                "company_name": managed_users[l.user_id].company_name,
+            }
+            for l in listings
+        ]
+    }
+
+
 @router.get("/referral-info")
 def get_referral_info(
     current_user: User = Depends(get_current_user),
