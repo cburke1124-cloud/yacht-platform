@@ -56,7 +56,7 @@ export default function AnalyticsPage() {
       }
 
       // Fetch user's listings
-      const response = await fetch(apiUrl('/my-listings'), {
+      const response = await fetch(apiUrl('/listings/my-listings'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

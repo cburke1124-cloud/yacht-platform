@@ -558,7 +558,6 @@ def get_admin_listing_list(
         LEFT JOIN dealer_profiles dp ON dp.user_id = u.id
         WHERE {where_sql}
         ORDER BY l.created_at DESC
-        LIMIT 2000
     """)
 
     try:
@@ -1452,9 +1451,13 @@ def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_opti
         owner = listing.owner
         if owner and not user_has_paid(owner):
             raise ResourceNotFoundException("Listing", listing_id)
-    # Increment view counter
-    listing.views = (listing.views or 0) + 1
-    db.commit()
+    # Increment view counter — but not for the listing's own owner, admins,
+    # or sales reps managing it, so previews/self-checks don't inflate the
+    # count shown to the seller.
+    is_owner = current_user is not None and current_user.id == listing.user_id
+    if not (is_admin or is_managing_sales_rep or is_owner):
+        listing.views = (listing.views or 0) + 1
+        db.commit()
     return _serialize_listing(listing, db)
 
 

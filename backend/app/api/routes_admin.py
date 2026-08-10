@@ -2616,13 +2616,17 @@ def get_admin_stats(
     users_last_30 = db.query(User).filter(User.created_at >= last_30).count()
     users_prior_30 = db.query(User).filter(User.created_at >= prior_30, User.created_at < last_30).count()
 
-    # Listing stats (for-sale)
-    total_listings = db.query(Listing).count()
-    active_listings = db.query(Listing).filter(Listing.status == "active").count()
-    pending_listings = db.query(Listing).filter(Listing.status == "pending").count()
-    total_views = db.query(func.sum(Listing.views)).scalar() or 0
-    listings_last_30 = db.query(Listing).filter(Listing.created_at >= last_30).count()
-    listings_prior_30 = db.query(Listing).filter(Listing.created_at >= prior_30, Listing.created_at < last_30).count()
+    # Listing stats (for-sale) — exclude soft-deleted rows, matching every
+    # other admin listing query (e.g. /listings/admin-list). Without this
+    # filter, trashed listings inflated Total Listings/Total Views well
+    # beyond what the Listings Management page (which does filter) shows.
+    listing_base = db.query(Listing).filter(Listing.deleted_at.is_(None), Listing.status != "deleted")
+    total_listings = listing_base.count()
+    active_listings = listing_base.filter(Listing.status == "active").count()
+    pending_listings = listing_base.filter(Listing.status == "pending").count()
+    total_views = listing_base.with_entities(func.sum(Listing.views)).scalar() or 0
+    listings_last_30 = listing_base.filter(Listing.created_at >= last_30).count()
+    listings_prior_30 = listing_base.filter(Listing.created_at >= prior_30, Listing.created_at < last_30).count()
 
     # Charter listing stats — previously omitted entirely, silently
     # undercounting "total/active listings" platform-wide once charters
