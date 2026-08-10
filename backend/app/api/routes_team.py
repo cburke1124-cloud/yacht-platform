@@ -47,7 +47,7 @@ def get_team_performance(
 
     dealer_id = _dealer_id_for(current_user)
     if not dealer_id:
-        raise AuthorizationException("No dealer account associated with this user")
+        raise AuthorizationException("No broker account associated with this user")
 
     days = max(7, min(days, 180))
     now = datetime.utcnow()
@@ -222,7 +222,7 @@ def invite_team_member(
 
     dealer_id = _dealer_id_for(current_user)
     if not dealer_id:
-        raise AuthorizationException("No dealer account associated with this user")
+        raise AuthorizationException("No broker account associated with this user")
 
     email = data.get("email")
     if db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first():
@@ -421,7 +421,7 @@ def remove_team_member(
 
     return {
         "success": True,
-        "message": f"Team member removed. {listing_count} listing(s) transferred to dealer.",
+        "message": f"Team member removed. {listing_count} listing(s) transferred to broker.",
         "member_id": member.id,
         "member_email": member.email,
         "listings_transferred": listing_count,
@@ -788,7 +788,7 @@ def bulk_reassign_team_member_listings(
     # Verify new owner is dealer or part of same team
     if new_owner_id != dealer_id:
         if new_owner.parent_dealer_id != dealer_id:
-            raise AuthorizationException("New owner must be part of your team or be the dealer")
+            raise AuthorizationException("New owner must be part of your team or be the broker")
 
     # Reassign all listings
     updated_count = db.query(Listing).filter(
@@ -822,7 +822,7 @@ def list_guest_brokers(
     """List all guest brokers belonging to this dealer."""
     dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
     if not dealer_id:
-        raise AuthorizationException("Only dealers can manage guest brokers")
+        raise AuthorizationException("Only brokers can manage guest brokers")
     brokers = db.query(GuestBroker).filter(GuestBroker.dealer_id == dealer_id).order_by(GuestBroker.first_name).all()
     return [_serialize_guest_broker(b) for b in brokers]
 
@@ -836,7 +836,7 @@ def create_guest_broker(
     """Create a new guest broker for this dealer."""
     dealer_id = current_user.id if current_user.user_type in ("dealer", "admin") else current_user.parent_dealer_id
     if not dealer_id:
-        raise AuthorizationException("Only dealers can create guest brokers")
+        raise AuthorizationException("Only brokers can create guest brokers")
     if not data.get("first_name"):
         raise ValidationException("first_name is required")
 

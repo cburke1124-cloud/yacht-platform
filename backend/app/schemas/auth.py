@@ -10,6 +10,7 @@ class UserRegister(BaseModel):
     phone: Optional[str] = None
     user_type: str = "dealer"
     company_name: Optional[str] = None
+    website: Optional[str] = None
     subscription_tier: Optional[str] = "free"
     agree_terms: bool = False
     agree_communications: bool = False

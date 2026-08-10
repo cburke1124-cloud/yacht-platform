@@ -364,7 +364,7 @@ export default function ListingCard({
                   }
                 }}
                 className={`flex items-center gap-2.5 ${dealerInfo.slug ? 'cursor-pointer' : ''}`}
-                aria-label={`View dealer profile for ${dealerInfo.company}`}
+                aria-label={`View broker profile for ${dealerInfo.company}`}
               >
                 {dealerInfo.logoUrl ? (
                   <img

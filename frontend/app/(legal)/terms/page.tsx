@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, UserCheck, ShieldAlert, Scale, AlertTriangle, Bell, MessageSquare, Building2, ArrowRight, CreditCard } from 'lucide-react';
+import { UserCheck, ShieldAlert, Scale, AlertTriangle, Bell, MessageSquare, ArrowRight, CreditCard } from 'lucide-react';
 
 export default function TermsOfServicePage() {
   const lastUpdated = "March 2, 2026";
@@ -180,9 +180,6 @@ export default function TermsOfServicePage() {
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-primary/10 via-white to-primary/5 py-20 border-b border-primary/20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10 border-2 border-primary/30 mb-6">
-            <FileText className="w-10 h-10 text-primary" />
-          </div>
           <h1 className="text-5xl md:text-6xl font-bold text-secondary mb-6">
             General Terms & Conditions
           </h1>
@@ -201,9 +198,6 @@ export default function TermsOfServicePage() {
 
           {/* Broker callout banner */}
           <div className="bg-[#10214F] rounded-2xl p-6 mb-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-6 h-6 text-[#01BBDC]" />
-            </div>
             <div className="flex-1">
               <p className="font-bold text-white text-lg leading-tight mb-1">Are you a Yacht Broker or Broker?</p>
               <p className="text-white/70 text-sm leading-relaxed">
@@ -242,12 +236,7 @@ export default function TermsOfServicePage() {
             {sections.map((section, idx) => (
               <div key={idx} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 border-b border-gray-200">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-                      <section.icon className="w-6 h-6 text-primary" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-secondary">{section.title}</h2>
-                  </div>
+                  <h2 className="text-2xl font-bold text-secondary">{section.title}</h2>
                 </div>
                 
                 <div className="p-8 space-y-6">

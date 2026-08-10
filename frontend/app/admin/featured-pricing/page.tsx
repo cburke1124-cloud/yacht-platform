@@ -326,7 +326,7 @@ export default function AdminFeaturedPricingPage() {
                   />
                 </label>
                 <label className="flex items-center justify-between p-3 border rounded-lg">
-                  <span className="text-sm text-gray-700">Allow salesmen to feature any dealer listing</span>
+                  <span className="text-sm text-gray-700">Allow salesmen to feature any broker listing</span>
                   <input
                     type="checkbox"
                     checked={teamControls.allow_salesman_to_feature_all}
@@ -381,7 +381,7 @@ export default function AdminFeaturedPricingPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listing</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>

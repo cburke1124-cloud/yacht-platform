@@ -48,8 +48,11 @@ function BillingContent() {
         return;
       }
 
-      const tier = user.subscription_tier || 'free';
-      if (tier !== 'free') {
+      // subscription_start_date is only set by a confirmed Stripe webhook or
+      // session-confirm call — unlike subscription_tier, it can't be set by a
+      // sales rep/admin manually creating a broker account, so it's the only
+      // reliable signal that this account has actually paid.
+      if (user.always_free || user.subscription_start_date) {
         setIsPaid(true);
         if (user.subscription_start_date) {
           setPaidDate(new Date(user.subscription_start_date).toLocaleDateString());

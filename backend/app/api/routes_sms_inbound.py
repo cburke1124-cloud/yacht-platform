@@ -101,7 +101,7 @@ async def sms_inbound(request: Request, db: Session = Depends(get_db)):
     convo.message_id = reply.id
 
     dealer_name = (
-        f"{dealer.first_name} {dealer.last_name}" if dealer else "Your dealer"
+        f"{dealer.first_name} {dealer.last_name}" if dealer else "Your broker"
     )
     db.add(
         Notification(

@@ -28,7 +28,7 @@ export default function BrokerServicesAgreementPage() {
         },
         {
           subtitle: "Account Termination",
-          text: "We reserve the right to suspend or terminate broker accounts that violate these terms, maintain inaccurate or fraudulent listings, or fail to honor inquiries in good faith. You may close your account at any time; pending subscription periods are non-refundable unless otherwise stated."
+          text: "We reserve the right to suspend or terminate broker accounts that violate these terms, maintain inaccurate or fraudulent listings, or fail to honor inquiries in good faith. You may close your account at any time."
         }
       ]
     },
@@ -168,27 +168,27 @@ export default function BrokerServicesAgreementPage() {
     },
     {
       icon: DollarSign,
-      title: "Subscription, Billing & Fees",
+      title: "Setup Fee, Billing & Refunds",
       content: [
         {
-          subtitle: "Subscription Plans",
-          text: "Broker accounts require a paid subscription. Plan features (number of listings, images, team seats, etc.) are defined on the pricing page and may change with at least 30 days' written notice to existing subscribers."
+          subtitle: "One-Time Setup Fee",
+          text: "Broker accounts require a one-time setup fee to activate and configure your account. This fee covers the creation of your broker profile, account configuration, listing setup assistance, and related onboarding services. Current pricing is displayed on the YachtVersal website and may be updated from time to time."
         },
         {
-          subtitle: "Billing & Auto-Renewal",
-          text: "Subscriptions are billed on a monthly or annual basis in advance. Subscriptions auto-renew at the end of each billing period unless you cancel before the renewal date. Payment is processed via Stripe. You agree to keep a valid payment method on file."
+          subtitle: "Payment",
+          text: "The one-time setup fee is due in full before your account is activated. Payments are securely processed through Stripe or another payment processor designated by YachtVersal. You agree to provide and maintain valid payment information."
         },
         {
-          subtitle: "Price Changes",
-          text: "YachtVersal may adjust subscription pricing. We will notify you by email at least 30 days before a price change takes effect. Your continued use after the change constitutes acceptance."
+          subtitle: "Pricing",
+          text: "YachtVersal reserves the right to modify its one-time setup fee for future customers at any time. Any pricing changes will not affect fees already paid by existing customers."
         },
         {
-          subtitle: "Cancellation & Refunds",
-          text: "You may cancel your subscription at any time through your dashboard or by contacting support. Cancellation removes access at the end of the current billing period. Subscription fees are non-refundable unless otherwise required by applicable law or expressly agreed in writing."
+          subtitle: "Refunds",
+          text: "Because the setup fee covers onboarding, account configuration, and implementation services that begin shortly after purchase, the fee is generally non-refundable once work has commenced. Refund requests submitted before onboarding begins may be considered at YachtVersal's sole discretion or as required by applicable law."
         },
         {
           subtitle: "Taxes",
-          text: "Subscription fees are exclusive of applicable taxes. You are responsible for any taxes, levies, or duties imposed by tax authorities on your subscription, except for taxes on YachtVersal's net income."
+          text: "The setup fee is exclusive of applicable taxes. You are responsible for any taxes, levies, or duties imposed by applicable tax authorities, excluding taxes based on YachtVersal's net income."
         }
       ]
     },
@@ -314,15 +314,15 @@ export default function BrokerServicesAgreementPage() {
       content: [
         {
           subtitle: "Refund Policy",
-          text: "YachtVersal customers agree not to submit chargebacks to their bank. Refunds will not be accepted through credit card chargebacks. All sales are final. For refund requests, please email us at info@yachtversal.com. Refunds will be processed within 48 hours of acknowledged receipt of request."
+          text: "The YachtVersal one-time setup fee covers account setup, onboarding, listing configuration, and other implementation services. Refund requests made before YachtVersal has begun work on your account may be considered at YachtVersal's sole discretion. Once setup or onboarding work has commenced, the setup fee is non-refundable, except where required by applicable law."
         },
         {
-          subtitle: "Cancellation Policy",
-          text: "All cancellation requests must be submitted directly to YachtVersal. We require a minimum of two (2) weeks\u2019 notice prior to the scheduled service date for any cancellation requests. To initiate a cancellation, please contact us via email at info@yachtversal.com."
+          subtitle: "Cancellation",
+          text: "You may cancel your YachtVersal account at any time by contacting us at info@yachtversal.com. If your cancellation request is received before onboarding or setup work has begun, YachtVersal may, at its sole discretion, issue a full or partial refund. Once setup services have commenced or your account has been activated, no refund will be provided for the one-time setup fee. Cancellation of your account does not affect ownership of listings or any obligations that accrued prior to cancellation."
         },
         {
-          subtitle: "No Chargebacks",
-          text: "By using YachtVersal\u2019s paid services, you expressly agree not to dispute or chargeback any charges through your financial institution. Unauthorized chargebacks will be disputed and may result in account suspension."
+          subtitle: "Payment Disputes",
+          text: "If you believe you were charged in error, you agree to contact YachtVersal at info@yachtversal.com so we have an opportunity to resolve the issue before initiating a payment dispute with your financial institution. YachtVersal reserves the right to contest chargebacks that are determined to be fraudulent or without merit and may suspend or terminate accounts associated with abusive or fraudulent payment disputes."
         }
       ]
     }
@@ -339,9 +339,6 @@ export default function BrokerServicesAgreementPage() {
           >
             <ArrowLeft className="w-4 h-4" /> Back to General Terms
           </Link>
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/10 border-2 border-white/20 mb-6">
-            <Building2 className="w-10 h-10 text-[#01BBDC]" />
-          </div>
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
             Broker Services Agreement
           </h1>
@@ -380,17 +377,11 @@ export default function BrokerServicesAgreementPage() {
           {/* Key consents callout */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
             {[
-              { icon: Globe, label: 'Website Scraping', desc: 'Opt-in authorization for data import from your site', color: '#10214F' },
-              { icon: Code2, label: 'API Co-Brokering', desc: 'Listings accessible to third-party brokers via API', color: '#01BBDC' },
-              { icon: Image, label: 'Media Rights', desc: 'License for photos & videos in marketing materials', color: '#10214F' },
-            ].map(({ icon: Icon, label, desc, color }) => (
+              { label: 'Website Scraping', desc: 'Opt-in authorization for data import from your site' },
+              { label: 'API Co-Brokering', desc: 'Listings accessible to third-party brokers via API' },
+              { label: 'Media Rights', desc: 'License for photos & videos in marketing materials' },
+            ].map(({ label, desc }) => (
               <div key={label} className="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col gap-2">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-1"
-                  style={{ backgroundColor: `${color}18` }}
-                >
-                  <Icon className="w-5 h-5" style={{ color }} />
-                </div>
                 <p className="font-bold text-secondary text-sm">{label}</p>
                 <p className="text-gray-500 text-xs leading-relaxed">{desc}</p>
               </div>
@@ -402,15 +393,8 @@ export default function BrokerServicesAgreementPage() {
             {sections.map((section, idx) => (
               <div key={idx} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 border-b border-gray-200">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-                      <section.icon className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-primary/60 uppercase tracking-wider mb-0.5">Section {idx + 1}</p>
-                      <h2 className="text-2xl font-bold text-secondary">{section.title}</h2>
-                    </div>
-                  </div>
+                  <p className="text-xs font-semibold text-primary/60 uppercase tracking-wider mb-0.5">Section {idx + 1}</p>
+                  <h2 className="text-2xl font-bold text-secondary">{section.title}</h2>
                 </div>
                 <div className="p-8 space-y-6">
                   {section.content.map((item, itemIdx) => (

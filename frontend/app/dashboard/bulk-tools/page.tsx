@@ -73,7 +73,7 @@ function BulkToolsInner() {
           const data = await res.json().catch(() => ({}));
           const detail: string = data.detail || 'Failed to import listing. Please check the URL and try again.';
           setError(
-            detail.toLowerCase().includes('website') || detail.toLowerCase().includes('dealer profile')
+            detail.toLowerCase().includes('website') || detail.toLowerCase().includes('broker profile')
               ? detail + ' Go to Account › Broker Page to add your website.'
               : detail
           );

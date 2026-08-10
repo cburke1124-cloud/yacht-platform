@@ -325,7 +325,7 @@ export default function AdminMediaDashboard() {
               <div className="text-3xl font-bold text-gray-900 mb-1">
                 {stats.by_dealer.length}
               </div>
-              <p className="text-sm text-gray-600">Active Dealers</p>
+              <p className="text-sm text-gray-600">Active Brokers</p>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border p-6">
@@ -454,10 +454,10 @@ export default function AdminMediaDashboard() {
             </div>
           </div>
 
-          {/* Top Dealers by Storage */}
+          {/* Top Brokers by Storage */}
           <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
             <div className="p-6 border-b flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-900">Storage by Dealer</h3>
+              <h3 className="text-xl font-bold text-gray-900">Storage by Broker</h3>
               <button
                 onClick={cleanupOrphanedFiles}
                 className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
@@ -469,7 +469,7 @@ export default function AdminMediaDashboard() {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Files</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Storage</th>
@@ -529,7 +529,7 @@ export default function AdminMediaDashboard() {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  placeholder="Search files or dealers..."
+                  placeholder="Search files or brokers..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
                 />
               </div>

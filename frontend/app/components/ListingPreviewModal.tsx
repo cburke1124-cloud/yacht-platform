@@ -290,7 +290,7 @@ export default function ListingPreviewModal({ listing, onClose }: ListingPreview
                     disabled
                   >
                     <MessageSquare size={16} />
-                    Contact Dealer
+                    Contact Broker
                   </button>
                   <button
                     className="w-full py-3 border border-gray-200 text-gray-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 opacity-80"
@@ -312,20 +312,20 @@ export default function ListingPreviewModal({ listing, onClose }: ListingPreview
                   ↑ Buyer-facing buttons — disabled in preview
                 </p>
 
-                {/* Dealer info */}
+                {/* Broker info */}
                 <div className="pt-4 border-t border-gray-100">
                   {d.dealer_logo_url ? (
-                    <img src={mediaUrl(d.dealer_logo_url)} alt="Dealer logo" className="h-10 object-contain mb-3" onError={onImgError} />
+                    <img src={mediaUrl(d.dealer_logo_url)} alt="Broker logo" className="h-10 object-contain mb-3" onError={onImgError} />
                   ) : (
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-10 h-10 rounded-full bg-[#10214F] text-white flex items-center justify-center font-bold text-base flex-shrink-0">
                         {(d.dealer_name ?? 'D').charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="text-sm font-semibold text-gray-900">{d.dealer_name ?? 'Dealer'}</div>
+                        <div className="text-sm font-semibold text-gray-900">{d.dealer_name ?? 'Broker'}</div>
                         <div className="flex items-center gap-1 text-xs text-[#01BBDC]">
                           <CheckCircle size={11} />
-                          Verified Dealer
+                          Verified Broker
                         </div>
                       </div>
                     </div>

@@ -42,7 +42,7 @@ const DEFAULT_DEALER_TIERS: TiersRecord = {
     listings: 75,
     images_per_listing: 30,
     videos_per_listing: 3,
-    features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured dealer badge', 'Priority support', 'Advanced analytics'],
+    features: ['75 active listings', '30 images per listing', '3 videos per listing', 'Priority search placement', 'Featured broker badge', 'Priority support', 'Advanced analytics'],
     trial_days: 14,
     active: true,
   },
@@ -52,7 +52,7 @@ const DEFAULT_DEALER_TIERS: TiersRecord = {
     listings: 999999,
     images_per_listing: 50,
     videos_per_listing: 5,
-    features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured dealer badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
+    features: ['Unlimited listings', '50 images per listing', '5 videos per listing', 'Top search placement', 'Featured broker badge', 'Dedicated account manager', 'Advanced analytics', 'AI scraper tools'],
     trial_days: 30,
     active: true,
   },
@@ -416,7 +416,7 @@ export default function AdminSettingsPage() {
   };
 
   const deleteDealerTier = (id: string) => {
-    if (!confirm(`Delete dealer tier "${dealerTiers[id].name}"?`)) return;
+    if (!confirm(`Delete broker tier "${dealerTiers[id].name}"?`)) return;
     setDealerTiers((prev) => { const n = { ...prev }; delete n[id]; return n; });
   };
 
@@ -429,10 +429,10 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({ tiers: dealerTiers }),
       });
       res.ok
-        ? showToast('Dealer subscription tiers saved.')
-        : showToast('Failed to save dealer tiers.', 'error');
+        ? showToast('Broker subscription tiers saved.')
+        : showToast('Failed to save broker tiers.', 'error');
     } catch {
-      showToast('Failed to save dealer tiers.', 'error');
+      showToast('Failed to save broker tiers.', 'error');
     } finally {
       setSavingDealer(false);
     }
@@ -559,7 +559,7 @@ export default function AdminSettingsPage() {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
                 >
                   <option value="all">Everyone</option>
-                  <option value="dealers">Dealers Only</option>
+                  <option value="dealers">Brokers Only</option>
                   <option value="private">Private Sellers Only</option>
                   <option value="buyers">Buyers Only</option>
                 </select>
@@ -600,7 +600,7 @@ export default function AdminSettingsPage() {
           {/* Broker tiers */}
           <div>
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">🏢 Broker / Dealer Tiers</h2>
+              <h2 className="text-xl font-semibold text-gray-900">🏢 Broker Tiers</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Three tiers shown to brokers on the pricing and registration pages.
                 Stripe env vars: <code className="bg-gray-100 px-1 rounded text-xs">STRIPE_PRICE_DEALER_BASIC</code>,{' '}
@@ -615,7 +615,7 @@ export default function AdminSettingsPage() {
               saving={savingDealer}
               onSave={handleSaveDealerTiers}
               saveEndpoint="PUT /api/admin/subscription-config"
-              userTypeLabel="broker / dealer accounts"
+              userTypeLabel="broker accounts"
             />
           </div>
 

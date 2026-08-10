@@ -88,7 +88,7 @@ async def create_wordpress_site(
     
     # Only dealers and admins can create WordPress sites
     if current_user.user_type not in ["dealer", "admin"]:
-        raise AuthorizationException("Only dealers can create WordPress sites")
+        raise AuthorizationException("Only brokers can create WordPress sites")
     
     # Check if domain already exists
     existing_site = db.query(WordPressSite).filter(

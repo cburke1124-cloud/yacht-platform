@@ -24,7 +24,7 @@ async def create_api_key(
 ):
     """Create a new API key for the dealer"""
     if current_user.user_type not in ["dealer", "admin"]:
-        raise AuthorizationException("Only dealers can create API keys")
+        raise AuthorizationException("Only brokers can create API keys")
     
     name = data.get("name")
     if not name:
@@ -66,7 +66,7 @@ async def list_api_keys(
 ):
     """List all API keys for the current dealer"""
     if current_user.user_type not in ["dealer", "admin"]:
-        raise AuthorizationException("Only dealers can view API keys")
+        raise AuthorizationException("Only brokers can view API keys")
     
     keys = db.query(APIKey).filter(
         APIKey.dealer_id == current_user.id
@@ -141,7 +141,7 @@ async def regenerate_api_key(
 ):
     """Rotate an API key by deactivating the old key and creating a replacement."""
     if current_user.user_type not in ["dealer", "admin"]:
-        raise AuthorizationException("Only dealers can regenerate API keys")
+        raise AuthorizationException("Only brokers can regenerate API keys")
 
     old_key = db.query(APIKey).filter(
         APIKey.id == key_id,
@@ -339,7 +339,7 @@ async def create_promotional_offer(
     
     dealer_id = data.get("dealer_id")
     if not dealer_id:
-        raise ValidationException("Dealer ID is required")
+        raise ValidationException("Broker ID is required")
     
     offer = PromotionalOffer(
         dealer_id=dealer_id,

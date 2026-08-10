@@ -117,12 +117,12 @@ export default function TermsAcceptanceModal({
             </div>
             {isDealer && (
               <Link
-                href="/terms/dealer"
+                href="/terms/broker"
                 target="_blank"
                 className="flex items-center gap-2 px-4 py-3 border border-[#01BBDC]/40 bg-[#01BBDC]/5 rounded-xl hover:bg-[#01BBDC]/10 transition-colors text-sm font-medium text-[#10214F]"
               >
                 <FileText size={16} className="text-[#01BBDC] shrink-0" />
-                Dealer Services Agreement
+                Broker Services Agreement
                 <ExternalLink size={12} className="ml-auto text-gray-400" />
               </Link>
             )}
@@ -155,7 +155,7 @@ export default function TermsAcceptanceModal({
                 />
                 <span className="text-sm text-gray-700 group-hover:text-gray-900">
                   I have read and agree to the{' '}
-                  <Link href="/terms/dealer" target="_blank" className="text-primary underline hover:text-primary/80">Dealer Services Agreement</Link>,
+                  <Link href="/terms/broker" target="_blank" className="text-primary underline hover:text-primary/80">Broker Services Agreement</Link>,
                   including website data import authorization, API co-brokering rights, and media licensing terms
                 </span>
               </label>

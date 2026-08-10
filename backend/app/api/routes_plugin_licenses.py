@@ -65,7 +65,7 @@ async def create_plugin_license(
 ):
     """Issue a new yachtversal-inventory plugin license for the current dealer."""
     if current_user.user_type not in ["dealer", "admin"]:
-        raise AuthorizationException("Only dealers can purchase a plugin license")
+        raise AuthorizationException("Only brokers can purchase a plugin license")
 
     license = generate_plugin_license(
         db=db,

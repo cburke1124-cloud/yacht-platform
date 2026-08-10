@@ -348,7 +348,7 @@ export default function AdminScraperPage() {
   }
 
   async function handleSaveJob() {
-    if (!formDealerId) { setFormError('Select a dealer'); return; }
+    if (!formDealerId) { setFormError('Select a broker'); return; }
     if (!formBrokerUrl) { setFormError('Enter a broker URL'); return; }
     setFormLoading(true); setFormError(''); setFormSuccess('');
     try {
@@ -536,7 +536,7 @@ export default function AdminScraperPage() {
                     {expanded && (
                       <div className="px-4 pb-4 pt-2 border-t bg-gray-50 text-sm text-gray-700 space-y-1">
                         <p><span className="font-medium">URL:</span> <a href={job.broker_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{job.broker_url}</a></p>
-                        <p><span className="font-medium">Dealer ID:</span> {job.dealer_id}{job.salesman_id ? ` · Salesman ID: ${job.salesman_id}` : ''}</p>
+                        <p><span className="font-medium">Broker ID:</span> {job.dealer_id}{job.salesman_id ? ` · Salesman ID: ${job.salesman_id}` : ''}</p>
                         <p><span className="font-medium">Next run:</span> {fmt(job.next_run_at)}</p>
                         {job.notes && <p><span className="font-medium">Notes:</span> {job.notes}</p>}
                         {job.last_error && <p className="text-red-600"><span className="font-medium">Last error:</span> {job.last_error}</p>}
@@ -571,9 +571,9 @@ export default function AdminScraperPage() {
             {jobSubTab === 'basic' && (
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dealer *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Broker *</label>
                   <select value={formDealerId} onChange={e => setFormDealerId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                    <option value="">— Select dealer —</option>
+                    <option value="">— Select broker —</option>
                     {dealers.map(d => <option key={d.id} value={d.id}>{d.company_name || `${d.first_name} ${d.last_name}`} (#{d.id})</option>)}
                   </select>
                 </div>
@@ -584,7 +584,7 @@ export default function AdminScraperPage() {
                     <option value="">— No specific salesman —</option>
                     {salesmen.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} (#{s.id})</option>)}
                   </select>
-                  {!formDealerId && <p className="text-xs text-gray-400 mt-1">Select a dealer first</p>}
+                  {!formDealerId && <p className="text-xs text-gray-400 mt-1">Select a broker first</p>}
                 </div>
 
                 <div>

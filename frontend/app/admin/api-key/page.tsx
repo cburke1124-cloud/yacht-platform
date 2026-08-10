@@ -98,7 +98,7 @@ export default function AdminAPIKeyManagement() {
 
   const generateAPIKey = async () => {
     if (!selectedDealer) {
-      alert('Please select a dealer');
+      alert('Please select a broker');
       return;
     }
 
@@ -187,7 +187,7 @@ export default function AdminAPIKeyManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">API Access Management</h2>
-          <p className="text-gray-600 mt-1">Manage dealer API keys and listing syndication settings</p>
+          <p className="text-gray-600 mt-1">Manage broker API keys and listing syndication settings</p>
         </div>
         <button
           onClick={() => {
@@ -238,7 +238,7 @@ export default function AdminAPIKeyManagement() {
             <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
               <Key size={64} className="mx-auto text-gray-300 mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No API Keys Generated</h3>
-              <p className="text-gray-600 mb-6">Generate API keys for dealers to access listings via API</p>
+              <p className="text-gray-600 mb-6">Generate API keys for brokers to access listings via API</p>
               <button
                 onClick={() => setShowNewKeyModal(true)}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
@@ -251,7 +251,7 @@ export default function AdminAPIKeyManagement() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">API Key</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usage</th>
@@ -339,7 +339,7 @@ export default function AdminAPIKeyManagement() {
               <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
               <div className="text-sm text-blue-900">
                 <p className="font-medium mb-1">About Syndication Controls</p>
-                <p>Dealers can choose to block their listings from being accessed via API. This prevents third-party websites from syndicating their listings while still allowing them to appear on your platform.</p>
+                <p>Brokers can choose to block their listings from being accessed via API. This prevents third-party websites from syndicating their listings while still allowing them to appear on your platform.</p>
               </div>
             </div>
           </div>
@@ -350,7 +350,7 @@ export default function AdminAPIKeyManagement() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Listing</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dealer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Broker</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">API Access</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
@@ -423,14 +423,14 @@ export default function AdminAPIKeyManagement() {
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Dealer
+                Select Broker
               </label>
               <select
                 value={selectedDealer || ''}
                 onChange={(e) => setSelectedDealer(parseInt(e.target.value))}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg"
               >
-                <option value="">Choose a dealer...</option>
+                <option value="">Choose a broker...</option>
                 {dealers.map(dealer => (
                   <option key={dealer.id} value={dealer.id}>
                     {dealer.company_name || `${dealer.first_name} ${dealer.last_name}`}
@@ -441,7 +441,7 @@ export default function AdminAPIKeyManagement() {
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-yellow-900">
-                ⚠️ The API key will only be shown once. Make sure to copy it and send it to the dealer securely.
+                ⚠️ The API key will only be shown once. Make sure to copy it and send it to the broker securely.
               </p>
             </div>
 

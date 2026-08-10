@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Shield, Eye, Lock, Users, Mail, FileText, Cpu, Building2, Key } from 'lucide-react';
+import { Shield, Eye, Lock, Users, FileText, Cpu, Building2, Key } from 'lucide-react';
 
 export default function PrivacyPolicyPage() {
   const lastUpdated = "March 2, 2026";
@@ -242,10 +242,6 @@ export default function PrivacyPolicyPage() {
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-primary/10 via-white to-primary/5 py-20 border-b border-primary/20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10 border-2 border-primary/30 mb-6">
-            <Shield className="w-10 h-10 text-primary" />
-          </div>
-          
           <h1 className="text-5xl md:text-6xl font-bold text-secondary mb-6">
             Privacy Policy
           </h1>
@@ -278,12 +274,7 @@ export default function PrivacyPolicyPage() {
             {sections.map((section, idx) => (
               <div key={idx} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-6 border-b border-gray-200">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-                      <section.icon className="w-6 h-6 text-primary" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-secondary">{section.title}</h2>
-                  </div>
+                  <h2 className="text-2xl font-bold text-secondary">{section.title}</h2>
                 </div>
                 
                 <div className="p-8 space-y-6">
@@ -312,25 +303,17 @@ export default function PrivacyPolicyPage() {
 
           {/* Contact Section */}
           <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-8 mt-8 border border-primary/20">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                <Mail className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-secondary mb-3">Contact Us</h2>
-                <p className="text-dark leading-relaxed mb-4">
-                  For questions about this Privacy Policy, to exercise your data rights, or to request deletion of your data:
-                </p>
-                <div className="space-y-2 text-dark text-sm">
-                  <p><strong>Privacy inquiries:</strong> privacy@yachtversal.com</p>
-                  <p><strong>Legal / Compliance:</strong> legal@yachtversal.com</p>
-                  <p><strong>Mail:</strong> YachtVersal Privacy Team, [Address], [City, State ZIP]</p>
-                </div>
-                <p className="text-dark/60 text-xs mt-4 leading-relaxed">
-                  We aim to respond to all privacy requests within 30 days. For urgent matters, please include "URGENT" in your subject line.
-                </p>
-              </div>
+            <h2 className="text-2xl font-bold text-secondary mb-3">Contact Us</h2>
+            <p className="text-dark leading-relaxed mb-4">
+              For questions about this Privacy Policy, to exercise your data rights, or to request deletion of your data:
+            </p>
+            <div className="space-y-2 text-dark text-sm">
+              <p><strong>Privacy inquiries:</strong> privacy@yachtversal.com</p>
+              <p><strong>Legal / Compliance:</strong> legal@yachtversal.com</p>
             </div>
+            <p className="text-dark/60 text-xs mt-4 leading-relaxed">
+              We aim to respond to all privacy requests within 30 days. For urgent matters, please include "URGENT" in your subject line.
+            </p>
           </div>
 
           {/* Related Policies */}
@@ -346,12 +329,12 @@ export default function PrivacyPolicyPage() {
               </div>
             </Link>
             <Link
-              href="/terms/dealer"
+              href="/terms/broker"
               className="flex items-center gap-3 p-5 bg-white border border-gray-200 rounded-2xl hover:border-primary/40 transition-colors"
             >
               <FileText className="w-5 h-5 text-primary flex-shrink-0" />
               <div>
-                <p className="font-semibold text-secondary text-sm">Dealer Services Agreement</p>
+                <p className="font-semibold text-secondary text-sm">Broker Services Agreement</p>
                 <p className="text-gray-500 text-xs">Data import, API, media rights</p>
               </div>
             </Link>

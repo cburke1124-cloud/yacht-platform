@@ -513,7 +513,7 @@ function BuyerDashboardContent() {
             <li>• Save yachts you're interested in to compare them later</li>
             <li>• Set price alerts to get notified when prices drop</li>
             <li>• Create search alerts to be the first to know about new listings</li>
-            <li>• Contact dealers directly through messages</li>
+            <li>• Contact brokers directly through messages</li>
           </ul>
         </div>
       </div>

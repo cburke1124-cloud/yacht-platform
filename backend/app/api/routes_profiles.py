@@ -448,7 +448,7 @@ def get_dealer_profile(
         }
 
     if current_user.user_type not in ("dealer", "admin"):
-        raise AuthorizationException("Only dealers can access dealer profiles")
+        raise AuthorizationException("Only brokers can access broker profiles")
 
     profile = db.query(DealerProfile).filter(
         DealerProfile.user_id == current_user.id
@@ -504,7 +504,7 @@ def update_dealer_profile(
     """Update dealer profile information."""
     
     if current_user.user_type != "dealer":
-        raise AuthorizationException("Only dealers can update dealer profiles")
+        raise AuthorizationException("Only brokers can update broker profiles")
     
     profile = db.query(DealerProfile).filter(
         DealerProfile.user_id == current_user.id
@@ -568,7 +568,7 @@ def update_dealer_profile(
 
     return {
         "success": True,
-        "message": "Dealer profile updated successfully"
+        "message": "Broker profile updated successfully"
     }
 
 

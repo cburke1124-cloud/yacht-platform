@@ -102,6 +102,93 @@ def _find_broker_listing_user_ids(raw_query: str, db: Session) -> list[int]:
     return [row.id for row in listing_owner_rows]
 
 
+# US state name <-> abbreviation, both directions, so "Florida" matches a
+# listing stored as "FL" and vice versa.
+_STATE_NAME_TO_ABBR = {
+    "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar", "california": "ca",
+    "colorado": "co", "connecticut": "ct", "delaware": "de", "florida": "fl", "georgia": "ga",
+    "hawaii": "hi", "idaho": "id", "illinois": "il", "indiana": "in", "iowa": "ia",
+    "kansas": "ks", "kentucky": "ky", "louisiana": "la", "maine": "me", "maryland": "md",
+    "massachusetts": "ma", "michigan": "mi", "minnesota": "mn", "mississippi": "ms", "missouri": "mo",
+    "montana": "mt", "nebraska": "ne", "nevada": "nv", "new hampshire": "nh", "new jersey": "nj",
+    "new mexico": "nm", "new york": "ny", "north carolina": "nc", "north dakota": "nd", "ohio": "oh",
+    "oklahoma": "ok", "oregon": "or", "pennsylvania": "pa", "rhode island": "ri", "south carolina": "sc",
+    "south dakota": "sd", "tennessee": "tn", "texas": "tx", "utah": "ut", "vermont": "vt",
+    "virginia": "va", "washington": "wa", "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy",
+    "district of columbia": "dc",
+}
+_STATE_ABBR_TO_NAME = {abbr: name for name, abbr in _STATE_NAME_TO_ABBR.items()}
+
+# Regional groupings the AI is likely to extract (e.g. "Caribbean", "Mediterranean")
+# that never literally appear in a listing's city/state/country/continent columns.
+# Expanding them into their constituent country/state names before matching keeps
+# genuinely-correct listings from scoring zero on location just because the raw
+# region word isn't stored anywhere.
+_REGION_SYNONYMS = {
+    "caribbean": [
+        "bahamas", "bvi", "british virgin islands", "us virgin islands", "virgin islands",
+        "puerto rico", "turks and caicos", "cayman islands", "jamaica", "dominican republic",
+        "st martin", "st. martin", "st thomas", "st. thomas", "antigua", "grenada", "st lucia",
+        "st. lucia", "barbados", "aruba", "curacao", "trinidad",
+    ],
+    "mediterranean": [
+        "greece", "croatia", "italy", "france", "spain", "turkey", "monaco", "montenegro",
+        "cyprus", "malta",
+    ],
+    "pacific coast": ["california", "oregon", "washington"],
+    "pacific northwest": ["washington", "oregon", "british columbia"],
+    "new england": ["maine", "new hampshire", "massachusetts", "rhode island", "connecticut"],
+    "gulf coast": ["florida", "alabama", "mississippi", "louisiana", "texas"],
+}
+
+_LOCATION_ALIASES = {
+    "bvi": ["british virgin islands"],
+    "british virgin islands": ["bvi"],
+    "usvi": ["us virgin islands", "virgin islands"],
+    "us virgin islands": ["usvi"],
+}
+
+
+def _expand_location_terms(locations: Optional[List[str]]) -> List[str]:
+    """Expand user/LLM-provided location strings into every synonym worth
+    matching against listing location columns (state abbreviations, region
+    groupings, common aliases). Used for both the DB filter and in-code
+    scoring so a query like "Mediterranean" actually matches Greece/Croatia/
+    etc. instead of scoring zero on location for every genuinely-correct
+    listing."""
+    expanded: set[str] = set()
+    for loc in locations or []:
+        loc_l = (loc or "").strip().lower()
+        if not loc_l:
+            continue
+        expanded.add(loc_l)
+        if loc_l in _STATE_NAME_TO_ABBR:
+            expanded.add(_STATE_NAME_TO_ABBR[loc_l])
+        if loc_l in _STATE_ABBR_TO_NAME:
+            expanded.add(_STATE_ABBR_TO_NAME[loc_l])
+        if loc_l in _REGION_SYNONYMS:
+            expanded.update(_REGION_SYNONYMS[loc_l])
+        if loc_l in _LOCATION_ALIASES:
+            expanded.update(_LOCATION_ALIASES[loc_l])
+    return sorted(expanded)
+
+
+def _match_features(features: Optional[List[str]], searchable_text: str) -> tuple[list[str], list[str]]:
+    """Split requested features into (matched, missing) by substring presence
+    in the listing/charter's combined searchable text."""
+    text = (searchable_text or "").lower()
+    matched, missing = [], []
+    for feat in features or []:
+        feat_clean = (feat or "").strip()
+        if not feat_clean:
+            continue
+        if feat_clean.lower() in text:
+            matched.append(feat_clean)
+        else:
+            missing.append(feat_clean)
+    return matched, missing
+
+
 class AISearchRequest(BaseModel):
     query: str
     max_results: int = 10
@@ -111,6 +198,7 @@ class SearchCriteria(BaseModel):
     """Extracted search criteria from natural language"""
     make: Optional[str] = None          # e.g. "Cheoy Lee", "Azimut", "Hatteras"
     model: Optional[str] = None         # e.g. "68 Evolution", "Convertible"
+    boat_name: Optional[str] = None     # e.g. "Serenity Now" — a specific vessel's name
     boat_types: Optional[List[str]] = None
     min_price: Optional[float] = None
     max_price: Optional[float] = None
@@ -144,7 +232,8 @@ Return ONLY a JSON object with these fields (use null for unspecified):
 {{
   "make": "exact brand/manufacturer name" or null,
   "model": "exact model name" or null,
-  "boat_types": ["Motor Yacht", "Sailing Yacht", etc.] or null,
+  "boat_name": "specific vessel/boat name if the query names one, e.g. 'Serenity Now'" or null,
+  "boat_types": ["Motor Yacht", "Sailing Yacht", "Catamaran", "Sport Fisher", "Trawler", "Mega Yacht", "Express Cruiser", "Center Console", "Sloop", etc.] or null,
   "min_price": number or null,
   "max_price": number or null,
   "min_length": number (feet) or null,
@@ -158,10 +247,12 @@ Return ONLY a JSON object with these fields (use null for unspecified):
   "use_case": "party" | "fishing" | "cruising" | "racing" | "living" | null
 }}
 
-IMPORTANT — make/model extraction:
+IMPORTANT — make/model/boat_name extraction:
 - If the query mentions a brand name (e.g. "Cheoy Lee", "Azimut", "Hatteras", "Sunseeker", "Ferretti", "Beneteau"), set "make" to that exact brand name.
 - If the query mentions a specific model (e.g. "68 Evolution", "Convertible 60"), set "model" to that model name.
+- If the query names a specific vessel (e.g. "the boat called Serenity Now", "do you have Bella Vita"), set "boat_name" to that name. Do NOT confuse a vessel name with a make or model.
 - Do NOT put brand or model names into "features" — they belong in "make"/"model".
+- "boat_types" is a category, not a purpose — use the actual boat-type category the query implies (e.g. "fishing boat"/"offshore fishing" usually means "Sport Fisher" or "Center Console", NOT a made-up type like "Fishing Boat"; "trawler"/"passagemaker" means "Trawler"; "superyacht"/"large crewed yacht" means "Mega Yacht"). Only use values from the list above — never invent a new category string.
 
 Key conversions:
 - "10 people" = at least 10 berths (sleeping) or estimate cabins
@@ -247,6 +338,41 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
             warnings.append(f"Different model: {listing.model}")
     else:
         score += 15  # No model preference — full credit
+
+    # Boat name match (20 points) — a named vessel is as strong an identity
+    # signal as make, since the user is looking for one specific boat.
+    max_score += 20
+    if criteria.boat_name:
+        listing_title = (listing.title or "").strip().lower()
+        wanted_name = criteria.boat_name.strip().lower()
+        if wanted_name and (wanted_name in listing_title or listing_title in wanted_name):
+            score += 20
+            match_reasons.append(f"✓ Matches boat name: {listing.title}")
+        else:
+            score += 0
+            warnings.append(f"Different boat name (searched for \"{criteria.boat_name}\")")
+    else:
+        score += 20
+
+    # Features/capabilities match (10 points) — matches requested features
+    # against title, description, features text, and feature_bullets.
+    max_score += 10
+    if criteria.features:
+        searchable = " ".join(filter(None, [
+            listing.title,
+            listing.description,
+            listing.features,
+            json.dumps(listing.feature_bullets or []),
+        ]))
+        matched, missing = _match_features(criteria.features, searchable)
+        if criteria.features:
+            score += round(10 * (len(matched) / len(criteria.features)))
+        if matched:
+            match_reasons.append(f"✓ Has requested features: {', '.join(matched)}")
+        if missing:
+            warnings.append(f"Missing features: {', '.join(missing)}")
+    else:
+        score += 10
 
     # Boat type match (15 points)
     max_score += 15
@@ -357,8 +483,7 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
     max_score += 20
     if criteria.locations:
         location_match = False
-        for loc in criteria.locations:
-            loc_lower = loc.lower()
+        for loc_lower in _expand_location_terms(criteria.locations):
             if (listing.city and loc_lower in listing.city.lower()) or \
                (listing.state and loc_lower in listing.state.lower()) or \
                (listing.country and loc_lower in listing.country.lower()) or \
@@ -505,9 +630,28 @@ def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results:
 
     if criteria.min_year:
         query = query.filter(Listing.year >= criteria.min_year)
+    if criteria.max_year:
+        query = query.filter(Listing.year <= criteria.max_year)
 
+    # boat_types: only hard-filter to types that actually exist in the active
+    # inventory (case-insensitive). The LLM's guessed category names don't
+    # always exactly match our stored strings (e.g. "Fishing Boat" vs "Sport
+    # Fisher"/"Center Console"); filtering on a guess that doesn't exist would
+    # zero out results even though score_listing already handles a boat-type
+    # mismatch as a soft penalty rather than an exclusion.
+    matching_boat_types: list[str] = []
     if criteria.boat_types:
-        query = query.filter(Listing.boat_type.in_(criteria.boat_types))
+        requested_types_lower = [t.strip().lower() for t in criteria.boat_types if t and t.strip()]
+        if requested_types_lower:
+            matching_boat_types = [
+                row[0] for row in db.query(func.lower(Listing.boat_type)).filter(
+                    Listing.status == "active",
+                    Listing.deleted_at.is_(None),
+                    func.lower(Listing.boat_type).in_(requested_types_lower),
+                ).distinct().all()
+            ]
+    if matching_boat_types:
+        query = query.filter(func.lower(Listing.boat_type).in_(matching_boat_types))
 
     # Check if exact make exists in inventory before filtering
     exact_make_exists = False
@@ -527,11 +671,14 @@ def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results:
     # Check if any listings exist in the requested location(s).
     # If they do, constrain the candidate pool to that location so a Sarasota
     # boat doesn't beat a Mexico boat just because most fields are unspecified.
+    # Expand region words ("Caribbean", "Mediterranean") and state abbreviations
+    # into their constituent terms first, since raw region names rarely appear
+    # literally in city/state/country/continent columns.
     location_exists_in_db = False
     location_filter_clauses: list = []
     if criteria.locations and not broker_query_applied:
-        for loc in criteria.locations:
-            loc_like = f"%{loc.lower()}%"
+        for loc in _expand_location_terms(criteria.locations):
+            loc_like = f"%{loc}%"
             location_filter_clauses.append(
                 or_(
                     func.lower(Listing.city).like(loc_like),
@@ -587,6 +734,9 @@ def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results:
     if broker_query_applied:
         search_context["broker_match"] = query_text
         search_context["broker_filtered"] = True
+    if criteria.boat_types and not matching_boat_types:
+        search_context["no_matching_boat_type"] = criteria.boat_types
+        search_context["showing_all_boat_types"] = True
     if criteria.make and not exact_make_exists:
         search_context["no_exact_make"] = criteria.make
         search_context["showing_similar"] = True
@@ -673,6 +823,7 @@ class UnifiedSearchCriteria(BaseModel):
     # Shared / for-sale fields (same semantics as SearchCriteria)
     make: Optional[str] = None
     model: Optional[str] = None
+    boat_name: Optional[str] = None
     boat_types: Optional[List[str]] = None
     min_price: Optional[float] = None
     max_price: Optional[float] = None
@@ -721,7 +872,8 @@ Return ONLY a JSON object with these fields (use null for unspecified, and leave
   "intent": "for_sale" | "charter",
   "make": "exact brand/manufacturer name" or null,
   "model": "exact model name" or null,
-  "boat_types": ["Motor Yacht", "Sailing Yacht", "Catamaran"] or null,
+  "boat_name": "specific vessel/boat name if the query names one, e.g. 'Serenity Now'" or null,
+  "boat_types": ["Motor Yacht", "Sailing Yacht", "Catamaran", "Sport Fisher", "Trawler", "Mega Yacht", "Express Cruiser", "Center Console", "Sloop"] or null,
   "min_price": number or null,
   "max_price": number or null,
   "min_length": number (feet) or null,
@@ -745,10 +897,12 @@ Return ONLY a JSON object with these fields (use null for unspecified, and leave
   "charter_use_case": "honeymoon" | "family_reunion" | "dive_trip" | "fishing_charter" | "corporate_event" | "bareboat_sailing" | "crewed_luxury" | null
 }}
 
-IMPORTANT — make/model extraction:
+IMPORTANT — make/model/boat_name extraction:
 - If the query mentions a brand name (e.g. "Cheoy Lee", "Azimut", "Hatteras", "Sunseeker", "Ferretti", "Beneteau", "Lagoon", "Fountaine Pajot"), set "make" to that exact brand name.
 - If the query mentions a specific model (e.g. "68 Evolution", "Convertible 60"), set "model" to that model name.
+- If the query names a specific vessel (e.g. "the boat called Serenity Now", "do you have Bella Vita"), set "boat_name" to that name. Do NOT confuse a vessel name with a make or model.
 - Do NOT put brand or model names into "features" — they belong in "make"/"model".
+- "boat_types" is a category, not a purpose — use the actual boat-type category the query implies (e.g. "fishing boat"/"offshore fishing" usually means "Sport Fisher" or "Center Console", NOT a made-up type like "Fishing Boat"; "trawler"/"passagemaker" means "Trawler"; "superyacht"/"large crewed yacht" means "Mega Yacht"). Only use values from the list above — never invent a new category string.
 
 Key conversions:
 - "10 people" / "party of 8" / "family of 6" = min_guests (charter) or min_berths (for_sale), whichever matches the classified intent
@@ -824,6 +978,7 @@ def _to_legacy_criteria(u: UnifiedSearchCriteria) -> SearchCriteria:
     return SearchCriteria(
         make=u.make,
         model=u.model,
+        boat_name=u.boat_name,
         boat_types=u.boat_types,
         min_price=u.min_price,
         max_price=u.max_price,
@@ -878,6 +1033,39 @@ def score_charter(charter: CharterListing, criteria: UnifiedSearchCriteria, quer
             warnings.append(f"Different model: {charter.model}")
     else:
         score += 15
+
+    # Boat name match (20 points)
+    max_score += 20
+    if criteria.boat_name:
+        charter_name = (charter.vessel_name or charter.title or "").strip().lower()
+        wanted_name = criteria.boat_name.strip().lower()
+        if wanted_name and (wanted_name in charter_name or charter_name in wanted_name):
+            score += 20
+            match_reasons.append(f"✓ Matches boat name: {charter.vessel_name or charter.title}")
+        else:
+            score += 0
+            warnings.append(f"Different boat name (searched for \"{criteria.boat_name}\")")
+    else:
+        score += 20
+
+    # Features/amenities match (10 points)
+    max_score += 10
+    if criteria.features:
+        searchable = " ".join(filter(None, [
+            charter.title,
+            charter.vessel_name,
+            charter.description,
+            json.dumps(charter.amenities or []),
+        ]))
+        matched, missing = _match_features(criteria.features, searchable)
+        if criteria.features:
+            score += round(10 * (len(matched) / len(criteria.features)))
+        if matched:
+            match_reasons.append(f"✓ Has requested features: {', '.join(matched)}")
+        if missing:
+            warnings.append(f"Missing features: {', '.join(missing)}")
+    else:
+        score += 10
 
     # Boat type match (15 points)
     max_score += 15
@@ -988,8 +1176,7 @@ def score_charter(charter: CharterListing, criteria: UnifiedSearchCriteria, quer
         location_match = False
         embark = json.dumps(charter.embarkation_ports or []).lower()
         disembark = json.dumps(charter.disembarkation_ports or []).lower()
-        for loc in criteria.locations:
-            loc_lower = loc.lower()
+        for loc_lower in _expand_location_terms(criteria.locations):
             if (
                 (charter.home_port_city and loc_lower in charter.home_port_city.lower())
                 or (charter.home_port_state and loc_lower in charter.home_port_state.lower())
@@ -1064,14 +1251,22 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
         if criteria.intent == "charter":
             query = db.query(CharterListing).filter(CharterListing.status == "active")
 
+            # min_day_rate/min_week_rate are NULL-tolerant like their max_ counterparts:
+            # many charters only price by day OR week, and the extraction prompt's own
+            # "set both to the same value as a fallback" instruction means a stray
+            # min_day_rate shouldn't zero out a week-rate-only charter (or vice versa).
             if criteria.min_day_rate is not None:
-                query = query.filter(CharterListing.day_rate >= criteria.min_day_rate)
+                query = query.filter(
+                    or_(CharterListing.day_rate.is_(None), CharterListing.day_rate >= criteria.min_day_rate)
+                )
             if criteria.max_day_rate is not None:
                 query = query.filter(
                     or_(CharterListing.day_rate.is_(None), CharterListing.day_rate <= criteria.max_day_rate)
                 )
             if criteria.min_week_rate is not None:
-                query = query.filter(CharterListing.week_rate >= criteria.min_week_rate)
+                query = query.filter(
+                    or_(CharterListing.week_rate.is_(None), CharterListing.week_rate >= criteria.min_week_rate)
+                )
             if criteria.max_week_rate is not None:
                 query = query.filter(
                     or_(CharterListing.week_rate.is_(None), CharterListing.week_rate <= criteria.max_week_rate)
@@ -1082,8 +1277,23 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
                 query = query.filter(CharterListing.length_feet <= criteria.max_length)
             if criteria.min_year:
                 query = query.filter(CharterListing.year >= criteria.min_year)
+            if criteria.max_year:
+                query = query.filter(CharterListing.year <= criteria.max_year)
+
+            # boat_types: same soft-filter fix as the for-sale branch — only hard-filter
+            # to types that actually exist in the active charter inventory.
+            matching_boat_types: list[str] = []
             if criteria.boat_types:
-                query = query.filter(CharterListing.boat_type.in_(criteria.boat_types))
+                requested_types_lower = [t.strip().lower() for t in criteria.boat_types if t and t.strip()]
+                if requested_types_lower:
+                    matching_boat_types = [
+                        row[0] for row in db.query(func.lower(CharterListing.boat_type)).filter(
+                            CharterListing.status == "active",
+                            func.lower(CharterListing.boat_type).in_(requested_types_lower),
+                        ).distinct().all()
+                    ]
+            if matching_boat_types:
+                query = query.filter(func.lower(CharterListing.boat_type).in_(matching_boat_types))
 
             # Exact make existence check (avoid zeroing results on a made-up/rare make)
             exact_make_exists = False
@@ -1102,8 +1312,8 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
             location_exists_in_db = False
             location_filter_clauses: list = []
             if criteria.locations:
-                for loc in criteria.locations:
-                    loc_like = f"%{loc.lower()}%"
+                for loc in _expand_location_terms(criteria.locations):
+                    loc_like = f"%{loc}%"
                     location_filter_clauses.append(
                         or_(
                             func.lower(func.coalesce(CharterListing.home_port_city, "")).like(loc_like),
@@ -1147,6 +1357,9 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
             top_results = scored[: request.max_results]
 
             search_context: Dict[str, Any] = {}
+            if criteria.boat_types and not matching_boat_types:
+                search_context["no_matching_boat_type"] = criteria.boat_types
+                search_context["showing_all_boat_types"] = True
             if criteria.make and not exact_make_exists:
                 search_context["no_exact_make"] = criteria.make
                 search_context["showing_similar"] = True
