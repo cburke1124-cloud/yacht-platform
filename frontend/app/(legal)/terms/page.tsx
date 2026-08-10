@@ -199,7 +199,7 @@ export default function TermsOfServicePage() {
           {/* Broker callout banner */}
           <div className="bg-[#10214F] rounded-2xl p-6 mb-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1">
-              <p className="font-bold text-white text-lg leading-tight mb-1">Are you a Yacht Broker or Broker?</p>
+              <p className="font-bold text-white text-lg leading-tight mb-1">Are you a Yacht Broker or Dealer?</p>
               <p className="text-white/70 text-sm leading-relaxed">
                 In addition to these General Terms, broker accounts are governed by the{' '}
                 <Link href="/terms/broker" className="text-[#01BBDC] underline font-semibold">Broker Services Agreement</Link>,
