@@ -210,11 +210,85 @@ def test_master_ocean_archive_disappeared_only_archives_never_deletes(db, owner,
     db.add(scraped)
     db.commit()
 
-    archived_count = master_ocean._archive_disappeared(job.id, seen_source_urls=set(), db=db)
+    archived_count = master_ocean._archive_disappeared(job.id, seen_source_urls=set(), db=db, url_prefixes=("masterocean://sale/",))
     db.refresh(listing)
     assert archived_count == 0, "single tracked listing with 0 seen URLs should trip the safety threshold, not archive"
     assert listing.status == "active"
     assert listing.deleted_at is None
+
+
+def test_master_ocean_sync_archives_completed_type_despite_other_type_incomplete(db, owner, cleanup, monkeypatch):
+    """run_master_ocean_sync must archive a Sale listing that disappeared even
+    when the Charter fetch was incomplete that same run (and vice versa) —
+    the two types are archived independently, not gated on both completing."""
+    from app.models.charter import CharterListing
+
+    job = ScraperJob(
+        dealer_id=owner.id, broker_url="https://master-ocean.com", site_name="pytest MO decouple",
+        enabled=True, status="idle",
+        site_template={"api_type": "master_ocean", "api_key": "x", "sync_types": ["Sale", "Charter"]},
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    cleanup["job_ids"].append(job.id)
+
+    # Sale: S1 will disappear this run (not returned), S2/S3 stay — keeps the
+    # drop ratio under the separate suspicious-drop safety threshold so this
+    # test isolates the completeness-gating fix specifically.
+    sale_listings = {}
+    for key in ("S1", "S2", "S3"):
+        listing = Listing(
+            user_id=owner.id, created_by_user_id=owner.id, title=f"Pytest MO Sale {key}",
+            bin=uuid.uuid4().hex[:12].upper(), status="active", condition="used",
+            source="scraped", source_url=f"masterocean://sale/{key}",
+            created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        )
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+        cleanup["listing_ids"].append(listing.id)
+        db.add(ScrapedListing(job_id=job.id, listing_id=listing.id, source_url=f"masterocean://sale/{key}", still_active=True))
+        sale_listings[key] = listing.id
+    db.commit()
+
+    # Charter: C1 will also not be returned this run, but the Charter fetch
+    # itself is mocked incomplete — C1 must NOT be archived despite "vanishing".
+    charter = CharterListing(
+        user_id=owner.id, slug=f"pytest-mo-charter-{uuid.uuid4().hex[:8]}",
+        title="Pytest MO Charter C1", vessel_name="C1", status="active",
+    )
+    db.add(charter)
+    db.commit()
+    db.refresh(charter)
+    db.add(ScrapedListing(job_id=job.id, charter_listing_id=charter.id, source_url="masterocean://charter/C1", still_active=True))
+    db.commit()
+
+    def fake_paginate_all(self, listing_type, page_size=100):
+        if listing_type == "Sale":
+            return ([{"id": "S2", "name": "S2"}, {"id": "S3", "name": "S3"}], True)  # complete
+        if listing_type == "Charter":
+            return ([], False)  # incomplete — nothing returned, and not trustworthy
+        return ([], True)
+
+    monkeypatch.setattr(master_ocean.MasterOceanClient, "paginate_all", fake_paginate_all)
+    monkeypatch.setattr(master_ocean.MasterOceanClient, "get_yacht_detail", lambda self, yacht_id: None)
+
+    try:
+        stats = master_ocean.run_master_ocean_sync(job.id, job, job.site_template, db)
+
+        s1 = db.query(Listing).filter(Listing.id == sale_listings["S1"]).first()
+        s2 = db.query(Listing).filter(Listing.id == sale_listings["S2"]).first()
+        db.refresh(charter)
+
+        assert s1.status == "archived", "Sale fetch completed — S1 (no longer returned) should be archived"
+        assert s2.status == "active", "S2 was returned this run — should stay active"
+        assert charter.status == "active", "Charter fetch was incomplete — C1 must NOT be archived"
+        assert any(e.get("outcome") == "archival_skipped_incomplete_fetch" and e.get("listing_type") == "Charter/Event" for e in stats["log"])
+    finally:
+        db.query(ScrapedListing).filter(ScrapedListing.charter_listing_id == charter.id).delete()
+        db.query(CharterListing).filter(CharterListing.id == charter.id).delete()
+        db.commit()
 
 
 # ---------------------------------------------------------------------------

@@ -19,7 +19,6 @@ import json
 import re
 from typing import Optional, Dict, List, Tuple, Any
 from urllib.parse import urljoin, urlparse
-import asyncio
 from datetime import datetime, timedelta
 import logging
 
@@ -4216,22 +4215,45 @@ def run_due_scraper_jobs(db) -> int:
 
 
 # ---------------------------------------------------------
-# LEGACY ASYNC SYNC CHECK (kept for backward compatibility)
+# ORPHAN RECONCILIATION — safety net for listings with no owning ScraperJob
 # ---------------------------------------------------------
-async def optimized_sync_check(db):
-    listings = (
-        db.query(Listing)
-        .filter(Listing.source == "scraped", Listing.status == "active", Listing.source_url.isnot(None))
+# One-off import paths (admin "Manual Import" tool, broker self-submission via
+# /broker/import-request) create a Listing + ScrapedListing with job_id=None,
+# by design — there's no recurring job to attach them to. But that also means
+# no job's normal archival pass ever re-checks them: run_scraper_job's and
+# run_master_ocean_sync's archival both scope to ScrapedListing.job_id == job_id,
+# so a job_id=None row is invisible to every job's "did this disappear?" check
+# forever. If the source later sells or delists it, it just stays "active" on
+# our side indefinitely. This sweeps those orphans on a schedule instead.
+def reconcile_orphaned_scraped_listings(db, max_checks: int = 200) -> Dict:
+    orphaned = (
+        db.query(ScrapedListing)
+        .filter(ScrapedListing.job_id.is_(None), ScrapedListing.still_active == True)
+        .limit(max_checks)
         .all()
     )
-    logger.info(f"Legacy sync check: checking {len(listings)} listings...")
-    archived = 0
     scraper = OptimizedYachtScraper()
-    for listing in listings:
-        is_live, reason = scraper.check_listing_still_live(listing.source_url)
-        if not is_live:
-            listing.status = "archived"
-            archived += 1
-        await asyncio.sleep(0.5)
+    checked = 0
+    archived = 0
+    for row in orphaned:
+        checked += 1
+        listing = db.query(Listing).filter(Listing.id == row.listing_id).first() if row.listing_id else None
+        if not listing or listing.deleted_at is not None or listing.status != "active":
+            # No longer our concern to keep re-checking (already resolved by
+            # some other path) — stop tracking so future sweeps skip it.
+            row.still_active = False
+        else:
+            is_live, reason = scraper.check_listing_still_live(listing.source_url)
+            if is_live:
+                row.last_seen = datetime.utcnow()
+            else:
+                listing.status = "archived"
+                row.still_active = False
+                archived += 1
+                logger.info(f"[Reconcile] Archived orphaned listing #{listing.id} ({listing.source_url}): {reason}")
+            time.sleep(0.6)  # be polite to source sites
+        if checked % 25 == 0:
+            db.commit()
     db.commit()
-    logger.info(f"Legacy sync check: archived {archived} listings.")
+    logger.info(f"[Reconcile] Checked {checked} orphaned scraped listing(s), archived {archived}")
+    return {"checked": checked, "archived": archived}

@@ -52,6 +52,15 @@ def setup_scheduler():
         hour=3,
     )
 
+    # Daily (4am) - re-check listings imported via a one-off tool (admin
+    # Manual Import, broker self-submission) that have no owning ScraperJob
+    # and so are never re-validated by any job's normal archival pass.
+    scheduler.add_job(
+        func=reconcile_orphaned_scraped_listings_task,
+        trigger="cron",
+        hour=4,
+    )
+
     scheduler.start()
 
 def check_and_expire_featured():
@@ -137,5 +146,21 @@ def backfill_missing_alt_text_task():
             print(f"[Scheduler] Backfilled alt text for {count} image(s)")
     except Exception as e:
         print(f"[Scheduler] Error backfilling alt text: {e}")
+    finally:
+        db.close()
+
+
+def reconcile_orphaned_scraped_listings_task():
+    """Daily safety net: re-validate scraped listings that have no owning
+    ScraperJob (one-off Manual Import / broker self-submission) since no
+    job's normal archival pass ever revisits them."""
+    db = SessionLocal()
+    try:
+        from app.services.scraper import reconcile_orphaned_scraped_listings
+        result = reconcile_orphaned_scraped_listings(db)
+        if result.get("checked"):
+            print(f"[Scheduler] Reconciled orphaned scraped listings: checked {result['checked']}, archived {result['archived']}")
+    except Exception as e:
+        print(f"[Scheduler] Error reconciling orphaned scraped listings: {e}")
     finally:
         db.close()

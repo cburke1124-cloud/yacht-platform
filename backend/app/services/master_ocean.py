@@ -16,6 +16,7 @@ placeholder — it is not used for HTML scraping in this path.
 """
 
 import logging
+import time
 import requests
 from datetime import datetime
 from typing import Optional, Dict, List, Any
@@ -23,6 +24,30 @@ from typing import Optional, Dict, List, Any
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://master-ocean.com"
+
+
+def _get_with_retry(url: str, *, headers: Dict, params: Optional[Dict] = None,
+                     timeout: int = 30, max_attempts: int = 3) -> requests.Response:
+    """GET with exponential-backoff retry for transient failures (timeouts,
+    connection errors, 5xx, 429). A single dropped connection or momentary
+    rate-limit shouldn't mark an entire sync `incomplete` and block that
+    type's archival for the whole run — only genuinely non-transient errors
+    (4xx other than 429) propagate immediately."""
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=timeout)
+            if resp.status_code == 429 or resp.status_code >= 500:
+                resp.raise_for_status()
+            return resp
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            if attempt == max_attempts:
+                break
+            backoff = 0.5 * (2 ** (attempt - 1))
+            logger.warning(f"MasterOcean request to {url} failed (attempt {attempt}/{max_attempts}): {exc} — retrying in {backoff:.1f}s")
+            time.sleep(backoff)
+    raise last_exc
 _METERS_TO_FEET = 3.28084
 _LITERS_TO_GALLONS = 0.264172
 
@@ -121,7 +146,7 @@ class MasterOceanClient:
         """Fetch one page and return the full response envelope (yachts + total)."""
         url = f"{_BASE_URL}/api/public/yachts"
         params = {"for": listing_type, "limit": limit, "offset": offset}
-        resp = requests.get(url, headers=self._headers, params=params, timeout=30)
+        resp = _get_with_retry(url, headers=self._headers, params=params, timeout=30)
         resp.raise_for_status()
         return resp.json()
 
@@ -147,7 +172,7 @@ class MasterOceanClient:
         """Fetch full detail for a single yacht (extra fields only available here)."""
         url = f"{_BASE_URL}/api/public/yachts/{yacht_id}"
         try:
-            resp = requests.get(url, headers=self._headers, timeout=30)
+            resp = _get_with_retry(url, headers=self._headers, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             return data.get("yacht") if isinstance(data, dict) and "yacht" in data else data
@@ -386,16 +411,19 @@ def run_master_ocean_sync(job_id: int, job, template: Dict, db) -> Dict:
     stats = {"found": 0, "created": 0, "updated": 0, "archived": 0, "errors": 0}
     run_log: List[Dict] = []
 
-    # Track external IDs seen this run (for archiving disappeared yachts)
-    seen_source_urls: set = set()
-    fetch_complete = True
+    # Track seen URLs and fetch completeness per listing_type — Sale and
+    # Charter/Event are archived independently below, so one type's flaky
+    # fetch can't block archival of a type that fetched cleanly.
+    type_seen_urls: Dict[str, set] = {}
+    type_complete: Dict[str, bool] = {}
 
     for listing_type in sync_types:
         if listing_type not in ("Charter", "Sale", "Event"):
             continue
 
-        yachts, type_complete = client.paginate_all(listing_type)
-        fetch_complete = fetch_complete and type_complete
+        yachts, complete = client.paginate_all(listing_type)
+        type_complete[listing_type] = complete
+        seen_this_type: set = set()
         stats["found"] += len(yachts)
         job.listings_found = stats["found"]
         db.commit()
@@ -407,7 +435,7 @@ def run_master_ocean_sync(job_id: int, job, template: Dict, db) -> Dict:
                 continue
 
             source_url = f"masterocean://{listing_type.lower()}/{yacht_id}"
-            seen_source_urls.add(source_url)
+            seen_this_type.add(source_url)
 
             try:
                 # Fetch detail for extra fields
@@ -426,18 +454,38 @@ def run_master_ocean_sync(job_id: int, job, template: Dict, db) -> Dict:
                 run_log.append({"url": source_url, "outcome": "error", "error": str(exc)})
                 logger.error(f"[Job {job_id}] MasterOcean error syncing {source_url}: {exc}")
 
-    # Archive listings that were not seen in this run — only if every listing_type's
-    # fetch completed successfully. A partial fetch (fewer pages than the API's
-    # own `total` said existed) must never be treated as "those yachts are gone".
-    if fetch_complete:
-        stats["archived"] += _archive_disappeared(job_id, seen_source_urls, db)
-    else:
-        logger.warning(
-            f"[Job {job_id}] MasterOcean: skipping archival — at least one listing_type's fetch "
-            f"was incomplete this run, so 'not seen' can't be trusted as 'no longer listed'."
-        )
-        run_log.append({"outcome": "archival_skipped_incomplete_fetch"})
-        stats["archival_skipped"] = True
+        type_seen_urls[listing_type] = seen_this_type
+
+    # Archive listings not seen this run — scoped per type, so a completed
+    # Sale fetch can archive stale Sale listings even if Charter's fetch (or
+    # vice versa) was incomplete. A partial fetch (fewer pages than the API's
+    # own `total` said existed) must never be treated as "those yachts are gone"
+    # for the type it belongs to.
+    if "Sale" in type_seen_urls:
+        if type_complete.get("Sale"):
+            stats["archived"] += _archive_disappeared(
+                job_id, type_seen_urls["Sale"], db, ("masterocean://sale/",)
+            )
+        else:
+            logger.warning(f"[Job {job_id}] MasterOcean: skipping Sale archival — fetch was incomplete this run.")
+            run_log.append({"outcome": "archival_skipped_incomplete_fetch", "listing_type": "Sale"})
+            stats["archival_skipped"] = True
+
+    charter_types = [t for t in ("Charter", "Event") if t in type_seen_urls]
+    if charter_types:
+        if all(type_complete.get(t) for t in charter_types):
+            seen_charter: set = set()
+            for t in charter_types:
+                seen_charter |= type_seen_urls[t]
+            prefixes = tuple(f"masterocean://{t.lower()}/" for t in charter_types)
+            stats["archived"] += _archive_disappeared(job_id, seen_charter, db, prefixes)
+        else:
+            logger.warning(
+                f"[Job {job_id}] MasterOcean: skipping Charter/Event archival — "
+                f"at least one of {charter_types}'s fetch was incomplete this run."
+            )
+            run_log.append({"outcome": "archival_skipped_incomplete_fetch", "listing_type": "Charter/Event"})
+            stats["archival_skipped"] = True
 
     stats["log"] = run_log
     return stats
@@ -462,11 +510,11 @@ def _sync_charter(job_id, job, basic: Dict, detail: Optional[Dict], source_url: 
         .first()
     )
 
-    if existing_scraped and existing_scraped.listing_id:
+    if existing_scraped and existing_scraped.charter_listing_id:
         # Update existing CharterListing — but not if the dealer trashed it.
         # Falls through to create a fresh, visible row instead, matching
         # _sync_sale's deleted_at guard below.
-        charter = db.query(CharterListing).filter(CharterListing.id == existing_scraped.listing_id).first()
+        charter = db.query(CharterListing).filter(CharterListing.id == existing_scraped.charter_listing_id).first()
         if charter and charter.deleted_at is None:
             _apply_charter_fields(charter, title, vessel_name, mapped)
             # Heal rows created before this ownership fix (previously created with
@@ -493,7 +541,7 @@ def _sync_charter(job_id, job, basic: Dict, detail: Optional[Dict], source_url: 
 
     scraped = ScrapedListing(
         job_id=job_id,
-        listing_id=charter.id,  # reusing listing_id to point to charter
+        charter_listing_id=charter.id,
         source_url=source_url,
     )
     db.add(scraped)
@@ -576,11 +624,17 @@ def _sync_sale(job_id, job, basic: Dict, detail: Optional[Dict], source_url: str
     run_log.append({"url": source_url, "outcome": "created"})
 
 
-def _archive_disappeared(job_id: int, seen_source_urls: set, db) -> int:
+def _archive_disappeared(job_id: int, seen_source_urls: set, db, url_prefixes: "tuple[str, ...]") -> int:
     """Archive (never delete) ScrapedListings/Listings/CharterListings not seen
     this run, with the same suspicious-drop safety threshold as the main HTML
     scraper (run_scraper_job in scraper.py) — a partial fetch shouldn't be able
-    to mass-archive a dealer's live inventory."""
+    to mass-archive a dealer's live inventory.
+
+    Scoped to `url_prefixes` (e.g. just "masterocean://sale/") so that a caller
+    can archive one listing_type's disappeared rows independently of another's
+    — see run_master_ocean_sync, which calls this once per completed type
+    rather than once for the whole run, so an incomplete Charter fetch can't
+    block archival of Sale listings that fetched fine (or vice versa)."""
     from app.models.listing import Listing
     from app.models.charter import CharterListing
     from app.models.misc import ScrapedListing
@@ -590,13 +644,14 @@ def _archive_disappeared(job_id: int, seen_source_urls: set, db) -> int:
         .filter(ScrapedListing.job_id == job_id, ScrapedListing.still_active == True)
         .all()
     )
-    would_archive = [row for row in all_scraped if row.source_url not in seen_source_urls]
+    scoped = [row for row in all_scraped if row.source_url.startswith(url_prefixes)]
+    would_archive = [row for row in scoped if row.source_url not in seen_source_urls]
 
-    previously_tracked_count = len(all_scraped)
+    previously_tracked_count = len(scoped)
     drop_ratio = (len(would_archive) / previously_tracked_count) if previously_tracked_count else 0.0
     if (len(seen_source_urls) == 0 and previously_tracked_count > 0) or (previously_tracked_count >= 5 and drop_ratio > 0.5):
         logger.warning(
-            f"[Job {job_id}] MasterOcean: skipping archival — would archive "
+            f"[Job {job_id}] MasterOcean: skipping archival for {url_prefixes} — would archive "
             f"{len(would_archive)}/{previously_tracked_count} tracked listings ({drop_ratio:.0%}), "
             f"over the safety threshold."
         )
@@ -605,19 +660,20 @@ def _archive_disappeared(job_id: int, seen_source_urls: set, db) -> int:
     archived = 0
     for row in would_archive:
         row.still_active = False
-        if not row.listing_id:
-            continue
         # source_url is "masterocean://<charter|sale|event>/<id>" (see run_master_ocean_sync)
-        # — listing_id is reused to point into either Listing or CharterListing depending
-        # on that prefix, and those are separate ID sequences that can collide, so we must
-        # use the prefix rather than probing both tables by primary key.
+        # — charter/event rows point into CharterListing via charter_listing_id,
+        # sale rows point into Listing via listing_id (separate columns/id spaces).
         is_charter = row.source_url.startswith("masterocean://charter/") or row.source_url.startswith("masterocean://event/")
         if is_charter:
-            charter = db.query(CharterListing).filter(CharterListing.id == row.listing_id).first()
+            if not row.charter_listing_id:
+                continue
+            charter = db.query(CharterListing).filter(CharterListing.id == row.charter_listing_id).first()
             if charter and charter.status == "active":
                 charter.status = "inactive"
                 archived += 1
         else:
+            if not row.listing_id:
+                continue
             listing = db.query(Listing).filter(Listing.id == row.listing_id).first()
             if listing and listing.deleted_at is None and listing.status == "active":
                 listing.status = "archived"

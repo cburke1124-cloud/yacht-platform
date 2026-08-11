@@ -175,6 +175,11 @@ class ScrapedListing(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("scraper_jobs.id"), index=True)
     listing_id = Column(Integer, ForeignKey("listings.id"), index=True)
+    # Separate from listing_id (which is strictly a Listing FK) because charter
+    # sync rows need to track a CharterListing.id — a different table's id
+    # space — and overloading listing_id for that only worked by coincidence
+    # (see migration 057).
+    charter_listing_id = Column(Integer, ForeignKey("charter_listings.id"), index=True)
 
     source_url = Column(String, nullable=False, index=True)
     last_seen = Column(DateTime, default=datetime.utcnow)
