@@ -1,13 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import base64
+import io
 import json
 import os
 import re
 import requests as _requests
 from datetime import datetime
+from PIL import Image, ImageOps
+
+from app.core.limiter import limiter
+from app.core.ai_models import TEXT_EXTRACTION_MODEL, VISION_MODEL
 
 from app.db.session import get_db
 from app.models.listing import Listing
@@ -221,15 +227,15 @@ class ScoredListing(BaseModel):
     warnings: Optional[List[str]] = None
 
 
-def extract_search_criteria(query: str) -> SearchCriteria:
-    """Use Claude to extract structured search criteria from natural language"""
-    
-    prompt = f"""You are a yacht search assistant. Extract search criteria from this query:
-
-"{query}"
+# Static instructions for extract_search_criteria — kept byte-identical across
+# calls (no interpolation) and sent as a cached `system` block, since Anthropic
+# prompt caching only produces a cache hit when the cached prefix is exactly
+# the same on every request. The variable part (the user's query) is sent
+# separately as a short `messages` entry.
+_SEARCH_CRITERIA_STATIC_PROMPT = """You are a yacht search assistant. Extract search criteria from the user's query.
 
 Return ONLY a JSON object with these fields (use null for unspecified):
-{{
+{
   "make": "exact brand/manufacturer name" or null,
   "model": "exact model name" or null,
   "boat_name": "specific vessel/boat name if the query names one, e.g. 'Serenity Now'" or null,
@@ -245,7 +251,7 @@ Return ONLY a JSON object with these fields (use null for unspecified):
   "locations": ["Florida", "Caribbean", etc.] or null,
   "features": ["fishing equipment", "party deck", "entertainment system", etc.] or null,
   "use_case": "party" | "fishing" | "cruising" | "racing" | "living" | null
-}}
+}
 
 IMPORTANT — make/model/boat_name extraction:
 - If the query mentions a brand name (e.g. "Cheoy Lee", "Azimut", "Hatteras", "Sunseeker", "Ferretti", "Beneteau"), set "make" to that exact brand name.
@@ -265,6 +271,10 @@ Key conversions:
 
 Return ONLY valid JSON, no markdown or explanations."""
 
+
+def extract_search_criteria(query: str) -> SearchCriteria:
+    """Use Claude to extract structured search criteria from natural language"""
+
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
         return SearchCriteria(features=[query.lower()])
@@ -278,9 +288,16 @@ Return ONLY valid JSON, no markdown or explanations."""
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-sonnet-4-20250514",
+                "model": TEXT_EXTRACTION_MODEL,
                 "max_tokens": 1000,
-                "messages": [{"role": "user", "content": prompt}],
+                "system": [
+                    {
+                        "type": "text",
+                        "text": _SEARCH_CRITERIA_STATIC_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                "messages": [{"role": "user", "content": f'Query: "{query}"'}],
             },
             timeout=20,
         )
@@ -573,8 +590,25 @@ def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Se
     )
 
 
+def _ai_search_response(query: str, max_results: int, db: Session) -> dict:
+    """Shared body for /ai and /ai/search. Kept as a plain (undecorated)
+    function — rather than having one route call the other directly — so
+    each route's own @limiter.limit(...) is checked exactly once per
+    incoming request instead of double-counting against the rate limit."""
+    try:
+        criteria = extract_search_criteria(query)
+        return _run_for_sale_search(criteria, query, max_results, db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI search failed: {str(e)}"
+        )
+
+
 @router.get("/ai/search")
+@limiter.limit("60/hour")
 async def ai_search_get(
+    request: Request,
     query: str,
     db: Session = Depends(get_db)
 ):
@@ -582,8 +616,7 @@ async def ai_search_get(
     GET version of AI search — called by the listings page.
     Accepts ?query= and returns the same shape as the POST endpoint.
     """
-    request = AISearchRequest(query=query)
-    return await ai_search(request, db)
+    return _ai_search_response(query, AISearchRequest(query=query).max_results, db)
 
 
 def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results: int, db: Session) -> dict:
@@ -768,8 +801,10 @@ def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results:
 
 
 @router.post("/ai")
+@limiter.limit("60/hour")
 async def ai_search(
-    request: AISearchRequest,
+    request: Request,
+    payload: AISearchRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -780,14 +815,7 @@ async def ai_search(
     - "Fishing boat under $500k in Florida"
     - "Luxury sailing yacht 60+ feet, Mediterranean"
     """
-    try:
-        criteria = extract_search_criteria(request.query)
-        return _run_for_sale_search(criteria, request.query, request.max_results, db)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"AI search failed: {str(e)}"
-        )
+    return _ai_search_response(payload.query, payload.max_results, db)
 
 
 @router.get("/ai/suggestions")
@@ -857,18 +885,21 @@ class ScoredCharter(BaseModel):
     warnings: Optional[List[str]] = None
 
 
+# Static instructions for extract_unified_criteria — kept byte-identical
+# across calls (no interpolation, no .format()) and sent as a cached `system`
+# block. The variable part (the user's query) is sent separately as a short
+# `messages` entry, since caching only hits when the cached prefix is exactly
+# the same on every request.
 _UNIFIED_SEARCH_PROMPT = """You are a yacht marketplace search assistant. This platform has two kinds of inventory:
 1. Yachts FOR SALE (purchase)
 2. Yacht CHARTERS (renting a crewed or bareboat vessel for a trip, by the day/week)
 
 First, classify the user's intent, then extract structured search criteria for that intent.
 
-Query: "{query}"
-
 Classify intent as "charter" if the query mentions or implies: renting, chartering, a trip/vacation with a date range or duration ("a week", "long weekend", "5 days"), number of guests/people for a vacation, crewed vs bareboat, day/week rates, destinations framed as a vacation ("in the BVI", "in Greece for a family of 6"), or occasions like honeymoon, family reunion, dive trip, fishing charter, corporate event, bachelor/bachelorette party trip. Classify intent as "for_sale" if the query mentions or implies: buying, purchasing, owning, price/budget framed as a purchase, make/model/year of a boat to own, or has no rental/trip framing at all. Default to "for_sale" if genuinely ambiguous.
 
 Return ONLY a JSON object with these fields (use null for unspecified, and leave charter-only or for-sale-only fields null when they do not apply to the classified intent):
-{{
+{
   "intent": "for_sale" | "charter",
   "make": "exact brand/manufacturer name" or null,
   "model": "exact model name" or null,
@@ -895,7 +926,7 @@ Return ONLY a JSON object with these fields (use null for unspecified, and leave
   "trip_length_days": number or null,
   "min_charter_days": number or null,
   "charter_use_case": "honeymoon" | "family_reunion" | "dive_trip" | "fishing_charter" | "corporate_event" | "bareboat_sailing" | "crewed_luxury" | null
-}}
+}
 
 IMPORTANT — make/model/boat_name extraction:
 - If the query mentions a brand name (e.g. "Cheoy Lee", "Azimut", "Hatteras", "Sunseeker", "Ferretti", "Beneteau", "Lagoon", "Fountaine Pajot"), set "make" to that exact brand name.
@@ -932,8 +963,6 @@ Return ONLY valid JSON, no markdown or explanations."""
 def extract_unified_criteria(query: str) -> UnifiedSearchCriteria:
     """Use Claude to classify buy-vs-charter intent and extract structured criteria in one call."""
 
-    prompt = _UNIFIED_SEARCH_PROMPT.format(query=query)
-
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
         return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
@@ -947,9 +976,16 @@ def extract_unified_criteria(query: str) -> UnifiedSearchCriteria:
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-sonnet-5",
+                "model": TEXT_EXTRACTION_MODEL,
                 "max_tokens": 1200,
-                "messages": [{"role": "user", "content": prompt}],
+                "system": [
+                    {
+                        "type": "text",
+                        "text": _UNIFIED_SEARCH_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                "messages": [{"role": "user", "content": f'Query: "{query}"'}],
             },
             timeout=20,
         )
@@ -1240,13 +1276,14 @@ def score_charter(charter: CharterListing, criteria: UnifiedSearchCriteria, quer
 
 
 @router.post("/ai/smart-search")
-async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db)):
+@limiter.limit("60/hour")
+async def ai_smart_search(request: Request, payload: AISearchRequest, db: Session = Depends(get_db)):
     """
     Unified AI search: classifies buy-vs-charter intent from natural language,
     then searches the appropriate inventory (Listing or CharterListing).
     """
     try:
-        criteria = extract_unified_criteria(request.query)
+        criteria = extract_unified_criteria(payload.query)
 
         if criteria.intent == "charter":
             query = db.query(CharterListing).filter(CharterListing.status == "active")
@@ -1336,7 +1373,7 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
             if not candidates:
                 return {
                     "intent": "charter",
-                    "query": request.query,
+                    "query": payload.query,
                     "understood_criteria": criteria.dict(),
                     "search_context": {
                         "no_exact_make": criteria.make if criteria.make and not exact_make_exists else None,
@@ -1350,11 +1387,11 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
             scored = []
             for c in candidates:
                 try:
-                    scored.append(score_charter(c, criteria, request.query, db))
+                    scored.append(score_charter(c, criteria, payload.query, db))
                 except Exception:
                     pass
             scored.sort(key=lambda x: x.score, reverse=True)
-            top_results = scored[: request.max_results]
+            top_results = scored[: payload.max_results]
 
             search_context: Dict[str, Any] = {}
             if criteria.boat_types and not matching_boat_types:
@@ -1375,7 +1412,7 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
 
             return {
                 "intent": "charter",
-                "query": request.query,
+                "query": payload.query,
                 "understood_criteria": criteria.dict(),
                 "search_context": search_context,
                 "total_found": len(candidates),
@@ -1394,9 +1431,139 @@ async def ai_smart_search(request: AISearchRequest, db: Session = Depends(get_db
         # logic via _run_for_sale_search, using the criteria already extracted above
         # (converted through _to_legacy_criteria) — no second Claude call.
         legacy_criteria = _to_legacy_criteria(criteria)
-        response = _run_for_sale_search(legacy_criteria, request.query, request.max_results, db)
+        response = _run_for_sale_search(legacy_criteria, payload.query, payload.max_results, db)
         response["intent"] = "for_sale"
         return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI search failed: {str(e)}")
+
+
+# =============================================================================
+# Image-based search — "upload a photo, find similar listings". Reuses the
+# same extract -> score -> _run_for_sale_search pipeline as text search; only
+# the extraction step differs (a vision call instead of a text call).
+# =============================================================================
+
+IMAGE_SEARCH_MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8MB — this is classified, not stored
+IMAGE_SEARCH_MAX_EDGE = 1024  # downscale before sending to keep vision token cost low
+ALLOWED_IMAGE_SEARCH_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+_IMAGE_SEARCH_PROMPT = """You are a yacht identification assistant. Look at this photo of a boat and identify what you can about it, so it can be matched against a marketplace's active inventory.
+
+Return ONLY a JSON object with these fields (use null/[] for anything you can't tell from the photo):
+{
+  "boat_types": ["Motor Yacht", "Sailing Yacht", "Catamaran", "Sport Fisher", "Trawler", "Mega Yacht", "Express Cruiser", "Center Console", "Sloop"] — pick the 1-2 closest categories, or [] if genuinely unclear,
+  "make": "manufacturer name, ONLY if you recognize a visible logo/hull badge or the hull shape is distinctively identifiable to a specific builder — otherwise null. Do not guess a make from generic styling.",
+  "estimated_length_feet": number or null — rough visual estimate only,
+  "features": ["flybridge", "hardtop", "swim platform", "tuna tower", etc.] — visible style/equipment cues, not guesses about interior,
+  "confidence": "high" | "medium" | "low" — your overall confidence in boat_types
+}
+
+Only use boat_types values from the list above — never invent a new category string. Be conservative: a wrong boat_type filters out correct matches, so if you're unsure between two categories, include both rather than guessing one.
+
+Return ONLY valid JSON, no markdown or explanations."""
+
+
+def _downscale_for_vision(file_bytes: bytes) -> tuple[str, str]:
+    """Strip EXIF, downscale to IMAGE_SEARCH_MAX_EDGE, re-encode as JPEG.
+    Returns (base64_data, media_type). Keeping the upload small keeps the
+    vision call's token cost (and thus its API cost) small — an unscaled
+    photo straight off a phone can be 4-8x more tokens than this needs."""
+    img = Image.open(io.BytesIO(file_bytes))
+    img = ImageOps.exif_transpose(img)  # apply orientation, then EXIF is discarded below
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    width, height = img.size
+    if max(width, height) > IMAGE_SEARCH_MAX_EDGE:
+        ratio = IMAGE_SEARCH_MAX_EDGE / max(width, height)
+        img = img.resize((max(1, int(width * ratio)), max(1, int(height * ratio))), Image.Resampling.LANCZOS)
+
+    output = io.BytesIO()
+    img.save(output, format="JPEG", quality=85)
+    return base64.b64encode(output.getvalue()).decode("ascii"), "image/jpeg"
+
+
+def extract_criteria_from_image(image_b64: str, media_type: str) -> SearchCriteria:
+    """Vision equivalent of extract_search_criteria: identify boat_types/make/
+    features from a photo, then hand off to the same scoring pipeline used
+    for text search."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
+    if not api_key:
+        return SearchCriteria()
+
+    try:
+        response = _requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": VISION_MODEL,
+                "max_tokens": 500,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": media_type, "data": image_b64},
+                        },
+                        {"type": "text", "text": _IMAGE_SEARCH_PROMPT},
+                    ],
+                }],
+            },
+            timeout=30,
+        )
+        if not response.ok:
+            return SearchCriteria()
+        payload = response.json()
+        text_block = next((b for b in payload.get("content", []) if b.get("type") == "text"), None)
+        if not text_block:
+            return SearchCriteria()
+        content = re.sub(r"^```json\s*|\s*```$", "", text_block.get("text", "").strip()).strip()
+        parsed = json.loads(content)
+        return SearchCriteria(
+            make=parsed.get("make"),
+            boat_types=parsed.get("boat_types") or None,
+            max_length=(parsed.get("estimated_length_feet") * 1.25) if parsed.get("estimated_length_feet") else None,
+            min_length=(parsed.get("estimated_length_feet") * 0.75) if parsed.get("estimated_length_feet") else None,
+            features=parsed.get("features") or None,
+        )
+    except Exception:
+        return SearchCriteria()
+
+
+@router.post("/ai/search-by-image")
+@limiter.limit("10/hour")
+async def ai_search_by_image(
+    request: Request,
+    file: UploadFile = File(...),
+    max_results: int = 10,
+    db: Session = Depends(get_db),
+):
+    """Upload a photo of a yacht; identify its type/make/style via a vision
+    call, then run the same scoring pipeline as text search against active
+    inventory. Rate-limited (unlike /ai) because image uploads cost more per
+    call and are easier to spam than typing a query."""
+    if file.content_type not in ALLOWED_IMAGE_SEARCH_TYPES:
+        raise HTTPException(status_code=400, detail="Please upload a JPEG, PNG, or WebP image.")
+
+    raw = await file.read()
+    if len(raw) > IMAGE_SEARCH_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Image is too large (8MB max).")
+
+    try:
+        image_b64, media_type = _downscale_for_vision(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Couldn't read that image file.")
+
+    try:
+        criteria = extract_criteria_from_image(image_b64, media_type)
+        result = _run_for_sale_search(criteria, "[image search]", max_results, db)
+        result["image_criteria"] = criteria.dict()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image search failed: {str(e)}")

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Mic, MicOff, Sparkles, X, Volume2, Star, AlertTriangle } from 'lucide-react';
+import { Search, Mic, MicOff, Sparkles, X, Volume2, Star, AlertTriangle, Save } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
@@ -193,6 +193,23 @@ export default function AISearchComponent() {
     }
   };
 
+  const handleSaveSearch = async () => {
+    if (!searchResults) return;
+    const token = localStorage.getItem('token');
+    if (!token) { router.push('/login'); return; }
+    try {
+      const res = await fetch(apiUrl('/search-alerts'), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `AI Search: ${searchResults.query}`,
+          filters: { ai_query: searchResults.query, intent: searchResults.intent },
+        }),
+      });
+      alert(res.ok ? 'Search saved!' : 'Failed to save search');
+    } catch { alert('Failed to save search'); }
+  };
+
   const speakText = (text: string) => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
@@ -344,12 +361,21 @@ export default function AISearchComponent() {
           <div className="bg-white rounded-xl shadow-md p-6 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-gray-900">🧠 What I understood:</h3>
-              <button
-                onClick={viewInListings}
-                className="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Refine with Filters →
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveSearch}
+                  className="flex items-center gap-1.5 text-sm px-4 py-2 bg-white text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Save size={16} />
+                  Save this search
+                </button>
+                <button
+                  onClick={viewInListings}
+                  className="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Refine with Filters →
+                </button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {searchResults.understood_criteria.boat_types && (

@@ -361,8 +361,9 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
   const [listings, setListings] = useState<Listing[]>(initialListings);
   const [loading, setLoading] = useState(!hasInitialData);
   const [fetchError, setFetchError] = useState(false);
-  const [searchType, setSearchType] = useState<'basic' | 'ai'>('basic');
-  const [aiQuery, setAiQuery] = useState('');
+  const initialAiQuery = searchParams.get('ai_query') || '';
+  const [searchType, setSearchType] = useState<'basic' | 'ai'>(initialAiQuery ? 'ai' : 'basic');
+  const [aiQuery, setAiQuery] = useState(initialAiQuery);
   const [aiSearchContext, setAiSearchContext] = useState<{ no_exact_make?: string; exact_make?: string; showing_similar?: boolean } | null>(null);
   const [sort, setSort] = useState<string>('nearest');
   const [page, setPage] = useState(() => {
@@ -533,7 +534,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [fetchListings, sort, pageSize, updatePageInUrl]);
 
-  useEffect(() => { fetchListings(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchListings(searchType === 'ai'); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced auto-apply
   useEffect(() => {
@@ -612,11 +613,15 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
   const handleSaveSearch = async () => {
     const token = localStorage.getItem('token');
     if (!token) { router.push('/login'); return; }
+    const isAiSearch = searchType === 'ai' && aiQuery.trim();
+    const body = isAiSearch
+      ? { name: `AI Search: ${aiQuery}`, filters: { ai_query: aiQuery, intent: 'for_sale' } }
+      : { name: `Search: ${filters.search || filters.boat_type || 'All Yachts'}`, filters };
     try {
       const res = await fetch(apiUrl('/search-alerts'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `Search: ${filters.search || filters.boat_type || 'All Yachts'}`, filters }),
+        body: JSON.stringify(body),
       });
       alert(res.ok ? 'Search saved!' : 'Failed to save search');
     } catch { alert('Failed to save search'); }
@@ -644,7 +649,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
             Skip the Filters
           </h2>
           <form
-            onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setPage(0); updatePageInUrl(0); fetchListings(true, 0, sort); } }}
+            onSubmit={(e) => { e.preventDefault(); if (aiQuery.trim()) { setSearchType('ai'); setPage(0); updatePageInUrl(0); fetchListings(true, 0, sort); } }}
             className="flex items-center gap-2 mx-auto"
             style={{ maxWidth: 960 }}
             role="search"
@@ -655,7 +660,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                 type="search"
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setPage(0); updatePageInUrl(0); fetchListings(true, 0, sort); } } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiQuery.trim()) { setSearchType('ai'); setPage(0); updatePageInUrl(0); fetchListings(true, 0, sort); } } }}
                 placeholder="Describe your ideal yacht — size, lifestyle, budget, cruising plans…"
                 className="w-full focus:outline-none"
                 style={{

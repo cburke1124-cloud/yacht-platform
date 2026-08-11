@@ -97,6 +97,7 @@ export default function SearchAlertsPage() {
   };
 
   const formatCriteria = (criteria: any) => {
+    if (criteria.ai_query) return `AI search: "${criteria.ai_query}"`;
     const parts = [];
     if (criteria.boat_type) parts.push(`Type: ${criteria.boat_type}`);
     if (criteria.min_price) parts.push(`Min: $${criteria.min_price.toLocaleString()}`);
@@ -237,9 +238,25 @@ export default function SearchAlertsPage() {
                     </button>
                     <button
                       onClick={() => {
-                        // Navigate to advanced search with these criteria pre-filled
-                        const params = new URLSearchParams(alert.search_criteria);
-                        router.push(`/search/advanced?${params.toString()}`);
+                        const criteria = alert.search_criteria || {};
+                        if (criteria.ai_query) {
+                          // Mirrors AISearchComponent's own viewInListings():
+                          // charter intent has no query-param support on
+                          // /charter today, so land there bare rather than
+                          // pretending to pre-fill it.
+                          if (criteria.intent === 'charter') {
+                            router.push('/charter');
+                          } else {
+                            router.push(`/listings?ai_query=${encodeURIComponent(criteria.ai_query)}`);
+                          }
+                          return;
+                        }
+                        const params = new URLSearchParams(
+                          Object.entries(criteria)
+                            .filter(([, v]) => v !== null && v !== undefined && v !== '')
+                            .map(([k, v]) => [k, String(v)])
+                        );
+                        router.push(`/listings?${params.toString()}`);
                       }}
                       className="flex-1 px-4 py-2 bg-[#01BBDC]/10 text-[#01BBDC] rounded-lg font-medium hover:bg-[#01BBDC]/20 border border-[#01BBDC]/30 transition-colors"
                     >
