@@ -229,6 +229,31 @@ def test_headless_discovery_follows_pagination(scraper, monkeypatch):
     assert any("/page/2/" in u for u in fetched_urls), "pagination link discovered in rendered HTML should have been followed"
 
 
+def test_proxy_auth_failure_is_flagged_distinctly_from_a_site_block(scraper, monkeypatch):
+    """An expired/invalid ScraperAPI subscription (401/403 from ScraperAPI
+    itself) must be flagged on the scraper instance so run_scraper_job can
+    surface it as job.last_error — otherwise it's indistinguishable from the
+    target site blocking us, and every recurrence needs a fresh investigation."""
+    monkeypatch.setattr(scraper_module, "_SCRAPER_PROXY_URL", "http://scraperapi:badkey@proxy-server.scraperapi.com:8001")
+
+    class _FakeResp:
+        status_code = 401
+        text = "Invalid API key or subscription expired"
+
+    def fake_get(url, headers=None, params=None, timeout=None):
+        assert "api.scraperapi.com" in url
+        return _FakeResp()
+
+    monkeypatch.setattr(scraper_module.requests, "get", fake_get)
+
+    assert scraper._proxy_auth_failed is None
+    result = scraper._proxy_fetch("https://example.test/yachts")
+    assert result is None
+    assert scraper._proxy_auth_failed is not None
+    assert "401" in scraper._proxy_auth_failed
+    scraper._proxy_auth_failed = None  # reset — `scraper` fixture is module-scoped/shared
+
+
 def test_master_ocean_archive_disappeared_only_archives_never_deletes(db, owner, cleanup):
     """_archive_disappeared must flip Listing.status, never touch deleted_at."""
     job = ScraperJob(

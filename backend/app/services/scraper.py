@@ -368,6 +368,14 @@ class OptimizedYachtScraper:
         # once it's clear every remaining URL will fail the same way, instead of
         # burning through the whole discovered list on guaranteed failures.
         self._consecutive_blocks = 0
+        # Set to a human-readable reason the first time SCRAPER_PROXY_URL
+        # rejects a request with an auth/subscription-style error (401/403
+        # from ScraperAPI) — as opposed to the *site* blocking us, which is
+        # the normal/expected case the proxy exists to route around. Surfaced
+        # in job.last_error so an expired proxy subscription shows up in the
+        # admin Scraper tab instead of looking identical to "site is blocking
+        # us" and requiring a full re-investigation every time it recurs.
+        self._proxy_auth_failed: Optional[str] = None
         # Job-level wall-clock budget for headless-browser fetches. Each
         # individual fetch_page_headless call can legitimately take up to ~360s
         # (a fresh deploy's one-time Playwright install), but with no overall
@@ -530,6 +538,17 @@ class OptimizedYachtScraper:
                 if render:
                     api_endpoint += "&render=true"
                 resp = requests.get(api_endpoint, headers=self.headers, timeout=timeout + 20)
+                if resp.status_code in (401, 403):
+                    # ScraperAPI's own auth/subscription failure, not the target
+                    # site blocking us — distinguish so this doesn't just read as
+                    # "site is blocking us" on every subsequent job run.
+                    self._proxy_auth_failed = (
+                        f"ScraperAPI rejected the request with {resp.status_code} — "
+                        f"check that SCRAPER_PROXY_URL's API key is valid and the "
+                        f"subscription is active: {resp.text[:200]}"
+                    )
+                    logger.error(f"_proxy_fetch: {self._proxy_auth_failed}")
+                    return None
                 resp.raise_for_status()
                 return resp.text
             # ── Generic HTTP/SOCKS proxy — CONNECT tunnel ────────────────────
@@ -3981,6 +4000,12 @@ def run_scraper_job(job_id: int, db) -> Dict:
         job.total_runs = (job.total_runs or 0) + 1
         job.next_run_at = datetime.utcnow() + timedelta(hours=int(job.schedule_hours or 24))
         job.last_run_log = run_log
+        # A "completed" run that quietly found nothing because the proxy
+        # itself is broken (expired subscription, bad key) deserves a visible
+        # error, distinct from job.status — status reflects "did the run
+        # crash", not "did the proxy actually work".
+        if scraper._proxy_auth_failed:
+            job.last_error = scraper._proxy_auth_failed
         db.commit()
 
         # Diagnostic: verify what actually landed in the DB for this dealer
