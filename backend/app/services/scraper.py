@@ -1702,6 +1702,13 @@ except Exception as e:
                 if page_url in visited:
                     continue
                 visited.add(page_url)
+                if pages_rendered > 0:
+                    # Same reasoning as the jittered delay between listing
+                    # fetches in run_scraper_job: rendering pages back-to-back
+                    # with zero delay reads as bot traffic to a WAF and risks
+                    # getting the platform blocked harder than a single slow
+                    # page ever would.
+                    time.sleep(random.uniform(0.6, 1.4))
                 pages_rendered += 1
 
                 html = self.fetch_page_headless(page_url, timeout=30)
