@@ -1101,6 +1101,26 @@ except Exception as e:
             except re.error:
                 pass  # bad pattern — skip silently
 
+    @staticmethod
+    def _is_pagination_link(href: str, base_url: str) -> bool:
+        """Detect pagination links (page=X, /page/X, rel=next, etc.) — shared by
+        the static BFS crawl and the headless-browser discovery fallback, since
+        both need to recognize the same pagination shapes."""
+        # Check for explicit page/paging parameters
+        if re.search(r'[?&](?:page|paged|p)=\d+', href, re.IGNORECASE):
+            return True
+        # Check for /page/X/ pattern (common in WordPress)
+        if re.search(r'/page/\d+/?$', href, re.IGNORECASE):
+            return True
+        # Check for ?offset=X or ?start=X patterns
+        if re.search(r'[?&](?:offset|start|skip)=\d+', href, re.IGNORECASE):
+            return True
+        # Yacht broker CMS pattern: ?SERVICE=YACHTS&TG_KE_PRODUCT_STATS=<obfuscated hex>
+        # Used by sites like rickobeyyachtsales.com for paginating their inventory.
+        if 'TG_KE_PRODUCT_STATS=' in href or 'SERVICE=YACHTS' in href or 'SERVICE=YACHTWORLD' in href:
+            return True
+        return False
+
     def find_listing_urls(self, site_url: str, max_pages: int = 100, template: Optional[Dict] = None) -> List[str]:
         """
         Crawl a broker site and return a de-duped list of individual listing URLs.
@@ -1234,22 +1254,7 @@ except Exception as e:
         def is_inventory_page(path: str) -> bool:
             return any(kw in path for kw in inventory_keywords)
 
-        def is_pagination_link(href: str, base_url: str) -> bool:
-            """Detect pagination links (page=X, /page/X, rel=next, etc.)"""
-            # Check for explicit page/paging parameters
-            if re.search(r'[?&](?:page|paged|p)=\d+', href, re.IGNORECASE):
-                return True
-            # Check for /page/X/ pattern (common in WordPress)
-            if re.search(r'/page/\d+/?$', href, re.IGNORECASE):
-                return True
-            # Check for ?offset=X or ?start=X patterns
-            if re.search(r'[?&](?:offset|start|skip)=\d+', href, re.IGNORECASE):
-                return True
-            # Yacht broker CMS pattern: ?SERVICE=YACHTS&TG_KE_PRODUCT_STATS=<obfuscated hex>
-            # Used by sites like rickobeyyachtsales.com for paginating their inventory.
-            if 'TG_KE_PRODUCT_STATS=' in href or 'SERVICE=YACHTS' in href or 'SERVICE=YACHTWORLD' in href:
-                return True
-            return False
+        is_pagination_link = self._is_pagination_link
 
         pages_crawled = 0
         while queue and pages_crawled < max_pages:
@@ -1394,7 +1399,7 @@ except Exception as e:
             if not headless_targets:
                 headless_targets = [(site_url, True)]
             logger.info(f"Static crawl found {len(listing_urls)} listings; retrying with headless browser")
-            headless_urls = self._discover_with_headless(base_domain, headless_targets, inventory_keywords, listing_path_patterns)
+            headless_urls = self._discover_with_headless(base_domain, headless_targets, inventory_keywords, listing_path_patterns, seed_filter_params=_seed_filter_params)
             if headless_urls:
                 listing_urls.update(headless_urls)
                 logger.info(f"Headless browser added {len(headless_urls)} listings, total now: {len(listing_urls)}")
@@ -1651,13 +1656,27 @@ except Exception as e:
                 break  # stop after first successful sitemap
         return found
 
-    def _discover_with_headless(self, base_domain: str, inventory_pages: List[Tuple[str, bool]], 
-                                inventory_keywords: List[str], listing_path_patterns: List[str]) -> set:
+    # Headless rendering is a slow, subprocess-based fallback — cap how many
+    # pages a single stubborn/JS-only site can force us to render per run.
+    _HEADLESS_MAX_PAGES = 20
+
+    def _discover_with_headless(self, base_domain: str, inventory_pages: List[Tuple[str, bool]],
+                                inventory_keywords: List[str], listing_path_patterns: List[str],
+                                seed_filter_params: str = '') -> set:
         """Retry discovery using headless browser for AJAX-heavy sites.
-        Fetches known inventory pages with JavaScript executed and extracts listings."""
+        Fetches known inventory pages with JavaScript executed and extracts listings.
+
+        Also follows pagination discovered in the *rendered* HTML — a site whose
+        static fetch gets blocked (so the static BFS crawl never sees real
+        pagination links) but whose headless render succeeds still has multiple
+        pages of inventory beyond whichever single page seeded this call.
+        Without this, only page 1's listings were ever found (see the
+        bviyachtsales.com case: static fetch blocked, headless rendered page 1
+        fine, but pages 2-6 — reachable via plain `/page/N/` links once JS
+        runs — were never visited)."""
         if not _PLAYWRIGHT_AVAILABLE or not inventory_pages:
             return set()
-        
+
         found: set = set()
         parsed_base = urlparse(base_domain)
         skip_re = re.compile(
@@ -1665,50 +1684,74 @@ except Exception as e:
             r"|^mailto:|^tel:|javascript:",
             re.IGNORECASE,
         )
-        
+
+        queue: List[str] = []
+        visited: set = set()
+        for page_url, _ in inventory_pages[:5]:
+            if urlparse(page_url).netloc == parsed_base.netloc and page_url not in queue:
+                queue.append(page_url)
+
         try:
             self._init_browser()
             # Note: _init_browser is a no-op; headless fetching is subprocess-based.
             # fetch_page_headless() handles everything — just call it directly.
 
-            # Fetch up to 5 inventory pages with headless browser
-            for page_url, _ in inventory_pages[:5]:
-                if urlparse(page_url).netloc != parsed_base.netloc:
+            pages_rendered = 0
+            while queue and pages_rendered < self._HEADLESS_MAX_PAGES:
+                page_url = queue.pop(0)
+                if page_url in visited:
                     continue
-                
+                visited.add(page_url)
+                pages_rendered += 1
+
                 html = self.fetch_page_headless(page_url, timeout=30)
                 if not html:
                     continue
-                
+
                 logger.info(f"Headless: fetched {page_url}")
-                
+
                 soup = BeautifulSoup(html, "html.parser")
-                
+
                 # Extract listing links from rendered content
                 for a in soup.find_all("a", href=True):
                     href = a["href"].strip()
                     if skip_re.search(href):
                         continue
-                    
+
                     absolute = urljoin(base_domain, href) if not href.startswith("http") else href
                     abs_no_query = absolute.split("#")[0].split("?")[0]
                     abs_with_query = absolute.split("#")[0]
                     has_id_param = bool(self._ID_QUERY_PARAM_RE.search(abs_with_query))
                     abs_clean = abs_with_query if has_id_param else abs_no_query
-                    
+
                     if urlparse(abs_no_query).netloc != parsed_base.netloc:
                         continue
-                    
+
                     # Check if looks like listing
                     if any(re.search(p, abs_no_query, re.IGNORECASE) for p in listing_path_patterns):
                         found.add(abs_clean)
-                
+                    elif self._is_pagination_link(href, base_domain) and abs_clean not in visited and abs_clean not in queue:
+                        # Preserve seed filter params (e.g. ?agent=X) the same way
+                        # the static crawl does, so page 2, 3... don't silently
+                        # widen the scrape beyond what this job was configured for.
+                        target = abs_clean
+                        if seed_filter_params and '?' not in target:
+                            target = f"{target}?{seed_filter_params}"
+                        elif seed_filter_params and '?' in target:
+                            existing_keys = {p.split('=')[0] for p in target.split('?', 1)[1].split('&')}
+                            for _fp in seed_filter_params.split('&'):
+                                _fk = _fp.split('=')[0]
+                                if _fk and _fk not in existing_keys:
+                                    target += f'&{_fp}'
+                        if target not in visited and target not in queue:
+                            queue.append(target)
+
                 # Also check for vessel-card elements
                 for card in soup.find_all("div", class_=lambda c: c and "vessel-card" in " ".join(c)):
                     card_classes = set(card.get("class") or [])
                     if card_classes & self._SOLD_CARD_CLASSES:
                         continue
-                    
+
                     for a in card.find_all("a", href=True):
                         href = a["href"].strip()
                         if not href or skip_re.search(href):
@@ -1723,14 +1766,14 @@ except Exception as e:
                         # Only add if it looks like a real listing (same check as main loop)
                         if has_card_id or any(re.search(p, abs_card_no_query, re.IGNORECASE) for p in listing_path_patterns):
                             found.add(abs_card_clean)
-            
-            logger.info(f"Headless browser discovery found {len(found)} listings")
-            
+
+            logger.info(f"Headless browser discovery found {len(found)} listings across {pages_rendered} page(s)")
+
         except Exception as exc:
             logger.warning(f"Headless browser discovery failed: {exc}")
         finally:
             self._cleanup_browser()
-        
+
         return found
 
     # ---------------------------------------------------------

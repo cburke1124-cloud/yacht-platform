@@ -34,6 +34,7 @@ from app.db.session import SessionLocal
 from app.models.user import User
 from app.models.listing import Listing
 from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, YachtworldSyncJob
+from app.services import scraper as scraper_module
 from app.services.scraper import OptimizedYachtScraper, _apply_scraped_data, run_scraper_job
 from app.services import master_ocean
 from app.services import yachtworld_api
@@ -182,6 +183,50 @@ def test_apply_scraped_data_flags_large_price_swing_instead_of_overwriting():
 
     _apply_scraped_data(listing, {"price": 480000}, job)  # modest, legitimate change
     assert listing.price == 480000, "a modest price change should apply normally"
+
+
+def test_headless_discovery_follows_pagination(scraper, monkeypatch):
+    """_discover_with_headless must follow pagination links found in the
+    *rendered* HTML, not just harvest listings from whichever single page it
+    was seeded with. Reproduces the bviyachtsales.com case: the static crawl
+    finds no pagination links (its fetch is blocked, so it never sees real
+    content), the headless fallback renders page 1 fine and used to stop
+    there — this locks in that page 2+ now gets visited too."""
+    page_1_html = """
+    <html><body>
+        <a href="/yachts/2024-Test-Yacht-One">Yacht One</a>
+        <a href="/yachts/2024-Test-Yacht-Two">Yacht Two</a>
+        <a href="/yachts/page/2/">2</a>
+    </body></html>
+    """
+    page_2_html = """
+    <html><body>
+        <a href="/yachts/2024-Test-Yacht-Three">Yacht Three</a>
+    </body></html>
+    """
+    fetched_urls = []
+
+    def fake_fetch_headless(self, url, wait_selector=None, timeout=30):
+        fetched_urls.append(url)
+        if url.rstrip('/').endswith('/yachts'):
+            return page_1_html
+        if '/page/2/' in url:
+            return page_2_html
+        return None
+
+    monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", True)
+    monkeypatch.setattr(OptimizedYachtScraper, "fetch_page_headless", fake_fetch_headless)
+
+    found = scraper._discover_with_headless(
+        "https://bviyachtsales.test",
+        [("https://bviyachtsales.test/yachts", True)],
+        inventory_keywords=["/yachts"],
+        listing_path_patterns=[r"/yachts/[^/]+$"],
+    )
+
+    assert any("Yacht-One" in u for u in found), "page 1 listings should be found"
+    assert any("Yacht-Three" in u for u in found), "page 2 (reached via discovered pagination) listings should be found"
+    assert any("/page/2/" in u for u in fetched_urls), "pagination link discovered in rendered HTML should have been followed"
 
 
 def test_master_ocean_archive_disappeared_only_archives_never_deletes(db, owner, cleanup):
