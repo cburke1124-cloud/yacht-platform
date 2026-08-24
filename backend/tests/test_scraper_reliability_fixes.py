@@ -217,16 +217,22 @@ def test_headless_discovery_follows_pagination(scraper, monkeypatch):
     monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", True)
     monkeypatch.setattr(OptimizedYachtScraper, "fetch_page_headless", fake_fetch_headless)
 
+    # Use the real (broad) production pattern for this site's inventory
+    # segment — "/yacht[s]?/" — not a narrower one. It matches listing paths
+    # AND "/yachts/page/2/" (since that path also contains "/yachts/"), which
+    # is exactly the ambiguity that caused pagination links to be misclassified
+    # as listings and silently dropped from the crawl queue.
     found = scraper._discover_with_headless(
         "https://bviyachtsales.test",
         [("https://bviyachtsales.test/yachts", True)],
         inventory_keywords=["/yachts"],
-        listing_path_patterns=[r"/yachts/[^/]+$"],
+        listing_path_patterns=[r"/yacht[s]?/"],
     )
 
     assert any("Yacht-One" in u for u in found), "page 1 listings should be found"
     assert any("Yacht-Three" in u for u in found), "page 2 (reached via discovered pagination) listings should be found"
     assert any("/page/2/" in u for u in fetched_urls), "pagination link discovered in rendered HTML should have been followed"
+    assert not any("/page/2/" in u for u in found), "the pagination link itself must not be misclassified as a listing"
 
 
 def test_proxy_auth_failure_is_flagged_distinctly_from_a_site_block(scraper, monkeypatch):

@@ -1753,24 +1753,34 @@ except Exception as e:
                     if urlparse(abs_no_query).netloc != parsed_base.netloc:
                         continue
 
-                    # Check if looks like listing
-                    if any(re.search(p, abs_no_query, re.IGNORECASE) for p in listing_path_patterns):
+                    # Check pagination FIRST — a page-2+ link's path often still
+                    # contains the inventory segment (e.g. "/yachts/page/2/"
+                    # contains "/yachts/"), so it can spuriously match a listing
+                    # pattern too. Checking listing patterns first would treat it
+                    # as a bogus "listing" and never queue it, capping discovery
+                    # at whatever page seeded this call — exactly what happened
+                    # before this ordering fix. Classification must not depend on
+                    # visited/queued state, or an already-seen pagination link
+                    # would fall through to the listing check below instead of
+                    # being correctly ignored.
+                    if self._is_pagination_link(href, base_domain):
+                        if abs_clean not in visited and abs_clean not in queue:
+                            # Preserve seed filter params (e.g. ?agent=X) the same
+                            # way the static crawl does, so page 2, 3... don't
+                            # silently widen the scrape beyond this job's config.
+                            target = abs_clean
+                            if seed_filter_params and '?' not in target:
+                                target = f"{target}?{seed_filter_params}"
+                            elif seed_filter_params and '?' in target:
+                                existing_keys = {p.split('=')[0] for p in target.split('?', 1)[1].split('&')}
+                                for _fp in seed_filter_params.split('&'):
+                                    _fk = _fp.split('=')[0]
+                                    if _fk and _fk not in existing_keys:
+                                        target += f'&{_fp}'
+                            if target not in visited and target not in queue:
+                                queue.append(target)
+                    elif any(re.search(p, abs_no_query, re.IGNORECASE) for p in listing_path_patterns):
                         found.add(abs_clean)
-                    elif self._is_pagination_link(href, base_domain) and abs_clean not in visited and abs_clean not in queue:
-                        # Preserve seed filter params (e.g. ?agent=X) the same way
-                        # the static crawl does, so page 2, 3... don't silently
-                        # widen the scrape beyond what this job was configured for.
-                        target = abs_clean
-                        if seed_filter_params and '?' not in target:
-                            target = f"{target}?{seed_filter_params}"
-                        elif seed_filter_params and '?' in target:
-                            existing_keys = {p.split('=')[0] for p in target.split('?', 1)[1].split('&')}
-                            for _fp in seed_filter_params.split('&'):
-                                _fk = _fp.split('=')[0]
-                                if _fk and _fk not in existing_keys:
-                                    target += f'&{_fp}'
-                        if target not in visited and target not in queue:
-                            queue.append(target)
 
                 # Also check for vessel-card elements
                 for card in soup.find_all("div", class_=lambda c: c and "vessel-card" in " ".join(c)):
