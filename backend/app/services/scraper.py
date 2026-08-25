@@ -1688,7 +1688,14 @@ except Exception as e:
     # single listing gets scraped, or hang well past what a synchronous admin
     # preview request/Render's own request timeout can tolerate. Returns
     # whatever was found so far once the budget runs out, rather than nothing.
-    _HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS = 180
+    #
+    # 480s (8 min) rather than a tighter cap: observed in production that a
+    # site needing the render-proxy fallback for essentially every page (e.g.
+    # bviyachtsales.com — 6 pages, ~60-70s/page under that fallback) needs
+    # most of that just to get through a normal-sized site once. Left below
+    # half of _headless_time_budget_seconds so per-listing headless fallback
+    # later in the same run still has room.
+    _HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS = 480
 
     def _discover_with_headless(self, base_domain: str, inventory_pages: List[Tuple[str, bool]],
                                 inventory_keywords: List[str], listing_path_patterns: List[str],
