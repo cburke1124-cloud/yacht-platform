@@ -9,7 +9,7 @@ Gated behind CHATBOT_ENABLED so it 404s unless explicitly turned on — the
 widget itself is also gated client-side (NEXT_PUBLIC_ENABLE_CHATBOT), giving
 defense-in-depth until the assistant is ready to launch.
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -150,6 +150,7 @@ def classify_and_respond(
 @router.post("/chatbot/message")
 async def chatbot_message(
     request: ChatbotRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
@@ -167,7 +168,7 @@ async def chatbot_message(
     if result["intent"] == "search":
         try:
             response["search_results"] = await ai_smart_search(
-                AISearchRequest(query=request.message, max_results=4), db
+                http_request, AISearchRequest(query=request.message, max_results=4), db
             )
         except Exception:
             response["reply"] += " (Search is temporarily unavailable — try the main search bar.)"
