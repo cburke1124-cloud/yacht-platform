@@ -131,7 +131,19 @@ class ScraperJob(Base):
 
     # State
     enabled = Column(Boolean, default=True)            # whether the scheduler should auto-run this
-    status = Column(String, default="idle")            # idle, running, completed, failed
+    status = Column(String, default="idle")            # idle, running, completed, failed, paused
+
+    # Cooperative pause: set by the pause action while status=="running"; the
+    # per-URL loop in run_scraper_job checks this between iterations and, if
+    # set, stops and saves its remaining work to pending_urls instead of
+    # running to completion. Distinct from `enabled` (which only governs
+    # whether the scheduler picks the job up again) — this actually
+    # interrupts a run already in progress.
+    pause_requested = Column(Boolean, nullable=False, default=False)
+    # Not-yet-processed URLs saved when a run is paused mid-way. The next run
+    # resumes from this list instead of rediscovering + reprocessing
+    # everything from scratch. Cleared once a run finishes covering them.
+    pending_urls = Column(JSON, nullable=True)
 
     # Schedule
     schedule_hours = Column(Integer, default=24)       # run every N hours (24=daily, 168=weekly)

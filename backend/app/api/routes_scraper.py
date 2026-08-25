@@ -106,6 +106,11 @@ class CreateJobRequest(BaseModel):
     schedule_hours: int = 24
     notes: Optional[str] = None
     enabled: bool = True
+    # When False, run_scraper_job skips the AI-parse stage entirely for this
+    # job — lets an admin run a freshly-configured broker end-to-end on
+    # deterministic (regex/JSON-LD/spec-table) extraction alone to verify it
+    # comes through correctly before spending AI credits on it.
+    ai_enabled: bool = True
 
 
 class UpdateJobRequest(BaseModel):
@@ -116,6 +121,7 @@ class UpdateJobRequest(BaseModel):
     schedule_hours: Optional[int] = None
     notes: Optional[str] = None
     enabled: Optional[bool] = None
+    ai_enabled: Optional[bool] = None
 
 
 class ImportSingleRequest(BaseModel):
@@ -979,6 +985,9 @@ def _job_to_dict(job: ScraperJob, dealer: Optional[User] = None) -> dict:
         "broker_url": job.broker_url,
         "enabled": job.enabled,
         "status": job.status,
+        "pause_requested": job.pause_requested,
+        "has_pending_resume": bool(job.pending_urls),
+        "ai_enabled": (job.site_template or {}).get("ai_enabled", True),
         "schedule_hours": job.schedule_hours,
         "next_run_at": job.next_run_at.isoformat() if job.next_run_at else None,
         "last_run_at": job.last_run_at.isoformat() if job.last_run_at else None,
@@ -1034,6 +1043,7 @@ def create_scraper_job(
         notes=data.notes,
         enabled=data.enabled,
         status="idle",
+        site_template={"ai_enabled": data.ai_enabled} if not data.ai_enabled else None,
     )
     db.add(job)
     db.commit()
@@ -1067,7 +1077,14 @@ def update_scraper_job(
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    updates = data.model_dump(exclude_unset=True)
+    # ai_enabled isn't a real column — it lives inside site_template (a
+    # free-form JSON dict that may already hold other config, e.g. CSS
+    # selectors or a Master Ocean api_key, which a blind setattr would wipe).
+    if "ai_enabled" in updates:
+        ai_enabled = updates.pop("ai_enabled")
+        job.site_template = {**(job.site_template or {}), "ai_enabled": ai_enabled}
+    for field, value in updates.items():
         setattr(job, field, value)
     db.commit()
     db.refresh(job)
@@ -1133,11 +1150,19 @@ def toggle_scraper_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Flip enabled (scheduler auto-run) on/off. When disabling a job that's
+    actively running, this also requests a cooperative pause — run_scraper_job's
+    per-URL loop checks pause_requested between iterations and, once it sees
+    it, stops and saves its remaining work to pending_urls so re-enabling
+    picks back up there instead of starting over. See run_scraper_job in
+    scraper.py for the other half of this."""
     _require_admin(current_user)
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     job.enabled = not job.enabled
+    if not job.enabled and job.status == "running":
+        job.pause_requested = True
     db.commit()
     db.refresh(job)
     return {"success": True, "enabled": job.enabled, "job": _job_to_dict(job)}

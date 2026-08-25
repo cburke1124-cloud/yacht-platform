@@ -23,7 +23,10 @@ interface ScraperJob {
   site_name?: string;
   broker_url: string;
   enabled: boolean;
-  status: 'idle' | 'running' | 'completed' | 'failed';
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'paused';
+  pause_requested?: boolean;
+  has_pending_resume?: boolean;
+  ai_enabled?: boolean;
   schedule_hours: number;
   next_run_at?: string;
   last_run_at?: string;
@@ -615,6 +618,7 @@ function StatusBadge({ status }: { status: ScraperJob['status'] }) {
     running: 'bg-blue-100 text-blue-700 animate-pulse',
     completed: 'bg-green-100 text-green-700',
     failed: 'bg-red-100 text-red-700',
+    paused: 'bg-amber-100 text-amber-700',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || styles.idle}`}>
@@ -2059,7 +2063,7 @@ export default function AdminScraperTab() {
   // ── Add/Edit job form ──
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingJob, setEditingJob] = useState<ScraperJob | null>(null);
-  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean });
+  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true as boolean, ai_enabled: true as boolean });
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [formTeamMembers, setFormTeamMembers] = useState<TeamMember[]>([]);
@@ -2283,6 +2287,28 @@ export default function AdminScraperTab() {
 
   useEffect(() => { loadJobs(); loadDealers(); }, [loadJobs, loadDealers]);
 
+  // Background refresh, silent (no loading spinner) — separate from the
+  // handleRunNow-scoped poll below, which only ever starts if a "Run now"
+  // click happened in THIS browser session. A job that started running via
+  // the scheduler's background tick would otherwise sit on a stale "running"
+  // badge (or a contradictory "paused"-while-"running" state, if it was then
+  // paused) until someone happens to hit the manual refresh button.
+  const refreshJobsQuietly = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/scraper/jobs'), { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) setJobs(data.jobs);
+    } catch { /* silent — this is a background poll, not a user action */ }
+  }, []);
+
+  const anyJobRunning = jobs.some(j => j.status === 'running');
+  useEffect(() => {
+    if (!anyJobRunning) return;
+    const timer = setInterval(refreshJobsQuietly, 5000);
+    return () => clearInterval(timer);
+  }, [anyJobRunning, refreshJobsQuietly]);
+
   async function loadTeamMembers(dealerId: string, setter: (m: TeamMember[]) => void) {
     if (!dealerId) { setter([]); return; }
     try {
@@ -2329,8 +2355,24 @@ export default function AdminScraperTab() {
       const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/toggle`), { method: 'POST', headers: authHeaders() });
       const data = await res.json();
       if (data.success) {
-        setJobs(prev => prev.map(j => j.id === job.id ? { ...j, enabled: data.enabled } : j));
-        flash(`Job ${data.enabled ? 'enabled' : 'paused'}`);
+        // Use the full updated job the backend returns (status, pause_requested,
+        // etc.) rather than only patching `enabled` — pausing a running job
+        // requests an in-flight stop server-side (see routes_scraper.py's
+        // /toggle), and that state needs to show up immediately too.
+        if (data.job) setJobs(prev => prev.map(j => j.id === job.id ? data.job : j));
+        else setJobs(prev => prev.map(j => j.id === job.id ? { ...j, enabled: data.enabled } : j));
+
+        const wasPaused = job.status === 'paused';
+        if (data.enabled && wasPaused) {
+          // "Hit play to continue" — resuming should visibly pick back up,
+          // not just flip a flag and wait for the next scheduler tick (up to
+          // 30 minutes later). run_scraper_job resumes from job.pending_urls
+          // automatically since status is no longer "running".
+          flash('Resuming…');
+          handleRunNow(job);
+        } else {
+          flash(`Job ${data.enabled ? 'enabled' : job.status === 'running' ? 'pause requested — finishing the current listing first' : 'paused'}`);
+        }
       }
     } catch { flash('Failed to toggle job'); }
   }
@@ -2386,6 +2428,7 @@ export default function AdminScraperTab() {
       schedule_hours: String(job.schedule_hours),
       notes: job.notes || '',
       enabled: job.enabled,
+      ai_enabled: job.ai_enabled !== false,
     });
     loadTeamMembers(String(job.dealer_id), setFormTeamMembers);
     setFormError('');
@@ -2399,7 +2442,7 @@ export default function AdminScraperTab() {
   function handleCancelForm() {
     setShowAddForm(false);
     setEditingJob(null);
-    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true });
+    setForm({ dealer_id: '', salesman_id: '', site_name: '', broker_url: '', schedule_hours: '24', notes: '', enabled: true, ai_enabled: true });
     setFormTeamMembers([]);
     setFormError('');
     setTmpl(EMPTY_TMPL); setTmplMsg(null); setTmplExpanded(false);
@@ -2432,6 +2475,7 @@ export default function AdminScraperTab() {
         schedule_hours: parseInt(form.schedule_hours) || 24,
         notes: form.notes || null,
         enabled: form.enabled,
+        ai_enabled: form.ai_enabled,
       };
       const isEdit = !!editingJob;
       const res = await fetch(
@@ -2641,6 +2685,17 @@ export default function AdminScraperTab() {
                   </span>
                   {form.enabled ? 'Enabled — runs on schedule' : 'Disabled — won\'t run automatically'}
                 </button>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button type="button" onClick={() => setForm(f => ({ ...f, ai_enabled: !f.ai_enabled }))} className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className={`inline-block w-10 h-5 rounded-full transition-colors ${form.ai_enabled ? 'bg-green-500' : 'bg-gray-300'} relative`}>
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.ai_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </span>
+                  {form.ai_enabled ? 'AI enrichment on' : 'AI enrichment off — deterministic extraction only'}
+                </button>
+                <span className="text-xs text-gray-400" title="Turn off to run this job end-to-end on regex/JSON-LD/spec-table extraction alone — verify a freshly-configured broker comes through correctly before spending AI credits on it.">
+                  (?)
+                </span>
               </div>
               <div className="flex gap-3 mt-4">
                 <button type="submit" disabled={formSaving}
@@ -2935,7 +2990,18 @@ export default function AdminScraperTab() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-gray-900">{job.site_name || job.broker_url}</span>
                             <StatusBadge status={job.status} />
-                            {!job.enabled && <span className="text-xs text-gray-400 italic">paused</span>}
+                            {/* Only show the separate "auto-run off" label when status isn't
+                                already "paused" — showing both at once (e.g. right after a
+                                mid-run pause, which sets both) is redundant. */}
+                            {!job.enabled && job.status !== 'paused' && <span className="text-xs text-gray-400 italic">paused</span>}
+                            {job.status === 'paused' && job.has_pending_resume && (
+                              <span className="text-xs text-amber-600" title="Hit play to continue from where it left off">↻ resumable</span>
+                            )}
+                            {job.ai_enabled === false && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200" title="AI enrichment is off for this job — deterministic extraction only">
+                                AI off
+                              </span>
+                            )}
                           </div>
                           <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
                             <span>Broker: <span className="text-gray-700">{dealer?.company_name || dealer?.name || `#${job.dealer_id}`}</span></span>
@@ -2974,7 +3040,11 @@ export default function AdminScraperTab() {
                             <Pencil size={16} />
                           </button>
                           <button onClick={() => handleToggle(job)}
-                            title={job.enabled ? 'Pause job' : 'Enable job'}
+                            title={
+                              job.enabled
+                                ? (job.status === 'running' ? 'Pause — stops before the next listing, resumable' : 'Disable auto-run')
+                                : (job.status === 'paused' ? 'Resume from where it left off' : 'Enable job')
+                            }
                             className={`p-2 rounded-lg ${job.enabled ? 'text-yellow-600 hover:bg-yellow-50' : 'text-green-600 hover:bg-green-50'}`}>
                             {job.enabled ? <Pause size={16} /> : <Play size={16} />}
                           </button>

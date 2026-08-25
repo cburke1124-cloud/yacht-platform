@@ -525,6 +525,123 @@ def test_archival_proceeds_normally_when_discovery_looks_healthy(db, owner, clea
         verify_db.close()
 
 
+def test_pause_requested_stops_run_and_saves_remaining_urls(db, owner, cleanup, monkeypatch):
+    """A pause requested mid-run must stop the per-URL loop before the next
+    URL, save whatever's left to pending_urls, and mark the job 'paused' —
+    not silently keep running to completion (the actual pre-fix bug)."""
+    job = _make_job(db, owner, cleanup)
+
+    urls = [
+        "https://example-broker.test/one",
+        "https://example-broker.test/two",
+        "https://example-broker.test/three",
+    ]
+    job_id = job.id  # capture before run_scraper_job — it closes/replaces its own session, detaching `job`
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: list(urls))
+
+    fetched = []
+
+    def fake_fetch(self, url, *a, **kw):
+        fetched.append(url)
+        if url == urls[0]:
+            # Simulate the admin clicking pause while URL 1 is being processed —
+            # by the time the loop re-checks at the top of the next iteration,
+            # pause_requested is set.
+            side_db = SessionLocal()
+            try:
+                side_db.query(ScraperJob).filter(ScraperJob.id == job_id).update({"pause_requested": True})
+                side_db.commit()
+            finally:
+                side_db.close()
+        return (None, "", [])  # fetch "fails" — irrelevant to what's being tested here
+
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", fake_fetch)
+
+    run_scraper_job(job_id, db)
+
+    assert fetched == [urls[0]], "must stop before fetching URL 2 once pause_requested is seen"
+    verify_db = SessionLocal()
+    try:
+        fresh = verify_db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+        assert fresh.status == "paused"
+        assert fresh.pause_requested is False, "the request flag should be cleared once honored"
+        assert fresh.pending_urls == urls[1:], "the not-yet-processed URLs should be saved for resuming"
+        assert any(e.get("outcome") == "archival_skipped_paused_or_resumed" for e in (fresh.last_run_log or [])), \
+            "archival must not run against a partial (paused) discovery pass"
+    finally:
+        verify_db.close()
+
+
+def test_resume_skips_discovery_and_uses_pending_urls(db, owner, cleanup, monkeypatch):
+    """A job with saved pending_urls (from a prior pause) must resume from
+    there — not rediscover and reprocess the whole site from scratch."""
+    pending = ["https://example-broker.test/two", "https://example-broker.test/three"]
+    job = _make_job(db, owner, cleanup, status="paused", pending_urls=pending)
+    job_id = job.id  # capture before run_scraper_job — it closes/replaces its own session, detaching `job`
+
+    def fail_if_called(self, *a, **kw):
+        raise AssertionError("find_listing_urls must not run on a resumed job — it should use pending_urls")
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", fail_if_called)
+    fetched = []
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, url, *a, **kw: (fetched.append(url), (None, "", []))[1])
+
+    run_scraper_job(job_id, db)
+
+    assert fetched == pending, "resumed run should process exactly the saved pending URLs"
+    verify_db = SessionLocal()
+    try:
+        fresh = verify_db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+        assert fresh.status == "completed"
+        assert not fresh.pending_urls, "pending_urls should be cleared once the resumed run finishes"
+    finally:
+        verify_db.close()
+
+
+def test_ai_disabled_skips_ai_parse_even_when_fields_are_missing(db, owner, cleanup, monkeypatch):
+    """site_template.ai_enabled == False must skip the AI-parse stage
+    entirely, regardless of whether deterministic extraction left fields
+    missing — the whole point is running without spending AI credits."""
+    job = _make_job(db, owner, cleanup, site_template={"ai_enabled": False})
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: ["https://example-broker.test/boat"])
+    monkeypatch.setattr(
+        OptimizedYachtScraper, "_fetch_listing_html",
+        lambda self, *a, **kw: ("<html><body><h1>Boat</h1></body></html>", "", []),
+    )
+    # Force the "AI would normally be needed" branch regardless of what
+    # deterministic extraction produced, so this test isolates the new gate
+    # rather than depending on fragile field-by-field extraction behavior.
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: True)
+
+    ai_calls = []
+    monkeypatch.setattr(OptimizedYachtScraper, "scrape_with_ai", lambda self, *a, **kw: (ai_calls.append(1), {})[1])
+
+    run_scraper_job(job.id, db)
+
+    assert ai_calls == [], "AI must not be called when this job has ai_enabled=False"
+
+
+def test_ai_enabled_by_default_still_calls_ai_when_needed(db, owner, cleanup, monkeypatch):
+    """Sanity check for the above: jobs without ai_enabled set (the default,
+    and every job that existed before this feature) must be unaffected."""
+    job = _make_job(db, owner, cleanup)  # no site_template — defaults to ai_enabled=True
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: ["https://example-broker.test/boat"])
+    monkeypatch.setattr(
+        OptimizedYachtScraper, "_fetch_listing_html",
+        lambda self, *a, **kw: ("<html><body><h1>Boat</h1></body></html>", "", []),
+    )
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: True)
+
+    ai_calls = []
+    monkeypatch.setattr(OptimizedYachtScraper, "scrape_with_ai", lambda self, *a, **kw: (ai_calls.append(1), {})[1])
+
+    run_scraper_job(job.id, db)
+
+    assert ai_calls == [1], "AI should still run normally for a job with no ai_enabled override"
+
+
 def test_concurrent_run_is_rejected_not_duplicated(db, owner, cleanup):
     job = _make_job(db, owner, cleanup, status="running", started_at=datetime.utcnow())
 

@@ -3443,10 +3443,22 @@ def run_scraper_job(job_id: int, db) -> Dict:
     try:
         # -- Step 1: discover listing URLs --
         _template = job.site_template or None
-        if _template:
-            logger.info(f"[Job {job_id}] Using site template with selectors: {list(_template.keys())}")
-        logger.info(f"[Job {job_id}] Discovering listings at {job.broker_url}")
-        discovered_urls = scraper.find_listing_urls(job.broker_url, template=_template)
+        # Resuming a previously-paused run: pick up the URLs it hadn't gotten
+        # to yet instead of rediscovering (which, on a slow/blocked site, can
+        # itself take minutes) and reprocessing everything from scratch.
+        # Archival is skipped for a resumed run below — pending_urls is only
+        # the tail of the original discovery, not the full set, so "not in
+        # this run" can't be trusted to mean "no longer listed".
+        _is_resumed_run = bool(job.pending_urls)
+        if _is_resumed_run:
+            discovered_urls = list(job.pending_urls)
+            job.pending_urls = None
+            logger.info(f"[Job {job_id}] Resuming paused run with {len(discovered_urls)} URL(s) left")
+        else:
+            if _template:
+                logger.info(f"[Job {job_id}] Using site template with selectors: {list(_template.keys())}")
+            logger.info(f"[Job {job_id}] Discovering listings at {job.broker_url}")
+            discovered_urls = scraper.find_listing_urls(job.broker_url, template=_template)
         stats["found"] = len(discovered_urls)
         # Flush found count immediately so the frontend sees it while listing scraping runs
         job.listings_found = stats["found"]
@@ -3462,7 +3474,19 @@ def run_scraper_job(job_id: int, db) -> Dict:
         _BLOCK_SHORT_CIRCUIT_THRESHOLD = 5
         _MIN_FETCH_DELAY_SECONDS = 0.6
         _MAX_FETCH_DELAY_SECONDS = 1.4
+        _paused_mid_run = False
         for _url_index, url in enumerate(discovered_urls):
+            if job is not None and job.pause_requested:
+                # Cooperative pause — checked between URLs rather than able to
+                # interrupt one already in flight, so it takes effect within
+                # one URL's processing time, not instantly. Save whatever's
+                # left so the next run resumes here instead of starting over.
+                remaining = discovered_urls[_url_index:]
+                logger.info(f"[Job {job_id}] Pause requested — stopping with {len(remaining)} URL(s) left to resume from")
+                job.pending_urls = remaining
+                job.pause_requested = False
+                _paused_mid_run = True
+                break
             if _url_index > 0:
                 # Small jittered delay between listing fetches — hammering a
                 # broker site back-to-back with zero delay risks getting the
@@ -3631,9 +3655,13 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     raw_page.normalized_at = datetime.utcnow()
                     db.commit()
 
-                    # Stage 3: AI Parse (only when critical fields are still missing)
+                    # Stage 3: AI Parse (only when critical fields are still missing,
+                    # and only when this job hasn't been configured to skip AI —
+                    # e.g. to verify deterministic extraction is coming through
+                    # correctly on a fresh broker before spending AI credits on it).
                     ai_used = False
-                    if scraper._needs_ai_check(partial):
+                    _ai_enabled = (_template or {}).get("ai_enabled", True)
+                    if _ai_enabled and scraper._needs_ai_check(partial):
                         _raw_page_id = raw_page.id   # capture before closing session
                         db.close()
                         try:
@@ -3978,54 +4006,64 @@ def run_scraper_job(job_id: int, db) -> Dict:
         # -- Step 3: archive listings that disappeared --
         # NOTE: archival is a soft status flip (Listing.status = "archived"), never a
         # delete — a listing that comes back on a later scrape can be reactivated.
-        previously_active = (
-            db.query(ScrapedListing)
-            .filter(ScrapedListing.job_id == job_id, ScrapedListing.still_active == True)
-            .all()
-        )
-        would_archive = [r for r in previously_active if r.source_url not in discovered_url_set]
-
-        # Safety threshold: a broken pagination selector, a JS-render failure, or a
-        # transient block can make discovery return far fewer URLs than the site
-        # actually has. Without a guard here, that single bad crawl would archive
-        # nearly a dealer's entire live inventory. If this run's discovery looks
-        # suspicious relative to what we've tracked before, skip archival entirely
-        # this run — listings stay active/untouched until a healthy crawl confirms
-        # they're really gone.
-        previously_tracked_count = len(previously_active)
-        drop_ratio = (len(would_archive) / previously_tracked_count) if previously_tracked_count else 0.0
-        archival_suspicious = (
-            (len(discovered_urls) == 0 and previously_tracked_count > 0)
-            or (previously_tracked_count >= 5 and drop_ratio > 0.5)
-        )
-
-        if archival_suspicious:
-            logger.warning(
-                f"[Job {job_id}] Skipping archival — discovery found {len(discovered_urls)} URLs this run "
-                f"and would archive {len(would_archive)}/{previously_tracked_count} previously-tracked "
-                f"listings ({drop_ratio:.0%}), over the safety threshold. Treating this run's discovery as "
-                f"unreliable rather than archiving live inventory."
-            )
-            run_log.append({
-                "outcome": "archival_skipped_suspicious_drop",
-                "discovered": len(discovered_urls),
-                "previously_tracked": previously_tracked_count,
-                "would_have_archived": len(would_archive),
-            })
+        # Skipped entirely for a paused-mid-run or resumed-from-pause run: in
+        # both cases discovered_url_set isn't the full picture (a fresh,
+        # complete discovery pass didn't run, or didn't finish), so "not seen
+        # this run" can't be trusted to mean "no longer listed". The next
+        # fully-fresh run reconciles this normally.
+        if _paused_mid_run or _is_resumed_run:
+            logger.info(f"[Job {job_id}] Skipping archival — {'paused mid-run' if _paused_mid_run else 'resumed from a pause'}, discovery wasn't a complete fresh pass")
+            run_log.append({"outcome": "archival_skipped_paused_or_resumed"})
             stats["archival_skipped"] = True
         else:
-            for scraped_record in would_archive:
-                scraped_record.still_active = False
-                if scraped_record.listing_id:
-                    listing = db.query(Listing).filter(Listing.id == scraped_record.listing_id).first()
-                    if listing and listing.status == "active":
-                        listing.status = "archived"
-                        stats["archived"] += 1
-                        run_log.append({"url": scraped_record.source_url, "outcome": "archived", "listing_id": scraped_record.listing_id})
-                        logger.info(f"[Job {job_id}] Archived listing #{listing.id} â€” no longer on broker site")
+            previously_active = (
+                db.query(ScrapedListing)
+                .filter(ScrapedListing.job_id == job_id, ScrapedListing.still_active == True)
+                .all()
+            )
+            would_archive = [r for r in previously_active if r.source_url not in discovered_url_set]
+
+            # Safety threshold: a broken pagination selector, a JS-render failure, or a
+            # transient block can make discovery return far fewer URLs than the site
+            # actually has. Without a guard here, that single bad crawl would archive
+            # nearly a dealer's entire live inventory. If this run's discovery looks
+            # suspicious relative to what we've tracked before, skip archival entirely
+            # this run — listings stay active/untouched until a healthy crawl confirms
+            # they're really gone.
+            previously_tracked_count = len(previously_active)
+            drop_ratio = (len(would_archive) / previously_tracked_count) if previously_tracked_count else 0.0
+            archival_suspicious = (
+                (len(discovered_urls) == 0 and previously_tracked_count > 0)
+                or (previously_tracked_count >= 5 and drop_ratio > 0.5)
+            )
+
+            if archival_suspicious:
+                logger.warning(
+                    f"[Job {job_id}] Skipping archival — discovery found {len(discovered_urls)} URLs this run "
+                    f"and would archive {len(would_archive)}/{previously_tracked_count} previously-tracked "
+                    f"listings ({drop_ratio:.0%}), over the safety threshold. Treating this run's discovery as "
+                    f"unreliable rather than archiving live inventory."
+                )
+                run_log.append({
+                    "outcome": "archival_skipped_suspicious_drop",
+                    "discovered": len(discovered_urls),
+                    "previously_tracked": previously_tracked_count,
+                    "would_have_archived": len(would_archive),
+                })
+                stats["archival_skipped"] = True
+            else:
+                for scraped_record in would_archive:
+                    scraped_record.still_active = False
+                    if scraped_record.listing_id:
+                        listing = db.query(Listing).filter(Listing.id == scraped_record.listing_id).first()
+                        if listing and listing.status == "active":
+                            listing.status = "archived"
+                            stats["archived"] += 1
+                            run_log.append({"url": scraped_record.source_url, "outcome": "archived", "listing_id": scraped_record.listing_id})
+                            logger.info(f"[Job {job_id}] Archived listing #{listing.id} â€” no longer on broker site")
 
         # -- Step 4: update job record --
-        job.status = "completed"
+        job.status = "paused" if _paused_mid_run else "completed"
         job.completed_at = datetime.utcnow()
         job.last_run_at = datetime.utcnow()
         job.listings_found = stats["found"]
