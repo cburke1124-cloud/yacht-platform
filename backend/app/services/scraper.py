@@ -1681,6 +1681,14 @@ except Exception as e:
     # Headless rendering is a slow, subprocess-based fallback — cap how many
     # pages a single stubborn/JS-only site can force us to render per run.
     _HEADLESS_MAX_PAGES = 20
+    # Wall-clock cap on the *discovery* pagination loop specifically. A page
+    # that needs the ScraperAPI render fallback can legitimately take 30-60s+
+    # per render; without its own bound, discovery alone could burn through
+    # the entire job-level _headless_time_budget_seconds (20 min) before a
+    # single listing gets scraped, or hang well past what a synchronous admin
+    # preview request/Render's own request timeout can tolerate. Returns
+    # whatever was found so far once the budget runs out, rather than nothing.
+    _HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS = 180
 
     def _discover_with_headless(self, base_domain: str, inventory_pages: List[Tuple[str, bool]],
                                 inventory_keywords: List[str], listing_path_patterns: List[str],
@@ -1719,7 +1727,15 @@ except Exception as e:
             # fetch_page_headless() handles everything — just call it directly.
 
             pages_rendered = 0
+            discovery_started_at = time.monotonic()
             while queue and pages_rendered < self._HEADLESS_MAX_PAGES:
+                if time.monotonic() - discovery_started_at >= self._HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS:
+                    logger.warning(
+                        f"Headless discovery: hit {self._HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS}s time budget "
+                        f"after {pages_rendered} page(s) ({len(found)} listings so far) — stopping, "
+                        f"{len(queue)} page(s) left unvisited"
+                    )
+                    break
                 page_url = queue.pop(0)
                 if page_url in visited:
                     continue

@@ -241,6 +241,50 @@ def test_headless_discovery_follows_pagination(scraper, monkeypatch):
     assert any("exclude_sold=1" in u for u in fetched_urls), "the pagination link's own query string must be preserved, not stripped"
 
 
+def test_headless_discovery_respects_time_budget(scraper, monkeypatch):
+    """A site where every page needs a slow render-proxy fallback must not be
+    able to hang discovery indefinitely, or burn the whole per-job headless
+    time budget before a single listing ever gets scraped. Once the discovery
+    loop's own time budget is exhausted it must stop and return whatever it
+    found so far rather than fetching another page."""
+    page_1_html = """
+    <html><body>
+        <a href="/yachts/2024-Test-Yacht-One">Yacht One</a>
+        <a href="/yachts/page/2/">2</a>
+    </body></html>
+    """
+    page_2_html = """
+    <html><body>
+        <a href="/yachts/2024-Test-Yacht-Two">Yacht Two</a>
+    </body></html>
+    """
+    fetched_urls = []
+
+    def fake_fetch_headless(self, url, wait_selector=None, timeout=30):
+        fetched_urls.append(url)
+        return page_1_html if url.rstrip('/').endswith('/yachts') else page_2_html
+
+    # monotonic() calls, in order: loop start, iteration-1 budget check
+    # (still under budget — page 1 proceeds), iteration-2 budget check (now
+    # over budget — must stop before fetching page 2).
+    clock = iter([0.0, 0.0, 10_000.0])
+    monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", True)
+    monkeypatch.setattr(OptimizedYachtScraper, "fetch_page_headless", fake_fetch_headless)
+    monkeypatch.setattr(scraper_module.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(scraper_module.time, "sleep", lambda *_: None)
+
+    found = scraper._discover_with_headless(
+        "https://bviyachtsales.test",
+        [("https://bviyachtsales.test/yachts", True)],
+        inventory_keywords=["/yachts"],
+        listing_path_patterns=[r"/yacht[s]?/"],
+    )
+
+    assert any("Yacht-One" in u for u in found), "page 1 (fetched before the budget ran out) should still be found"
+    assert not any("Yacht-Two" in u for u in found), "page 2 must not be fetched once the time budget is exhausted"
+    assert len(fetched_urls) == 1, "only page 1 should have been fetched"
+
+
 def test_proxy_auth_failure_is_flagged_distinctly_from_a_site_block(scraper, monkeypatch):
     """An expired/invalid ScraperAPI subscription (401/403 from ScraperAPI
     itself) must be flagged on the scraper instance so run_scraper_job can
