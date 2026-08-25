@@ -1128,8 +1128,11 @@ except Exception as e:
         # Check for explicit page/paging parameters
         if re.search(r'[?&](?:page|paged|p)=\d+', href, re.IGNORECASE):
             return True
-        # Check for /page/X/ pattern (common in WordPress)
-        if re.search(r'/page/\d+/?$', href, re.IGNORECASE):
+        # Check for /page/X/ pattern (common in WordPress). Allows an optional
+        # trailing query string after the page segment (e.g. bviyachtsales.com
+        # emits "/yachts/page/2/?exclude_sold=1") — a bare end-of-string anchor
+        # would miss that and silently cap discovery at page 1.
+        if re.search(r'/page/\d+/?(?:[?&]|$)', href, re.IGNORECASE):
             return True
         # Check for ?offset=X or ?start=X patterns
         if re.search(r'[?&](?:offset|start|skip)=\d+', href, re.IGNORECASE):
@@ -1764,11 +1767,17 @@ except Exception as e:
                     # would fall through to the listing check below instead of
                     # being correctly ignored.
                     if self._is_pagination_link(href, base_domain):
-                        if abs_clean not in visited and abs_clean not in queue:
+                        # Use abs_with_query, not abs_clean — a pagination link's
+                        # own query string (e.g. bviyachtsales.com's own
+                        # "?exclude_sold=1") is part of how that site scopes its
+                        # pagination and must be preserved, same as an ID param;
+                        # abs_clean only special-cases ID-style params and would
+                        # otherwise silently drop it.
+                        if abs_with_query not in visited and abs_with_query not in queue:
                             # Preserve seed filter params (e.g. ?agent=X) the same
                             # way the static crawl does, so page 2, 3... don't
                             # silently widen the scrape beyond this job's config.
-                            target = abs_clean
+                            target = abs_with_query
                             if seed_filter_params and '?' not in target:
                                 target = f"{target}?{seed_filter_params}"
                             elif seed_filter_params and '?' in target:

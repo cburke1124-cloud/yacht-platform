@@ -192,11 +192,16 @@ def test_headless_discovery_follows_pagination(scraper, monkeypatch):
     finds no pagination links (its fetch is blocked, so it never sees real
     content), the headless fallback renders page 1 fine and used to stop
     there — this locks in that page 2+ now gets visited too."""
+    # The real bviyachtsales.com pagination link has its own trailing query
+    # string — "/yachts/page/2/?exclude_sold=1" — which must both (a) still
+    # be recognized as pagination (a bare end-of-string "$" anchor would miss
+    # it) and (b) be preserved when queued, not stripped down to the bare
+    # path, since the site needs that param for correct pagination.
     page_1_html = """
     <html><body>
         <a href="/yachts/2024-Test-Yacht-One">Yacht One</a>
         <a href="/yachts/2024-Test-Yacht-Two">Yacht Two</a>
-        <a href="/yachts/page/2/">2</a>
+        <a href="/yachts/page/2/?exclude_sold=1">2</a>
     </body></html>
     """
     page_2_html = """
@@ -233,6 +238,7 @@ def test_headless_discovery_follows_pagination(scraper, monkeypatch):
     assert any("Yacht-Three" in u for u in found), "page 2 (reached via discovered pagination) listings should be found"
     assert any("/page/2/" in u for u in fetched_urls), "pagination link discovered in rendered HTML should have been followed"
     assert not any("/page/2/" in u for u in found), "the pagination link itself must not be misclassified as a listing"
+    assert any("exclude_sold=1" in u for u in fetched_urls), "the pagination link's own query string must be preserved, not stripped"
 
 
 def test_proxy_auth_failure_is_flagged_distinctly_from_a_site_block(scraper, monkeypatch):
