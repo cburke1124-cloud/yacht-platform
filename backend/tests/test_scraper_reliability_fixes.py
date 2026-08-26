@@ -112,6 +112,55 @@ def scraper():
     return OptimizedYachtScraper(api_key="")
 
 
+def test_extract_images_excludes_header_logo_with_generic_filename(scraper):
+    """A site logo uploaded with a generic filename and alt text (observed on
+    bviyachtsales.com: "IMG_1637.png", alt="yachts") evades both the filename
+    skip-list and the alt-text check — the only reliable signal is that it
+    sits inside a container structurally classed as the logo. Real gallery
+    images outside that container must still come through."""
+    html = """
+    <html><body>
+        <div class="x-bar-container header-logo">
+            <div class="x-image">
+                <img src="https://example.test/wp-content/uploads/2025/09/IMG_1637.png" alt="yachts">
+            </div>
+        </div>
+        <div class="gallery">
+            <img src="https://cdn.example.test/images/12345_1.jpg" alt="Boat photo 1">
+            <img src="https://cdn.example.test/images/12345_2.jpg" alt="Boat photo 2">
+        </div>
+    </body></html>
+    """
+    images = scraper.extract_images(html, "https://example.test")
+    assert not any("IMG_1637" in u for u in images), "the header logo must be excluded despite its generic filename/alt text"
+    assert any("12345_1.jpg" in u for u in images), "real gallery image 1 should still be extracted"
+    assert any("12345_2.jpg" in u for u in images), "real gallery image 2 should still be extracted"
+
+
+def test_fetch_listing_html_retries_once_on_empty_result(scraper, monkeypatch):
+    """A site with intermittent (not absolute) blocking can fail one attempt
+    purely by bad luck — both fetch_page and fetch_page_headless already have
+    their own internal proxy/render fallbacks, but if the whole chain still
+    comes back empty, one retry is cheap insurance against permanently
+    losing that listing until the next scheduled run."""
+    calls = {"fetch_page": 0}
+
+    def fake_fetch_page(self, url, timeout=15):
+        calls["fetch_page"] += 1
+        if calls["fetch_page"] == 1:
+            return None  # first attempt: simulate the intermittent block
+        return "<html><body><h1>Real content</h1></body></html>"  # retry succeeds
+
+    monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", False)  # isolate the retry from the headless fallback path
+    monkeypatch.setattr(OptimizedYachtScraper, "fetch_page", fake_fetch_page)
+    monkeypatch.setattr(scraper_module.time, "sleep", lambda *_: None)
+
+    html, _, _ = scraper._fetch_listing_html("https://bviyachtsales.test/yacht/1")
+
+    assert calls["fetch_page"] == 2, "must retry once after the first attempt comes back empty"
+    assert "Real content" in html, "the retry's successful result should be used"
+
+
 def test_price_extraction_avoids_superseded_price(scraper):
     cases = [
         ("Reduced from $650,000 to $549,000. Great boat.", 549000.0),

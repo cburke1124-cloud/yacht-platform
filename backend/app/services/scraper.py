@@ -2573,11 +2573,20 @@ except Exception as e:
             r'staff[-_]?card|agent[-_]?card|broker[-_]?card|salesperson[-_]?card',
             re.IGNORECASE,
         )
+        # Company/site logo images can't always be caught by filename or alt
+        # text — a logo uploaded as e.g. "IMG_1637.png" with alt="yachts" (seen
+        # on bviyachtsales.com) matches neither the skip_re path check below
+        # nor the alt-text check in the <img> loop. The one reliable signal is
+        # structural: it sits inside a container actually classed/id'd as the
+        # logo (e.g. "header-logo"), regardless of the file's own name. \blogo\b
+        # is word-bounded so it won't false-positive on something like
+        # "catalogo" that merely contains the substring.
+        _logo_container_re = re.compile(r'\blogo\b', re.IGNORECASE)
         for _tag in soup.find_all(True):
             _attrs = _tag.attrs or {}
             _cls = ' '.join(_attrs.get('class', []))
             _id  = _attrs.get('id', '')
-            if _related_re.search(_cls) or _related_re.search(_id):
+            if _related_re.search(_cls) or _related_re.search(_id) or _logo_container_re.search(_cls) or _logo_container_re.search(_id):
                 _tag.decompose()
 
         # Also strip sections that are introduced by a heading whose *text* labels
@@ -2812,6 +2821,24 @@ except Exception as e:
             headless_html = self.fetch_page_headless(url)
             if headless_html and len(headless_html) > len(html or ""):
                 html = headless_html
+
+        # Both the static and headless attempts (each already with their own
+        # proxy/render fallback) can still come up empty on a site whose
+        # blocking is intermittent rather than absolute — observed on
+        # bviyachtsales.com: a real page with full content, but our fetch got
+        # nothing, purely by bad luck on that attempt. Without a retry, that
+        # listing is stuck permanently blank (skip_reason="low_confidence")
+        # until the next scheduled run, up to days later. One retry after a
+        # short backoff is cheap insurance against a transient miss.
+        if not html:
+            time.sleep(random.uniform(2.0, 4.0))
+            html = self.fetch_page(url)
+            if _PLAYWRIGHT_AVAILABLE and (not html or len(html) < 5000):
+                headless_html = self.fetch_page_headless(url)
+                if headless_html and len(headless_html) > len(html or ""):
+                    html = headless_html
+            if html:
+                logger.info(f"_fetch_listing_html: retry succeeded for {url} after initial fetch came back empty")
 
         return (html or ""), _wp_extra_text, _wp_images
 
