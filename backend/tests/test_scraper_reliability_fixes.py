@@ -241,33 +241,31 @@ def test_headless_discovery_follows_pagination(scraper, monkeypatch):
     assert any("exclude_sold=1" in u for u in fetched_urls), "the pagination link's own query string must be preserved, not stripped"
 
 
-def test_headless_discovery_respects_time_budget(scraper, monkeypatch):
-    """A site where every page needs a slow render-proxy fallback must not be
-    able to hang discovery indefinitely, or burn the whole per-job headless
-    time budget before a single listing ever gets scraped. Once the discovery
-    loop's own time budget is exhausted it must stop and return whatever it
-    found so far rather than fetching another page."""
+def test_headless_discovery_stops_after_going_idle(scraper, monkeypatch):
+    """A fixed wall-clock budget was replaced with an idle-timeout: discovery
+    should only give up once it's gone quiet (no new listing/pagination
+    target found) for _HEADLESS_DISCOVERY_IDLE_TIMEOUT_SECONDS — not simply
+    because total elapsed time crossed some fixed line. Page 2 here is
+    queued (discovered on page 1) but must never be fetched once the mocked
+    clock jumps past the idle window with no further progress in between."""
     page_1_html = """
     <html><body>
         <a href="/yachts/2024-Test-Yacht-One">Yacht One</a>
         <a href="/yachts/page/2/">2</a>
     </body></html>
     """
-    page_2_html = """
-    <html><body>
-        <a href="/yachts/2024-Test-Yacht-Two">Yacht Two</a>
-    </body></html>
-    """
     fetched_urls = []
 
     def fake_fetch_headless(self, url, wait_selector=None, timeout=30):
         fetched_urls.append(url)
-        return page_1_html if url.rstrip('/').endswith('/yachts') else page_2_html
+        return page_1_html if url.rstrip('/').endswith('/yachts') else None
 
-    # monotonic() calls, in order: loop start, iteration-1 budget check
-    # (still under budget — page 1 proceeds), iteration-2 budget check (now
-    # over budget — must stop before fetching page 2).
-    clock = iter([0.0, 0.0, 10_000.0])
+    idle_timeout = scraper._HEADLESS_DISCOVERY_IDLE_TIMEOUT_SECONDS
+    # monotonic() calls, in order: discovery_started_at, iteration-1's top-of-
+    # loop check (idle_for=0 — proceeds), the progress update right after
+    # page 1 finds a new pagination link, iteration-2's top-of-loop check
+    # (now well past the idle window since that last progress update).
+    clock = iter([0.0, 0.0, 1.0, 1.0 + idle_timeout + 1])
     monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", True)
     monkeypatch.setattr(OptimizedYachtScraper, "fetch_page_headless", fake_fetch_headless)
     monkeypatch.setattr(scraper_module.time, "monotonic", lambda: next(clock))
@@ -280,9 +278,67 @@ def test_headless_discovery_respects_time_budget(scraper, monkeypatch):
         listing_path_patterns=[r"/yacht[s]?/"],
     )
 
-    assert any("Yacht-One" in u for u in found), "page 1 (fetched before the budget ran out) should still be found"
-    assert not any("Yacht-Two" in u for u in found), "page 2 must not be fetched once the time budget is exhausted"
-    assert len(fetched_urls) == 1, "only page 1 should have been fetched"
+    assert any("Yacht-One" in u for u in found), "page 1 (fetched before going idle) should still be found"
+    assert len(fetched_urls) == 1, "page 2 was queued but must never be fetched once discovery has gone idle"
+
+
+def test_headless_discovery_continues_past_the_old_fixed_budget_while_progress_continues(scraper, monkeypatch):
+    """The old mechanism cut discovery off at a fixed 480s of total elapsed
+    time regardless of whether it was still succeeding. As long as new pages
+    keep turning up new listings, discovery must now keep going well past
+    that — a large, slow broker needs real time, not an arbitrary clock."""
+    n_pages = 5
+    pages = {
+        f"/yachts/page/{i}/": (
+            f'<a href="/yachts/boat-{i}">Boat {i}</a>'
+            + (f'<a href="/yachts/page/{i + 1}/">{i + 1}</a>' if i < n_pages else '')
+        )
+        for i in range(1, n_pages + 1)
+    }
+    fetched_urls = []
+
+    def fake_fetch_headless(self, url, wait_selector=None, timeout=30):
+        fetched_urls.append(url)
+        if url.rstrip('/').endswith('/yachts'):
+            return f'<html><body>{pages["/yachts/page/1/"]}</body></html>'
+        for path, body in pages.items():
+            if url.rstrip('/').endswith(path.rstrip('/')):
+                return f'<html><body>{body}</body></html>'
+        return None
+
+    # Each page is separated by 130s (under the 180s idle timeout, so
+    # continued progress keeps it alive) — cumulative elapsed by the last
+    # page comfortably exceeds the old fixed 480s budget.
+    gap = 130.0
+    clock_values = [0.0]  # discovery_started_at
+    for i in range(n_pages):
+        clock_values.append(i * gap)      # top-of-loop check for page i+1
+        clock_values.append(i * gap)      # progress update after page i+1
+    clock = iter(clock_values)
+    assert (n_pages - 1) * gap > 480, "test setup should exceed the old fixed budget"
+
+    monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", True)
+    monkeypatch.setattr(OptimizedYachtScraper, "fetch_page_headless", fake_fetch_headless)
+    monkeypatch.setattr(scraper_module.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(scraper_module.time, "sleep", lambda *_: None)
+
+    found = scraper._discover_with_headless(
+        "https://bviyachtsales.test",
+        [("https://bviyachtsales.test/yachts", True)],
+        inventory_keywords=["/yachts"],
+        listing_path_patterns=[r"/yacht[s]?/"],
+    )
+
+    assert len(fetched_urls) == n_pages, f"all {n_pages} pages should have been visited despite exceeding the old 480s budget"
+    for i in range(1, n_pages + 1):
+        assert any(f"boat-{i}" in u for u in found), f"boat-{i} should have been found"
+
+
+def test_old_fixed_discovery_budget_constant_is_gone(scraper):
+    """Sanity check that the fixed-budget mechanism was actually replaced,
+    not just supplemented — a lingering unused constant would be a sign the
+    old cutoff is still wired in somewhere."""
+    assert not hasattr(scraper, "_HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS")
 
 
 def test_proxy_auth_failure_is_flagged_distinctly_from_a_site_block(scraper, monkeypatch):
@@ -654,9 +710,10 @@ def test_concurrent_run_is_rejected_not_duplicated(db, owner, cleanup):
 def test_stale_running_job_is_recoverable_by_scheduler(db, owner, cleanup, monkeypatch):
     from app.services.scraper import run_due_scraper_jobs
 
+    from app.services.scraper import STALE_RUNNING_MINUTES
     job = _make_job(
         db, owner, cleanup, status="running",
-        started_at=datetime.utcnow() - timedelta(minutes=45),  # older than STALE_RUNNING_MINUTES
+        started_at=datetime.utcnow() - timedelta(minutes=STALE_RUNNING_MINUTES + 15),  # older than STALE_RUNNING_MINUTES
         next_run_at=datetime.utcnow() - timedelta(minutes=1),
     )
     monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [])

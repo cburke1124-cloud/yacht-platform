@@ -376,14 +376,20 @@ class OptimizedYachtScraper:
         # admin Scraper tab instead of looking identical to "site is blocking
         # us" and requiring a full re-investigation every time it recurs.
         self._proxy_auth_failed: Optional[str] = None
-        # Job-level wall-clock budget for headless-browser fetches. Each
-        # individual fetch_page_headless call can legitimately take up to ~360s
-        # (a fresh deploy's one-time Playwright install), but with no overall
-        # cap a broker site where every listing falls back to headless
-        # rendering could turn one job into a multi-hour hang. Once this budget
-        # is exhausted, fetch_page_headless stops spawning new subprocesses for
-        # the rest of this job and falls straight back to the static fetcher.
-        self._headless_time_budget_seconds = 20 * 60
+        # Job-level wall-clock budget for headless-browser fetches, shared
+        # across discovery's pagination-following AND each listing's per-URL
+        # headless fallback in the same run. Once exhausted, fetch_page_headless
+        # stops spawning new subprocesses and falls straight back to the
+        # static fetcher for the rest of this job — a pure safety net against
+        # a broken/looping site turning one job into an unbounded hang, not a
+        # normal-case limit. Set generously: a broker with hundreds/thousands
+        # of listings on a site that needs the slow render-proxy fallback for
+        # nearly everything (observed: bviyachtsales.com, ~60-70s/page) is
+        # expected to need real time — the goal is getting a large broker's
+        # full inventory live within hours, not truncating it to fit an
+        # arbitrary clock and needing days of repeated partial runs to
+        # eventually cover it all.
+        self._headless_time_budget_seconds = 2 * 60 * 60
         self._headless_time_used_seconds = 0.0
 
         # Known site patterns for fast structured extraction
@@ -1680,22 +1686,22 @@ except Exception as e:
 
     # Headless rendering is a slow, subprocess-based fallback — cap how many
     # pages a single stubborn/JS-only site can force us to render per run.
-    _HEADLESS_MAX_PAGES = 20
-    # Wall-clock cap on the *discovery* pagination loop specifically. A page
-    # that needs the ScraperAPI render fallback can legitimately take 30-60s+
-    # per render; without its own bound, discovery alone could burn through
-    # the entire job-level _headless_time_budget_seconds (20 min) before a
-    # single listing gets scraped, or hang well past what a synchronous admin
-    # preview request/Render's own request timeout can tolerate. Returns
-    # whatever was found so far once the budget runs out, rather than nothing.
-    #
-    # 480s (8 min) rather than a tighter cap: observed in production that a
-    # site needing the render-proxy fallback for essentially every page (e.g.
-    # bviyachtsales.com — 6 pages, ~60-70s/page under that fallback) needs
-    # most of that just to get through a normal-sized site once. Left below
-    # half of _headless_time_budget_seconds so per-listing headless fallback
-    # later in the same run still has room.
-    _HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS = 480
+    # Raised well past what a normal broker needs so a large inventory
+    # (hundreds/thousands of listings across many pages) isn't truncated —
+    # this is a runaway-pagination safety net, not a "normal site" limit.
+    _HEADLESS_MAX_PAGES = 500
+    # Discovery is bounded by IDLE time, not total elapsed time: as long as
+    # new listings/pages keep turning up, keep going — a large broker on a
+    # slow/proxy-dependent site legitimately needs a long time to fully
+    # discover, and cutting it off on a fixed clock (the previous approach)
+    # meant repeated partial runs that never converged on full coverage
+    # without days of accumulation. Only give up once discovery has gone
+    # quiet — no new listing or pagination target found — for this long.
+    _HEADLESS_DISCOVERY_IDLE_TIMEOUT_SECONDS = 180
+    # Absolute last-resort ceiling regardless of progress, purely against a
+    # pathological site (e.g. a "next page" link that loops forever) — high
+    # enough to never bind on a real broker, however large.
+    _HEADLESS_DISCOVERY_MAX_TOTAL_SECONDS = 3 * 60 * 60
 
     def _discover_with_headless(self, base_domain: str, inventory_pages: List[Tuple[str, bool]],
                                 inventory_keywords: List[str], listing_path_patterns: List[str],
@@ -1735,12 +1741,24 @@ except Exception as e:
 
             pages_rendered = 0
             discovery_started_at = time.monotonic()
+            last_progress_at = discovery_started_at
+            prev_progress_count = 0  # len(found) + len(queue) — grows on any new listing OR pagination target
             while queue and pages_rendered < self._HEADLESS_MAX_PAGES:
-                if time.monotonic() - discovery_started_at >= self._HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS:
+                now = time.monotonic()
+                idle_for = now - last_progress_at
+                total_elapsed = now - discovery_started_at
+                if idle_for >= self._HEADLESS_DISCOVERY_IDLE_TIMEOUT_SECONDS:
                     logger.warning(
-                        f"Headless discovery: hit {self._HEADLESS_DISCOVERY_TIME_BUDGET_SECONDS}s time budget "
-                        f"after {pages_rendered} page(s) ({len(found)} listings so far) — stopping, "
-                        f"{len(queue)} page(s) left unvisited"
+                        f"Headless discovery: gone {idle_for:.0f}s with no new listings/pages found "
+                        f"(after {pages_rendered} page(s), {len(found)} listings, {total_elapsed:.0f}s total) "
+                        f"— stopping, {len(queue)} page(s) left unvisited"
+                    )
+                    break
+                if total_elapsed >= self._HEADLESS_DISCOVERY_MAX_TOTAL_SECONDS:
+                    logger.warning(
+                        f"Headless discovery: hit the {self._HEADLESS_DISCOVERY_MAX_TOTAL_SECONDS}s absolute "
+                        f"ceiling despite still making progress (after {pages_rendered} page(s), {len(found)} "
+                        f"listings) — stopping, {len(queue)} page(s) left unvisited"
                     )
                     break
                 page_url = queue.pop(0)
@@ -1834,6 +1852,15 @@ except Exception as e:
                         # Only add if it looks like a real listing (same check as main loop)
                         if has_card_id or any(re.search(p, abs_card_no_query, re.IGNORECASE) for p in listing_path_patterns):
                             found.add(abs_card_clean)
+
+                # Progress = new listings found OR new pages queued this iteration
+                # (even a page that itself yielded nothing new but successfully
+                # rendered doesn't reset the idle clock — genuine forward motion
+                # is what earns more time, not just "a page loaded").
+                current_progress_count = len(found) + len(queue)
+                if current_progress_count > prev_progress_count:
+                    last_progress_at = time.monotonic()
+                    prev_progress_count = current_progress_count
 
             logger.info(f"Headless browser discovery found {len(found)} listings across {pages_rendered} page(s)")
 
@@ -4314,7 +4341,14 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
 # A job stuck "running" longer than this is treated as crashed, not active.
 # Kept in sync with routes_scraper.py's manual "Run Now" endpoint, which has
 # its own copy of this same recovery logic for the same reason.
-STALE_RUNNING_MINUTES = 30
+#
+# Must stay comfortably above the longest a legitimate run can now take:
+# discovery's idle-timeout-based pagination loop plus per-listing headless
+# fallback share a 2-hour budget (see OptimizedYachtScraper.__init__), and
+# large brokers are expected to genuinely use a good chunk of that. A tighter
+# value here would make the scheduler kill and restart a run that's still
+# actively working, not actually stuck.
+STALE_RUNNING_MINUTES = 240
 
 
 def run_due_scraper_jobs(db) -> int:
