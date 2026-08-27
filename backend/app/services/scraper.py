@@ -2581,7 +2581,18 @@ except Exception as e:
         # logo (e.g. "header-logo"), regardless of the file's own name. \blogo\b
         # is word-bounded so it won't false-positive on something like
         # "catalogo" that merely contains the substring.
-        _logo_container_re = re.compile(r'\blogo\b', re.IGNORECASE)
+        #
+        # A theme's logo is also commonly duplicated in the page — once in the
+        # visible header, once inside a mobile off-canvas/slide-out menu (e.g.
+        # X-Theme's "x-off-canvas-content" wrapper) — and since images are
+        # deduped by URL, stripping only the header copy still lets the
+        # off-canvas copy's URL through. Strip that navigational chrome too;
+        # unlike a generic "image appears more than once" heuristic (which
+        # would risk stripping a real photo legitimately reused between a
+        # slider and its thumbnail strip), this stays scoped to structural
+        # non-content containers the same way the logo/related-listings
+        # patterns above already do.
+        _logo_container_re = re.compile(r'\blogo\b|off.?canvas|mobile[-_]?(?:menu|nav)', re.IGNORECASE)
         for _tag in soup.find_all(True):
             _attrs = _tag.attrs or {}
             _cls = ' '.join(_attrs.get('class', []))

@@ -137,6 +137,31 @@ def test_extract_images_excludes_header_logo_with_generic_filename(scraper):
     assert any("12345_2.jpg" in u for u in images), "real gallery image 2 should still be extracted"
 
 
+def test_extract_images_excludes_logo_duplicated_in_mobile_offcanvas_menu(scraper):
+    """Reproduces the real bviyachtsales.com case caught after the first logo
+    fix deployed: the theme embeds the SAME logo image twice — once in the
+    visible header (caught by the header-logo container check) and again
+    inside a mobile off-canvas/slide-out menu, whose wrapper has no "logo" in
+    its own class chain at all. Since images dedupe by URL, stripping only
+    the header copy still let the off-canvas copy's URL through untouched."""
+    html = """
+    <html><body>
+        <div class="x-bar-container header-logo">
+            <div class="x-image"><img src="https://example.test/wp-content/uploads/2025/09/IMG_1637.png" alt="yachts"></div>
+        </div>
+        <div class="x-off-canvas-content x-off-canvas-content-right">
+            <div class="x-div"><img src="https://example.test/wp-content/uploads/2025/09/IMG_1637.png" alt="Image"></div>
+        </div>
+        <div class="gallery">
+            <img src="https://cdn.example.test/images/12345_1.jpg" alt="Boat photo 1">
+        </div>
+    </body></html>
+    """
+    images = scraper.extract_images(html, "https://example.test")
+    assert not any("IMG_1637" in u for u in images), "the logo must be excluded even when its only surviving instance is the off-canvas menu copy"
+    assert any("12345_1.jpg" in u for u in images), "real gallery image should still be extracted"
+
+
 def test_fetch_listing_html_retries_once_on_empty_result(scraper, monkeypatch):
     """A site with intermittent (not absolute) blocking can fail one attempt
     purely by bad luck — both fetch_page and fetch_page_headless already have
