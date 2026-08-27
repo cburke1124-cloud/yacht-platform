@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 import json
 import re
 from typing import Optional, Dict, List, Tuple, Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, unquote
 from datetime import datetime, timedelta
 import logging
 
@@ -3847,14 +3847,42 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     raw_page.validated_at = datetime.utcnow()
                     db.commit()
 
+                    _needs_manual_review = None
                     if skip_reason:
-                        stats["errors"] += 1
-                        run_log.append({"url": url, "outcome": "error", "error": skip_reason,
-                                        "confidence": confidence, "ai_used": ai_used})
-                        logger.info(f"[Job {job_id}] Skipping {url}: {skip_reason} (confidence={confidence})")
-                        continue
+                        # Don't just discard this — without a persisted record there's
+                        # no way to know which listings on the source site never made
+                        # it into inventory, or to find them again to complete by hand.
+                        # Capture whatever was extracted (even just the URL) as an
+                        # awaiting_review stub flagged for manual review instead. The
+                        # URL-slug fallback title (only applied below if the listing
+                        # still has none after _apply_scraped_data) is deliberately NOT
+                        # injected into yacht_data here — this same code path also
+                        # handles re-fetching an already-live listing, and overwriting
+                        # its real title with a rough slug guess on a transient re-fetch
+                        # miss would be worse than just leaving the good data alone.
+                        stats["captured_low_confidence"] = stats.get("captured_low_confidence", 0) + 1
+                        _needs_manual_review = {
+                            "reason": skip_reason,
+                            "confidence": confidence,
+                            "detected_at": datetime.utcnow().isoformat(),
+                        }
+                        logger.info(f"[Job {job_id}] Captured as needs-review stub: {url}: {skip_reason} (confidence={confidence})")
 
                     raw = yacht_data
+
+                    def _apply_review_flag(lst: "Listing") -> None:
+                        """Stamp/clear the needs_manual_review marker in
+                        additional_specs, and backfill a URL-slug-derived title
+                        only if the listing still has none after _apply_scraped_data
+                        (which never overwrites an existing field with a blank)."""
+                        _specs = dict(lst.additional_specs or {})
+                        if _needs_manual_review:
+                            _specs["needs_manual_review"] = _needs_manual_review
+                            if not lst.title:
+                                lst.title = _title_from_url_slug(url)
+                        elif "needs_manual_review" in _specs:
+                            del _specs["needs_manual_review"]  # this run succeeded — clear a stale flag from an earlier one
+                        lst.additional_specs = _specs
 
                 existing_scraped = (
                     db.query(ScrapedListing)
@@ -3934,6 +3962,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
                     if listing:
                         _apply_scraped_data(listing, raw, job)
+                        _apply_review_flag(listing)
                         # Restore guest_salesman_id if we matched/created one
                         if matched_guest_id and not listing.assigned_salesman_id:
                             listing.guest_salesman_id = matched_guest_id
@@ -3947,7 +3976,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         existing_scraped.last_seen = datetime.utcnow()
                         existing_scraped.still_active = True
                         stats["updated"] += 1
-                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
+                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
                 else:
                     # Guard against duplicate listings: if a Listing with this source_url
                     # already exists for this dealer, re-link it instead of creating a duplicate.
@@ -3973,6 +4002,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         )
                         listing = _orphaned_listing
                         _apply_scraped_data(listing, raw, job)
+                        _apply_review_flag(listing)
                         if _is_sold:
                             listing.status = "sold"
                         elif listing.status not in ("draft", "awaiting_review"):
@@ -3986,7 +4016,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         )
                         db.add(scraped_record)
                         stats["updated"] += 1
-                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title})
+                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
                         if _prior_scraped:
                             logger.info(f"[Job {job_id}] Linked listing #{listing.id} from prior job for {url}")
                         else:
@@ -4005,6 +4035,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             condition="used",
                         )
                         _apply_scraped_data(listing, raw, job)
+                        _apply_review_flag(listing)
                         db.add(listing)
                         db.flush()  # get listing.id
 
@@ -4041,7 +4072,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         )
                         db.add(scraped_record)
                         stats["created"] += 1
-                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "created", "listing_id": listing.id, "title": listing.title})
+                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "created", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
 
                 # Flush live stats to DB every 5 listings so frontend polling sees progress
                 if (stats["created"] + stats["updated"] + stats["errors"]) % 5 == 0:
@@ -4239,6 +4270,26 @@ _NUMERIC_FIELD_BOUNDS = {
     "cruising_speed_knots": (0, 100),
     "engine_hours": (0, 50_000),
 }
+
+
+def _title_from_url_slug(url: str) -> str:
+    """Fallback title derived from a listing URL's slug when extraction found
+    nothing usable — e.g. ".../yacht/2826902/1980-Kelsall-47-47-TripleJack"
+    -> "1980 Kelsall 47 47 TripleJack". Not meant to be a polished title;
+    just enough for an admin reviewing the low-confidence queue to recognize
+    which boat this is without clicking through to the source page."""
+    path = urlparse(url).path
+    segments = [s for s in path.split('/') if s]
+    if not segments:
+        return "Unnamed listing (needs review)"
+    slug = unquote(segments[-1])
+    # A purely-numeric trailing segment (e.g. a listing ID with no slug after
+    # it) isn't useful on its own — prefer the more descriptive segment
+    # before it, if there is one.
+    if slug.isdigit() and len(segments) >= 2:
+        slug = unquote(segments[-2])
+    title = re.sub(r'[-_]+', ' ', slug).strip()
+    return title or "Unnamed listing (needs review)"
 
 
 def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):

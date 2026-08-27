@@ -22,6 +22,12 @@ interface DealerInfo {
   company_name: string | null;
 }
 
+interface NeedsManualReview {
+  reason: string;       // "low_confidence" | "too_small"
+  confidence: number;
+  detected_at: string;
+}
+
 interface ScrapedListing {
   id: number;
   title: string | null;
@@ -38,6 +44,11 @@ interface ScrapedListing {
   source_url: string | null;
   assigned_salesman_id: number | null;
   detected_agent_name: string | null;
+  // Set when the scrape came back with too little (or no) usable data to
+  // trust automatically — the listing is still captured (rather than
+  // silently discarded) with a URL-slug fallback title if nothing better
+  // was found, so it's visible here for manual completion from source_url.
+  needs_manual_review: NeedsManualReview | null;
   images: string[];
   created_at: string | null;
   dealer: DealerInfo;
@@ -60,6 +71,7 @@ export default function ScraperReviewPage() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('awaiting_review');
   const [dealerFilter, setDealerFilter] = useState('');
+  const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [dealers, setDealers] = useState<{ id: number; name: string; count: number }[]>([]);
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -201,8 +213,10 @@ export default function ScraperReviewPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  const pagedListings = listings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  const totalPages = Math.ceil(listings.length / PAGE_SIZE);
+  const needsReviewCount = listings.filter(l => l.needs_manual_review).length;
+  const visibleListings = needsReviewOnly ? listings.filter(l => l.needs_manual_review) : listings;
+  const pagedListings = visibleListings.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(visibleListings.length / PAGE_SIZE);
 
   return (
     <div className="bg-white rounded-lg shadow">
@@ -275,16 +289,35 @@ export default function ScraperReviewPage() {
             </button>
           ))}
         </div>
+
+        {/* Needs-manual-review filter — listings the scraper captured but
+            couldn't extract enough data from to trust automatically (see
+            run_scraper_job's skip_reason handling). Without this, a low
+            source-site vs. our-site count discrepancy was invisible: those
+            listings used to be silently discarded instead of landing here. */}
+        {needsReviewCount > 0 && (
+          <button
+            onClick={() => { setNeedsReviewOnly(v => !v); setPage(0); setSelectedIds(new Set()); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              needsReviewOnly
+                ? 'bg-red-600 text-white border-red-600'
+                : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+            }`}
+          >
+            <AlertTriangle size={12} />
+            {needsReviewOnly ? 'Showing needs-review only' : `Needs manual review (${needsReviewCount})`}
+          </button>
+        )}
       </div>
 
       {/* Listing table */}
       <div className="p-4">
         {loading ? (
           <div className="py-20 text-center text-gray-400">Loading…</div>
-        ) : listings.length === 0 ? (
+        ) : visibleListings.length === 0 ? (
           <div className="py-20 text-center text-gray-400">
             <CheckCircle size={48} className="mx-auto mb-3 text-green-400" />
-            No listings in this queue.
+            {needsReviewOnly ? 'No listings need manual review right now.' : 'No listings in this queue.'}
           </div>
         ) : (
           <>
@@ -294,12 +327,12 @@ export default function ScraperReviewPage() {
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={selectedIds.size === listings.length && listings.length > 0}
+                  checked={selectedIds.size === visibleListings.length && visibleListings.length > 0}
                   onChange={e =>
-                    setSelectedIds(e.target.checked ? new Set(listings.map(l => l.id)) : new Set())
+                    setSelectedIds(e.target.checked ? new Set(visibleListings.map(l => l.id)) : new Set())
                   }
                 />
-                Select all ({listings.length})
+                Select all ({visibleListings.length})
               </label>
               {selectedIds.size > 0 && (
                 <div className="flex items-center gap-3">
@@ -371,6 +404,19 @@ export default function ScraperReviewPage() {
                         <p className="font-semibold text-[#10214F] truncate">
                           {l.title || <span className="italic text-gray-400">No title</span>}
                         </p>
+                      )}
+
+                      {l.needs_manual_review && (
+                        <div
+                          className="mt-1 flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded-full px-2.5 py-0.5 w-fit"
+                          title={`Confidence: ${(l.needs_manual_review.confidence * 100).toFixed(0)}%`}
+                        >
+                          <AlertTriangle size={11} />
+                          {l.needs_manual_review.reason === 'too_small'
+                            ? "Couldn't fetch this page — likely blocked"
+                            : 'Barely any data extracted'}
+                          {' — title is a guess from the URL, check Source →'}
+                        </div>
                       )}
 
                       <p className="text-xs text-gray-500">
@@ -570,7 +616,7 @@ export default function ScraperReviewPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100 mt-2">
               <span className="text-sm text-gray-500">
-                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, listings.length)} of {listings.length}
+                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, visibleListings.length)} of {visibleListings.length}
               </span>
               <div className="flex items-center gap-2">
                 <button

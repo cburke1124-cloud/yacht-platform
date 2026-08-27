@@ -4279,6 +4279,13 @@ def list_scraped_listings_for_review(
             "source_url": l.source_url,
             "assigned_salesman_id": l.assigned_salesman_id,
             "detected_agent_name": specs.get("detected_agent_name"),
+            # Set by run_scraper_job when the scrape came back with too little
+            # (or no) usable data to trust automatically — the listing is still
+            # captured (with a URL-slug fallback title if nothing better was
+            # found) instead of being silently discarded, so an admin can see
+            # exactly which source-site listings never made it in cleanly and
+            # go complete them by hand from source_url.
+            "needs_manual_review": specs.get("needs_manual_review"),
             "images": [img.url for img in (l.images or [])][:1],
             "created_at": l.created_at.isoformat() if l.created_at else None,
             "dealer": {
@@ -4318,6 +4325,13 @@ def patch_scraped_listing(
     updates = body.dict(exclude_unset=True)
     for field, value in updates.items():
         setattr(listing, field, value)
+    # A manual edit is exactly how a needs_manual_review flag (see
+    # run_scraper_job's low-confidence capture) gets resolved — an admin has
+    # now supplied real data, so it no longer needs to stand out as unreviewed.
+    if updates and listing.additional_specs and "needs_manual_review" in listing.additional_specs:
+        specs = dict(listing.additional_specs)
+        del specs["needs_manual_review"]
+        listing.additional_specs = specs
     listing.updated_at = datetime.utcnow()
     db.commit()
     return {"success": True, "id": listing.id, "status": listing.status}

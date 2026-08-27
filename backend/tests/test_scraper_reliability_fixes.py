@@ -772,6 +772,88 @@ def test_ai_enabled_by_default_still_calls_ai_when_needed(db, owner, cleanup, mo
     assert ai_calls == [1], "AI should still run normally for a job with no ai_enabled override"
 
 
+def test_low_confidence_url_is_captured_as_review_stub(db, owner, cleanup, monkeypatch):
+    """A page extraction can't trust (e.g. an empty fetch, or barely any real
+    content) must still be captured as a reviewable stub — not silently
+    discarded — so an admin can see exactly which source-site listings never
+    made it in cleanly and go complete them by hand, instead of only seeing
+    a raw count mismatch with no way to tell which ones are missing."""
+    job = _make_job(db, owner, cleanup)
+    url = "https://example-broker.test/yacht/12345/1980-Custom-47-SeaTruck"
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: ("", "", []))  # empty fetch
+
+    result = run_scraper_job(job.id, db)
+
+    assert result.get("captured_low_confidence") == 1
+    assert result.get("created") == 1, "the stub still counts as a created listing, not an error"
+    verify_db = SessionLocal()
+    try:
+        listing = verify_db.query(Listing).filter(Listing.source_url == url).first()
+        assert listing is not None, "a low-confidence page must still produce a Listing, not be discarded"
+        cleanup["listing_ids"].append(listing.id)
+        assert listing.status == "awaiting_review"
+        assert listing.title == "1980 Custom 47 SeaTruck", "should fall back to a URL-slug-derived title when extraction found none"
+        specs = listing.additional_specs or {}
+        assert specs.get("needs_manual_review") is not None
+        assert specs["needs_manual_review"]["reason"] in ("low_confidence", "too_small")
+    finally:
+        verify_db.close()
+
+
+def test_needs_manual_review_flag_clears_on_a_later_successful_rescrape(db, owner, cleanup, monkeypatch):
+    """Once a URL that previously failed extraction succeeds on a later run,
+    the needs_manual_review marker must be cleared — it shouldn't linger in
+    the review queue forever after the data is actually good now. Also
+    confirms a real (non-blank) title from a later successful run isn't
+    clobbered back to the URL-slug fallback."""
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+    url = "https://example-broker.test/yacht/1"
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: ("", "", []))
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)  # keep this deterministic — no AI call
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    listing_row = verify_db.query(Listing).filter(Listing.source_url == url).first()
+    listing_id = listing_row.id
+    cleanup["listing_ids"].append(listing_id)
+    assert (listing_row.additional_specs or {}).get("needs_manual_review") is not None
+    verify_db.close()
+
+    real_html = """
+    <html><head><title>2015 Beneteau Oceanis 45</title></head>
+    <body>
+        <nav>Home | Inventory | About | Contact</nav>
+        <h1>2015 Beneteau Oceanis 45</h1>
+        <p>Price: $250,000</p>
+        <p>Located in Fort Lauderdale, FL, United States</p>
+        <p>Length: 45 ft</p>
+        <p>A well-maintained cruising sailboat with a spacious cockpit and modern electronics
+        package. This vessel has been meticulously maintained by her current owner and is
+        ready for immediate offshore cruising. Recent upgrades include new standing rigging,
+        a fully serviced engine, and updated navigation electronics throughout the cabin.</p>
+        <footer>Copyright 2026 Example Broker. All rights reserved.</footer>
+    </body></html>
+    """
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: (real_html, "", []))
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)  # keep this deterministic — no AI call
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    try:
+        listing = verify_db.query(Listing).filter(Listing.id == listing_id).first()
+        specs = listing.additional_specs or {}
+        assert "needs_manual_review" not in specs, "flag should be cleared once a later run extracts real data"
+        assert listing.title and listing.title.lower() != "yacht", \
+            "a real extracted title should win over the URL-slug fallback ('yacht', from /yacht/1), not get stuck on it"
+    finally:
+        verify_db.close()
+
+
 def test_concurrent_run_is_rejected_not_duplicated(db, owner, cleanup):
     job = _make_job(db, owner, cleanup, status="running", started_at=datetime.utcnow())
 
