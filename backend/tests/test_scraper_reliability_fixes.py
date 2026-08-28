@@ -783,6 +783,7 @@ def test_low_confidence_url_is_captured_as_review_stub(db, owner, cleanup, monke
 
     monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
     monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: ("", "", []))  # empty fetch
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)  # keep this deterministic — no AI call
 
     result = run_scraper_job(job.id, db)
 
@@ -850,6 +851,75 @@ def test_needs_manual_review_flag_clears_on_a_later_successful_rescrape(db, owne
         assert "needs_manual_review" not in specs, "flag should be cleared once a later run extracts real data"
         assert listing.title and listing.title.lower() != "yacht", \
             "a real extracted title should win over the URL-slug fallback ('yacht', from /yacht/1), not get stuck on it"
+    finally:
+        verify_db.close()
+
+
+def test_deleted_listing_is_not_silently_revived_on_rescrape(db, owner, cleanup, monkeypatch):
+    """An admin who soft-deletes a scraped listing from the review queue must
+    not have it come back as an invisible "updated" row on the next scrape.
+    Before this fix, the update-existing branch never checked deleted_at, so
+    it flipped status back to "active" while leaving deleted_at set -- a
+    listing excluded from every deleted_at-filtered query (invisible), yet
+    permanently "found" via its ScrapedListing tracking row, so it could
+    never come back as a normal new review item either."""
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+    url = "https://example-broker.test/yacht/99"
+
+    real_html = (
+        "<html><body><h1>2018 Sea Ray 350</h1><p>Price: $180,000</p>"
+        "<p>Located in Miami, FL, United States</p><p>Length: 35 ft</p>"
+        "<p>A great weekend cruiser in excellent condition with low engine hours "
+        "and a fully serviced drivetrain, ready for the water this season.</p>"
+        "</body></html>"
+    )
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: (real_html, "", []))
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    listing_row = verify_db.query(Listing).filter(Listing.source_url == url).first()
+    original_listing_id = listing_row.id
+    cleanup["listing_ids"].append(original_listing_id)
+    # Simulate the admin soft-deleting it from the review queue (DELETE /listings/{id})
+    listing_row.status = "deleted"
+    listing_row.deleted_at = datetime.utcnow()
+    verify_db.commit()
+    verify_db.close()
+
+    result = run_scraper_job(job_id, db)
+
+    assert result.get("created") == 1, "a deleted listing's URL should produce a brand-new listing, not a silent revive"
+    assert result.get("updated") == 0
+
+    verify_db = SessionLocal()
+    try:
+        old_listing = verify_db.query(Listing).filter(Listing.id == original_listing_id).first()
+        assert old_listing.deleted_at is not None, "the deleted listing must stay deleted, not get reactivated"
+        assert old_listing.status == "deleted"
+
+        new_listing = (
+            verify_db.query(Listing)
+            .filter(Listing.source_url == url, Listing.id != original_listing_id)
+            .first()
+        )
+        assert new_listing is not None, "a fresh listing should have been created for this URL"
+        cleanup["listing_ids"].append(new_listing.id)
+        assert new_listing.deleted_at is None
+        assert new_listing.status == "awaiting_review"
+
+        # Exactly one ScrapedListing row should track this URL for this job --
+        # inserting a second row instead of repointing the existing one would
+        # make the next run's lookup ambiguous (MultipleResultsFound).
+        tracking_rows = (
+            verify_db.query(ScrapedListing)
+            .filter(ScrapedListing.job_id == job_id, ScrapedListing.source_url == url)
+            .all()
+        )
+        assert len(tracking_rows) == 1
+        assert tracking_rows[0].listing_id == new_listing.id
     finally:
         verify_db.close()
 

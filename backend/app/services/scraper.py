@@ -3957,26 +3957,38 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             job.team_members_imported = (job.team_members_imported or 0) + 1
                             logger.info(f"[Job {job.id}] Auto-created GuestBroker #{new_guest.id}: {detected_name}")
 
+                listing = None
                 if existing_scraped and existing_scraped.listing_id:
-                    # Update existing listing
                     listing = db.query(Listing).filter(Listing.id == existing_scraped.listing_id).first()
-                    if listing:
-                        _apply_scraped_data(listing, raw, job)
-                        _apply_review_flag(listing)
-                        # Restore guest_salesman_id if we matched/created one
-                        if matched_guest_id and not listing.assigned_salesman_id:
-                            listing.guest_salesman_id = matched_guest_id
-                        # Respect manual broker changes: only restore to active if the scraper
-                        # previously auto-archived it (disappeared from site), not if the broker
-                        # intentionally set it to "draft" to hide it.
-                        if _is_sold:
-                            listing.status = "sold"
-                        elif listing.status not in ("draft", "awaiting_review"):
-                            listing.status = "active"
-                        existing_scraped.last_seen = datetime.utcnow()
-                        existing_scraped.still_active = True
-                        stats["updated"] += 1
-                        run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
+                    # Never silently revive a listing the admin soft-deleted — without
+                    # this check, the block below would flip its status back to
+                    # "active" while leaving deleted_at set, producing a hidden row
+                    # that's invisible everywhere (deleted_at filters exclude it) yet
+                    # permanently "found" here, so it can never re-surface as a normal
+                    # new review item either. Treat it as untracked instead, so it
+                    # falls through to the create/re-link logic below, which repoints
+                    # this same ScrapedListing row at a fresh Listing.
+                    if listing is not None and listing.deleted_at is not None:
+                        listing = None
+
+                if listing:
+                    # Update existing listing
+                    _apply_scraped_data(listing, raw, job)
+                    _apply_review_flag(listing)
+                    # Restore guest_salesman_id if we matched/created one
+                    if matched_guest_id and not listing.assigned_salesman_id:
+                        listing.guest_salesman_id = matched_guest_id
+                    # Respect manual broker changes: only restore to active if the scraper
+                    # previously auto-archived it (disappeared from site), not if the broker
+                    # intentionally set it to "draft" to hide it.
+                    if _is_sold:
+                        listing.status = "sold"
+                    elif listing.status not in ("draft", "awaiting_review"):
+                        listing.status = "active"
+                    existing_scraped.last_seen = datetime.utcnow()
+                    existing_scraped.still_active = True
+                    stats["updated"] += 1
+                    run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
                 else:
                     # Guard against duplicate listings: if a Listing with this source_url
                     # already exists for this dealer, re-link it instead of creating a duplicate.
@@ -4007,14 +4019,22 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             listing.status = "sold"
                         elif listing.status not in ("draft", "awaiting_review"):
                             listing.status = "active"
-                        scraped_record = ScrapedListing(
-                            job_id=job_id,
-                            listing_id=listing.id,
-                            source_url=url,
-                            last_seen=datetime.utcnow(),
-                            still_active=True,
-                        )
-                        db.add(scraped_record)
+                        if existing_scraped:
+                            # Repoint the tracking row we already have (it was pointed at
+                            # a now-soft-deleted listing) instead of inserting a second
+                            # row for the same (job_id, source_url) — a duplicate would
+                            # make next run's lookup ambiguous.
+                            existing_scraped.listing_id = listing.id
+                            existing_scraped.last_seen = datetime.utcnow()
+                            existing_scraped.still_active = True
+                        else:
+                            db.add(ScrapedListing(
+                                job_id=job_id,
+                                listing_id=listing.id,
+                                source_url=url,
+                                last_seen=datetime.utcnow(),
+                                still_active=True,
+                            ))
                         stats["updated"] += 1
                         run_log.append({"url": url, "outcome": "sold" if _is_sold else "updated", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
                         if _prior_scraped:
@@ -4063,14 +4083,21 @@ def run_scraper_job(job_id: int, db) -> Dict:
                             photo_position += 1
 
                         # Track in ScrapedListing
-                        scraped_record = ScrapedListing(
-                            job_id=job_id,
-                            listing_id=listing.id,
-                            source_url=url,
-                            last_seen=datetime.utcnow(),
-                            still_active=True,
-                        )
-                        db.add(scraped_record)
+                        if existing_scraped:
+                            # Repoint the tracking row we already have (it was pointed at
+                            # a now-soft-deleted listing) instead of inserting a second
+                            # row for the same (job_id, source_url).
+                            existing_scraped.listing_id = listing.id
+                            existing_scraped.last_seen = datetime.utcnow()
+                            existing_scraped.still_active = True
+                        else:
+                            db.add(ScrapedListing(
+                                job_id=job_id,
+                                listing_id=listing.id,
+                                source_url=url,
+                                last_seen=datetime.utcnow(),
+                                still_active=True,
+                            ))
                         stats["created"] += 1
                         run_log.append({"url": url, "outcome": "sold" if _is_sold else "created", "listing_id": listing.id, "title": listing.title, "needs_manual_review": bool(_needs_manual_review)})
 
