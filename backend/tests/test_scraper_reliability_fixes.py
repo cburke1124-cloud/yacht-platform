@@ -36,6 +36,7 @@ from app.models.listing import Listing
 from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, YachtworldSyncJob
 from app.services import scraper as scraper_module
 from app.services.scraper import OptimizedYachtScraper, _apply_scraped_data, run_scraper_job, _looks_like_challenge_page
+from app.api.routes_scraper import retry_flagged_listings
 from app.services import master_ocean
 from app.services import yachtworld_api
 from app.services.yachtworld_api import sync_yachtworld_job, run_due_yachtworld_jobs
@@ -1011,6 +1012,135 @@ def test_deleted_listing_is_not_silently_revived_on_rescrape(db, owner, cleanup,
         assert tracking_rows[0].listing_id == new_listing.id
     finally:
         verify_db.close()
+
+
+def test_retry_flagged_listings_only_retries_flagged_urls_and_skips_archival(db, owner, cleanup, monkeypatch):
+    """The "retry flagged" action must scope the retry to ONLY the currently
+    needs_manual_review URLs -- not rediscover and refetch every URL this job
+    has ever tracked. It reuses the pause/resume pending_urls mechanism to
+    skip discovery, which also means the listings outside this batch must
+    NOT get archived just because they weren't in this run's URL list (that
+    mechanism already guards against exactly this for a resumed run)."""
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+
+    good_url = "https://example-broker.test/yacht/retry-good"
+    flagged_url = "https://example-broker.test/yacht/retry-flagged"
+    real_html = (
+        "<html><body><nav>Home | Inventory | About | Contact</nav>"
+        "<h1>2017 Jeanneau 419</h1><p>Price: $210,000</p>"
+        "<p>Located in Miami, FL, United States</p><p>Length: 41 ft</p>"
+        "<p>A well-equipped cruiser with low hours, recently serviced rigging, "
+        "and a fully updated electronics suite ready for offshore passages. "
+        "This vessel has been meticulously maintained and comes with a full "
+        "service history, ready for immediate offshore cruising this season.</p>"
+        "<footer>Copyright 2026 Example Broker. All rights reserved.</footer>"
+        "</body></html>"
+    )
+
+    def fake_fetch_initial(self, url, *a, **kw):
+        if url == good_url:
+            return (real_html, "", [])
+        return ("", "", [])
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [good_url, flagged_url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", fake_fetch_initial)
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    good = verify_db.query(Listing).filter(Listing.source_url == good_url).first()
+    flagged = verify_db.query(Listing).filter(Listing.source_url == flagged_url).first()
+    good_id, flagged_id = good.id, flagged.id
+    cleanup["listing_ids"].extend([good_id, flagged_id])
+    assert (flagged.additional_specs or {}).get("needs_manual_review") is not None
+    assert (good.additional_specs or {}).get("needs_manual_review") is None
+    verify_db.close()
+
+    # Now call the retry-flagged endpoint directly (it's a plain function --
+    # @router.post doesn't change that). Discovery must never run, and only
+    # the flagged URL should get fetched.
+    discovery_calls = []
+    monkeypatch.setattr(
+        OptimizedYachtScraper, "find_listing_urls",
+        lambda self, *a, **kw: (discovery_calls.append(1), [])[1],
+    )
+    fetched_urls = []
+    real_html_2 = real_html.replace("2017 Jeanneau 419", "2017 Jeanneau 419 Retried")
+
+    def fake_fetch_retry(self, url, *a, **kw):
+        fetched_urls.append(url)
+        return (real_html_2, "", [])
+
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", fake_fetch_retry)
+
+    admin = SimpleNamespace(user_type="admin")
+    result = retry_flagged_listings(job_id, db, admin)
+
+    assert result["success"] is True
+    assert result["count"] == 1
+
+    # The retry runs in a background thread -- wait for it to finish. Must
+    # wait for status to actually BECOME "running" first before treating a
+    # non-running status as "done" -- otherwise a slow thread start (still
+    # showing the previous run's "completed" status) races the very first
+    # poll and the test proceeds before the retry fetch ever happens.
+    import time as _time
+    seen_running = False
+    for _ in range(200):
+        wait_db = SessionLocal()
+        status = wait_db.query(ScraperJob.status).filter(ScraperJob.id == job_id).scalar()
+        wait_db.close()
+        if status == "running":
+            seen_running = True
+        elif seen_running:
+            break
+        _time.sleep(0.05)
+
+    assert discovery_calls == [], "retry-flagged must skip discovery entirely"
+    assert fetched_urls == [flagged_url], "only the flagged URL should be retried, not every tracked URL"
+
+    verify_db = SessionLocal()
+    try:
+        good_after = verify_db.query(Listing).filter(Listing.id == good_id).first()
+        flagged_after = verify_db.query(Listing).filter(Listing.id == flagged_id).first()
+        assert good_after.status != "archived", "listings outside the retry batch must never be archived just for not being in pending_urls"
+        assert (flagged_after.additional_specs or {}).get("needs_manual_review") is None, "a successful retry should clear the flag"
+        assert flagged_after.title and "Retried" in flagged_after.title
+    finally:
+        verify_db.close()
+
+
+def test_retry_flagged_listings_reports_nothing_to_do_when_none_flagged(db, owner, cleanup, monkeypatch):
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+    url = "https://example-broker.test/yacht/retry-clean"
+    real_html = (
+        "<html><body><nav>Home | Inventory | About | Contact</nav>"
+        "<h1>2019 Catalina 355</h1><p>Price: $175,000</p>"
+        "<p>Located in Annapolis, MD, United States</p><p>Length: 35 ft</p>"
+        "<p>Freshwater-kept sailboat with meticulous maintenance records and a "
+        "recently replaced sail inventory, ready to cruise this season. This "
+        "vessel has been stored indoors every winter and shows exceptionally "
+        "well, with all systems recently serviced and functioning properly.</p>"
+        "<footer>Copyright 2026 Example Broker. All rights reserved.</footer>"
+        "</body></html>"
+    )
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: (real_html, "", []))
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    listing = verify_db.query(Listing).filter(Listing.source_url == url).first()
+    cleanup["listing_ids"].append(listing.id)
+    verify_db.close()
+
+    admin = SimpleNamespace(user_type="admin")
+    result = retry_flagged_listings(job_id, db, admin)
+
+    assert result["success"] is False
+    assert "no listings" in result["message"].lower()
 
 
 def test_concurrent_run_is_rejected_not_duplicated(db, owner, cleanup):

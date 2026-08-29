@@ -20,6 +20,8 @@ Admin-only endpoints:
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import cast, func
+from sqlalchemy.dialects.postgresql import JSONB
 from pydantic import BaseModel
 from typing import Optional, Any, List, Dict
 from urllib.parse import urlparse
@@ -1018,9 +1020,33 @@ def list_scraper_jobs(
         {u.id: u for u in db.query(User).filter(User.id.in_(dealer_ids)).all()}
         if dealer_ids else {}
     )
+
+    # One grouped query for every job's needs_manual_review count, instead of
+    # one query per job — this endpoint is polled every 5s while any job is
+    # running, so N+1 here would mean N+1 every poll tick.
+    job_ids = [j.id for j in jobs]
+    needs_review_counts: Dict[int, int] = {}
+    if job_ids:
+        for jid, count in (
+            db.query(ScrapedListing.job_id, func.count(Listing.id))
+            .join(Listing, Listing.id == ScrapedListing.listing_id)
+            .filter(
+                ScrapedListing.job_id.in_(job_ids),
+                Listing.deleted_at == None,
+                cast(Listing.additional_specs, JSONB).has_key("needs_manual_review"),
+            )
+            .group_by(ScrapedListing.job_id)
+            .all()
+        ):
+            needs_review_counts[jid] = count
+
+    job_dicts = [_job_to_dict(j, dealers_by_id.get(j.dealer_id)) for j in jobs]
+    for jd in job_dicts:
+        jd["needs_review_count"] = needs_review_counts.get(jd["id"], 0)
+
     return {
         "success": True,
-        "jobs": [_job_to_dict(j, dealers_by_id.get(j.dealer_id)) for j in jobs],
+        "jobs": job_dicts,
     }
 
 
@@ -1209,6 +1235,83 @@ def run_job_now(
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return {"success": True, "message": f"Job {job_id} started in background"}
+
+
+@router.post("/scraper/jobs/{job_id}/retry-flagged")
+def retry_flagged_listings(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Re-fetch only the listings this job flagged needs_manual_review,
+    instead of re-running full discovery across every URL on the site. A
+    WAF block is often intermittent (the same URL can succeed or fail
+    across attempts by luck), so most of the value is in retrying just the
+    stuck subset cheaply and often, rather than waiting hours for the next
+    full scheduled run to happen to retry them along with everything else.
+
+    Reuses the same job.pending_urls mechanism the pause/resume feature
+    uses to skip discovery: run_scraper_job treats a non-empty pending_urls
+    as a resumed run, which also correctly skips the end-of-run archival
+    pass (see _is_resumed_run) so the listings NOT in this retry batch are
+    never mistaken for "disappeared from the site" and archived.
+    """
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status == "running":
+        is_stale = job.started_at and (_dt.utcnow() - job.started_at).total_seconds() > STALE_RUNNING_MINUTES * 60
+        if not is_stale:
+            return {"success": False, "message": "Job is already running"}
+        logger.warning(f"[Job {job_id}] Run stuck since {job.started_at} (> {STALE_RUNNING_MINUTES}m) — treating as crashed and restarting")
+        job.status = "failed"
+        job.last_error = f"Previous run appears to have crashed (stuck in 'running' since {job.started_at.isoformat()})"
+        job.completed_at = _dt.utcnow()
+        db.commit()
+
+    scraped_listing_ids = [
+        row[0] for row in (
+            db.query(ScrapedListing.listing_id)
+            .filter(ScrapedListing.job_id == job_id, ScrapedListing.listing_id.isnot(None))
+            .all()
+        )
+    ]
+    flagged_urls = [
+        l.source_url for l in (
+            db.query(Listing)
+            .filter(
+                Listing.id.in_(scraped_listing_ids),
+                Listing.deleted_at == None,
+                Listing.source_url.isnot(None),
+            )
+            .all()
+        )
+        if (l.additional_specs or {}).get("needs_manual_review")
+    ] if scraped_listing_ids else []
+
+    if not flagged_urls:
+        return {"success": False, "message": "No listings are currently flagged for manual review on this job"}
+
+    job.pending_urls = flagged_urls
+    db.commit()
+
+    def _run():
+        from app.db.session import SessionLocal
+        from app.services.scraper import run_scraper_job
+        bg_db = SessionLocal()
+        try:
+            run_scraper_job(job_id, bg_db)
+        finally:
+            bg_db.close()
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return {
+        "success": True,
+        "message": f"Retrying {len(flagged_urls)} flagged listing(s) in the background",
+        "count": len(flagged_urls),
+    }
 
 
 # -----------------------------------------------------------------------

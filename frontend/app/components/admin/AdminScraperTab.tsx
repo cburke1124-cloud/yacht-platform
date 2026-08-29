@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Globe, AlertCircle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X, Terminal } from 'lucide-react';
+import { Globe, AlertCircle, AlertTriangle, CheckCircle, Play, Pause, Trash2, Plus, RefreshCw, ChevronDown, ChevronRight, Pencil, X, Terminal } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import ScraperReviewPage from '@/app/admin/scraper-review/page';
 
@@ -27,6 +27,7 @@ interface ScraperJob {
   pause_requested?: boolean;
   has_pending_resume?: boolean;
   ai_enabled?: boolean;
+  needs_review_count?: number;
   schedule_hours: number;
   next_run_at?: string;
   last_run_at?: string;
@@ -2350,6 +2351,34 @@ export default function AdminScraperTab() {
     finally { setRunningJob(null); }
   }
 
+  async function handleRetryFlagged(job: ScraperJob) {
+    setRunningJob(job.id);
+    try {
+      const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/retry-flagged`), { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      flash(data.message || (data.success ? 'Retrying flagged listings…' : 'Nothing to retry'));
+      if (!data.success) return;
+      // Same poll-until-done pattern as handleRunNow — this also runs as a
+      // normal job under the hood (skipping discovery via pending_urls), so
+      // status/counts update live the same way.
+      const pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch(apiUrl(`/scraper/jobs/${job.id}`), { headers: authHeaders() });
+          const d = await r.json();
+          if (d.success && d.job) {
+            setJobs(prev => prev.map(j => j.id === job.id ? { ...j, ...d.job } : j));
+            if (d.job.status !== 'running') {
+              clearInterval(pollTimer);
+              loadJobs();
+            }
+          }
+        } catch { clearInterval(pollTimer); }
+      }, 5000);
+      setTimeout(() => clearInterval(pollTimer), 60 * 60 * 1000);
+    } catch { flash('Failed to start retry'); }
+    finally { setRunningJob(null); }
+  }
+
   async function handleToggle(job: ScraperJob) {
     try {
       const res = await fetch(apiUrl(`/scraper/jobs/${job.id}/toggle`), { method: 'POST', headers: authHeaders() });
@@ -3016,6 +3045,11 @@ export default function AdminScraperTab() {
                               <span className="text-green-600">Created: {job.listings_created}</span>
                               <span className="text-yellow-600">Updated: {job.listings_updated}</span>
                               <span className="text-gray-500">Archived: {job.listings_removed}</span>
+                              {!!job.needs_review_count && (
+                                <span className="flex items-center gap-1 text-red-600" title="Listings this job couldn't extract real data for — fetch was blocked or came back empty">
+                                  <AlertTriangle size={12} /> Needs review: {job.needs_review_count}
+                                </span>
+                              )}
                             </div>
                           )}
                           {job.last_error && (
@@ -3029,6 +3063,14 @@ export default function AdminScraperTab() {
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
                             <RefreshCw size={16} className={job.status === 'running' ? 'animate-spin' : ''} />
                           </button>
+                          {!!job.needs_review_count && (
+                            <button onClick={() => handleRetryFlagged(job)}
+                              disabled={job.status === 'running' || runningJob === job.id}
+                              title={`Re-fetch just the ${job.needs_review_count} flagged listing(s), without a full re-run`}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed">
+                              <AlertTriangle size={16} />
+                            </button>
+                          )}
                           {job.status === 'running' && (
                             <button onClick={() => handleResetJob(job)} title="Reset a stuck run back to idle"
                               className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg">
