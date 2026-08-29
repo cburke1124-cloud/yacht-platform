@@ -35,7 +35,7 @@ from app.models.user import User
 from app.models.listing import Listing
 from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, YachtworldSyncJob
 from app.services import scraper as scraper_module
-from app.services.scraper import OptimizedYachtScraper, _apply_scraped_data, run_scraper_job
+from app.services.scraper import OptimizedYachtScraper, _apply_scraped_data, run_scraper_job, _looks_like_challenge_page
 from app.services import master_ocean
 from app.services import yachtworld_api
 from app.services.yachtworld_api import sync_yachtworld_job, run_due_yachtworld_jobs
@@ -184,6 +184,95 @@ def test_fetch_listing_html_retries_once_on_empty_result(scraper, monkeypatch):
 
     assert calls["fetch_page"] == 2, "must retry once after the first attempt comes back empty"
     assert "Real content" in html, "the retry's successful result should be used"
+
+
+def test_looks_like_challenge_page_detects_captcha_stub_not_real_short_page():
+    """Reproduces the real bviyachtsales.com case: a ~570-byte Cloudflare
+    Turnstile stub returned with an HTTP 200, which every empty/exception-
+    based check treats as a normal successful fetch. It must be told apart
+    from a real (if short) listing page, or it silently "succeeds" with
+    garbage on ~38% of a run."""
+    captcha_stub = (
+        '<html><head><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>'
+        '</head><div class="cf-turnstile" data-sitekey="x">Please complete the captcha to continue.</div></html>'
+    )
+    assert _looks_like_challenge_page(captcha_stub) is True
+
+    real_short_page = "<html><body><h1>2015 Beneteau 45</h1><p>Price: $250,000</p></body></html>"
+    assert _looks_like_challenge_page(real_short_page) is False, "a real page with a <body> must never be misclassified, however short"
+
+    assert _looks_like_challenge_page("") is False
+    assert _looks_like_challenge_page(None) is False
+
+    long_page_mentioning_cloudflare = (
+        "<html><body><h1>2015 Beneteau 45</h1>" + ("<p>filler</p>" * 500) +
+        "<footer>Protected by Cloudflare captcha</footer></body></html>"
+    )
+    assert _looks_like_challenge_page(long_page_mentioning_cloudflare) is False, "a long real page must not be flagged just for mentioning cloudflare/captcha in passing"
+
+
+def test_fetch_listing_html_retries_past_a_challenge_page_not_just_emptiness(scraper, monkeypatch):
+    """The captcha stub is non-empty, so the pre-existing empty-check retry
+    never fired for it — the fetch "succeeded" with garbage. The retry must
+    trigger on this too, and use the retry's real content once it lands."""
+    captcha_stub = '<html><div class="cf-turnstile">captcha challenge</div></html>'
+    calls = {"fetch_page": 0}
+
+    def fake_fetch_page(self, url, timeout=15):
+        calls["fetch_page"] += 1
+        if calls["fetch_page"] == 1:
+            return captcha_stub
+        return "<html><body><h1>Real content</h1></body></html>"
+
+    monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", False)
+    monkeypatch.setattr(OptimizedYachtScraper, "fetch_page", fake_fetch_page)
+    monkeypatch.setattr(scraper_module.time, "sleep", lambda *_: None)
+
+    html, _, _ = scraper._fetch_listing_html("https://bviyachtsales.test/yacht/1")
+
+    assert calls["fetch_page"] == 2, "a challenge-page result must trigger a retry, not be accepted as success"
+    assert "Real content" in html
+
+
+def test_fetch_listing_html_never_returns_a_challenge_page_even_after_retry_fails(scraper, monkeypatch):
+    """If every attempt keeps hitting the WAF stub, _fetch_listing_html must
+    give up and return empty -- not the captcha HTML -- so downstream code
+    (AI parse, confidence scoring) never treats it as real content."""
+    captcha_stub = '<html><div class="cf-turnstile">captcha challenge</div></html>'
+
+    monkeypatch.setattr(scraper_module, "_PLAYWRIGHT_AVAILABLE", False)
+    monkeypatch.setattr(OptimizedYachtScraper, "fetch_page", lambda self, url, timeout=15: captcha_stub)
+    monkeypatch.setattr(scraper_module.time, "sleep", lambda *_: None)
+
+    html, _, _ = scraper._fetch_listing_html("https://bviyachtsales.test/yacht/1")
+
+    assert html == "", "a persistent challenge-page response must come back as empty, never as the stub HTML"
+
+
+def test_ai_parse_is_skipped_when_fetch_never_got_real_content(db, owner, cleanup, monkeypatch):
+    """A blocked/empty fetch has nothing for AI to extract -- calling it
+    anyway just spends a credit to confirm what's already known. This is
+    also what makes the ~38%-of-a-run WAF-block rate cheap to capture as
+    review stubs instead of expensive."""
+    job = _make_job(db, owner, cleanup)
+    url = "https://example-broker.test/yacht/ai-skip-check"
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: ("", "", []))
+
+    ai_calls = []
+    monkeypatch.setattr(OptimizedYachtScraper, "scrape_with_ai", lambda self, *a, **kw: (ai_calls.append(1), {})[1])
+
+    result = run_scraper_job(job.id, db)
+
+    assert ai_calls == [], "no AI call should happen when the fetch returned nothing real to parse"
+    assert result.get("captured_low_confidence") == 1
+
+    verify_db = SessionLocal()
+    listing = verify_db.query(Listing).filter(Listing.source_url == url).first()
+    if listing:
+        cleanup["listing_ids"].append(listing.id)
+    verify_db.close()
 
 
 def test_price_extraction_avoids_superseded_price(scraper):

@@ -2834,22 +2834,33 @@ except Exception as e:
                 html = headless_html
 
         # Both the static and headless attempts (each already with their own
-        # proxy/render fallback) can still come up empty on a site whose
-        # blocking is intermittent rather than absolute — observed on
-        # bviyachtsales.com: a real page with full content, but our fetch got
-        # nothing, purely by bad luck on that attempt. Without a retry, that
-        # listing is stuck permanently blank (skip_reason="low_confidence")
-        # until the next scheduled run, up to days later. One retry after a
-        # short backoff is cheap insurance against a transient miss.
-        if not html:
+        # proxy/render fallback) can still come up empty -- or "succeed" with
+        # a WAF challenge stub instead of the real page (see
+        # _looks_like_challenge_page) -- on a site whose blocking is
+        # intermittent rather than absolute, observed on bviyachtsales.com.
+        # Without a retry, that listing is stuck permanently blank
+        # (skip_reason="low_confidence") until the next scheduled run, up to
+        # days later. One retry after a short backoff is cheap insurance
+        # against a transient miss.
+        if not html or _looks_like_challenge_page(html):
             time.sleep(random.uniform(2.0, 4.0))
-            html = self.fetch_page(url)
-            if _PLAYWRIGHT_AVAILABLE and (not html or len(html) < 5000):
+            retry_html = self.fetch_page(url)
+            if _PLAYWRIGHT_AVAILABLE and (not retry_html or len(retry_html) < 5000):
                 headless_html = self.fetch_page_headless(url)
-                if headless_html and len(headless_html) > len(html or ""):
-                    html = headless_html
-            if html:
-                logger.info(f"_fetch_listing_html: retry succeeded for {url} after initial fetch came back empty")
+                if headless_html and len(headless_html) > len(retry_html or ""):
+                    retry_html = headless_html
+            if retry_html and not _looks_like_challenge_page(retry_html):
+                html = retry_html
+                logger.info(f"_fetch_listing_html: retry succeeded for {url} after initial fetch came back empty/blocked")
+            elif not html:
+                html = retry_html  # nothing before either -- keep whatever we got, cleaned up below
+
+        if _looks_like_challenge_page(html):
+            # Still just a challenge stub after retrying -- don't let it
+            # masquerade as real content. Returning it as-is would burn an AI
+            # call trying to parse a boat out of a CAPTCHA page and mark this
+            # URL as "fetched" even though nothing real came through.
+            html = ""
 
         return (html or ""), _wp_extra_text, _wp_images
 
@@ -3728,12 +3739,16 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     db.commit()
 
                     # Stage 3: AI Parse (only when critical fields are still missing,
-                    # and only when this job hasn't been configured to skip AI —
+                    # only when this job hasn't been configured to skip AI —
                     # e.g. to verify deterministic extraction is coming through
-                    # correctly on a fresh broker before spending AI credits on it).
+                    # correctly on a fresh broker before spending AI credits on
+                    # it — and only when the fetch actually got real content:
+                    # a blocked/empty fetch has nothing for AI to extract
+                    # either, so calling it would just spend a credit to
+                    # confirm what we already know.
                     ai_used = False
                     _ai_enabled = (_template or {}).get("ai_enabled", True)
-                    if _ai_enabled and scraper._needs_ai_check(partial):
+                    if _ai_enabled and html and scraper._needs_ai_check(partial):
                         _raw_page_id = raw_page.id   # capture before closing session
                         db.close()
                         try:
@@ -4297,6 +4312,26 @@ _NUMERIC_FIELD_BOUNDS = {
     "cruising_speed_knots": (0, 100),
     "engine_hours": (0, 50_000),
 }
+
+
+_CHALLENGE_PAGE_MAX_LEN = 4000
+
+
+def _looks_like_challenge_page(html: Optional[str]) -> bool:
+    """Detects a WAF/bot-check stub returned with an HTTP 200 -- e.g. the
+    ~600-byte Cloudflare Turnstile page bviyachtsales.com serves instead of
+    the real listing on some fraction of requests. Every existing "did the
+    fetch fail" check treats this as success (it's non-empty, no exception,
+    no 403), so it silently "succeeds" with garbage: wastes an AI call
+    trying to extract a boat from a captcha page, and never gets retried
+    since nothing downstream knew it needed to be. A real listing page,
+    however short, always has a <body>; this stub doesn't."""
+    if not html or len(html) > _CHALLENGE_PAGE_MAX_LEN or '<body' in html.lower():
+        return False
+    lower = html.lower()
+    return any(marker in lower for marker in (
+        'captcha', 'turnstile', 'checking your browser', 'just a moment',
+    ))
 
 
 def _title_from_url_slug(url: str) -> str:
