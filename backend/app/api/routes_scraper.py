@@ -968,7 +968,35 @@ def get_dealer_team_members(
 # JOB MANAGEMENT
 # -----------------------------------------------------------------------
 
-def _job_to_dict(job: ScraperJob, dealer: Optional[User] = None) -> dict:
+def _compute_needs_review_count(db: Session, job_id: int) -> int:
+    """Single-job version of the grouped query list_scraper_jobs runs for all
+    jobs at once. Fine to call per-request here since every endpoint that
+    uses it returns exactly one job, not a polled list."""
+    return (
+        db.query(func.count(Listing.id))
+        .join(ScrapedListing, ScrapedListing.listing_id == Listing.id)
+        .filter(
+            ScrapedListing.job_id == job_id,
+            Listing.deleted_at == None,
+            cast(Listing.additional_specs, JSONB).has_key("needs_manual_review"),
+        )
+        .scalar()
+    ) or 0
+
+
+def _job_to_dict(
+    job: ScraperJob,
+    dealer: Optional[User] = None,
+    needs_review_count: Optional[int] = None,
+    db: Optional[Session] = None,
+) -> dict:
+    # Precomputed (list_scraper_jobs passes a grouped-query result to avoid
+    # N+1 across many jobs) takes priority; otherwise compute it here if a
+    # session was given, so single-job responses (edit/toggle/run/etc.)
+    # never silently drop the field and make the "Needs review" badge in the
+    # admin UI flicker away until the next full list reload.
+    if needs_review_count is None and db is not None:
+        needs_review_count = _compute_needs_review_count(db, job.id)
     return {
         "id": job.id,
         "dealer_id": job.dealer_id,
@@ -1005,6 +1033,7 @@ def _job_to_dict(job: ScraperJob, dealer: Optional[User] = None) -> dict:
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "site_template": job.site_template or {},
         "last_run_log": job.last_run_log or [],
+        "needs_review_count": needs_review_count if needs_review_count is not None else 0,
     }
 
 
@@ -1040,9 +1069,10 @@ def list_scraper_jobs(
         ):
             needs_review_counts[jid] = count
 
-    job_dicts = [_job_to_dict(j, dealers_by_id.get(j.dealer_id)) for j in jobs]
-    for jd in job_dicts:
-        jd["needs_review_count"] = needs_review_counts.get(jd["id"], 0)
+    job_dicts = [
+        _job_to_dict(j, dealers_by_id.get(j.dealer_id), needs_review_count=needs_review_counts.get(j.id, 0))
+        for j in jobs
+    ]
 
     return {
         "success": True,
@@ -1074,7 +1104,7 @@ def create_scraper_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    return {"success": True, "job": _job_to_dict(job)}
+    return {"success": True, "job": _job_to_dict(job, db=db)}
 
 
 @router.get("/scraper/jobs/{job_id}")
@@ -1089,7 +1119,7 @@ def get_scraper_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     dealer = db.query(User).filter(User.id == job.dealer_id).first() if job.dealer_id else None
-    return {"success": True, "job": _job_to_dict(job, dealer)}
+    return {"success": True, "job": _job_to_dict(job, dealer, db=db)}
 
 
 @router.put("/scraper/jobs/{job_id}")
@@ -1115,7 +1145,7 @@ def update_scraper_job(
     db.commit()
     db.refresh(job)
     dealer = db.query(User).filter(User.id == job.dealer_id).first() if job.dealer_id else None
-    return {"success": True, "job": _job_to_dict(job, dealer)}
+    return {"success": True, "job": _job_to_dict(job, dealer, db=db)}
 
 
 @router.delete("/scraper/jobs/{job_id}")
@@ -1191,7 +1221,7 @@ def toggle_scraper_job(
         job.pause_requested = True
     db.commit()
     db.refresh(job)
-    return {"success": True, "enabled": job.enabled, "job": _job_to_dict(job)}
+    return {"success": True, "enabled": job.enabled, "job": _job_to_dict(job, db=db)}
 
 
 from app.services.scraper import STALE_RUNNING_MINUTES  # shared with the scheduler's own stale-job recovery
@@ -2717,7 +2747,7 @@ def create_master_ocean_job(
     db.add(job)
     db.commit()
     db.refresh(job)
-    return {"success": True, "job": _job_to_dict(job)}
+    return {"success": True, "job": _job_to_dict(job, db=db)}
 
 
 @router.post("/scraper/master-ocean/test")
