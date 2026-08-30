@@ -3990,6 +3990,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                     # Update existing listing
                     _apply_scraped_data(listing, raw, job)
                     _apply_review_flag(listing)
+                    _sync_listing_images_if_empty(db, listing, raw)
                     # Restore guest_salesman_id if we matched/created one
                     if matched_guest_id and not listing.assigned_salesman_id:
                         listing.guest_salesman_id = matched_guest_id
@@ -4030,6 +4031,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         listing = _orphaned_listing
                         _apply_scraped_data(listing, raw, job)
                         _apply_review_flag(listing)
+                        _sync_listing_images_if_empty(db, listing, raw)
                         if _is_sold:
                             listing.status = "sold"
                         elif listing.status not in ("draft", "awaiting_review"):
@@ -4073,29 +4075,7 @@ def run_scraper_job(job_id: int, db) -> Dict:
                         _apply_review_flag(listing)
                         db.add(listing)
                         db.flush()  # get listing.id
-
-                        # Create images — filter out social media assets and tiny non-boat images.
-                        # Every scraped image is downloaded and re-hosted on our own storage
-                        # (not just known syndicator CDNs) so a listing's photos don't vanish
-                        # the moment the broker's own site goes down or changes its URLs.
-                        _SKIP_IMAGE_RE = re.compile(
-                            r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
-                            r'logo|icon|favicon|avatar|banner|social|share|'
-                            r'placeholder|no.image|no_image|spinner|pixel|tracking',
-                            re.IGNORECASE,
-                        )
-                        photo_position = 0
-                        for img_url in raw.get("images", [])[:_MAX_IMAGES_PER_LISTING]:
-                            if _SKIP_IMAGE_RE.search(img_url):
-                                continue
-                            img_url = _rehost_image(img_url)
-                            db.add(ListingImage(
-                                listing_id=listing.id,
-                                url=img_url,
-                                display_order=photo_position,
-                                alt_text=_generate_image_alt_text(listing, photo_position),
-                            ))
-                            photo_position += 1
+                        _sync_listing_images_if_empty(db, listing, raw)
 
                         # Track in ScrapedListing
                         if existing_scraped:
@@ -4292,6 +4272,55 @@ def _generate_image_alt_text(listing: Listing, photo_position: int) -> str:
     return generate_listing_image_alt_text(listing, photo_position)
 
 
+# Filter out social media assets and tiny non-boat images. Shared by every
+# path that turns scraped image URLs into ListingImage rows.
+_SKIP_IMAGE_RE = re.compile(
+    r'facebook\.|instagram\.|twitter\.|linkedin\.|youtube\.|tiktok\.|'
+    r'logo|icon|favicon|avatar|banner|social|share|'
+    r'placeholder|no.image|no_image|spinner|pixel|tracking',
+    re.IGNORECASE,
+)
+
+
+def _sync_listing_images_if_empty(db, listing: Listing, raw: Dict) -> None:
+    """Populate a listing's photos from freshly scraped image URLs, but only
+    when it currently has none.
+
+    Only the "create new listing" branch of the per-URL loop used to do
+    this; the "update existing" and "re-link orphan" branches called
+    _apply_scraped_data (scalar fields only) and stopped there. That's
+    invisible for a listing that already has photos from its original
+    scrape, but a listing captured as a needs_manual_review stub (zero
+    images, because the fetch that created it failed) stayed at zero images
+    forever even after a later run successfully re-fetched it — the update
+    path had genuinely extracted real image URLs into `raw["images"]` and
+    just never turned them into ListingImage rows.
+
+    Scoped to "currently empty" rather than always re-syncing so a normal
+    update never wipes or reorders photos an admin has since curated by hand.
+    Every scraped image is downloaded and re-hosted on our own storage (not
+    just known syndicator CDNs) so a listing's photos don't vanish the
+    moment the broker's own site goes down or changes its URLs.
+    """
+    images = raw.get("images") or []
+    if not images:
+        return
+    if db.query(ListingImage.id).filter(ListingImage.listing_id == listing.id).first():
+        return
+    photo_position = 0
+    for img_url in images[:_MAX_IMAGES_PER_LISTING]:
+        if _SKIP_IMAGE_RE.search(img_url):
+            continue
+        img_url = _rehost_image(img_url)
+        db.add(ListingImage(
+            listing_id=listing.id,
+            url=img_url,
+            display_order=photo_position,
+            alt_text=_generate_image_alt_text(listing, photo_position),
+        ))
+        photo_position += 1
+
+
 # Physically-implausible-value bounds, applied in _apply_scraped_data — the
 # single write path shared by the HTML scraper, the YachtWorld/IYBA API sync,
 # and the Master Ocean API sync. Previously bounds-checking only happened
@@ -4371,8 +4400,19 @@ def _apply_scraped_data(listing: Listing, raw: Dict, job: ScraperJob):
             value = str(raw[f])[:500] if isinstance(raw[f], str) else str(raw[f])
             setattr(listing, f, _sanitize_plain_text(value))
     for f in text_fields:
-        if raw.get(f):
-            setattr(listing, f, _sanitize_rich_text(str(raw[f])))
+        val = raw.get(f)
+        if not val:
+            continue
+        if isinstance(val, list):
+            # The AI is instructed to return a single multi-line string (see
+            # prompt_store.py's "features" instructions), but doesn't always
+            # comply and sometimes returns a JSON array instead -- naively
+            # str()'ing that produced literal "['- item', '- item']" text in
+            # the stored listing. Reassemble it into the intended multi-line
+            # bullet format instead of trusting the model's exact output shape.
+            lines = [str(item).strip() for item in val if item]
+            val = "\n".join(line if line.startswith("-") else f"- {line}" for line in lines)
+        setattr(listing, f, _sanitize_rich_text(str(val)))
     # Store feature_bullets as JSON array if provided
     if raw.get("feature_bullets") and isinstance(raw["feature_bullets"], list):
         listing.feature_bullets = [

@@ -32,7 +32,7 @@ import pytest
 from app.main import app  # noqa: F401 — registers all SQLAlchemy model relationships
 from app.db.session import SessionLocal
 from app.models.user import User
-from app.models.listing import Listing
+from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, YachtworldSyncJob
 from app.services import scraper as scraper_module
 from app.services.scraper import OptimizedYachtScraper, _apply_scraped_data, run_scraper_job, _looks_like_challenge_page
@@ -347,6 +347,34 @@ def test_apply_scraped_data_flags_large_price_swing_instead_of_overwriting():
 
     _apply_scraped_data(listing, {"price": 480000}, job)  # modest, legitimate change
     assert listing.price == 480000, "a modest price change should apply normally"
+
+
+def test_apply_scraped_data_reassembles_features_list_instead_of_stringifying_it():
+    """The AI is instructed to return `features` as a single multi-line
+    string (see prompt_store.py), but doesn't always comply and sometimes
+    returns a JSON array instead. Naively str()'ing that array produced a
+    literal "['- item', '- item']" Python-repr mess in the stored listing
+    (reproduces a real bviyachtsales.com listing seen in production)."""
+    listing = Listing(title="Test", bin=uuid.uuid4().hex[:12].upper(), condition="used")
+    job = SimpleNamespace(dealer_id=1, salesman_id=None)
+    raw = {
+        "features": [
+            "- Dual helm stations with Jefa wheels and custom grab rails",
+            "- Self-tacking furling jib with electric windlass",
+            "- Bow thruster for easy maneuvering",
+        ],
+    }
+    _apply_scraped_data(listing, raw, job)
+    assert listing.features is not None
+    assert "[" not in listing.features and "]" not in listing.features, "must not contain literal list-repr brackets"
+    assert "'" not in listing.features, "must not contain the list items' quote marks"
+    assert listing.features.count("\n") == 2, "each feature should be its own line"
+    assert "Dual helm stations" in listing.features
+
+    # A feature missing the "- " prefix should still get one, for consistent rendering
+    listing2 = Listing(title="Test2", bin=uuid.uuid4().hex[:12].upper(), condition="used")
+    _apply_scraped_data(listing2, {"features": ["Bow thruster", "- Radar arch"]}, job)
+    assert listing2.features.splitlines() == ["- Bow thruster", "- Radar arch"]
 
 
 def test_headless_discovery_follows_pagination(scraper, monkeypatch):
@@ -941,6 +969,108 @@ def test_needs_manual_review_flag_clears_on_a_later_successful_rescrape(db, owne
         assert "needs_manual_review" not in specs, "flag should be cleared once a later run extracts real data"
         assert listing.title and listing.title.lower() != "yacht", \
             "a real extracted title should win over the URL-slug fallback ('yacht', from /yacht/1), not get stuck on it"
+    finally:
+        verify_db.close()
+
+
+def test_update_path_populates_images_for_a_previously_imageless_stub(db, owner, cleanup, monkeypatch):
+    """A needs_manual_review stub is captured with zero images (the fetch that
+    created it failed). The "update existing listing" branch only ever called
+    _apply_scraped_data (scalar fields), which never touched images -- so a
+    later successful re-fetch with real photos left the listing permanently
+    at zero images even after everything else came through correctly.
+    Reproduces the real bviyachtsales.com case: 49/130 listings stuck with
+    "No image" after a batch of stubs got real data on retry."""
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+    url = "https://example-broker.test/yacht/needs-photos"
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: ("", "", []))
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    listing_row = verify_db.query(Listing).filter(Listing.source_url == url).first()
+    listing_id = listing_row.id
+    cleanup["listing_ids"].append(listing_id)
+    assert verify_db.query(ListingImage).filter(ListingImage.listing_id == listing_id).count() == 0
+    verify_db.close()
+
+    real_html = (
+        "<html><body><nav>Home | Inventory | About | Contact</nav>"
+        "<h1>2016 Beneteau Oceanis 41</h1><p>Price: $220,000</p>"
+        "<p>Located in Tortola, British Virgin Islands</p><p>Length: 41 ft</p>"
+        "<p>A superbly maintained charter-ready sailboat with a spacious cockpit "
+        "and fully equipped galley, recently serviced and ready to sail today.</p>"
+        "<div class=\"gallery\">"
+        "<img src=\"https://cdn.example.test/photos/boat1.jpg\">"
+        "<img src=\"https://cdn.example.test/photos/boat2.jpg\">"
+        "<img src=\"https://cdn.example.test/photos/boat3.jpg\">"
+        "</div>"
+        "<footer>Copyright 2026 Example Broker.</footer>"
+        "</body></html>"
+    )
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: (real_html, "", []))
+    monkeypatch.setattr(scraper_module, "_rehost_image", lambda u: u)  # skip real network re-hosting in the test
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    try:
+        images = verify_db.query(ListingImage).filter(ListingImage.listing_id == listing_id).all()
+        assert len(images) == 3, "the update path must populate images once real ones are extracted, not just scalar fields"
+        assert {i.url for i in images} == {
+            "https://cdn.example.test/photos/boat1.jpg",
+            "https://cdn.example.test/photos/boat2.jpg",
+            "https://cdn.example.test/photos/boat3.jpg",
+        }
+    finally:
+        verify_db.close()
+
+
+def test_update_path_never_duplicates_or_replaces_existing_curated_images(db, owner, cleanup, monkeypatch):
+    """An update to a listing that ALREADY has images (e.g. an admin curated
+    them, or they were set on a prior successful scrape) must never wipe,
+    reorder, or duplicate them -- image sync on update is scoped to
+    "currently empty" specifically to avoid this."""
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+    url = "https://example-broker.test/yacht/already-has-photos"
+    real_html = (
+        "<html><body><nav>Home | Inventory | About | Contact</nav>"
+        "<h1>2019 Jeanneau 51</h1><p>Price: $410,000</p>"
+        "<p>Located in Road Town, British Virgin Islands</p><p>Length: 51 ft</p>"
+        "<p>This flagship cruiser offers exceptional volume and comfort for "
+        "extended offshore passages, with premium electronics throughout.</p>"
+        "<div class=\"gallery\">"
+        "<img src=\"https://cdn.example.test/photos/boatA.jpg\">"
+        "</div>"
+        "<footer>Copyright 2026 Example Broker.</footer>"
+        "</body></html>"
+    )
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", lambda self, *a, **kw: [url])
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: (real_html, "", []))
+    monkeypatch.setattr(OptimizedYachtScraper, "_needs_ai_check", lambda self, partial: False)
+    monkeypatch.setattr(scraper_module, "_rehost_image", lambda u: u)
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    listing_row = verify_db.query(Listing).filter(Listing.source_url == url).first()
+    listing_id = listing_row.id
+    cleanup["listing_ids"].append(listing_id)
+    assert verify_db.query(ListingImage).filter(ListingImage.listing_id == listing_id).count() == 1
+    verify_db.close()
+
+    # Second run, source now shows a DIFFERENT photo -- must not touch existing images.
+    real_html_2 = real_html.replace("boatA.jpg", "boatB.jpg")
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", lambda self, *a, **kw: (real_html_2, "", []))
+    run_scraper_job(job_id, db)
+
+    verify_db = SessionLocal()
+    try:
+        images = verify_db.query(ListingImage).filter(ListingImage.listing_id == listing_id).all()
+        assert len(images) == 1
+        assert images[0].url == "https://cdn.example.test/photos/boatA.jpg", "an update must never replace existing curated images"
     finally:
         verify_db.close()
 
