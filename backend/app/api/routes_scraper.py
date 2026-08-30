@@ -1401,20 +1401,31 @@ def resync_listings_from_cached_data(
                 if sl.listing_id
             }
             updated = 0
+            failed = 0
             for page in pages:
                 listing_id = listing_id_by_url.get(page.source_url)
                 if not listing_id:
                     continue
-                listing = bg_db.query(Listing).filter(Listing.id == listing_id, Listing.deleted_at == None).first()
-                if not listing:
-                    continue
-                _apply_scraped_data(listing, page.merged_data, bg_job)
-                _sync_listing_images_if_empty(bg_db, listing, page.merged_data)
-                updated += 1
-                if updated % 20 == 0:
-                    bg_db.commit()
+                try:
+                    listing = bg_db.query(Listing).filter(Listing.id == listing_id, Listing.deleted_at == None).first()
+                    if not listing:
+                        continue
+                    _apply_scraped_data(listing, page.merged_data, bg_job)
+                    _sync_listing_images_if_empty(bg_db, listing, page.merged_data)
+                    updated += 1
+                    if updated % 20 == 0:
+                        bg_db.commit()
+                except Exception as _row_exc:
+                    # One listing's bad cached data (an implausible value, a
+                    # transient geocoding failure, etc.) must not abort every
+                    # listing after it in the batch -- log which one and move
+                    # on. Roll back first: a failed flush/statement leaves the
+                    # session unusable for the next iteration otherwise.
+                    failed += 1
+                    logger.error(f"[Job {job_id}] resync-from-cache: failed on listing_id={listing_id} ({page.source_url}): {_row_exc}")
+                    bg_db.rollback()
             bg_db.commit()
-            logger.info(f"[Job {job_id}] resync-from-cache: updated {updated} listing(s) from cached data")
+            logger.info(f"[Job {job_id}] resync-from-cache: updated {updated} listing(s), {failed} failed, from cached data")
         except Exception as exc:
             logger.error(f"[Job {job_id}] resync-from-cache failed: {exc}")
             bg_db.rollback()
