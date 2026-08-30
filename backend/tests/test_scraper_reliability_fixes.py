@@ -36,7 +36,7 @@ from app.models.listing import Listing, ListingImage
 from app.models.misc import ScraperJob, ScrapedListing, RawScrapedPage, YachtworldSyncJob
 from app.services import scraper as scraper_module
 from app.services.scraper import OptimizedYachtScraper, _apply_scraped_data, run_scraper_job, _looks_like_challenge_page
-from app.api.routes_scraper import retry_flagged_listings
+from app.api.routes_scraper import retry_flagged_listings, resync_listings_from_cached_data
 from app.services import master_ocean
 from app.services import yachtworld_api
 from app.services.yachtworld_api import sync_yachtworld_job, run_due_yachtworld_jobs
@@ -1271,6 +1271,79 @@ def test_retry_flagged_listings_reports_nothing_to_do_when_none_flagged(db, owne
 
     assert result["success"] is False
     assert "no listings" in result["message"].lower()
+
+
+def test_resync_from_cache_fixes_images_and_features_without_any_network_or_ai_calls(db, owner, cleanup, monkeypatch):
+    """A plain "Run Now" re-fetches and re-normalizes every URL -- on a site
+    whose pages vary enough between fetches that the content-hash cache
+    barely ever hits, that quietly re-triggers a real AI call for nearly
+    every listing even though nothing about the underlying data needs
+    re-deriving (reproduces the real BVI case: 11/11 pages re-fetched by a
+    "Run Now" needed a fresh AI call). resync-from-cache must fix the same
+    two bugs (missing images, garbled features) using only each page's
+    already-stored merged_data -- zero new fetches, zero AI calls."""
+    job = _make_job(db, owner, cleanup)
+    job_id = job.id
+    listing = Listing(
+        user_id=owner.id, source="scraped", source_url="https://example-broker.test/yacht/cached-resync",
+        status="active", bin=uuid.uuid4().hex[:12].upper(), condition="used", title="Old Title",
+    )
+    db.add(listing)
+    db.commit()
+    db.refresh(listing)
+    listing_id = listing.id
+    cleanup["listing_ids"].append(listing_id)
+
+    db.add(ScrapedListing(job_id=job_id, listing_id=listing_id, source_url=listing.source_url, still_active=True))
+    db.add(RawScrapedPage(
+        job_id=job_id,
+        source_url=listing.source_url,
+        stage="validated",
+        merged_data={
+            "title": "2016 Beneteau Oceanis 41",
+            "price": 220000,
+            "description": "A superbly maintained charter-ready sailboat.",
+            "features": [
+                "- Dual helm stations with Jefa wheels",
+                "- Bow thruster for easy maneuvering",
+            ],
+            "images": [
+                "https://cdn.example.test/photos/cached1.jpg",
+                "https://cdn.example.test/photos/cached2.jpg",
+            ],
+        },
+    ))
+    db.commit()
+
+    def _fail_if_called(*a, **kw):
+        raise AssertionError("resync-from-cache must never fetch the network or call AI")
+
+    monkeypatch.setattr(OptimizedYachtScraper, "find_listing_urls", _fail_if_called)
+    monkeypatch.setattr(OptimizedYachtScraper, "_fetch_listing_html", _fail_if_called)
+    monkeypatch.setattr(OptimizedYachtScraper, "scrape_with_ai", _fail_if_called)
+    monkeypatch.setattr(scraper_module, "_rehost_image", lambda u: u)  # skip real network re-hosting in the test
+
+    admin = SimpleNamespace(user_type="admin")
+    result = resync_listings_from_cached_data(job_id, db, admin)
+
+    assert result["success"] is True
+    assert result["updated"] == 1
+
+    verify_db = SessionLocal()
+    try:
+        refreshed = verify_db.query(Listing).filter(Listing.id == listing_id).first()
+        assert refreshed.title == "2016 Beneteau Oceanis 41"
+        assert refreshed.features is not None
+        assert "[" not in refreshed.features and "]" not in refreshed.features and "'" not in refreshed.features
+        assert refreshed.features.count("\n") == 1
+
+        images = verify_db.query(ListingImage).filter(ListingImage.listing_id == listing_id).all()
+        assert {i.url for i in images} == {
+            "https://cdn.example.test/photos/cached1.jpg",
+            "https://cdn.example.test/photos/cached2.jpg",
+        }
+    finally:
+        verify_db.close()
 
 
 def test_concurrent_run_is_rejected_not_duplicated(db, owner, cleanup):

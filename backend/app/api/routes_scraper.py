@@ -1344,6 +1344,73 @@ def retry_flagged_listings(
     }
 
 
+@router.post("/scraper/jobs/{job_id}/resync-from-cache")
+def resync_listings_from_cached_data(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Re-apply each listing's already-extracted data from its stored
+    RawScrapedPage.merged_data -- no network fetch, no AI call.
+
+    For retroactively applying a fix to how already-good extracted data gets
+    turned into a Listing (e.g. the image-sync-on-update or features-list
+    normalization bugs), without re-paying the cost of a real re-scrape. A
+    plain "Run Now" re-fetches and re-normalizes every URL, and on a site
+    whose pages vary enough between fetches (dynamic widgets, tokens, etc.)
+    the content-hash cache barely ever hits -- meaning a full re-run quietly
+    re-triggers a real AI call for nearly every listing even though nothing
+    about the underlying boat data actually needs re-deriving. This runs
+    synchronously (it's pure DB work, not network-bound) rather than as a
+    background thread like the other job actions.
+    """
+    _require_admin(current_user)
+    job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    from app.services.scraper import _apply_scraped_data, _sync_listing_images_if_empty
+
+    pages = (
+        db.query(RawScrapedPage)
+        .filter(
+            RawScrapedPage.job_id == job_id,
+            RawScrapedPage.stage == "validated",
+            RawScrapedPage.merged_data.isnot(None),
+        )
+        .all()
+    )
+    listing_id_by_url = {
+        sl.source_url: sl.listing_id
+        for sl in db.query(ScrapedListing).filter(ScrapedListing.job_id == job_id).all()
+        if sl.listing_id
+    }
+
+    updated = 0
+    skipped_no_listing = 0
+    for page in pages:
+        listing_id = listing_id_by_url.get(page.source_url)
+        if not listing_id:
+            skipped_no_listing += 1
+            continue
+        listing = db.query(Listing).filter(Listing.id == listing_id, Listing.deleted_at == None).first()
+        if not listing:
+            skipped_no_listing += 1
+            continue
+        _apply_scraped_data(listing, page.merged_data, job)
+        _sync_listing_images_if_empty(db, listing, page.merged_data)
+        updated += 1
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Resynced {updated} listing(s) from cached data — no network or AI calls made",
+        "updated": updated,
+        "skipped_no_listing": skipped_no_listing,
+        "pages_considered": len(pages),
+    }
+
+
 # -----------------------------------------------------------------------
 # SITE TEMPLATE — CSS selector map for reliable per-broker scraping
 # -----------------------------------------------------------------------
