@@ -1325,18 +1325,28 @@ def test_resync_from_cache_fixes_images_and_features_without_any_network_or_ai_c
 
     admin = SimpleNamespace(user_type="admin")
     result = resync_listings_from_cached_data(job_id, db, admin)
-
     assert result["success"] is True
-    assert result["updated"] == 1
+
+    # Runs in a background thread (see the endpoint's docstring for why:
+    # _apply_scraped_data's per-listing geocoding call risked the request
+    # itself timing out when run synchronously) -- poll until it lands.
+    import time as _time
+    refreshed = None
+    for _ in range(100):
+        poll_db = SessionLocal()
+        refreshed = poll_db.query(Listing).filter(Listing.id == listing_id).first()
+        poll_db.close()
+        if refreshed.features and "[" not in refreshed.features:
+            break
+        _time.sleep(0.05)
+
+    assert refreshed.title == "2016 Beneteau Oceanis 41"
+    assert refreshed.features is not None
+    assert "[" not in refreshed.features and "]" not in refreshed.features and "'" not in refreshed.features
+    assert refreshed.features.count("\n") == 1
 
     verify_db = SessionLocal()
     try:
-        refreshed = verify_db.query(Listing).filter(Listing.id == listing_id).first()
-        assert refreshed.title == "2016 Beneteau Oceanis 41"
-        assert refreshed.features is not None
-        assert "[" not in refreshed.features and "]" not in refreshed.features and "'" not in refreshed.features
-        assert refreshed.features.count("\n") == 1
-
         images = verify_db.query(ListingImage).filter(ListingImage.listing_id == listing_id).all()
         assert {i.url for i in images} == {
             "https://cdn.example.test/photos/cached1.jpg",

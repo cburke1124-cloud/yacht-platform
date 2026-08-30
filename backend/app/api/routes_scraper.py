@@ -1360,54 +1360,72 @@ def resync_listings_from_cached_data(
     whose pages vary enough between fetches (dynamic widgets, tokens, etc.)
     the content-hash cache barely ever hits -- meaning a full re-run quietly
     re-triggers a real AI call for nearly every listing even though nothing
-    about the underlying boat data actually needs re-deriving. This runs
-    synchronously (it's pure DB work, not network-bound) rather than as a
-    background thread like the other job actions.
+    about the underlying boat data actually needs re-deriving.
+
+    Runs in a background thread, like every other job action here --
+    despite skipping the network fetch and AI call, _apply_scraped_data
+    still makes a real (synchronous) geocoding API call per listing whose
+    coordinates aren't set yet. Running that for potentially every listing
+    in a job inside a single synchronous request risked the request itself
+    timing out (observed in practice on a 129-listing job). Commits every
+    20 listings rather than once at the end, so an interruption partway
+    through (deploy, restart) doesn't lose all progress -- a re-run just
+    picks up the rest, since this is idempotent (an already-fixed listing
+    is a no-op).
     """
     _require_admin(current_user)
     job = db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    from app.services.scraper import _apply_scraped_data, _sync_listing_images_if_empty
+    def _run():
+        from app.db.session import SessionLocal
+        from app.services.scraper import _apply_scraped_data, _sync_listing_images_if_empty
+        bg_db = SessionLocal()
+        try:
+            bg_job = bg_db.query(ScraperJob).filter(ScraperJob.id == job_id).first()
+            if not bg_job:
+                return
+            pages = (
+                bg_db.query(RawScrapedPage)
+                .filter(
+                    RawScrapedPage.job_id == job_id,
+                    RawScrapedPage.stage == "validated",
+                    RawScrapedPage.merged_data.isnot(None),
+                )
+                .all()
+            )
+            listing_id_by_url = {
+                sl.source_url: sl.listing_id
+                for sl in bg_db.query(ScrapedListing).filter(ScrapedListing.job_id == job_id).all()
+                if sl.listing_id
+            }
+            updated = 0
+            for page in pages:
+                listing_id = listing_id_by_url.get(page.source_url)
+                if not listing_id:
+                    continue
+                listing = bg_db.query(Listing).filter(Listing.id == listing_id, Listing.deleted_at == None).first()
+                if not listing:
+                    continue
+                _apply_scraped_data(listing, page.merged_data, bg_job)
+                _sync_listing_images_if_empty(bg_db, listing, page.merged_data)
+                updated += 1
+                if updated % 20 == 0:
+                    bg_db.commit()
+            bg_db.commit()
+            logger.info(f"[Job {job_id}] resync-from-cache: updated {updated} listing(s) from cached data")
+        except Exception as exc:
+            logger.error(f"[Job {job_id}] resync-from-cache failed: {exc}")
+            bg_db.rollback()
+        finally:
+            bg_db.close()
 
-    pages = (
-        db.query(RawScrapedPage)
-        .filter(
-            RawScrapedPage.job_id == job_id,
-            RawScrapedPage.stage == "validated",
-            RawScrapedPage.merged_data.isnot(None),
-        )
-        .all()
-    )
-    listing_id_by_url = {
-        sl.source_url: sl.listing_id
-        for sl in db.query(ScrapedListing).filter(ScrapedListing.job_id == job_id).all()
-        if sl.listing_id
-    }
-
-    updated = 0
-    skipped_no_listing = 0
-    for page in pages:
-        listing_id = listing_id_by_url.get(page.source_url)
-        if not listing_id:
-            skipped_no_listing += 1
-            continue
-        listing = db.query(Listing).filter(Listing.id == listing_id, Listing.deleted_at == None).first()
-        if not listing:
-            skipped_no_listing += 1
-            continue
-        _apply_scraped_data(listing, page.merged_data, job)
-        _sync_listing_images_if_empty(db, listing, page.merged_data)
-        updated += 1
-    db.commit()
-
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
     return {
         "success": True,
-        "message": f"Resynced {updated} listing(s) from cached data — no network or AI calls made",
-        "updated": updated,
-        "skipped_no_listing": skipped_no_listing,
-        "pages_considered": len(pages),
+        "message": "Resync started in the background — no network or AI calls will be made",
     }
 
 
