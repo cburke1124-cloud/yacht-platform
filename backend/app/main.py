@@ -36,6 +36,7 @@ from app.api.routes_bulk_import_export import router as bulk_import_export_route
 from app.api.routes_public_api import router as public_api_router
 from app.api.routes_payments import router as payments_router
 from app.api.routes_crm import router as crm_router
+from app.api.routes_marketing_feed import router as marketing_feed_router
 from app.services.seo_service import seo_router
 from app.api.routes_videos import router as videos_router
 from app.api.routes_pdf import router as pdf_router
@@ -232,6 +233,7 @@ if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api", tags=["users"])
 app.include_router(listings_router, prefix="/api/listings", tags=["listings"])
+app.include_router(marketing_feed_router, prefix="/api/marketing", tags=["marketing-feed"])
 app.include_router(featured_router, prefix="/api", tags=["featured"])
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(ai_search_router, prefix="/api", tags=["ai-search"])

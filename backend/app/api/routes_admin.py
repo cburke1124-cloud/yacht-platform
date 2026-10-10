@@ -44,6 +44,7 @@ from app.services.clamav_service import health_check as clamav_health_check
 from app.security.auth import get_password_hash, create_access_token, set_auth_cookie
 from app.core.config import settings
 from app.services.email_service import email_service
+from app.services.marketing_webhook import notify_broker_approved
 from app.services.demo_fixtures import get_demo_listing_data, create_demo_account_for_owner, create_demo_inquiries
 from app.models.documentation import Documentation
 from app.services.default_documentation import get_default_doc_by_slug
@@ -1418,6 +1419,9 @@ def create_dealer(
     db.commit()
     db.refresh(dealer)
 
+    if dealer.verified:
+        notify_broker_approved(db, dealer)
+
     # Send password-setup email
     base_url = __import__("os").getenv("BASE_URL", "https://yachtversal.com")
     setup_link = f"{base_url}/set-password?token={setup_token}"
@@ -1471,6 +1475,8 @@ def update_dealer(
     if not dealer:
         raise ResourceNotFoundException("Broker", dealer_id)
 
+    was_verified = bool(dealer.verified)
+
     updatable = ["first_name", "last_name", "phone", "company_name",
                  "verified", "active", "subscription_tier"]
     for field in updatable:
@@ -1480,6 +1486,9 @@ def update_dealer(
 
     db.commit()
     db.refresh(dealer)
+
+    if dealer.verified and not was_verified:
+        notify_broker_approved(db, dealer)
 
     slug = db.query(DealerProfile.slug).filter(DealerProfile.user_id == dealer_id).scalar()
     if slug:
