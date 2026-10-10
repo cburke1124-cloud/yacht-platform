@@ -10,19 +10,27 @@ it is configured. Applies the same visibility rules as the public site (active,
 not deleted, not demo, paid owner).
 """
 import hmac
+import json
 import os
+import re
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.routes_blog import _sanitize_blog_html, calculate_reading_time
 from app.api.routes_listings import _get_primary_images_for_listings
 from app.db.session import get_db
+from app.models.blog import BlogCategory, BlogPost, BlogPostTag, BlogTag, PostStatus
 from app.models.listing import Listing
 from app.models.user import User
 from app.services.billing_status import paid_owner_filter
+from app.services.marketing_blog import (
+    MAX_BLOCKS, Block, foreign_links, to_blocknote, to_html, to_plain_text,
+)
 
 router = APIRouter()
 
@@ -129,6 +137,140 @@ def marketing_listings(
             }
             for l in listings
         ],
+    }
+
+
+# --- blog drafts ---------------------------------------------------------------------------------
+#
+# The agent can CREATE drafts and read their status; it can never publish. Publishing happens in
+# the normal admin Blog tab, where a person reviews and edits the draft first.
+
+class BlogDraftIn(BaseModel):
+    title: str = Field(min_length=3, max_length=255)
+    # Doubles as the idempotency key: re-sending the same slug returns the existing post untouched,
+    # so a retry can never duplicate a draft or overwrite a reviewer's edits.
+    slug: str = Field(min_length=3, max_length=200, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    blocks: list[Block] = Field(min_length=1, max_length=MAX_BLOCKS)
+    excerpt: Optional[str] = Field(None, max_length=500)
+    featured_image: Optional[str] = Field(None, max_length=500)
+    featured_image_alt: Optional[str] = Field(None, max_length=255)
+    meta_title: Optional[str] = Field(None, max_length=255)
+    meta_description: Optional[str] = Field(None, max_length=320)
+    meta_keywords: Optional[str] = Field(None, max_length=500)
+    category: Optional[str] = Field(None, max_length=100)
+    tags: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("featured_image")
+    @classmethod
+    def _https_only(cls, value):
+        if value and not value.startswith("https://"):
+            raise ValueError("featured_image must be an https URL")
+        return value
+
+
+def _status_value(post: BlogPost) -> str:
+    if getattr(post, "deleted_at", None):
+        return "deleted"
+    status = post.status
+    return status.value if hasattr(status, "value") else str(status)
+
+
+def _blog_author(db: Session) -> User:
+    raw = os.getenv("MARKETING_BLOG_AUTHOR_ID", "").strip()
+    if not raw.isdigit():
+        raise HTTPException(status_code=503, detail="Blog drafts are not configured (MARKETING_BLOG_AUTHOR_ID)")
+    author = db.query(User).filter(User.id == int(raw), User.deleted_at.is_(None)).first()
+    if not author or author.user_type not in ("admin", "editor"):
+        raise HTTPException(status_code=503, detail="MARKETING_BLOG_AUTHOR_ID must be an existing admin or editor account")
+    return author
+
+
+def _draft_response(post: BlogPost, existing: bool) -> dict:
+    return {
+        "success": True,
+        "existing": existing,
+        "post_id": post.id,
+        "slug": post.slug,
+        "status": _status_value(post),
+    }
+
+
+@router.post("/blog-drafts", dependencies=[Depends(require_marketing_key)])
+def create_blog_draft(payload: BlogDraftIn, db: Session = Depends(get_db)):
+    author = _blog_author(db)
+
+    existing = db.query(BlogPost).filter(BlogPost.slug == payload.slug).first()
+    if existing:
+        return _draft_response(existing, existing=True)
+
+    bad_links = foreign_links(payload.blocks, _site_url())
+    if bad_links:
+        raise HTTPException(status_code=422, detail=f"Links must point at {_site_url()}: {bad_links[:3]}")
+
+    html = _sanitize_blog_html(to_html(payload.blocks))
+    plain = to_plain_text(payload.blocks)
+
+    category_id = None
+    if payload.category:
+        category = db.query(BlogCategory).filter(BlogCategory.slug == payload.category).first()
+        category_id = category.id if category else None
+
+    post = BlogPost(
+        title=payload.title,
+        slug=payload.slug,
+        excerpt=payload.excerpt or "",
+        content=plain,
+        content_blocks=json.dumps(to_blocknote(payload.blocks)),
+        content_html=html,
+        featured_image=payload.featured_image,
+        featured_image_alt=payload.featured_image_alt,
+        meta_title=payload.meta_title or payload.title,
+        meta_description=payload.meta_description or payload.excerpt or "",
+        meta_keywords=payload.meta_keywords,
+        status=PostStatus.DRAFT,  # always; there is no way to request anything else
+        author_id=author.id,
+        category_id=category_id,
+        reading_time_minutes=calculate_reading_time(plain),
+        allow_comments=True,
+        featured=False,
+    )
+    db.add(post)
+    db.flush()
+
+    seen_tags = set()
+    for raw_tag in payload.tags:
+        tag_slug = re.sub(r"[^a-z0-9]+", "-", raw_tag.lower()).strip("-")[:60]
+        if not tag_slug or tag_slug in seen_tags:
+            continue
+        seen_tags.add(tag_slug)
+        tag = db.query(BlogTag).filter(BlogTag.slug == tag_slug).first()
+        if not tag:
+            tag = BlogTag(name=tag_slug.replace("-", " ").title()[:50], slug=tag_slug)
+            db.add(tag)
+            db.flush()
+        db.add(BlogPostTag(post_id=post.id, tag_id=tag.id))
+
+    db.commit()
+    db.refresh(post)
+    return _draft_response(post, existing=False)
+
+
+@router.get("/blog-drafts/status", dependencies=[Depends(require_marketing_key)])
+def blog_draft_status(slugs: str = Query(..., max_length=4000), db: Session = Depends(get_db)):
+    """Current status of posts by slug, so the agent can show when a reviewer publishes one."""
+    wanted = list(dict.fromkeys(s for s in (part.strip() for part in slugs.split(",")) if s))[:50]
+    posts = db.query(BlogPost).filter(BlogPost.slug.in_(wanted)).all() if wanted else []
+    return {
+        "posts": [
+            {
+                "slug": p.slug,
+                "id": p.id,
+                "status": _status_value(p),
+                "published_at": _iso(p.published_at),
+                "url": f"{_site_url()}/blog/{p.slug}",
+            }
+            for p in posts
+        ]
     }
 
 
