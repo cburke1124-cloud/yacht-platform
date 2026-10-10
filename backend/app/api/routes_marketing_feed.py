@@ -18,7 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.routes_blog import _sanitize_blog_html, calculate_reading_time
@@ -28,6 +28,7 @@ from app.models.blog import BlogCategory, BlogPost, BlogPostTag, BlogTag, PostSt
 from app.models.listing import Listing
 from app.models.user import User
 from app.services.billing_status import paid_owner_filter
+from app.services.marketing_stats import summarize
 from app.services.marketing_blog import (
     MAX_BLOCKS, Block, foreign_links, to_blocknote, to_html, to_plain_text,
 )
@@ -137,6 +138,77 @@ def marketing_listings(
             }
             for l in listings
         ],
+    }
+
+
+# --- market statistics -----------------------------------------------------------------------------
+
+_STATS_ROW_CAP = 20000
+
+
+@router.get("/market-stats", dependencies=[Depends(require_marketing_key)])
+def marketing_market_stats(
+    boat_type: Optional[str] = Query(None, max_length=60),
+    make: Optional[str] = Query(None, max_length=60),
+    state: Optional[str] = Query(None, max_length=60),
+    condition: Optional[str] = Query(None, max_length=20),
+    min_length: Optional[float] = Query(None, ge=0, le=1000),
+    max_length: Optional[float] = Query(None, ge=0, le=1000),
+    min_year: Optional[int] = Query(None, ge=1900, le=2100),
+    max_year: Optional[int] = Query(None, ge=1900, le=2100),
+    db: Session = Depends(get_db),
+):
+    """Summary of the publicly visible listings that match the filters: counts, price quartiles,
+    typical size/age, top makes and places, and three example boats. Same visibility rules as
+    the public site, and scraped (not broker-entered) listings are left out."""
+    query = (
+        db.query(
+            Listing.id, Listing.title, Listing.price, Listing.currency, Listing.year, Listing.make,
+            Listing.length_feet, Listing.city, Listing.state, Listing.boat_type,
+        )
+        .join(User, Listing.user_id == User.id)
+        .filter(
+            Listing.status == "active",
+            Listing.deleted_at.is_(None),
+            User.is_demo != True,  # noqa: E712
+            paid_owner_filter(),
+            or_(Listing.source.is_(None), Listing.source != "broker_scrape"),
+        )
+    )
+    if boat_type:
+        query = query.filter(Listing.boat_type.ilike(f"%{boat_type}%"))
+    if make:
+        query = query.filter(Listing.make.ilike(f"%{make}%"))
+    if state:
+        query = query.filter(Listing.state.ilike(f"%{state}%"))
+    if condition:
+        query = query.filter(Listing.condition.ilike(condition))
+    if min_length is not None:
+        query = query.filter(Listing.length_feet >= min_length)
+    if max_length is not None:
+        query = query.filter(Listing.length_feet <= max_length)
+    if min_year is not None:
+        query = query.filter(Listing.year >= min_year)
+    if max_year is not None:
+        query = query.filter(Listing.year <= max_year)
+
+    keys = ("id", "title", "price", "currency", "year", "make", "length_feet", "city", "state", "boat_type")
+    rows = [dict(zip(keys, r)) for r in query.limit(_STATS_ROW_CAP).all()]
+    stats = summarize(rows, _site_url())
+
+    images = _get_primary_images_for_listings(db, [e["id"] for e in stats["examples"]])
+    for example in stats["examples"]:
+        media = images.get(example["id"]) or []
+        example["image_url"] = media[0].get("url") if media and media[0].get("url") else None
+
+    return {
+        "as_of": datetime.utcnow().date().isoformat(),
+        "filters": {k: v for k, v in {
+            "boat_type": boat_type, "make": make, "state": state, "condition": condition,
+            "min_length": min_length, "max_length": max_length, "min_year": min_year, "max_year": max_year,
+        }.items() if v is not None},
+        "truncated": len(rows) >= _STATS_ROW_CAP,
+        **stats,
     }
 
 
