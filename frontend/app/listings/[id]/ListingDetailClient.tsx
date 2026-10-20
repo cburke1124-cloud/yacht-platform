@@ -16,6 +16,7 @@ import DOMPurify from 'dompurify';
 import { API_ROOT, mediaUrl, FALLBACK_IMAGE } from '@/app/lib/apiRoot';
 import { detectLocaleDefaults, fmtLength, fmtCapacity, fmtWeight, fmtFuelBurn } from '@/app/lib/locale';
 import { formatPhoneDisplay } from '@/app/lib/formatPhoneDisplay';
+import ListingStatusMenu from '@/app/components/ListingStatusMenu';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ interface Listing {
   id: number; user_id?: number; created_by_user_id?: number; title: string; price?: number; currency?: string;
   year?: number; make?: string; model?: string; bin?: string;
   boat_type?: string; condition?: string; status?: string;
+  can_manage?: boolean;
   length_feet?: number; beam_feet?: number; draft_feet?: number;
   hull_material?: string; hull_type?: string;
   engine_make?: string; engine_model?: string; engine_type?: string;
@@ -222,11 +224,17 @@ export default function ListingDetailClient({
     }
   }, []);
 
+  function authHeaders(): Record<string, string> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
   async function fetchListing() {
-    try { const r = await fetch(`${API_ROOT}/listings/${id}`); if (r.ok) setListing(await r.json()); } catch {}
+    // Send the token when signed in: the owner/admin must be able to open their own
+    // draft or unpaid listing, and the response tells us whether they can manage it.
+    try { const r = await fetch(`${API_ROOT}/listings/${id}`, { headers: authHeaders() }); if (r.ok) setListing(await r.json()); } catch {}
   }
   async function fetchMedia() {
-    try { const r = await fetch(`${API_ROOT}/listings/${id}/media`); if (r.ok) { const d = await r.json(); setMedia(d.media || []); } } catch {}
+    try { const r = await fetch(`${API_ROOT}/listings/${id}/media`, { headers: authHeaders() }); if (r.ok) { const d = await r.json(); setMedia(d.media || []); } } catch {}
   }
   async function fetchContact() {
     try { const r = await fetch(`${API_ROOT}/listings/${id}/contact-info`); if (r.ok) setContact(await r.json()); } catch {}
@@ -483,14 +491,6 @@ export default function ListingDetailClient({
     me.id === listing.created_by_user_id
   ));
 
-  const listingStatusConfig: Record<string, { label: string; colorClass: string }> = {
-    active:          { label: 'Active',            colorClass: 'bg-green-100 text-green-800' },
-    draft:           { label: 'Draft',             colorClass: 'bg-gray-200 text-gray-700' },
-    awaiting_review: { label: 'Awaiting Approval', colorClass: 'bg-orange-100 text-orange-800' },
-    sold:            { label: 'Sold',              colorClass: 'bg-blue-100 text-blue-800' },
-    archived:        { label: 'Archived',          colorClass: 'bg-red-100 text-red-700' },
-  };
-
   const currentNavIndex = navContext ? navContext.ids.indexOf(Number(id)) : -1;
   const prevListingId   = currentNavIndex > 0 ? navContext!.ids[currentNavIndex - 1] : null;
   const nextListingId   = currentNavIndex >= 0 && currentNavIndex < navContext!.ids.length - 1
@@ -656,15 +656,17 @@ export default function ListingDetailClient({
 
       {/* ══ EDITOR STATUS BAR ══════════════════════════════════════════════ */}
       {canEdit && listing && (() => {
-        const info = listingStatusConfig[listing.status || ''] ?? { label: listing.status || '', colorClass: 'bg-gray-200 text-gray-700' };
         return (
           <div className="bg-[#10214F] text-white border-b border-white/10">
             <div className="max-w-[1296px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs text-white/60 uppercase tracking-wider font-medium">Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${info.colorClass}`}>
-                  {info.label}
-                </span>
+                <ListingStatusMenu
+                  listingId={listing.id}
+                  status={listing.status}
+                  canManage={!!listing.can_manage}
+                  onChanged={(next) => setListing(prev => prev ? { ...prev, status: next } : prev)}
+                />
                 {listing.status === 'awaiting_review' && (
                   <button
                     onClick={approveListing}

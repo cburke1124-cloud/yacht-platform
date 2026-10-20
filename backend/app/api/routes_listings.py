@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional, Any
 from functools import lru_cache
 from sqlalchemy import inspect, text, func, or_, cast, String
+from sqlalchemy.exc import IntegrityError
 import logging
 
 from app.db.session import get_db
@@ -42,6 +43,70 @@ def _has_listing_column(name: str) -> bool:
         return name in _listing_columns()
     except Exception:
         return False
+
+
+def _can_manage_listing(listing: Listing, user: Optional[User], db: Session) -> bool:
+    """Whether `user` may edit `listing` (the permission rule used by PUT, quick-edit and status)."""
+    if user is None:
+        return False
+    if listing.user_id == user.id or user.user_type == "admin":
+        return True
+    owner = db.query(User).filter(User.id == listing.user_id).first()
+    if owner and owner.parent_dealer_id == user.id:
+        return True
+    return user.user_type == "salesman" and sales_rep_manages_user(user.id, listing.user_id, db)
+
+
+# Statuses a user may move a listing between via PUT / quick-edit / PATCH status.
+# ("deleted" is only reachable through the delete endpoints.)
+EDITABLE_LISTING_STATUSES = {"active", "draft", "awaiting_review", "sold", "archived"}
+
+
+def _normalize_listing_status(raw: str) -> str:
+    """Map legacy status names and reject unknown ones."""
+    status = (raw or "").strip().lower()
+    if status in ("needs_approval", "pending"):
+        status = "awaiting_review"
+    if status not in EDITABLE_LISTING_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status value")
+    return status
+
+
+def _clean_bin(raw: Optional[str]) -> str:
+    return (raw or "").strip()
+
+
+def _bin_key(raw: str):
+    """Case-, space- and dash-insensitive form of a BIN/HIN, as a SQL expression."""
+    return func.upper(func.replace(func.replace(raw, "-", ""), " ", ""))
+
+
+def _bin_conflict(db: Session, bin_value: str, user: User, exclude_id: Optional[int] = None) -> Optional[HTTPException]:
+    """Return an actionable 409 if another listing already uses this BIN, else None."""
+    query = db.query(Listing).filter(_bin_key(Listing.bin) == _bin_key(bin_value))
+    if exclude_id is not None:
+        query = query.filter(Listing.id != exclude_id)
+    existing = query.first()
+    if not existing:
+        return None
+    if existing.user_id == user.id or existing.created_by_user_id == user.id:
+        label = f'"{existing.title}"' if existing.title else f"listing #{existing.id}"
+        if existing.deleted_at is not None or existing.status == "deleted":
+            detail = (
+                f"This BIN matches {label}, which you deleted. Restore it from Recently Deleted "
+                "or delete it permanently before reusing this BIN."
+            )
+        else:
+            detail = (
+                f"You already have a listing with this BIN: {label} (status: {existing.status}). "
+                "Open it from your dashboard to edit or publish it instead of creating a new one."
+            )
+    else:
+        detail = (
+            "This BIN is already used by another listing on YachtVersal. Please double-check the "
+            "number. If this is your boat, contact support."
+        )
+    return HTTPException(status_code=409, detail=detail)
 
 
 def _normalize_feature_bullets(raw: Any) -> list[str]:
@@ -1005,12 +1070,15 @@ def create_listing(
     if not (is_admin or has_create_permission or user_has_paid(current_user)):
         listing_data.status = "draft"
 
-    if listing_data.bin:
-        existing = db.query(Listing).filter(Listing.bin == listing_data.bin).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="A listing with this BIN already exists")
+    listing_data.bin = _clean_bin(listing_data.bin) or str(_uuid.uuid4()).replace("-", "").upper()[:12]
+    conflict = _bin_conflict(db, listing_data.bin, current_user)
+    if conflict:
+        raise conflict
 
     listing_payload = listing_data.dict()
+    listing_payload["status"] = _normalize_listing_status(listing_payload.get("status") or "draft")
+    if listing_payload["status"] == "active":
+        listing_payload["published_at"] = datetime.utcnow()
     if _has_listing_column("feature_bullets"):
         listing_payload["feature_bullets"] = _derive_feature_bullets(listing_payload)
     for field_name in ("additional_engines", "generators", "feature_bullets", "additional_specs", "allow_cobrokering"):
@@ -1034,7 +1102,14 @@ def create_listing(
         updated_at=datetime.utcnow(),
     )
     db.add(new_listing)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost a race with a concurrent create (e.g. a double-click) on the unique BIN.
+        db.rollback()
+        raise _bin_conflict(db, listing_data.bin, current_user) or HTTPException(
+            status_code=409, detail="A listing with this BIN already exists"
+        )
     db.refresh(new_listing)
     return {
         "id": new_listing.id,
@@ -1055,24 +1130,25 @@ def update_listing(
     listing = db.query(Listing).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
-    if listing.user_id != current_user.id and current_user.user_type != "admin":
-        owner = db.query(User).filter(User.id == listing.user_id).first()
-        is_team_member = owner and owner.parent_dealer_id == current_user.id
-        is_managing_sales_rep = (
-            current_user.user_type == "salesman"
-            and sales_rep_manages_user(current_user.id, listing.user_id, db)
-        )
-        if not (is_team_member or is_managing_sales_rep):
-            raise AuthorizationException("Not authorized to update this listing")
-
-    if listing_data.bin and listing_data.bin != listing.bin:
-        existing = db.query(Listing).filter(
-            Listing.bin == listing_data.bin, Listing.id != listing_id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="A listing with this BIN already exists")
+    if not _can_manage_listing(listing, current_user, db):
+        raise AuthorizationException("Not authorized to update this listing")
 
     update_payload = listing_data.dict(exclude_unset=True)
+    if "bin" in update_payload:
+        new_bin = _clean_bin(update_payload["bin"])
+        if not new_bin or new_bin == listing.bin:
+            # A blank BIN must never overwrite the stored one (it's NOT NULL + unique).
+            update_payload.pop("bin")
+        else:
+            conflict = _bin_conflict(db, new_bin, current_user, exclude_id=listing_id)
+            if conflict:
+                raise conflict
+            update_payload["bin"] = new_bin
+    if "status" in update_payload:
+        if update_payload["status"] is None:
+            update_payload.pop("status")
+        else:
+            update_payload["status"] = _normalize_listing_status(update_payload["status"])
     if _has_listing_column("feature_bullets"):
         merged = {**{k: getattr(listing, k, None) for k in [
             "feature_bullets", "features", "length_feet", "boat_type", "engine_count", "cabins", "fuel_capacity_gallons", "condition"
@@ -1082,9 +1158,8 @@ def update_listing(
         if field_name in update_payload and not _has_listing_column(field_name):
             update_payload.pop(field_name, None)
 
-    # Normalize legacy status values to awaiting_review
-    if update_payload.get("status") in ("needs_approval", "pending"):
-        update_payload["status"] = "awaiting_review"
+    if update_payload.get("status") == "active" and not listing.published_at:
+        update_payload["published_at"] = datetime.utcnow()
 
     if needs_geocoding(
         listing,
@@ -1126,27 +1201,15 @@ def quick_edit_listing(
     listing = db.query(Listing).filter(Listing.id == listing_id).first()
     if not listing:
         raise ResourceNotFoundException("Listing", listing_id)
-    if listing.user_id != current_user.id and current_user.user_type != "admin":
-        owner = db.query(User).filter(User.id == listing.user_id).first()
-        is_team_member = owner and owner.parent_dealer_id == current_user.id
-        is_managing_sales_rep = (
-            current_user.user_type == "salesman"
-            and sales_rep_manages_user(current_user.id, listing.user_id, db)
-        )
-        if not (is_team_member or is_managing_sales_rep):
-            raise AuthorizationException("Not authorized to update this listing")
+    if not _can_manage_listing(listing, current_user, db):
+        raise AuthorizationException("Not authorized to update this listing")
 
     update_payload = listing_data.dict(exclude_unset=True)
     if not update_payload:
         raise HTTPException(status_code=400, detail="No quick-edit fields were provided")
 
     if "status" in update_payload:
-        # Treat legacy "needs_approval" and "pending" as "awaiting_review"
-        if update_payload["status"] in ("needs_approval", "pending"):
-            update_payload["status"] = "awaiting_review"
-        valid_statuses = {"active", "draft", "awaiting_review", "sold", "archived"}
-        if update_payload["status"] not in valid_statuses:
-            raise HTTPException(status_code=400, detail="Invalid status value")
+        update_payload["status"] = _normalize_listing_status(update_payload["status"])
 
     for field, value in update_payload.items():
         setattr(listing, field, value)
@@ -1158,13 +1221,23 @@ def quick_edit_listing(
     db.commit()
     db.refresh(listing)
     trigger_revalidation([f"/listings/{listing.id}"])
-    return {
+    result = {
         "id": listing.id,
         "title": listing.title,
         "price": listing.price,
         "status": listing.status,
         "message": "Listing quick edit saved",
     }
+    if listing.status == "active":
+        owner = db.query(User).filter(User.id == listing.user_id).first()
+        if not user_has_paid(owner):
+            # Same rule as the public visibility filter: unpaid owners' listings stay hidden.
+            result["public_visible"] = False
+            result["warning"] = (
+                "Status saved, but this listing won't be visible to the public until the "
+                "account's subscription is active."
+            )
+    return result
 
 
 @router.patch("/{listing_id}/status")
@@ -1438,27 +1511,24 @@ def get_listing(listing_id: int, current_user: Optional[User] = Depends(get_opti
     # Treat soft-deleted listings as not found for public access
     if listing.deleted_at is not None:
         raise ResourceNotFoundException("Listing", listing_id)
-    # Admins, and sales reps managing this listing's owner, can always access
-    # any listing regardless of subscription status.
-    is_admin = current_user and current_user.user_type == "admin"
-    is_managing_sales_rep = (
-        current_user is not None
-        and current_user.user_type == "salesman"
-        and sales_rep_manages_user(current_user.id, listing.user_id, db)
-    )
-    if not (is_admin or is_managing_sales_rep):
-        # Hide listing if the owner hasn't actually paid (or lapsed)
+    can_manage =_can_manage_listing(listing, current_user, db)
+    if not can_manage:
+        # Hide listing if the owner hasn't actually paid (or lapsed). Anyone who
+        # can manage the listing (owner, their dealer, admin, sales rep) still
+        # sees it — otherwise an unpaid seller gets "not found" on their own
+        # freshly created listing and can't reach the status controls.
         owner = listing.owner
         if owner and not user_has_paid(owner):
             raise ResourceNotFoundException("Listing", listing_id)
     # Increment view counter — but not for the listing's own owner, admins,
     # or sales reps managing it, so previews/self-checks don't inflate the
     # count shown to the seller.
-    is_owner = current_user is not None and current_user.id == listing.user_id
-    if not (is_admin or is_managing_sales_rep or is_owner):
+    if not can_manage:
         listing.views = (listing.views or 0) + 1
         db.commit()
-    return _serialize_listing(listing, db)
+    data = _serialize_listing(listing, db)
+    data["can_manage"] = can_manage
+    return data
 
 
 # ─── GET media for a listing ──────────────────────────────────────────────────

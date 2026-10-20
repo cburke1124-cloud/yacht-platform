@@ -33,7 +33,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const listing = await fetchListing(id);
 
   if (!listing) {
-    return { title: 'Listing Not Found' };
+    // noindex: the page itself no longer returns a 404 status for these (see page.tsx)
+    return { title: 'Listing Not Found', robots: { index: false, follow: false } };
   }
 
   const title = listing.title || [listing.year, listing.make, listing.model].filter(Boolean).join(' ') || 'Yacht Listing';

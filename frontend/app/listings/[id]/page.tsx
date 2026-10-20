@@ -1,4 +1,3 @@
-import { notFound } from 'next/navigation';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import { getBoatTypes } from '@/app/lib/boatTypeData';
 import ListingDetailClient from './ListingDetailClient';
@@ -67,15 +66,15 @@ async function fetchContact(id: string) {
 
 export default async function ListingDetailPage({ params }: ListingDetailPageProps) {
   const { id } = await params;
-  const [{ data: listing, is404 }, media, contact] = await Promise.all([
+  const [{ data: listing }, media, contact] = await Promise.all([
     fetchListing(id),
     fetchMedia(id),
     fetchContact(id),
   ]);
 
-  if (is404) {
-    notFound();
-  }
+  // Don't hard-404 here: this server-side fetch is anonymous, so it also 404s for a
+  // listing its owner/admin is allowed to see (draft or unpaid account). The client
+  // component refetches with the signed-in user's token and shows "not found" itself.
 
   const [makeLink, boatTypeLink] = listing
     ? await Promise.all([fetchMakeLink(listing.make), Promise.resolve(findBoatTypeLink(listing.boat_type))])

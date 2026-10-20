@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import MediaUpload from '@/app/components/MediaUpload';
 import MediaLibraryPicker from '@/app/components/MediaLibraryPicker';
 import ScraperModal from '@/app/components/ScraperModal';
+import ListingStatusMenu from '@/app/components/ListingStatusMenu';
 import { Bold, Italic, Underline, List, ListOrdered, Link2, Highlighter, Heading2, Heading3, Pilcrow, Quote, GripVertical, Star, FileText, Film, ArrowLeft } from 'lucide-react';
 import { API_ROOT, mediaUrl } from '@/app/lib/apiRoot';
 import { COUNTRIES, STATES_BY_COUNTRY, COUNTRY_TO_CONTINENT } from '@/app/lib/locationData';
@@ -196,6 +197,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   // Tracks the server-assigned draft ID created by the first autosave in create mode.
   // Once set, autosave PUTs to this ID rather than POSTing a new draft every time.
   const savedDraftIdRef = useRef<number | null>(null);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
+  const inFlightSaveRef = useRef<Promise<void> | null>(null);
+  const manualSavingRef = useRef(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -887,99 +892,147 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     wrapDescriptionSelection(`<a href=\"${safeUrl}\" target=\"_blank\" rel=\"noopener noreferrer\">${label}</a>`);
   };
 
-  // ── Save as Draft (server-side) ────────────────────────────────────────────
-  // ── Silent autosave (no redirect, no alert) ─────────────────────────────
-  const silentSaveDraft = async () => {
-    if (!form.title.trim()) return; // need a title to save
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    if (autosaveState === 'saving') return;
-    setAutosaveState('saving');
-    try {
-      const num = (v: string) => v ? parseFloat(v) : null;
-      const int = (v: string) => v ? parseInt(v) : null;
-      const payload = {
-        title: form.title,
-        description: form.description || null,
-        price: num(form.price),
-        currency: form.currency,
-        year: int(form.year),
-        make: form.make || null,
-        model: form.model || null,
-        bin: form.bin || '',
-        condition: form.condition,
-        status: isEditMode ? form.status : 'draft',
-        allow_cobrokering: form.allow_cobrokering,
-        show_financing_calculator: form.show_financing_calculator,
-        city: form.city || null,
-        state: form.state || null,
-        country: form.country || null,
-        zip_code: form.zip_code || null,
-        continent: form.continent || null,
-        length_feet: num(form.length_feet),
-        beam_feet: num(form.beam_feet),
-        draft_feet: num(form.draft_feet),
-        boat_type: form.boat_type || null,
-        hull_material: form.hull_material || null,
-        hull_type: form.hull_type || null,
-        cabins: int(form.cabins),
-        berths: int(form.berths),
-        heads: int(form.heads),
-        previous_owners: int(form.previous_owners),
-        engine_count: int(form.engine_count),
-        fuel_type: form.fuel_type || null,
-        max_speed_knots: num(form.max_speed_knots),
-        cruising_speed_knots: num(form.cruising_speed_knots),
-        fuel_capacity_gallons: num(form.fuel_capacity_gallons),
-        water_capacity_gallons: num(form.water_capacity_gallons),
-        additional_specs: {
-          displacement_lbs: num(form.displacement_lbs),
-          dry_weight_lbs: num(form.dry_weight_lbs),
-          bridge_clearance_feet: num(form.bridge_clearance_feet),
-          deadrise_degrees: num(form.deadrise_degrees),
-          cruising_range_nm: num(form.cruising_range_nm),
-          fuel_burn_gph: num(form.fuel_burn_gph),
-          holding_tank_gallons: num(form.holding_tank_gallons),
-        },
-        feature_bullets: deriveFeatureBullets(form),
-        features: [
-          ...deriveFeatureBullets(form).map(b => `- ${b}`),
-          form.features_text.trim() ? `\n${form.features_text.trim()}` : '',
-        ].filter(Boolean).join('\n'),
-        additional_engines: form.additional_engines
-          .map(e => ({ make: e.make || null, model: e.model || null, type: e.type || null, hours: num(e.hours), horsepower: num(e.horsepower), notes: e.notes || null }))
-          .filter(e => Object.values(e).some(v => v !== null && v !== '')),
-        generators: form.generators
-          .map(g => ({ brand: g.brand || null, model: g.model || null, hours: num(g.hours), kw: num(g.kw), notes: g.notes || null }))
-          .filter(g => Object.values(g).some(v => v !== null && v !== '')),
-      };
+  // ── Saving (shared by autosave, Save Draft, header Publish and submit) ───────
+  const detailText = (d: any, fallback: string) =>
+    typeof d === 'string' ? d
+      : Array.isArray(d) ? (d.map((x: any) => x?.msg).filter(Boolean).join('; ') || fallback)
+      : fallback;
 
-      // In create mode: POST once, then PUT to the same draft ID from then on.
-      const existingId = isEditMode ? Number(listingId) : savedDraftIdRef.current;
-      const endpoint = existingId ? `${API_ROOT}/listings/${existingId}` : `${API_ROOT}/listings/`;
-      const method = existingId ? 'PUT' : 'POST';
-      const res = await fetch(endpoint, {
-        method,
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        setAutosaveState('idle');
-        return;
-      }
-      const result = await res.json();
-      if (!existingId && result.id) {
-        savedDraftIdRef.current = result.id;
-        // Silently update URL to edit route so page refreshes land on the right draft
-        window.history.replaceState(null, '', `/dealer/listings/${result.id}/edit`);
-      }
-      if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey);
-      setAutosaveState('saved');
-      setLastSavedAt(new Date());
-      window.setTimeout(() => setAutosaveState('idle'), 2000);
-    } catch {
-      setAutosaveState('idle');
+  const buildDraftPayload = (status: string) => {
+    const num = (v: string) => v ? parseFloat(v) : null;
+    const int = (v: string) => v ? parseInt(v) : null;
+    return {
+      title:           form.title,
+      description:     form.description || null,
+      price:           num(form.price),
+      currency:        form.currency,
+      year:            int(form.year),
+      make:            form.make     || null,
+      model:           form.model    || null,
+      bin:             form.bin      || '',
+      condition:       form.condition,
+      status,
+      allow_cobrokering: form.allow_cobrokering,
+      show_financing_calculator: form.show_financing_calculator,
+      city:            form.city     || null,
+      state:           form.state    || null,
+      country:         form.country  || null,
+      zip_code:        form.zip_code || null,
+      continent:       form.continent || null,
+      length_feet:     num(form.length_feet),
+      beam_feet:       num(form.beam_feet),
+      draft_feet:      num(form.draft_feet),
+      boat_type:       form.boat_type       || null,
+      hull_material:   form.hull_material   || null,
+      hull_type:       form.hull_type       || null,
+      cabins:          int(form.cabins),
+      berths:          int(form.berths),
+      heads:           int(form.heads),
+      previous_owners: int(form.previous_owners),
+      engine_count:    int(form.engine_count),
+      fuel_type:       form.fuel_type    || null,
+      max_speed_knots: num(form.max_speed_knots),
+      cruising_speed_knots: num(form.cruising_speed_knots),
+      fuel_capacity_gallons:  num(form.fuel_capacity_gallons),
+      water_capacity_gallons: num(form.water_capacity_gallons),
+      additional_specs: {
+        displacement_lbs:      num(form.displacement_lbs),
+        dry_weight_lbs:        num(form.dry_weight_lbs),
+        bridge_clearance_feet: num(form.bridge_clearance_feet),
+        deadrise_degrees:      num(form.deadrise_degrees),
+        cruising_range_nm:     num(form.cruising_range_nm),
+        fuel_burn_gph:         num(form.fuel_burn_gph),
+        holding_tank_gallons:  num(form.holding_tank_gallons),
+      },
+      feature_bullets: deriveFeatureBullets(form),
+      features: [
+        ...deriveFeatureBullets(form).map(b => `- ${b}`),
+        form.features_text.trim() ? `\n${form.features_text.trim()}` : '',
+      ].filter(Boolean).join('\n'),
+      additional_engines: form.additional_engines
+        .map(e => ({ make: e.make || null, model: e.model || null, type: e.type || null, hours: num(e.hours), horsepower: num(e.horsepower), notes: e.notes || null }))
+        .filter(e => Object.values(e).some(v => v !== null && v !== '')),
+      generators: form.generators
+        .map(g => ({ brand: g.brand || null, model: g.model || null, hours: num(g.hours), kw: num(g.kw), notes: g.notes || null }))
+        .filter(g => Object.values(g).some(v => v !== null && v !== '')),
+    };
+  };
+
+  // Once the listing exists on the server (edit mode, or after the first save in
+  // create mode) every save PUTs to it; only the very first save POSTs. Anything
+  // that POSTed a second time would trip the unique BIN check against our own draft.
+  const persistListing = async (payload: any, attachMedia: boolean): Promise<{ id: number } | { error: string }> => {
+    const token = localStorage.getItem('token');
+    if (!token) return { error: 'You are signed out. Please sign in again.' };
+    const existingId = isEditMode ? Number(listingId) : savedDraftIdRef.current;
+    const res = await fetch(existingId ? `${API_ROOT}/listings/${existingId}` : `${API_ROOT}/listings/`, {
+      method: existingId ? 'PUT' : 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { error: detailText(err.detail, 'Failed to save listing') };
     }
+    const result = await res.json();
+    const id: number = existingId ?? result.id;
+    if (!existingId && result.id) {
+      savedDraftIdRef.current = result.id;
+      setDraftId(result.id);
+      // Silently update URL to edit route so page refreshes land on the right draft
+      window.history.replaceState(null, '', `/dealer/listings/${result.id}/edit`);
+    }
+    // Attach media (images/videos/pdfs). PDFs are ordered last by backend.
+    // Only when we know uploadedMedia holds real MediaFile.id values — never
+    // send legacy ListingImage.id values here, that would wipe the scraped
+    // photos (see /media/attach).
+    const mediaIds = uploadedMedia.map(m => m?.id).filter(Boolean);
+    if (attachMedia && usingNewMediaSystem && mediaIds.length > 0) {
+      await fetch(`${API_ROOT}/listings/${id}/media/attach`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ media_ids: mediaIds }),
+      });
+    }
+    return { id };
+  };
+
+  const currentListingId: number | null = isEditMode ? Number(listingId) : draftId;
+
+  // Status to send with a draft save: keep what the listing already has once it exists.
+  const statusForDraftSave = () => (isEditMode || savedDraftIdRef.current ? form.status : 'draft');
+
+  // Silent autosave (no redirect, no alert). Never runs alongside a manual save,
+  // and a manual save waits for an in-flight autosave so it can PUT instead of POST.
+  const silentSaveDraft = (): Promise<void> => {
+    if (inFlightSaveRef.current) return inFlightSaveRef.current;
+    if (manualSavingRef.current || !form.title.trim() || !localStorage.getItem('token')) return Promise.resolve();
+    setAutosaveState('saving');
+    const run = (async () => {
+      try {
+        const out = await persistListing(buildDraftPayload(statusForDraftSave()), false);
+        if ('error' in out) {
+          setAutosaveState('idle');
+          setAutosaveError(out.error);
+          return;
+        }
+        setAutosaveError(null);
+        if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey);
+        setAutosaveState('saved');
+        setLastSavedAt(new Date());
+        window.setTimeout(() => setAutosaveState('idle'), 2000);
+      } catch {
+        setAutosaveState('idle');
+      }
+    })().finally(() => { inFlightSaveRef.current = null; });
+    inFlightSaveRef.current = run;
+    return run;
+  };
+
+  const beginManualSave = async () => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    manualSavingRef.current = true;
+    await inFlightSaveRef.current;
   };
 
   // Debounced autosave: fires 3 s after the user stops editing
@@ -998,94 +1051,17 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
       alert('Please enter a title before saving your draft.');
       return;
     }
-    const token = localStorage.getItem('token');
-    if (!token) { router.push('/login'); return; }
+    if (!localStorage.getItem('token')) { router.push('/login'); return; }
     setAutosaveState('saving');
+    await beginManualSave();
     try {
-      const num = (v: string) => v ? parseFloat(v) : null;
-      const int = (v: string) => v ? parseInt(v) : null;
-      const payload = {
-        title:           form.title,
-        description:     form.description || null,
-        price:           num(form.price),
-        currency:        form.currency,
-        year:            int(form.year),
-        make:            form.make     || null,
-        model:           form.model    || null,
-        bin:             form.bin      || '',
-        condition:       form.condition,
-        status:          'draft',
-        allow_cobrokering: form.allow_cobrokering,
-        show_financing_calculator: form.show_financing_calculator,
-        city:            form.city     || null,
-        state:           form.state    || null,
-        country:         form.country  || null,
-        zip_code:        form.zip_code || null,
-        continent:       form.continent || null,
-        length_feet:     num(form.length_feet),
-        beam_feet:       num(form.beam_feet),
-        draft_feet:      num(form.draft_feet),
-        boat_type:       form.boat_type       || null,
-        hull_material:   form.hull_material   || null,
-        hull_type:       form.hull_type       || null,
-        cabins:          int(form.cabins),
-        berths:          int(form.berths),
-        heads:           int(form.heads),
-        previous_owners: int(form.previous_owners),
-        engine_count:    int(form.engine_count),
-        fuel_type:       form.fuel_type    || null,
-        max_speed_knots: num(form.max_speed_knots),
-        cruising_speed_knots: num(form.cruising_speed_knots),
-        fuel_capacity_gallons:  num(form.fuel_capacity_gallons),
-        water_capacity_gallons: num(form.water_capacity_gallons),
-        additional_specs: {
-          displacement_lbs:      num(form.displacement_lbs),
-          dry_weight_lbs:        num(form.dry_weight_lbs),
-          bridge_clearance_feet: num(form.bridge_clearance_feet),
-          deadrise_degrees:      num(form.deadrise_degrees),
-          cruising_range_nm:     num(form.cruising_range_nm),
-          fuel_burn_gph:         num(form.fuel_burn_gph),
-          holding_tank_gallons:  num(form.holding_tank_gallons),
-        },
-        feature_bullets: deriveFeatureBullets(form),
-        features: [
-          ...deriveFeatureBullets(form).map(b => `- ${b}`),
-          form.features_text.trim() ? `\n${form.features_text.trim()}` : '',
-        ].filter(Boolean).join('\n'),
-        additional_engines: form.additional_engines
-          .map(e => ({ make: e.make || null, model: e.model || null, type: e.type || null, hours: num(e.hours), horsepower: num(e.horsepower), notes: e.notes || null }))
-          .filter(e => Object.values(e).some(v => v !== null && v !== '')),
-        generators: form.generators
-          .map(g => ({ brand: g.brand || null, model: g.model || null, hours: num(g.hours), kw: num(g.kw), notes: g.notes || null }))
-          .filter(g => Object.values(g).some(v => v !== null && v !== '')),
-      };
-
-      const endpoint = isEditMode ? `${API_ROOT}/listings/${listingId}` : `${API_ROOT}/listings/`;
-      const res = await fetch(endpoint, {
-        method: isEditMode ? 'PUT' : 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to save draft'); }
-      const result = await res.json();
-      const resolvedId = isEditMode ? Number(listingId) : result.id;
-
-      // Attach any already-uploaded media. Only when we know uploadedMedia
-      // holds real MediaFile.id values — never send legacy ListingImage.id
-      // values here, that would wipe the scraped photos (see /media/attach).
-      const mediaIds = uploadedMedia.map(m => m?.id).filter(Boolean);
-      if (usingNewMediaSystem && mediaIds.length > 0) {
-        await fetch(`${API_ROOT}/listings/${resolvedId}/media/attach`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ media_ids: mediaIds }),
-        });
-      }
-
+      const out = await persistListing(buildDraftPayload(statusForDraftSave()), true);
+      if ('error' in out) { alert(out.error); setAutosaveState('idle'); return; }
+      setAutosaveError(null);
       if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey);
       if (!isEditMode) {
         // Redirect to edit so further saves use PUT
-        router.push(`/dealer/listings/${resolvedId}/edit`);
+        router.push(`/dealer/listings/${out.id}/edit`);
       } else {
         setAutosaveState('saved');
         setLastSavedAt(new Date());
@@ -1094,6 +1070,40 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     } catch (err: any) {
       alert(err.message || 'Failed to save draft');
       setAutosaveState('idle');
+    } finally {
+      manualSavingRef.current = false;
+    }
+  };
+
+  // Returns what's missing for a public listing (and jumps to that tab), or null.
+  const validateForPublish = (): string | null => {
+    if (!isEditMode && uploadedMedia.length === 0) {
+      setActiveTab('media');
+      return 'Please upload at least one image before publishing.';
+    }
+    if (!form.boat_type) { setActiveTab('specs'); return 'Please select a Boat Type in the Specifications tab.'; }
+    if (propulsion !== 'sail' && !form.fuel_type) { setActiveTab('engine'); return 'Please select a Fuel Type in the Engine tab.'; }
+    if (!form.hull_material) { setActiveTab('specs'); return 'Please select a Hull Material in the Specifications tab.'; }
+    if (!form.description.replace(/<[^>]*>/g, '').trim()) { setActiveTab('basic'); return 'Please enter a description before publishing.'; }
+    return null;
+  };
+
+  // Runs before the header status menu / Publish button changes the status:
+  // checks the listing is ready, then saves any pending edits and media first.
+  const beforeStatusChange = async (next: string): Promise<boolean | string> => {
+    if (next === 'active' && !isAdminUser) {
+      const problem = validateForPublish();
+      if (problem) return problem;
+    }
+    await beginManualSave();
+    try {
+      const out = await persistListing(buildDraftPayload(form.status), true);
+      if ('error' in out) return `Could not save your changes first: ${out.error}`;
+      return true;
+    } catch {
+      return 'Network error while saving your changes. Please try again.';
+    } finally {
+      manualSavingRef.current = false;
     }
   };
 
@@ -1112,33 +1122,14 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     const isDraft = submitStatus === 'draft';
 
     if (!isDraft && !isAdminUser) {
-      if (!isEditMode && uploadedMedia.length === 0) {
-        alert('Please upload at least one image');
-        setActiveTab('media');
-        return;
-      }
-      if (!form.boat_type) {
-        alert('Please select a Boat Type in the Specifications tab');
-        setActiveTab('specs');
-        return;
-      }
-      if (propulsion !== 'sail' && !form.fuel_type) {
-        alert('Please select a Fuel Type in the Engine tab');
-        setActiveTab('engine');
-        return;
-      }
-      if (!form.hull_material) {
-        alert('Please select a Hull Material in the Specifications tab');
-        setActiveTab('specs');
-        return;
-      }
-      if (!form.description.replace(/<[^>]*>/g, '').trim()) {
-        alert('Please enter a description');
-        setActiveTab('basic');
+      const problem = validateForPublish();
+      if (problem) {
+        alert(problem);
         return;
       }
     }
     setLoading(true);
+    await beginManualSave();
     try {
       const token = localStorage.getItem('token');
       if (!token) { router.push('/login'); return; }
@@ -1220,34 +1211,15 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           .filter(generator => Object.values(generator).some(v => v !== null && v !== '')),
       };
 
-      const endpoint = isEditMode ? `${API_ROOT}/listings/${listingId}` : `${API_ROOT}/listings/`;
-      const res = await fetch(endpoint, {
-        method: isEditMode ? 'PUT' : 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Failed to create listing'); }
-      const result = await res.json();
-      const resolvedListingId = isEditMode ? Number(listingId) : result.id;
-
-      // Attach media (images/videos/pdfs). PDFs are ordered last by backend.
-      // Only when we know uploadedMedia holds real MediaFile.id values —
-      // never send legacy ListingImage.id values here, that would wipe the
-      // scraped photos (see /media/attach).
-      const mediaIds = uploadedMedia.map(m => m?.id).filter(Boolean);
-      if (usingNewMediaSystem && mediaIds.length > 0) {
-        await fetch(`${API_ROOT}/listings/${resolvedListingId}/media/attach`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ media_ids: mediaIds }),
-        });
-      }
+      const out = await persistListing(payload, true);
+      if ('error' in out) throw new Error(out.error);
 
       if (typeof window !== 'undefined') localStorage.removeItem(draftStorageKey);
-      router.push(`/listings/${resolvedListingId}`);
+      router.push(`/listings/${out.id}`);
     } catch (err: any) {
       alert(err.message || 'Failed to create listing');
     } finally {
+      manualSavingRef.current = false;
       setLoading(false);
     }
   }
@@ -1322,10 +1294,50 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
                   : lastSavedAt
                     ? `Last saved at ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                     : form.title.trim() ? 'Unsaved changes' : 'Start typing to autosave'}
+              {autosaveError && (
+                <span className="ml-3 font-medium text-red-600" role="alert">Autosave failed: {autosaveError}</span>
+              )}
             </span>
             <button type="button" onClick={saveAsDraft} disabled={autosaveState === 'saving'} className="px-3 py-1.5 rounded-md text-white disabled:opacity-60" style={{ background: '#10214F' }}>
               {autosaveState === 'saving' ? 'Saving…' : 'Save Draft'}
             </button>
+          </div>
+
+          {/* Status + Publish: always visible, whichever tab you are on */}
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-6 px-4 py-3 rounded-xl" style={{ background: 'rgba(16,33,79,0.04)' }}>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs uppercase tracking-wider font-medium" style={{ color: 'rgba(16,33,79,0.5)' }}>Status</span>
+              {currentListingId ? (
+                <ListingStatusMenu
+                  tone="light"
+                  listingId={currentListingId}
+                  status={form.status}
+                  canManage
+                  showQuickAction
+                  beforeChange={beforeStatusChange}
+                  onChanged={(next) => setForm(p => ({ ...p, status: next }))}
+                />
+              ) : (
+                <>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-700">Draft — not saved yet</span>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleSubmit(null, 'active')}
+                    className="px-4 py-1.5 rounded-full text-xs font-semibold text-white disabled:opacity-60 hover:opacity-90 transition"
+                    style={{ background: '#01BBDC' }}>
+                    {loading ? 'Publishing…' : 'Publish listing'}
+                  </button>
+                </>
+              )}
+            </div>
+            <span className="text-xs" style={{ color: 'rgba(16,33,79,0.6)' }}>
+              {form.status === 'active'
+                ? 'Your listing is live.'
+                : form.status === 'draft' || !currentListingId
+                  ? 'Only you can see this draft until you publish it.'
+                  : ''}
+            </span>
           </div>
 
           {/* Tab strip */}
