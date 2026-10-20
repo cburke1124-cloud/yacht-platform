@@ -567,7 +567,7 @@ async def login(request: Request, response: Response, user_data: UserLogin, db: 
         )
 
     # If 2FA is enabled, do not return a token — require the second factor first
-    if user and user.two_factor_enabled:
+    if user and user.two_factor_enabled and not settings.DISABLE_2FA:
         # Generate and email the 2FA code
         from app.models.dealer import TwoFactorCode
         code = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
@@ -759,6 +759,7 @@ def get_me(request: Request, current_user: User = Depends(get_current_user), db:
         "agreed_terms": bool((permissions or {}).get("agreed_terms", False)),
         "email_verified": bool(current_user.email_verified),
         "two_factor_enabled": bool(current_user.two_factor_enabled),
+        "two_factor_suspended": bool(settings.DISABLE_2FA),
         "subscription_start_date": current_user.subscription_start_date.isoformat() if getattr(current_user, "subscription_start_date", None) else None,
         # Present only when this session was minted by POST /admin/users/{id}/impersonate.
         "impersonator": impersonator,

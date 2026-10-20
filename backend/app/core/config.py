@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     WEBHOOK_TIMEOUT: int = int(os.getenv("WEBHOOK_TIMEOUT", "10"))
     WEBHOOK_RETRY_DELAY: int = int(os.getenv("WEBHOOK_RETRY_DELAY", "60"))  # seconds between retries
 
+    # Emergency kill-switch: when true, login skips the emailed 2FA code and the
+    # frontend stops forcing admin/dealer 2FA enrollment. Users' 2FA settings are
+    # left untouched, so unsetting this restores 2FA exactly as it was.
+    DISABLE_2FA: bool = os.getenv("DISABLE_2FA", "").strip().lower() in ("1", "true", "yes")
+
 settings = Settings()
 
 # ── Secret-key hardening ──────────────────────────────────────────────────────

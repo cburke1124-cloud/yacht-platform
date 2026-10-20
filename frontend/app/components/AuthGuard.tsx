@@ -90,7 +90,8 @@ export default function AuthGuard() {
         // set) — it's the target account's own 2FA status, not the admin's,
         // and forcing them through 2FA setup on someone else's account just
         // to look at their dashboard isn't the point of that feature.
-        if (user && !user.impersonator && ['admin', 'dealer'].includes(user.user_type) && !user.two_factor_enabled) {
+        // Also skipped when the backend has 2FA suspended site-wide (DISABLE_2FA).
+        if (user && !user.impersonator && !user.two_factor_suspended && ['admin', 'dealer'].includes(user.user_type) && !user.two_factor_enabled) {
           router.replace('/2fa-required');
         }
       })
