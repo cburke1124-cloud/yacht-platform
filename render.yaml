@@ -14,3 +14,16 @@ services:
         value: production
       - key: SCRAPER_PROXY_URL
         sync: false
+      # Marketing agent (see DEPLOYMENT.md, "Marketing Agent"); the three secrets match the agent's values.
+      - key: MARKETING_AGENT_URL
+        sync: false
+      - key: MARKETING_AGENT_API_KEY
+        sync: false
+      - key: MARKETING_FEED_KEY
+        sync: false
+      - key: MARKETING_WEBHOOK_URL
+        sync: false
+      - key: MARKETING_WEBHOOK_SECRET
+        sync: false
+      - key: MARKETING_BLOG_AUTHOR_ID
+        sync: false

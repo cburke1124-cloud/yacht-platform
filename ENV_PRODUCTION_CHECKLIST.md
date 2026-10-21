@@ -40,6 +40,7 @@ Set these in backend service environment settings.
 | `AI_SEARCH_USER_DAILY_LIMIT` | Optional | Default `25` | AI searches per registered account per rolling 24h (admins exempt) |
 | `AI_ANON_GLOBAL_DAILY_LIMIT` | Optional | Default `300` | Sitewide guest AI calls per 24h — cost circuit-breaker |
 | `CHATBOT_ANON_DAILY_LIMIT` / `CHATBOT_USER_DAILY_LIMIT` | Optional | Defaults `40` / `150` | Chat messages per guest / account per 24h |
+| `MARKETING_AGENT_URL` / `MARKETING_AGENT_API_KEY` | To use the admin Marketing tab | Unset (tab shows setup help) | Agent URL + shared key; see DEPLOYMENT.md "Marketing Agent" (also `MARKETING_FEED_KEY`, `MARKETING_WEBHOOK_URL`, `MARKETING_WEBHOOK_SECRET`, `MARKETING_BLOG_AUTHOR_ID`) |
 | `HCAPTCHA_SECRET` | If captcha enabled | Placeholder | Set real secret |
 | `HCAPTCHA_SITEKEY` | If captcha enabled (frontend also) | Placeholder | Set real site key |
 | `GOOGLE_MAPS_API_KEY` | If maps enabled | Placeholder | Set real key with domain restrictions |

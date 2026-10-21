@@ -133,6 +133,37 @@ ffmpeg -version
 - Monitor video sizes; if needed, tighten ffmpeg `-crf` from `28` to `30` for more compression.
 - Add CDN only to media domain first (highest bandwidth savings).
 
+## Marketing Agent (optional, separate service)
+
+The marketing agent (`marketing-agent` repo) is its own FastAPI app with its own Postgres database. It reads
+public listings from this backend, drafts social posts and blog articles, and shows them in the admin
+dashboard's **Marketing** tab. Nothing is posted or published without an admin's click.
+
+1. Push `marketing-agent` to its own GitHub repo and create a Render Blueprint from its `render.yaml`
+   (web service + `marketing-agent-db`). Run `python scripts/create_admin.py` once (Render shell) for the
+   agent's own login page.
+2. Generate three long random strings. Each must be set to the **same value on both services**:
+
+   | Variable | yacht-platform-backend | marketing-agent | Purpose |
+   |---|---|---|---|
+   | `MARKETING_FEED_KEY` | yes | yes | agent reads listings/brokers/stats and creates blog drafts |
+   | `MARKETING_WEBHOOK_SECRET` | yes | yes | signs the "broker approved" webhook |
+   | `MARKETING_AGENT_API_KEY` | yes | yes | admin dashboard calls the agent's `/api/admin/*` |
+
+3. Backend only: `MARKETING_AGENT_URL` (the agent's public URL), `MARKETING_WEBHOOK_URL`
+   (`<agent URL>/webhooks/yachtversal`) and `MARKETING_BLOG_AUTHOR_ID` (id of an admin/editor user that owns
+   agent-written drafts).
+4. Agent only: `YACHTVERSAL_API_URL` (this backend's origin), `ANTHROPIC_API_KEY`, and optionally
+   `SEARCH_CONSOLE_SITE` + `GOOGLE_SERVICE_ACCOUNT_FILE`.
+5. Social posting is off per platform until its credentials are set on the agent: `FACEBOOK_PAGE_ID` +
+   `FACEBOOK_PAGE_ACCESS_TOKEN` (Page token with `pages_manage_posts`), `INSTAGRAM_BUSINESS_ACCOUNT_ID`
+   (reuses the Page token; needs `instagram_content_publish`; Instagram posts require an image),
+   `LINKEDIN_ORGANIZATION_ID` + `LINKEDIN_ACCESS_TOKEN` (`w_organization_social`). Until then the tab shows
+   the post text to copy by hand. These integrations are covered by tests against a stubbed HTTP client only;
+   do a first real post with a throwaway draft before relying on them.
+6. Verify: open `/admin?tab=marketing` as an admin. It shows setup instructions until step 2-3 are done, then
+   the review queue. Click "Sync now" and confirm drafts appear.
+
 ## Quick Launch Sequence
 
 1. Deploy backend and database.

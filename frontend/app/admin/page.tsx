@@ -22,6 +22,7 @@ import AdminCharterTab from '@/app/components/admin/AdminCharterTab';
 import AdminFoundingBrokerTab from '@/app/components/admin/AdminFoundingBrokerTab';
 import AdminEmailTemplatesTab from '@/app/components/admin/AdminEmailTemplatesTab';
 import AdminChatbotTab from '@/app/components/admin/AdminChatbotTab';
+import AdminMarketingTab from '@/app/components/admin/AdminMarketingTab';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3, Link2, Copy, Check } from 'lucide-react';
 
 function AdminPageContent() {
@@ -48,6 +49,7 @@ function AdminPageContent() {
     { id: 'founding-broker', label: 'Founding Broker', icon: '🤝' },
     { id: 'email-templates', label: 'Email Templates', icon: '✉️' },
     { id: 'chatbot', label: 'Chatbot', icon: '💬' },
+    { id: 'marketing', label: 'Marketing', icon: '📣' },
   ];
 
   // Deep links such as /admin?tab=chatbot&conversation=12 (used by lead alerts).
@@ -106,6 +108,7 @@ function AdminPageContent() {
           {activeTab === 'founding-broker' && <AdminFoundingBrokerTab />}
           {activeTab === 'email-templates' && <AdminEmailTemplatesTab />}
           {activeTab === 'chatbot' && <AdminChatbotTab />}
+          {activeTab === 'marketing' && <AdminMarketingTab />}
         </section>
       </div>
     </AdminLayout>
