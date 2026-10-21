@@ -4,6 +4,7 @@ import { useEffect, useReducer, useRef } from 'react';
 import Link from 'next/link';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { newSessionId, visitorHeaders } from '@/app/lib/visitorId';
 
 interface ListingContext {
   id: number;
@@ -58,10 +59,14 @@ interface ChatbotResponse {
   intent: 'general' | 'search' | 'contact_broker';
   search_results: { results: SearchResult[]; total_found: number } | null;
   contact_collected: ContactCollected | null;
+  session_id?: string;
+  // Set when the guest/account hit an AI usage cap instead of getting an answer.
+  limit_reached?: 'signup_required' | 'daily_limit' | null;
 }
 
 interface DisplayMessage extends ChatTurn {
   searchResults?: SearchResult[];
+  signupCta?: boolean;
   onAskBroker?: (listingId: number, title: string) => void;
 }
 
@@ -122,6 +127,9 @@ const initialState: State = {
 export default function ChatbotWidget() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // One server-side conversation per widget mount, matching the on-screen
+  // transcript (which also resets on a full page reload).
+  const sessionIdRef = useRef<string>(newSessionId());
 
   useEffect(() => {
     function handleOpenWithListing(e: Event) {
@@ -146,10 +154,10 @@ export default function ChatbotWidget() {
     try {
       const res = await fetch(apiUrl('/chatbot/message'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...visitorHeaders() },
         body: JSON.stringify({
           message: text.trim(),
-          history: [...state.messages, userMessage].map(({ role, content }) => ({ role, content })),
+          session_id: sessionIdRef.current,
           listing_context: state.listingContext,
           page_url: originUrl,
         }),
@@ -157,10 +165,12 @@ export default function ChatbotWidget() {
 
       if (!res.ok) throw new Error('Request failed');
       const data: ChatbotResponse = await res.json();
+      if (data.session_id) sessionIdRef.current = data.session_id;
 
       const assistantMessage: DisplayMessage = {
         role: 'assistant',
         content: data.reply,
+        signupCta: data.limit_reached === 'signup_required',
         searchResults: data.search_results?.results,
         onAskBroker: (listingId, title) => dispatch({ type: 'set_listing_context', context: { id: listingId, title } }),
       };
@@ -181,14 +191,14 @@ export default function ChatbotWidget() {
     <>
       <button
         onClick={() => dispatch({ type: 'toggle_open' })}
-        className="fixed bottom-6 left-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-transform hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-transform hover:scale-105"
         aria-label={state.open ? 'Close chat assistant' : 'Open chat assistant'}
       >
         {state.open ? <X size={24} /> : <MessageCircle size={24} />}
       </button>
 
       {state.open && (
-        <div className="fixed bottom-24 left-6 z-40 flex h-[28rem] w-80 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl sm:w-96">
+        <div className="fixed bottom-24 right-6 z-40 flex h-[28rem] w-[calc(100vw-3rem)] max-w-96 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl sm:w-96">
           <div className="bg-secondary px-4 py-3 text-white">
             <p className="font-semibold">YachtVersal Assistant</p>
             {state.listingContext && (
@@ -207,6 +217,17 @@ export default function ChatbotWidget() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{m.content}</p>
+
+                  {m.signupCta && (
+                    <div className="mt-2 flex gap-2">
+                      <Link href="/register" className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
+                        Create free account
+                      </Link>
+                      <Link href="/login" className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-white">
+                        Sign in
+                      </Link>
+                    </div>
+                  )}
 
                   {m.searchResults && m.searchResults.length > 0 && (
                     <div className="mt-2 space-y-2">

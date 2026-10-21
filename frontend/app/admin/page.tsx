@@ -21,6 +21,7 @@ import AdminCatalogTab from '@/app/components/admin/AdminCatalogTab';
 import AdminCharterTab from '@/app/components/admin/AdminCharterTab';
 import AdminFoundingBrokerTab from '@/app/components/admin/AdminFoundingBrokerTab';
 import AdminEmailTemplatesTab from '@/app/components/admin/AdminEmailTemplatesTab';
+import AdminChatbotTab from '@/app/components/admin/AdminChatbotTab';
 import { TrendingUp, Eye, Mail, DollarSign, Ship, Users, BarChart3, Link2, Copy, Check } from 'lucide-react';
 
 function AdminPageContent() {
@@ -46,7 +47,15 @@ function AdminPageContent() {
     { id: 'charter', label: 'Charter', icon: '⛵' },
     { id: 'founding-broker', label: 'Founding Broker', icon: '🤝' },
     { id: 'email-templates', label: 'Email Templates', icon: '✉️' },
+    { id: 'chatbot', label: 'Chatbot', icon: '💬' },
   ];
+
+  // Deep links such as /admin?tab=chatbot&conversation=12 (used by lead alerts).
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (tab && tabs.some((t) => t.id === tab)) setActiveTab(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AdminLayout>
@@ -96,6 +105,7 @@ function AdminPageContent() {
           {activeTab === 'charter' && <AdminCharterTab />}
           {activeTab === 'founding-broker' && <AdminFoundingBrokerTab />}
           {activeTab === 'email-templates' && <AdminEmailTemplatesTab />}
+          {activeTab === 'chatbot' && <AdminChatbotTab />}
         </section>
       </div>
     </AdminLayout>

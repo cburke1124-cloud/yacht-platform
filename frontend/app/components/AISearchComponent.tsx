@@ -5,6 +5,7 @@ import { Search, Mic, MicOff, Sparkles, X, Volume2, Star, AlertTriangle, Save } 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
+import { visitorHeaders, readAIQuotaError, AIQuotaError } from '@/app/lib/visitorId';
 import CharterCard, { CharterListing } from '@/app/components/CharterCard';
 
 interface MatchReason {
@@ -79,6 +80,7 @@ export default function AISearchComponent() {
   const [searchResults, setSearchResults] = useState<AISearchResponse | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [error, setError] = useState('');
+  const [quota, setQuota] = useState<AIQuotaError | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -149,6 +151,7 @@ export default function AISearchComponent() {
 
     setIsSearching(true);
     setError('');
+    setQuota(null);
     setShowSuggestions(false);
 
     try {
@@ -156,6 +159,7 @@ export default function AISearchComponent() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...visitorHeaders(),
         },
         body: JSON.stringify({
           query: searchQuery,
@@ -167,7 +171,12 @@ export default function AISearchComponent() {
         const data: AISearchResponse = await response.json();
         setSearchResults(data);
       } else {
-        setError('Search failed. Please try again.');
+        const limit = await readAIQuotaError(response);
+        if (limit) {
+          setQuota(limit);
+        } else {
+          setError('Search failed. Please try again.');
+        }
       }
     } catch (err) {
       console.error('Search error:', err);
@@ -331,6 +340,22 @@ export default function AISearchComponent() {
           {error && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
+          {quota && (
+            <div className="mt-4 p-5 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-blue-900 font-medium">{quota.message}</p>
+              {quota.signupRequired && (
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <Link href="/register" className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90">
+                    Create free account
+                  </Link>
+                  <Link href="/login" className="px-4 py-2 rounded-lg border border-blue-300 text-blue-900 text-sm font-semibold hover:bg-white">
+                    Sign in
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>

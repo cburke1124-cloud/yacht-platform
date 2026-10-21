@@ -9,6 +9,7 @@ import {
 import ListingCard from '../components/ListingCard';
 import { ListingGridSkeleton } from '../components/LoadingSkeletons';
 import { apiUrl } from '@/app/lib/apiRoot';
+import { visitorHeaders, readAIQuotaError, AIQuotaError } from '@/app/lib/visitorId';
 import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 import { detectLocaleDefaults } from '@/app/lib/locale';
 
@@ -361,6 +362,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
   const [listings, setListings] = useState<Listing[]>(initialListings);
   const [loading, setLoading] = useState(!hasInitialData);
   const [fetchError, setFetchError] = useState(false);
+  const [aiQuota, setAiQuota] = useState<AIQuotaError | null>(null);
   const initialAiQuery = searchParams.get('ai_query') || '';
   const [searchType, setSearchType] = useState<'basic' | 'ai'>(initialAiQuery ? 'ai' : 'basic');
   const [aiQuery, setAiQuery] = useState(initialAiQuery);
@@ -485,6 +487,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
 
     setLoading(true);
     setFetchError(false);
+    setAiQuota(null);
     try {
       let url: string;
       if (isAI && aiQuery) {
@@ -499,7 +502,20 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
           if (v) url += `&${k}=${encodeURIComponent(v)}`;
         });
       }
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, {
+        signal: controller.signal,
+        ...(isAI ? { headers: visitorHeaders() } : {}),
+      });
+      if (isAI) {
+        const limit = await readAIQuotaError(res);
+        if (limit) {
+          setAiQuota(limit);
+          setListings([]);
+          setTotal(0);
+          setAiSearchContext(null);
+          return;
+        }
+      }
       const data = await res.json();
       if (isAI) {
         const results = (data.results || []).map((r: any) => ({
@@ -1049,13 +1065,25 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                 marginBottom: 8,
               }}
             >
-              {fetchError ? 'Something went wrong' : 'No yachts found'}
+              {aiQuota ? 'AI search limit reached' : fetchError ? 'Something went wrong' : 'No yachts found'}
             </h3>
             <p style={{ color: 'rgba(16,33,79,0.55)', fontFamily: 'Poppins, sans-serif', fontSize: 14 }}>
-              {fetchError
+              {aiQuota
+                ? aiQuota.message
+                : fetchError
                 ? 'We couldn\'t load listings right now. Please try again in a moment.'
                 : 'Try adjusting your filters or switch to AI search.'}
             </p>
+            {aiQuota?.signupRequired && (
+              <div className="mt-4 flex gap-3">
+                <a href="/register" className="px-5 py-2 rounded-lg font-medium" style={{ backgroundColor: '#01BBDC', color: 'white' }}>
+                  Create free account
+                </a>
+                <a href="/login" className="px-5 py-2 rounded-lg font-medium" style={{ border: '1px solid #01BBDC', color: '#10214F' }}>
+                  Sign in
+                </a>
+              </div>
+            )}
             {fetchError && (
               <button
                 onClick={() => fetchListings(searchType === 'ai', page, sort, pageSize)}

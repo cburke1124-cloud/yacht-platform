@@ -33,6 +33,13 @@ Set these in backend service environment settings.
 | `RATE_LIMIT_ENABLED` | Recommended | true | Keep enabled |
 | `RATE_LIMIT_PER_MINUTE` | Optional tuning | 200 | Tune based on traffic and abuse patterns |
 | `CLAUDE_API_KEY` | If AI features enabled | Present | Move to production secret store |
+| `CHATBOT_ENABLED` | To launch the chatbot | Unset (off) | Set `true` (frontend also needs `NEXT_PUBLIC_ENABLE_CHATBOT=true` on Vercel) |
+| `CONTACT_EMAIL` | Recommended | Defaults to `info@yachtversal.com` | Inbox that receives chatbot-lead and contact-form alerts |
+| `AI_SEARCH_ANON_LIMIT` | Optional | Default `2` | Free AI searches per guest per window before sign-up is required |
+| `AI_SEARCH_ANON_WINDOW_HOURS` | Optional | Default `168` (7 days) | Window for the guest allowance |
+| `AI_SEARCH_USER_DAILY_LIMIT` | Optional | Default `25` | AI searches per registered account per rolling 24h (admins exempt) |
+| `AI_ANON_GLOBAL_DAILY_LIMIT` | Optional | Default `300` | Sitewide guest AI calls per 24h — cost circuit-breaker |
+| `CHATBOT_ANON_DAILY_LIMIT` / `CHATBOT_USER_DAILY_LIMIT` | Optional | Defaults `40` / `150` | Chat messages per guest / account per 24h |
 | `HCAPTCHA_SECRET` | If captcha enabled | Placeholder | Set real secret |
 | `HCAPTCHA_SITEKEY` | If captcha enabled (frontend also) | Placeholder | Set real site key |
 | `GOOGLE_MAPS_API_KEY` | If maps enabled | Placeholder | Set real key with domain restrictions |

@@ -13,6 +13,8 @@ from datetime import datetime
 from PIL import Image, ImageOps
 
 from app.core.limiter import limiter
+from app.api.deps import get_optional_user
+from app.services.ai_quota import enforce_quota
 from app.core.ai_models import TEXT_EXTRACTION_MODEL, VISION_MODEL
 
 from app.db.session import get_db
@@ -610,12 +612,14 @@ def _ai_search_response(query: str, max_results: int, db: Session) -> dict:
 async def ai_search_get(
     request: Request,
     query: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     GET version of AI search — called by the listings page.
     Accepts ?query= and returns the same shape as the POST endpoint.
     """
+    enforce_quota(request, db, current_user)
     return _ai_search_response(query, AISearchRequest(query=query).max_results, db)
 
 
@@ -805,7 +809,8 @@ def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results:
 async def ai_search(
     request: Request,
     payload: AISearchRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """
     AI-powered natural language yacht search with scoring
@@ -815,6 +820,7 @@ async def ai_search(
     - "Fishing boat under $500k in Florida"
     - "Luxury sailing yacht 60+ feet, Mediterranean"
     """
+    enforce_quota(request, db, current_user)
     return _ai_search_response(payload.query, payload.max_results, db)
 
 
@@ -1277,11 +1283,23 @@ def score_charter(charter: CharterListing, criteria: UnifiedSearchCriteria, quer
 
 @router.post("/ai/smart-search")
 @limiter.limit("60/hour")
-async def ai_smart_search(request: Request, payload: AISearchRequest, db: Session = Depends(get_db)):
+async def ai_smart_search(
+    request: Request,
+    payload: AISearchRequest,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """
     Unified AI search: classifies buy-vs-charter intent from natural language,
     then searches the appropriate inventory (Listing or CharterListing).
     """
+    enforce_quota(request, db, current_user)
+    return await run_smart_search(payload, db)
+
+
+async def run_smart_search(payload: AISearchRequest, db: Session):
+    """Quota-free body of /ai/smart-search. Callers (the route above, the
+    chatbot) are responsible for enforcing the AI quota exactly once."""
     try:
         criteria = extract_unified_criteria(payload.query)
 
@@ -1543,6 +1561,7 @@ async def ai_search_by_image(
     file: UploadFile = File(...),
     max_results: int = 10,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Upload a photo of a yacht; identify its type/make/style via a vision
     call, then run the same scoring pipeline as text search against active
@@ -1554,6 +1573,8 @@ async def ai_search_by_image(
     raw = await file.read()
     if len(raw) > IMAGE_SEARCH_MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="Image is too large (8MB max).")
+
+    enforce_quota(request, db, current_user)
 
     try:
         image_b64, media_type = _downscale_for_vision(raw)
