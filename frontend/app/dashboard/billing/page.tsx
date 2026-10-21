@@ -14,6 +14,7 @@ function BillingContent() {
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState('');
   const [paidDate, setPaidDate] = useState<string | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -43,10 +44,11 @@ function BillingContent() {
       if (!res.ok) { router.replace('/login'); return; }
       const user = await res.json();
 
-      if (user.user_type !== 'dealer' && user.user_type !== 'admin') {
+      if (user.user_type !== 'dealer' && user.user_type !== 'private' && user.user_type !== 'admin') {
         router.replace('/dashboard');
         return;
       }
+      setIsPrivate(user.user_type === 'private');
 
       // subscription_start_date is only set by a confirmed Stripe webhook or
       // session-confirm call — unlike subscription_tier, it can't be set by a
@@ -96,7 +98,7 @@ function BillingContent() {
     try {
       const token = localStorage.getItem('token');
       const origin = window.location.origin;
-      const res = await fetch(apiUrl('/payments/create-setup-fee-session'), {
+      const res = await fetch(apiUrl(isPrivate ? '/payments/create-private-setup-fee-session' : '/payments/create-setup-fee-session'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -183,9 +185,11 @@ function BillingContent() {
         /* ── UNPAID STATE ── */
         <div>
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-[#10214F] mb-2">Activate Your Account</h1>
+            <h1 className="text-3xl font-bold text-[#10214F] mb-2">{isPrivate ? 'Pay to Publish Your Listing' : 'Activate Your Account'}</h1>
             <p className="text-gray-500">
-              One payment. No subscriptions. Free access for the life of your account.
+              {isPrivate
+                ? 'Your account is ready. Pay the one-time listing fee to publish your boat for buyers to see.'
+                : 'One payment. No subscriptions. Free access for the life of your account.'}
             </p>
           </div>
 
@@ -196,19 +200,25 @@ function BillingContent() {
             </div>
 
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-[#10214F] mb-1">Founding Member</h2>
+              <h2 className="text-2xl font-bold text-[#10214F] mb-1">{isPrivate ? 'Private Seller' : 'Founding Member'}</h2>
               <div className="flex items-baseline gap-2 mt-3">
-                <span className="text-6xl font-bold text-[#01BBDC]">$200</span>
-                <div className="text-left">
-                  <p className="text-gray-400 line-through text-lg">$299</p>
-                  <p className="text-sm font-semibold text-amber-600">Launch pricing</p>
-                </div>
+                <span className="text-6xl font-bold text-[#01BBDC]">{isPrivate ? '$149' : '$200'}</span>
+                {!isPrivate && (
+                  <div className="text-left">
+                    <p className="text-gray-400 line-through text-lg">$299</p>
+                    <p className="text-sm font-semibold text-amber-600">Launch pricing</p>
+                  </div>
+                )}
               </div>
-              <p className="text-gray-500 text-sm mt-2">One-time setup fee — never pay again</p>
+              <p className="text-gray-500 text-sm mt-2">{isPrivate ? 'One-time listing fee' : 'One-time setup fee — never pay again'}</p>
             </div>
 
             <ul className="space-y-3 mb-8">
-              {[
+              {(isPrivate ? [
+                'Publish your listing to the marketplace',
+                'Receive buyer inquiries directly',
+                'No subscription or renewals',
+              ] : [
                 'Unlimited yacht and charter listings',
                 'Full CRM and inquiry management',
                 'Analytics and performance dashboard',
@@ -216,7 +226,7 @@ function BillingContent() {
                 'API access for inventory sync',
                 'All future features at no additional cost',
                 'Priority support',
-              ].map(f => (
+              ]).map(f => (
                 <li key={f} className="flex items-start gap-3">
                   <Check className="w-5 h-5 text-[#01BBDC] flex-shrink-0 mt-0.5" />
                   <span className="text-gray-700 text-sm">{f}</span>
@@ -237,7 +247,7 @@ function BillingContent() {
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
-                  Pay $200 — Activate Account
+                  {isPrivate ? 'Pay $149 — Publish My Listing' : 'Pay $200 — Activate Account'}
                 </>
               )}
             </button>

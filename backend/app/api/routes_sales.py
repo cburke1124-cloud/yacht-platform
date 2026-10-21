@@ -888,7 +888,11 @@ def register_broker_for_sales_rep(
     last_name = (data.get("last_name") or "").strip()
     company_name = (data.get("company_name") or "").strip()
     phone = normalize_phone(data.get("phone"))
-    tier = (data.get("subscription_tier") or "basic").strip().lower()
+    is_private = (data.get("user_type") or "dealer").strip().lower() == "private"
+    # Private sellers have no tiers: they pay the flat one-time fee themselves
+    # on first login (the dashboard prompts them), and until then they can
+    # draft listings but not publish (see create_listing's payment gate).
+    tier = "free" if is_private else (data.get("subscription_tier") or "basic").strip().lower()
     always_free = bool(data.get("always_free", False))
 
     if tier not in TIER_PRICES:
@@ -913,8 +917,8 @@ def register_broker_for_sales_rep(
 
     # Calculate custom/effective price (allow on any tier; required for Ultimate)
     custom_price = None
-    effective_price = 0.0 if always_free else float(TIER_PRICES.get(tier, 0.0))
-    if data.get("custom_price") is not None and not always_free:
+    effective_price = 0.0 if always_free else float(PRIVATE_SETUP_FEE if is_private else TIER_PRICES.get(tier, 0.0))
+    if data.get("custom_price") is not None and not always_free and not is_private:
         try:
             val = float(data["custom_price"])
             if val >= 0:
@@ -936,7 +940,7 @@ def register_broker_for_sales_rep(
     # free trial days + 20% off" in the UI, see a success response, and the
     # broker's account would be created with no trial and full price.
     free_days = None
-    if not always_free:
+    if not always_free and not is_private:
         try:
             free_days = int(data.get("free_days")) if data.get("free_days") not in (None, "") else None
         except (ValueError, TypeError):
@@ -944,7 +948,7 @@ def register_broker_for_sales_rep(
 
     discount_type = data.get("discount_type") or None
     discount_value = None
-    if not always_free:
+    if not always_free and not is_private:
         try:
             discount_value = float(data.get("discount_value")) if data.get("discount_value") not in (None, "") else None
         except (ValueError, TypeError):
@@ -965,7 +969,7 @@ def register_broker_for_sales_rep(
         first_name=first_name or None,
         last_name=last_name or None,
         phone=phone or None,
-        user_type="dealer",
+        user_type="private" if is_private else "dealer",
         company_name=company_name or None,
         subscription_tier=tier,
         custom_subscription_price=None if always_free else custom_price,
@@ -981,22 +985,25 @@ def register_broker_for_sales_rep(
     db.flush()  # get new_user.id
 
     # --- create dealer profile ------------------------------------------- #
-    slug = create_slug(company_name or f"{first_name} {last_name}".strip() or email.split("@")[0], db, DealerProfile)
-    profile = DealerProfile(
-        user_id=new_user.id,
-        name=f"{first_name} {last_name}".strip() or company_name or email.split("@")[0],
-        company_name=company_name or None,
-        email=email,
-        phone=phone or None,
-        slug=slug,
-    )
-    db.add(profile)
+    # Private sellers never have a DealerProfile or API key.
+    slug = None
+    if not is_private:
+        slug = create_slug(company_name or f"{first_name} {last_name}".strip() or email.split("@")[0], db, DealerProfile)
+        profile = DealerProfile(
+            user_id=new_user.id,
+            name=f"{first_name} {last_name}".strip() or company_name or email.split("@")[0],
+            company_name=company_name or None,
+            email=email,
+            phone=phone or None,
+            slug=slug,
+        )
+        db.add(profile)
 
-    # --- generate API key ------------------------------------------------ #
-    try:
-        generate_api_key_for_dealer(new_user, db)
-    except Exception:
-        pass  # non-critical
+        # --- generate API key -------------------------------------------- #
+        try:
+            generate_api_key_for_dealer(new_user, db)
+        except Exception:
+            pass  # non-critical
 
     # --- create referral signup ------------------------------------------ #
     affiliate_account = None
@@ -1032,7 +1039,8 @@ def register_broker_for_sales_rep(
         email_sent = False
 
     return {
-        "message": "Broker registered successfully",
+        "message": "Private seller registered successfully" if is_private else "Broker registered successfully",
+        "user_type": new_user.user_type,
         "dealer_id": new_user.id,
         "email": new_user.email,
         "company_name": new_user.company_name,

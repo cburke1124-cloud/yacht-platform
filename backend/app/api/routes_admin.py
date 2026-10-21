@@ -4174,7 +4174,7 @@ def resend_broker_setup_email(
     if current_user.user_type != "admin":
         raise AuthorizationException("Admin access required")
 
-    broker = db.query(User).filter(User.id == user_id, User.user_type == "dealer").first()
+    broker = db.query(User).filter(User.id == user_id, User.user_type.in_(["dealer", "private"])).first()
     if not broker:
         raise ResourceNotFoundException("Broker", user_id)
 

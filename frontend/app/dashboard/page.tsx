@@ -1558,7 +1558,7 @@ function EnhancedDealerDashboard() {
     try {
       const token = localStorage.getItem('token');
       const origin = window.location.origin;
-      const res = await fetch(apiUrl('/payments/create-setup-fee-session'), {
+      const res = await fetch(apiUrl(currentUser?.user_type === 'private' ? '/payments/create-private-setup-fee-session' : '/payments/create-setup-fee-session'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -1796,7 +1796,9 @@ function EnhancedDealerDashboard() {
               </p>
               <p className="text-sm text-red-600 mt-0.5">
                 {neverPaid
-                  ? 'Your account was set up on your behalf but has not been activated yet. Complete your one-time setup payment to unlock listings and full platform access.'
+                  ? (currentUser?.user_type === 'private'
+                      ? 'Welcome! Your account was set up for you. You can create and save listings now, but you will need to pay the one-time listing fee before you can publish.'
+                      : 'Your account was set up on your behalf but has not been activated yet. Complete your one-time setup payment to unlock listings and full platform access.')
                   : 'Your listings are suspended and new listings cannot be created until payment is complete. Update your payment method to restore access.'}
               </p>
             </div>
@@ -1804,7 +1806,7 @@ function EnhancedDealerDashboard() {
               onClick={() => router.push('/dashboard/billing')}
               className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              {neverPaid ? 'Pay now' : 'Update payment'}
+              {neverPaid ? (currentUser?.user_type === 'private' ? 'Pay to publish' : 'Pay now') : 'Update payment'}
             </button>
           </div>
         )}

@@ -54,6 +54,7 @@ interface OfferForm {
 }
 
 interface BrokerForm {
+  user_type: 'dealer' | 'private';
   email: string;
   first_name: string;
   last_name: string;
@@ -90,6 +91,7 @@ export default function AdminSalesToolsTab() {
   
   // Registration Form State
   const [regForm, setRegForm] = useState<BrokerForm>({
+    user_type: 'dealer',
     email: '',
     first_name: '',
     last_name: '',
@@ -349,6 +351,7 @@ export default function AdminSalesToolsTab() {
 
       setRegSuccess(data);
       setRegForm({
+        user_type: 'dealer',
         email: '',
         first_name: '',
         last_name: '',
@@ -746,8 +749,16 @@ export default function AdminSalesToolsTab() {
       {activeTab === 'registration' && (
         <div className="max-w-2xl mx-auto">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-1">Register New Broker</h2>
-            <p className="text-sm text-gray-500 mb-6">Create a broker account manually and bypass payment if needed.</p>
+            <h2 className="text-xl font-semibold text-gray-900 mb-1">Register New {regForm.user_type === 'private' ? 'Private Seller' : 'Broker'}</h2>
+            <p className="text-sm text-gray-500 mb-4">Create an account manually. No payment is collected now — they&apos;ll be asked to pay the first time they sign in. Tick &quot;always free&quot; to waive payment entirely.</p>
+            {!regSuccess && (
+              <div className="inline-flex mb-6 rounded-lg border border-gray-300 overflow-hidden text-sm font-medium">
+                {([['dealer', 'Broker'], ['private', 'Private Seller']] as const).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setRegForm({ ...regForm, user_type: val, custom_price: '' })}
+                    className={`px-4 py-2 ${regForm.user_type === val ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+                ))}
+              </div>
+            )}
 
             {regSuccess && (
               <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-lg space-y-3">
@@ -884,6 +895,7 @@ export default function AdminSalesToolsTab() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
+                  {regForm.user_type !== 'private' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Subscription Tier</label>
                     <select
@@ -908,6 +920,7 @@ export default function AdminSalesToolsTab() {
                       )}
                     </select>
                   </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Sales Rep</label>
                     <select
@@ -928,7 +941,7 @@ export default function AdminSalesToolsTab() {
                   </div>
                 </div>
                 
-                {regForm.subscription_tier === 'ultimate' && (
+                {regForm.user_type !== 'private' && regForm.subscription_tier === 'ultimate' && (
                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
                      <label className="block text-sm font-medium text-yellow-800 mb-1">Custom Monthly Price ($)</label>
                      <p className="text-xs text-yellow-600 mb-2">Set the recurring monthly charge for this Ultimate account.</p>
@@ -976,7 +989,7 @@ export default function AdminSalesToolsTab() {
                     ) : (
                       <>
                         <UserPlus className="w-4 h-4" />
-                        Register Broker Account
+                        Register {regForm.user_type === 'private' ? 'Private Seller' : 'Broker'} Account
                       </>
                     )}
                   </button>

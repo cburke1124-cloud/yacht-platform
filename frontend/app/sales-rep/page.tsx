@@ -202,6 +202,7 @@ export default function SalesRepDashboard() {
   });
 
   const [brokerForm, setBrokerForm] = useState({
+    user_type: 'dealer' as 'dealer' | 'private',
     email: '', first_name: '', last_name: '', phone: '',
     company_name: '', subscription_tier: 'pro',
     custom_price: '',
@@ -217,6 +218,7 @@ export default function SalesRepDashboard() {
   useEffect(() => { checkAuth(); }, []);
 
   const disableDiscounts = brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price !== '';
+  const isPrivateSeller = brokerForm.user_type === 'private';
   const disablePricingFields = disableDiscounts || brokerForm.always_free;
 
   /* --- data fetchers -------------------------------------------- */
@@ -376,7 +378,7 @@ export default function SalesRepDashboard() {
   const registerBroker = async () => {
     if (!brokerForm.email.trim()) { alert('Email is required'); return; }
     if (!brokerForm.company_name.trim() && !brokerForm.first_name.trim()) {
-      alert('Company name or contact name is required'); return;
+      alert(isPrivateSeller ? 'Contact name is required' : 'Company name or contact name is required'); return;
     }
     setBrokerSubmitting(true);
     setBrokerResult(null);
@@ -978,12 +980,18 @@ export default function SalesRepDashboard() {
 {activeTab === 'register' && (
   <>
     <div className="mb-6">
-      <h2 className="text-2xl font-bold text-secondary">Register a New Broker</h2>
-      <p className="text-dark/70 mt-1">Manually sign up a broker — they&apos;ll be assigned to you with referral tracking.</p>
+      <h2 className="text-2xl font-bold text-secondary">Register a New {isPrivateSeller ? 'Private Seller' : 'Broker'}</h2>
+      <p className="text-dark/70 mt-1">Manually sign up a {isPrivateSeller ? 'private seller' : 'broker'} — they&apos;ll be assigned to you with referral tracking. No payment is collected now; they&apos;ll be asked to pay the first time they sign in.</p>
+      <div className="inline-flex mt-4 rounded-lg border border-gray-300 overflow-hidden text-sm font-medium">
+        {([['dealer', 'Broker'], ['private', 'Private Seller']] as const).map(([val, label]) => (
+          <button key={val} type="button" onClick={() => setBrokerForm({ ...brokerForm, user_type: val, applied_deal_id: null, free_days: '', discount_value: '', custom_price: '' })}
+            className={`px-4 py-2 ${brokerForm.user_type === val ? 'bg-primary text-white' : 'bg-white text-dark/70 hover:bg-gray-50'}`}>{label}</button>
+        ))}
+      </div>
     </div>
 
     {/* Tier Cards — dynamic from backend */}
-    {orderedTiers.length > 0 && (
+    {orderedTiers.length > 0 && !isPrivateSeller && (
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
         {orderedTiers.map((t) => {
           const TierIcon = TIER_ICONS[t.key] || Shield;
@@ -1035,7 +1043,7 @@ export default function SalesRepDashboard() {
       {/* Form */}
       <div className="lg:col-span-3">
         <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="font-semibold text-secondary mb-5">Broker Details</h3>
+          <h3 className="font-semibold text-secondary mb-5">{isPrivateSeller ? 'Private Seller' : 'Broker'} Details</h3>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-dark/70 mb-1">Email Address *</label>
@@ -1055,7 +1063,7 @@ export default function SalesRepDashboard() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark/70 mb-1">Company / Brokerage *</label>
+              <label className="block text-sm font-medium text-dark/70 mb-1">{isPrivateSeller ? 'Company (optional)' : 'Company / Brokerage *'}</label>
               <input type="text" placeholder="Oceanside Yacht Brokerage" value={brokerForm.company_name} onChange={(e) => setBrokerForm({ ...brokerForm, company_name: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" />
             </div>
@@ -1065,6 +1073,7 @@ export default function SalesRepDashboard() {
             </div>
 
             {/* Deal / Discount options */}
+            {!isPrivateSeller && (
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -1143,6 +1152,7 @@ export default function SalesRepDashboard() {
               </div>
               <p className="text-xs text-blue-800">For fixed-price deals, set the negotiated monthly price below.</p>
             </div>
+            )}
 
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
               <input
@@ -1168,7 +1178,7 @@ export default function SalesRepDashboard() {
               </div>
             </div>
             
-            {brokerForm.subscription_tier === 'ultimate' && (
+            {!isPrivateSeller && brokerForm.subscription_tier === 'ultimate' && (
               <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
                 <div className="flex items-center gap-2 mb-3">
                   <Crown size={16} className="text-amber-600" />
@@ -1198,6 +1208,7 @@ export default function SalesRepDashboard() {
             )}
 
             {/* Tier shown as read-only from cards above */}
+            {!isPrivateSeller && (
             <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-dark/50 uppercase">Selected Tier</p>
@@ -1213,9 +1224,16 @@ export default function SalesRepDashboard() {
                     : `$${tiers[brokerForm.subscription_tier]?.price ?? 199} one-time`}
               </p>
             </div>
+            )}
+            {isPrivateSeller && (
+              <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                <p className="text-xs font-medium text-dark/50 uppercase">Private seller fee</p>
+                <p className="font-bold text-primary">{brokerForm.always_free ? 'Always free' : '$149 one-time, paid by the seller on first sign-in'}</p>
+              </div>
+            )}
             <button onClick={registerBroker} disabled={brokerSubmitting}
               className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {brokerSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" /> Registering...</>) : (<><UserPlus size={16} /> Register Broker</>)}
+              {brokerSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" /> Registering...</>) : (<><UserPlus size={16} /> Register {isPrivateSeller ? 'Private Seller' : 'Broker'}</>)}
             </button>
           </div>
         </div>
@@ -1226,7 +1244,7 @@ export default function SalesRepDashboard() {
         {/* Success result */}
         {brokerResult && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-3"><Check size={18} className="text-green-600" /><h4 className="font-semibold text-green-800">Broker Registered!</h4></div>
+            <div className="flex items-center gap-2 mb-3"><Check size={18} className="text-green-600" /><h4 className="font-semibold text-green-800">{brokerResult.user_type === 'private' ? 'Private Seller' : 'Broker'} Registered!</h4></div>
             <div className="space-y-2 text-sm">
               <div><span className="text-green-700 font-medium">Email:</span> <span className="text-green-900">{brokerResult.email}</span></div>
               {brokerResult.company_name && <div><span className="text-green-700 font-medium">Company:</span> <span className="text-green-900">{brokerResult.company_name}</span></div>}
@@ -1247,7 +1265,7 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-green-600 mt-2">The broker will use the link in their email to set their own password.</p>
               </div>
             </div>
-            <button onClick={() => { setBrokerResult(null); setBrokerForm({ email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'pro', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}
+            <button onClick={() => { setBrokerResult(null); setBrokerForm({ user_type: 'dealer', email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'pro', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}
               className="mt-4 text-sm text-green-700 font-medium hover:text-green-900">Register another &rarr;</button>
           </div>
         )}
