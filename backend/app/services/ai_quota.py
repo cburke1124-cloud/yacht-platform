@@ -69,11 +69,13 @@ def enforce_quota(
     user: Optional[User],
     kind: str = "ai_search",
     visitor_id: Optional[str] = None,
-) -> None:
+) -> Optional[int]:
     """Raise AIQuotaExceeded if the caller is over their allowance, otherwise
-    record one usage event. Call once per token-spending request."""
+    record one usage event and return its id (None for exempt admins). Call
+    once per token-spending request; pass the id to refund_quota() if the AI
+    turned out to be unavailable so the failed attempt isn't charged."""
     if user is not None and user.user_type == "admin":
-        return
+        return None
 
     now = datetime.utcnow()
     ip_hash = hash_ip(get_client_ip(request))
@@ -149,13 +151,24 @@ def enforce_quota(
                 "signup_required",
             )
 
-    db.add(
-        AIUsageEvent(
-            kind=kind,
-            user_id=user.id if user else None,
-            ip_hash=ip_hash,
-            visitor_id=visitor_id,
-            created_at=now,
-        )
+    event = AIUsageEvent(
+        kind=kind,
+        user_id=user.id if user else None,
+        ip_hash=ip_hash,
+        visitor_id=visitor_id,
+        created_at=now,
     )
+    db.add(event)
     db.commit()
+    return event.id
+
+
+def refund_quota(db: Session, event_id: Optional[int]) -> None:
+    """Remove a usage event recorded for a request the AI couldn't serve."""
+    if not event_id:
+        return
+    try:
+        db.query(AIUsageEvent).filter(AIUsageEvent.id == event_id).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()

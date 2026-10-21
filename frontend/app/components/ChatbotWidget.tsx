@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import { newSessionId, visitorHeaders } from '@/app/lib/visitorId';
+import ManualRequestForm from '@/app/components/ManualRequestForm';
 
 interface ListingContext {
   id: number;
@@ -62,11 +63,14 @@ interface ChatbotResponse {
   session_id?: string;
   // Set when the guest/account hit an AI usage cap instead of getting an answer.
   limit_reached?: 'signup_required' | 'daily_limit' | null;
+  // Set when the AI couldn't answer; show the "leave us a message" form.
+  manual_request?: boolean;
 }
 
 interface DisplayMessage extends ChatTurn {
   searchResults?: SearchResult[];
   signupCta?: boolean;
+  manualForm?: boolean;
   onAskBroker?: (listingId: number, title: string) => void;
 }
 
@@ -171,6 +175,7 @@ export default function ChatbotWidget() {
         role: 'assistant',
         content: data.reply,
         signupCta: data.limit_reached === 'signup_required',
+        manualForm: !!data.manual_request,
         searchResults: data.search_results?.results,
         onAskBroker: (listingId, title) => dispatch({ type: 'set_listing_context', context: { id: listingId, title } }),
       };
@@ -217,6 +222,18 @@ export default function ChatbotWidget() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{m.content}</p>
+
+                  {m.manualForm && (
+                    <div className="mt-3">
+                      <ManualRequestForm
+                        compact
+                        source="chatbot"
+                        sessionId={sessionIdRef.current}
+                        listingId={state.listingContext?.id}
+                        pageUrl={state.originUrl ?? undefined}
+                      />
+                    </div>
+                  )}
 
                   {m.signupCta && (
                     <div className="mt-2 flex gap-2">

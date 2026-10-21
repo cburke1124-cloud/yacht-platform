@@ -14,7 +14,8 @@ from PIL import Image, ImageOps
 
 from app.core.limiter import limiter
 from app.api.deps import get_optional_user
-from app.services.ai_quota import enforce_quota
+from app.services.ai_quota import enforce_quota, refund_quota
+from app.services.ai_errors import AIUnavailableError, log_ai_failure
 from app.core.ai_models import TEXT_EXTRACTION_MODEL, VISION_MODEL
 
 from app.db.session import get_db
@@ -279,7 +280,8 @@ def extract_search_criteria(query: str) -> SearchCriteria:
 
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
-        return SearchCriteria(features=[query.lower()])
+        log_ai_failure("search criteria: no API key configured")
+        raise AIUnavailableError()
 
     try:
         response = _requests.post(
@@ -304,18 +306,23 @@ def extract_search_criteria(query: str) -> SearchCriteria:
             timeout=20,
         )
         if not response.ok:
-            return SearchCriteria(features=[query.lower()])
+            log_ai_failure("search criteria", response=response)
+            raise AIUnavailableError()
         payload = response.json()
         content_list = payload.get("content", [])
         if not content_list:
-            return SearchCriteria(features=[query.lower()])
+            log_ai_failure("search criteria: empty response")
+            raise AIUnavailableError()
         content = content_list[0].get("text", "").strip()
         # Strip markdown fences if present
         content = re.sub(r"^```json\s*|\s*```$", "", content).strip()
         criteria_dict = json.loads(content)
         return SearchCriteria(**criteria_dict)
-    except Exception:
-        return SearchCriteria(features=[query.lower()])
+    except AIUnavailableError:
+        raise
+    except Exception as exc:
+        log_ai_failure("search criteria", exc=exc)
+        raise AIUnavailableError()
 
 
 def score_listing(listing: Listing, criteria: SearchCriteria, query: str, db: Session = None) -> ScoredListing:
@@ -600,6 +607,8 @@ def _ai_search_response(query: str, max_results: int, db: Session) -> dict:
     try:
         criteria = extract_search_criteria(query)
         return _run_for_sale_search(criteria, query, max_results, db)
+    except AIUnavailableError:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -619,8 +628,12 @@ async def ai_search_get(
     GET version of AI search — called by the listings page.
     Accepts ?query= and returns the same shape as the POST endpoint.
     """
-    enforce_quota(request, db, current_user)
-    return _ai_search_response(query, AISearchRequest(query=query).max_results, db)
+    event_id = enforce_quota(request, db, current_user)
+    try:
+        return _ai_search_response(query, AISearchRequest(query=query).max_results, db)
+    except AIUnavailableError:
+        refund_quota(db, event_id)
+        raise
 
 
 def _run_for_sale_search(criteria: SearchCriteria, query_text: str, max_results: int, db: Session) -> dict:
@@ -820,8 +833,12 @@ async def ai_search(
     - "Fishing boat under $500k in Florida"
     - "Luxury sailing yacht 60+ feet, Mediterranean"
     """
-    enforce_quota(request, db, current_user)
-    return _ai_search_response(payload.query, payload.max_results, db)
+    event_id = enforce_quota(request, db, current_user)
+    try:
+        return _ai_search_response(payload.query, payload.max_results, db)
+    except AIUnavailableError:
+        refund_quota(db, event_id)
+        raise
 
 
 @router.get("/ai/suggestions")
@@ -971,7 +988,8 @@ def extract_unified_criteria(query: str) -> UnifiedSearchCriteria:
 
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
-        return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+        log_ai_failure("unified search: no API key configured")
+        raise AIUnavailableError()
 
     try:
         response = _requests.post(
@@ -996,7 +1014,8 @@ def extract_unified_criteria(query: str) -> UnifiedSearchCriteria:
             timeout=20,
         )
         if not response.ok:
-            return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+            log_ai_failure("unified search", response=response)
+            raise AIUnavailableError()
         payload = response.json()
         content_list = payload.get("content", [])
         # Some models emit a leading "thinking" block before the actual text
@@ -1004,15 +1023,19 @@ def extract_unified_criteria(query: str) -> UnifiedSearchCriteria:
         # assuming index 0.
         text_block = next((b for b in content_list if b.get("type") == "text"), None)
         if not text_block:
-            return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+            log_ai_failure("unified search: no text block in response")
+            raise AIUnavailableError()
         content = text_block.get("text", "").strip()
         content = re.sub(r"^```json\s*|\s*```$", "", content).strip()
         criteria_dict = json.loads(content)
         if criteria_dict.get("intent") not in ("for_sale", "charter"):
             criteria_dict["intent"] = "for_sale"
         return UnifiedSearchCriteria(**criteria_dict)
-    except Exception:
-        return UnifiedSearchCriteria(intent="for_sale", features=[query.lower()])
+    except AIUnavailableError:
+        raise
+    except Exception as exc:
+        log_ai_failure("unified search", exc=exc)
+        raise AIUnavailableError()
 
 
 def _to_legacy_criteria(u: UnifiedSearchCriteria) -> SearchCriteria:
@@ -1293,8 +1316,12 @@ async def ai_smart_search(
     Unified AI search: classifies buy-vs-charter intent from natural language,
     then searches the appropriate inventory (Listing or CharterListing).
     """
-    enforce_quota(request, db, current_user)
-    return await run_smart_search(payload, db)
+    event_id = enforce_quota(request, db, current_user)
+    try:
+        return await run_smart_search(payload, db)
+    except AIUnavailableError:
+        refund_quota(db, event_id)
+        raise
 
 
 async def run_smart_search(payload: AISearchRequest, db: Session):
@@ -1453,6 +1480,8 @@ async def run_smart_search(payload: AISearchRequest, db: Session):
         response["intent"] = "for_sale"
         return response
 
+    except AIUnavailableError:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI search failed: {str(e)}")
 
@@ -1509,7 +1538,8 @@ def extract_criteria_from_image(image_b64: str, media_type: str) -> SearchCriter
     for text search."""
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
-        return SearchCriteria()
+        log_ai_failure("image search: no API key configured")
+        raise AIUnavailableError()
 
     try:
         response = _requests.post(
@@ -1536,11 +1566,13 @@ def extract_criteria_from_image(image_b64: str, media_type: str) -> SearchCriter
             timeout=30,
         )
         if not response.ok:
-            return SearchCriteria()
+            log_ai_failure("image search", response=response)
+            raise AIUnavailableError()
         payload = response.json()
         text_block = next((b for b in payload.get("content", []) if b.get("type") == "text"), None)
         if not text_block:
-            return SearchCriteria()
+            log_ai_failure("image search: no text block in response")
+            raise AIUnavailableError()
         content = re.sub(r"^```json\s*|\s*```$", "", text_block.get("text", "").strip()).strip()
         parsed = json.loads(content)
         return SearchCriteria(
@@ -1550,8 +1582,11 @@ def extract_criteria_from_image(image_b64: str, media_type: str) -> SearchCriter
             min_length=(parsed.get("estimated_length_feet") * 0.75) if parsed.get("estimated_length_feet") else None,
             features=parsed.get("features") or None,
         )
-    except Exception:
-        return SearchCriteria()
+    except AIUnavailableError:
+        raise
+    except Exception as exc:
+        log_ai_failure("image search", exc=exc)
+        raise AIUnavailableError()
 
 
 @router.post("/ai/search-by-image")
@@ -1574,7 +1609,7 @@ async def ai_search_by_image(
     if len(raw) > IMAGE_SEARCH_MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="Image is too large (8MB max).")
 
-    enforce_quota(request, db, current_user)
+    event_id = enforce_quota(request, db, current_user)
 
     try:
         image_b64, media_type = _downscale_for_vision(raw)
@@ -1586,5 +1621,8 @@ async def ai_search_by_image(
         result = _run_for_sale_search(criteria, "[image search]", max_results, db)
         result["image_criteria"] = criteria.dict()
         return result
+    except AIUnavailableError:
+        refund_quota(db, event_id)
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image search failed: {str(e)}")

@@ -26,7 +26,8 @@ from app.models.user import User
 from app.api.routes_ai_search import run_smart_search, AISearchRequest
 from app.api.routes_inquiries import create_inquiry_and_notify
 from app.services import chatbot_store as store
-from app.services.ai_quota import AIQuotaExceeded, enforce_quota, get_client_ip, hash_ip
+from app.services.ai_quota import AIQuotaExceeded, enforce_quota, get_client_ip, hash_ip, refund_quota
+from app.services.ai_errors import AIUnavailableError, log_ai_failure
 
 router = APIRouter()
 
@@ -85,18 +86,19 @@ Respond with ONLY a JSON object, no markdown fences, in this exact shape:
 }}"""
 
 
-def _fallback_response(listing_context: Optional[ListingContext]) -> dict:
-    if listing_context:
-        reply = (
-            "I'm having trouble understanding right now — you can use the "
-            "\"Contact Seller\" button on this listing to reach the broker directly."
-        )
-    else:
-        reply = (
-            "I'm having trouble understanding right now — try the search bar above, "
-            "or visit our Contact Us page to reach our team directly."
-        )
-    return {"intent": "general", "reply": reply, "contact_info": None}
+UNAVAILABLE_CHAT_REPLY = (
+    "I'm sorry — our assistant is temporarily unavailable. Please leave your name, "
+    "email and a message below and a member of our team will get back to you personally."
+)
+
+
+def _fallback_response(listing_context: Optional[ListingContext] = None) -> dict:
+    return {
+        "intent": "general",
+        "reply": UNAVAILABLE_CHAT_REPLY,
+        "contact_info": None,
+        "unavailable": True,
+    }
 
 
 def classify_and_respond(
@@ -112,7 +114,8 @@ def classify_and_respond(
 
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     if not api_key:
-        return _fallback_response(listing_context)
+        log_ai_failure("chatbot: no API key configured")
+        return _fallback_response()
 
     transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in history)
     context_line = (
@@ -147,12 +150,14 @@ def classify_and_respond(
             timeout=20,
         )
         if not response.ok:
-            return _fallback_response(listing_context)
+            log_ai_failure("chatbot", response=response)
+            return _fallback_response()
         payload = response.json()
         content_list = payload.get("content", [])
         text_block = next((b for b in content_list if b.get("type") == "text"), None)
         if not text_block:
-            return _fallback_response(listing_context)
+            log_ai_failure("chatbot: no text block in response")
+            return _fallback_response()
         content = text_block.get("text", "").strip()
         content = re.sub(r"^```json\s*|\s*```$", "", content).strip()
         result = json.loads(content)
@@ -160,8 +165,9 @@ def classify_and_respond(
             result["intent"] = "general"
         result.setdefault("contact_info", None)
         return result
-    except Exception:
-        return _fallback_response(listing_context)
+    except Exception as exc:
+        log_ai_failure("chatbot", exc=exc)
+        return _fallback_response()
 
 
 
@@ -202,11 +208,14 @@ async def chatbot_message(
         "contact_collected": None,
         "session_id": session_id,
         "limit_reached": None,
+        # True when the AI couldn't answer: the widget then shows a
+        # "leave us a message" form that creates a lead for the team.
+        "manual_request": False,
     }
 
     # Every message costs tokens: cap per visitor / account before doing any work.
     try:
-        enforce_quota(http_request, db, current_user, kind="chatbot")
+        chat_event_id = enforce_quota(http_request, db, current_user, kind="chatbot")
     except AIQuotaExceeded as exc:
         response["reply"] = exc.message
         response["limit_reached"] = exc.details["code"]
@@ -238,6 +247,16 @@ async def chatbot_message(
     response["reply"] = result["reply"]
     response["intent"] = result["intent"]
 
+    if result.get("unavailable"):
+        # No tokens were spent, so don't charge the visitor's allowance. Keep
+        # the exchange so admins can see (and follow up on) what was asked.
+        refund_quota(db, chat_event_id)
+        response["manual_request"] = True
+        store.add_message(db, convo, "assistant", response["reply"], intent="fallback")
+        return response
+
+    stored_intent = result["intent"]
+
     contact = result.get("contact_info") or {}
     volunteered_email = store.is_valid_email(contact.get("sender_email"))
     store.apply_contact_info(convo, contact)
@@ -245,8 +264,9 @@ async def chatbot_message(
     new_inquiry = None
 
     if result["intent"] == "search":
+        search_event_id = None
         try:
-            enforce_quota(http_request, db, current_user, kind="ai_search")
+            search_event_id = enforce_quota(http_request, db, current_user, kind="ai_search")
             response["search_results"] = await run_smart_search(
                 AISearchRequest(query=message, max_results=4), db
             )
@@ -254,6 +274,14 @@ async def chatbot_message(
         except AIQuotaExceeded as exc:
             response["reply"] = exc.message
             response["limit_reached"] = exc.details["code"]
+        except AIUnavailableError:
+            refund_quota(db, search_event_id)
+            response["manual_request"] = True
+            response["reply"] = (
+                "I couldn't run that search just now. Leave your details below and "
+                "our team will personally find options for you."
+            )
+            stored_intent = "fallback"
         except Exception:
             response["reply"] += " (Search is temporarily unavailable — try the main search bar.)"
 
@@ -322,5 +350,5 @@ async def chatbot_message(
         store.mark_lead(convo, new_inquiry.id)
         store.notify_team_of_chat_lead(db, background_tasks, convo, new_inquiry)
 
-    store.add_message(db, convo, "assistant", response["reply"], intent=result["intent"], result_refs=result_refs)
+    store.add_message(db, convo, "assistant", response["reply"], intent=stored_intent, result_refs=result_refs)
     return response

@@ -121,32 +121,38 @@ def mark_lead(convo: ChatConversation, inquiry_id: int) -> None:
     convo.lead_captured_at = datetime.utcnow()
 
 
-def notify_team_of_chat_lead(
+def notify_team_of_lead(
     db: Session,
     background_tasks: BackgroundTasks,
-    convo: ChatConversation,
-    inquiry,
+    *,
+    kind_label: str,
+    name: str,
+    email: str,
+    phone: Optional[str],
+    page_url: Optional[str],
+    body_text: str,
+    link: str,
+    skip_user_id: Optional[int] = None,
 ) -> None:
     """Internal alert: in-app notification to every admin plus an email to the
-    site team inbox, both pointing at the transcript in the admin dashboard.
+    site team inbox, pointing at where the lead can be followed up.
 
-    The inquiry pipeline already notifies whoever it was routed to (listing
-    broker, or the first admin when there's no listing), so that user is
-    skipped here to avoid a double alert."""
-    name = convo.contact_name or "A website visitor"
-    link = f"/admin?tab=chatbot&conversation={convo.id}"
-    summary = f"{name} ({convo.contact_email}) left their details in the chat widget."
+    The inquiry pipeline already notifies whoever the inquiry was routed to
+    (listing broker, or the first admin when there's no listing), so pass that
+    user as skip_user_id to avoid a double alert."""
+    name = name or "A website visitor"
+    summary = f"{name} ({email}) — {kind_label}."
 
     try:
         admins = db.query(User).filter(User.user_type == "admin", User.active == True).all()  # noqa: E712
         for admin in admins:
-            if inquiry is not None and admin.id == getattr(inquiry, "assigned_to_id", None):
+            if skip_user_id is not None and admin.id == skip_user_id:
                 continue
             db.add(
                 Notification(
                     user_id=admin.id,
                     notification_type="inquiry",
-                    title=f"New chat lead: {name}",
+                    title=f"New lead: {name}",
                     body=summary[:160],
                     link=link,
                     read=False,
@@ -154,21 +160,21 @@ def notify_team_of_chat_lead(
             )
         db.commit()
     except Exception:
-        logger.exception("Chat lead: in-app admin notification failed")
+        logger.exception("Lead alert: in-app admin notification failed")
         db.rollback()
 
     esc = _html.escape
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-      <h2 style="color:#10214F;">New chatbot lead</h2>
+      <h2 style="color:#10214F;">New lead: {esc(kind_label)}</h2>
       <p style="color:#334155;"><strong>Name:</strong> {esc(name)}</p>
-      <p style="color:#334155;"><strong>Email:</strong> {esc(convo.contact_email or '')}</p>
-      {'<p style="color:#334155;"><strong>Phone:</strong> ' + esc(convo.contact_phone) + '</p>' if convo.contact_phone else ''}
-      {'<p style="color:#334155;"><strong>Started on:</strong> ' + esc(convo.page_url) + '</p>' if convo.page_url else ''}
+      <p style="color:#334155;"><strong>Email:</strong> {esc(email or '')}</p>
+      {'<p style="color:#334155;"><strong>Phone:</strong> ' + esc(phone) + '</p>' if phone else ''}
+      {'<p style="color:#334155;"><strong>Page:</strong> ' + esc(page_url) + '</p>' if page_url else ''}
       <div style="background:#f9fafb;border-left:4px solid #01BBDC;padding:16px;margin:16px 0;">
-        <p style="white-space:pre-wrap;color:#334155;margin:0;">{esc(transcript_text(convo))}</p>
+        <p style="white-space:pre-wrap;color:#334155;margin:0;">{esc(body_text)}</p>
       </div>
-      <p><a href="{FRONTEND_URL}{link}" style="color:#01BBDC;">View the full conversation in the admin dashboard</a></p>
+      <p><a href="{FRONTEND_URL}{link}" style="color:#01BBDC;">Open in the admin dashboard</a></p>
     </div>
     """
 
@@ -176,11 +182,32 @@ def notify_team_of_chat_lead(
         try:
             email_service.send_email(
                 to_email=CONTACT_EMAIL,
-                subject=f"[Chatbot lead] {name}",
+                subject=f"[Lead] {kind_label}: {name}",
                 html_content=html,
-                reply_to=convo.contact_email,
+                reply_to=email,
             )
         except Exception:
-            logger.exception("Chat lead: team email failed")
+            logger.exception("Lead alert: team email failed")
 
     background_tasks.add_task(_send)
+
+
+def notify_team_of_chat_lead(
+    db: Session,
+    background_tasks: BackgroundTasks,
+    convo: ChatConversation,
+    inquiry,
+) -> None:
+    """Lead alert for a chat conversation, linking to its transcript."""
+    notify_team_of_lead(
+        db,
+        background_tasks,
+        kind_label="chatbot conversation",
+        name=convo.contact_name or "",
+        email=convo.contact_email or "",
+        phone=convo.contact_phone,
+        page_url=convo.page_url,
+        body_text=transcript_text(convo),
+        link=f"/admin?tab=chatbot&conversation={convo.id}",
+        skip_user_id=getattr(inquiry, "assigned_to_id", None),
+    )

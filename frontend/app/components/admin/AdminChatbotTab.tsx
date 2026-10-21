@@ -12,6 +12,7 @@ interface Stats {
   lead_rate_pct: number;
   unreviewed: number;
   rated_messages: number;
+  ai_unavailable_24h: number;
   ai_usage_24h: {
     ai_search_guests: number;
     ai_search_accounts: number;
@@ -31,6 +32,7 @@ interface ConversationSummary {
   message_count: number;
   page_url: string | null;
   reviewed: boolean;
+  had_fallback?: boolean;
   admin_notes: string | null;
   created_at: string | null;
   last_message_at: string | null;
@@ -52,7 +54,7 @@ interface ConversationDetail extends ConversationSummary {
   messages: ChatMessage[];
 }
 
-type Filter = 'all' | 'leads' | 'unreviewed';
+type Filter = 'all' | 'leads' | 'unreviewed' | 'manual';
 
 const PAGE_SIZE = 25;
 
@@ -194,6 +196,14 @@ export default function AdminChatbotTab() {
         </div>
       </div>
 
+      {stats && stats.ai_unavailable_24h > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>The AI was unavailable {stats.ai_unavailable_24h} time{stats.ai_unavailable_24h === 1 ? '' : 's'} in the last 24 hours.</strong>{' '}
+          Visitors were asked to leave a message instead — see <em>needs follow-up</em> below. Check the Anthropic account
+          balance and the <code>CLAUDE_API_KEY</code> on the backend.
+        </div>
+      )}
+
       {stats && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard label="Conversations" value={stats.conversations_total} sub={`${stats.conversations_7d} in last 7 days`} />
@@ -214,13 +224,13 @@ export default function AdminChatbotTab() {
         <div className="rounded-xl border border-gray-200 bg-white">
           <div className="space-y-3 border-b border-gray-200 p-3">
             <div className="flex gap-2">
-              {(['all', 'leads', 'unreviewed'] as Filter[]).map((f) => (
+              {(['all', 'leads', 'unreviewed', 'manual'] as Filter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => { setFilter(f); setPage(0); }}
                   className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize ${filter === f ? 'bg-primary/10 text-primary' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
-                  {f}
+                  {f === 'manual' ? 'needs follow-up' : f}
                 </button>
               ))}
             </div>
@@ -258,6 +268,7 @@ export default function AdminChatbotTab() {
                         {c.contact_name || c.contact_email || `Visitor #${c.id}`}
                       </span>
                       <span className="flex shrink-0 items-center gap-1.5">
+                        {c.had_fallback && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">AI was down</span>}
                         {c.is_lead && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Lead</span>}
                         {!c.reviewed && <span className="h-2 w-2 rounded-full bg-amber-400" title="Unreviewed" />}
                       </span>

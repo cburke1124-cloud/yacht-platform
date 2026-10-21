@@ -69,6 +69,13 @@ def chatbot_stats(db: Session = Depends(get_db), _: User = Depends(require_admin
         db.query(func.count(ChatConversation.id)).filter(ChatConversation.reviewed.is_(False)).scalar() or 0
     )
     rated = db.query(func.count(ChatMessage.id)).filter(ChatMessage.admin_rating.isnot(None)).scalar() or 0
+    # Replies that fell back to "leave us a message" because the AI was unavailable.
+    fallback_24h = (
+        db.query(func.count(ChatMessage.id))
+        .filter(ChatMessage.intent == "fallback", ChatMessage.role == "assistant", ChatMessage.created_at >= day_ago)
+        .scalar()
+        or 0
+    )
 
     def usage(kind: str, anonymous: bool) -> int:
         q = db.query(func.count(AIUsageEvent.id)).filter(
@@ -85,6 +92,7 @@ def chatbot_stats(db: Session = Depends(get_db), _: User = Depends(require_admin
         "lead_rate_pct": round(leads / total * 100, 1) if total else 0,
         "unreviewed": unreviewed,
         "rated_messages": rated,
+        "ai_unavailable_24h": fallback_24h,
         "ai_usage_24h": {
             "ai_search_guests": usage("ai_search", True),
             "ai_search_accounts": usage("ai_search", False),
@@ -98,7 +106,7 @@ def chatbot_stats(db: Session = Depends(get_db), _: User = Depends(require_admin
 def list_conversations(
     skip: int = Query(0, ge=0),
     limit: int = Query(25, ge=1, le=100),
-    filter: str = Query("all", pattern="^(all|leads|unreviewed)$"),
+    filter: str = Query("all", pattern="^(all|leads|unreviewed|manual)$"),
     q: Optional[str] = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
@@ -108,6 +116,10 @@ def list_conversations(
         query = query.filter(ChatConversation.inquiry_id.isnot(None))
     elif filter == "unreviewed":
         query = query.filter(ChatConversation.reviewed.is_(False))
+    elif filter == "manual":
+        # Conversations where the AI was unavailable and a human needs to follow up.
+        fallback_ids = db.query(ChatMessage.conversation_id).filter(ChatMessage.intent == "fallback").subquery()
+        query = query.filter(ChatConversation.id.in_(fallback_ids))
     if q and q.strip():
         like = f"%{q.strip().lower()}%"
         in_messages = (
@@ -129,9 +141,17 @@ def list_conversations(
         .limit(limit)
         .all()
     )
+    fallback_convo_ids = {
+        row[0]
+        for row in db.query(ChatMessage.conversation_id)
+        .filter(ChatMessage.conversation_id.in_([c.id for c in rows]), ChatMessage.intent == "fallback")
+        .distinct()
+        .all()
+    } if rows else set()
     items = []
     for c in rows:
         item = _convo_summary(c)
+        item["had_fallback"] = c.id in fallback_convo_ids
         first_user = next((m.content for m in c.messages if m.role == "user"), "")
         item["preview"] = first_user[:140]
         items.append(item)
@@ -181,7 +201,7 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db), _: Use
                 "created_at": m.created_at.isoformat() if m.created_at else None,
             }
         )
-    return {**_convo_summary(c), "messages": messages}
+    return {**_convo_summary(c), "had_fallback": any(m["intent"] == "fallback" for m in messages), "messages": messages}
 
 
 class ConversationUpdate(BaseModel):

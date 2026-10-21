@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiUrl, mediaUrl, onImgError } from '@/app/lib/apiRoot';
 import { visitorHeaders, readAIQuotaError, AIQuotaError } from '@/app/lib/visitorId';
+import ManualRequestForm from '@/app/components/ManualRequestForm';
 import CharterCard, { CharterListing } from '@/app/components/CharterCard';
 
 interface MatchReason {
@@ -346,6 +347,11 @@ export default function AISearchComponent() {
           {quota && (
             <div className="mt-4 p-5 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-blue-900 font-medium">{quota.message}</p>
+              {quota.unavailable && (
+                <div className="mt-3">
+                  <ManualRequestForm source="ai_search" query={query} />
+                </div>
+              )}
               {quota.signupRequired && (
                 <div className="mt-3 flex flex-wrap gap-3">
                   <Link href="/register" className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:opacity-90">

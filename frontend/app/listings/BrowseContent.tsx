@@ -10,6 +10,7 @@ import ListingCard from '../components/ListingCard';
 import { ListingGridSkeleton } from '../components/LoadingSkeletons';
 import { apiUrl } from '@/app/lib/apiRoot';
 import { visitorHeaders, readAIQuotaError, AIQuotaError } from '@/app/lib/visitorId';
+import ManualRequestForm from '../components/ManualRequestForm';
 import { COUNTRIES, STATES_BY_COUNTRY } from '@/app/lib/locationData';
 import { detectLocaleDefaults } from '@/app/lib/locale';
 
@@ -1065,7 +1066,7 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                 marginBottom: 8,
               }}
             >
-              {aiQuota ? 'AI search limit reached' : fetchError ? 'Something went wrong' : 'No yachts found'}
+              {aiQuota ? (aiQuota.unavailable ? 'AI search is temporarily unavailable' : 'AI search limit reached') : fetchError ? 'Something went wrong' : 'No yachts found'}
             </h3>
             <p style={{ color: 'rgba(16,33,79,0.55)', fontFamily: 'Poppins, sans-serif', fontSize: 14 }}>
               {aiQuota
@@ -1074,6 +1075,11 @@ function BrowseContent({ initialListings = [], initialTotal = 0, hasInitialData 
                 ? 'We couldn\'t load listings right now. Please try again in a moment.'
                 : 'Try adjusting your filters or switch to AI search.'}
             </p>
+            {aiQuota?.unavailable && (
+              <div className="mt-6 w-full max-w-lg px-4">
+                <ManualRequestForm source="ai_search" query={aiQuery} />
+              </div>
+            )}
             {aiQuota?.signupRequired && (
               <div className="mt-4 flex gap-3">
                 <a href="/register" className="px-5 py-2 rounded-lg font-medium" style={{ backgroundColor: '#01BBDC', color: 'white' }}>

@@ -242,3 +242,151 @@ def test_admin_endpoints_require_admin_and_list_transcripts(client, tag, monkeyp
         assert client.get("/api/admin/chatbot/conversations").status_code == 403
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+# --------------------------------------------------------------------------
+# AI unavailable (no key / no credit): fail gracefully into a manual request
+# --------------------------------------------------------------------------
+from app.services.ai_errors import AIUnavailableError  # noqa: E402
+from app.api import routes_lead_requests  # noqa: E402
+
+
+def _usage_count(visitor_id, kind=None):
+    db = SessionLocal()
+    try:
+        q = db.query(AIUsageEvent).filter(AIUsageEvent.visitor_id == visitor_id)
+        if kind:
+            q = q.filter(AIUsageEvent.kind == kind)
+        return q.count()
+    finally:
+        db.close()
+
+
+def test_chat_unavailable_offers_manual_request_and_is_not_charged(client, tag, monkeypatch):
+    session = f"{tag}-u1"
+    _stub_model(monkeypatch, [routes_chatbot._fallback_response()])
+    body = _post(client, tag, session, "Do you charter in Greece?").json()
+    assert body["manual_request"] is True
+    assert "leave your name" in body["reply"].lower()
+    assert _usage_count(tag, "chatbot") == 0  # attempt refunded
+
+    db = SessionLocal()
+    try:
+        convo = db.query(ChatConversation).filter(ChatConversation.session_id == session).one()
+        assert [m.intent for m in convo.messages] == [None, "fallback"]  # visible to admins
+    finally:
+        db.close()
+
+
+def test_classifier_reports_unavailable_without_api_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("CLAUDE_API_KEY", raising=False)
+    result = routes_chatbot.classify_and_respond("hello", [], None)
+    assert result["unavailable"] is True
+
+
+def test_chat_search_unavailable_falls_back_to_manual_request(client, tag, monkeypatch):
+    _stub_model(monkeypatch, [{"intent": "search", "reply": "Here are a few options I found:", "contact_info": None}])
+
+    async def _down(payload, db):
+        raise AIUnavailableError()
+
+    monkeypatch.setattr(routes_chatbot, "run_smart_search", _down)
+    body = _post(client, tag, f"{tag}-u2", "motor yacht in Turkey").json()
+    assert body["manual_request"] is True
+    assert "Here are a few options" not in body["reply"]
+    assert _usage_count(tag, "ai_search") == 0  # search attempt refunded
+    assert _usage_count(tag, "chatbot") == 1    # the chat itself still worked
+
+
+def test_ai_search_unavailable_returns_503_and_is_not_charged(client, tag, monkeypatch):
+    def _down(query):
+        raise AIUnavailableError()
+
+    monkeypatch.setattr(routes_ai_search, "extract_unified_criteria", _down)
+    res = client.post("/api/ai/smart-search", json={"query": "sailboat", "max_results": 1}, headers=_headers(tag))
+    assert res.status_code == 503
+    assert res.json()["details"]["code"] == "ai_unavailable"
+    assert _usage_count(tag) == 0
+
+
+def test_extractors_raise_instead_of_returning_junk_without_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("CLAUDE_API_KEY", raising=False)
+    for fn, arg in ((routes_ai_search.extract_unified_criteria, "x"), (routes_ai_search.extract_search_criteria, "x")):
+        with pytest.raises(AIUnavailableError):
+            fn(arg)
+
+
+def _manual_env(monkeypatch):
+    created, alerts = [], []
+    monkeypatch.setattr(routes_lead_requests, "create_inquiry_and_notify", _fake_inquiry_creator(created))
+    monkeypatch.setattr(chatbot_store, "notify_team_of_lead", lambda *a, **k: alerts.append(k.get("kind_label")))
+    monkeypatch.setattr(chatbot_store, "notify_team_of_chat_lead", lambda db, bt, convo, inquiry: alerts.append("chat"))
+    return created, alerts
+
+
+def _cleanup_inquiries(ids):
+    db = SessionLocal()
+    try:
+        db.query(Inquiry).filter(Inquiry.id.in_(ids)).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_manual_request_from_ai_search_creates_lead_and_alerts_team(client, tag, monkeypatch):
+    created, alerts = _manual_env(monkeypatch)
+    try:
+        res = client.post("/api/manual-requests", json={
+            "source": "ai_search", "name": "Sam Searcher", "email": f"sam-{tag}@example.com",
+            "message": "Looking for a 60ft motor yacht", "query": "60ft motor yacht in Turkey",
+        }, headers=_headers(tag))
+        assert res.status_code == 200 and res.json()["ok"] is True
+        assert len(created) == 1 and len(alerts) == 1
+        db = SessionLocal()
+        try:
+            inquiry = db.query(Inquiry).filter(Inquiry.id == created[0]).one()
+            assert "AI search unavailable" in inquiry.message
+            assert "60ft motor yacht in Turkey" in inquiry.message
+        finally:
+            db.close()
+    finally:
+        _cleanup_inquiries(created)
+
+
+def test_manual_request_from_chat_attaches_to_conversation(client, tag, monkeypatch):
+    created, alerts = _manual_env(monkeypatch)
+    session = f"{tag}-m1"
+    res = client.post("/api/manual-requests", json={
+        "source": "chatbot", "name": "Chat Person", "email": f"chat-{tag}@example.com",
+        "message": "Please call me about charters", "session_id": session,
+    }, headers=_headers(tag))
+    assert res.status_code == 200
+    assert alerts == ["chat"]
+    db = SessionLocal()
+    try:
+        convo = db.query(ChatConversation).filter(ChatConversation.session_id == session).one()
+        assert convo.inquiry_id == created[0] and convo.contact_email == f"chat-{tag}@example.com"
+        assert [m.role for m in convo.messages] == ["user", "assistant"]
+    finally:
+        db.close()
+
+
+def test_manual_request_honeypot_and_validation(client, tag, monkeypatch):
+    created, alerts = _manual_env(monkeypatch)
+    try:
+        spam = client.post("/api/manual-requests", json={
+            "source": "ai_search", "name": "Bot", "email": "bot@example.com",
+            "message": "buy pills", "website": "http://spam.example",
+        }, headers=_headers(tag))
+        assert spam.status_code == 200 and created == []
+
+        # use the real pipeline for validation: missing email must be rejected
+        monkeypatch.undo()
+        bad = client.post("/api/manual-requests", json={
+            "source": "ai_search", "name": "No Email", "email": "", "message": "hi",
+        }, headers=_headers(tag))
+        assert bad.status_code == 400
+    finally:
+        _cleanup_inquiries(created)

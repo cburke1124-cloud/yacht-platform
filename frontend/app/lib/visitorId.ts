@@ -32,21 +32,25 @@ export function newSessionId(): string {
   return randomId();
 }
 
-/** Shape of the backend's AI-quota rejection (HTTP 429). */
+/** Shape of the backend's AI rejections: usage limit (HTTP 429) or the AI
+ *  being unavailable (HTTP 503, e.g. provider outage / exhausted credit). */
 export interface AIQuotaError {
   message: string;
   signupRequired: boolean;
+  /** AI is down: offer the "leave us a message" form instead. */
+  unavailable: boolean;
 }
 
-/** Returns the quota error if `res` is the backend's AI-limit response. */
+/** Returns the AI limit/unavailable error if `res` is one of those responses. */
 export async function readAIQuotaError(res: Response): Promise<AIQuotaError | null> {
-  if (res.status !== 429) return null;
+  if (res.status !== 429 && res.status !== 503) return null;
   try {
     const data = await res.clone().json();
     if (data?.details?.code) {
       return {
-        message: data.detail || data.error || 'AI search limit reached.',
+        message: data.detail || data.error || 'AI search is unavailable right now.',
         signupRequired: !!data.details.signup_required,
+        unavailable: data.details.code === 'ai_unavailable',
       };
     }
   } catch {
