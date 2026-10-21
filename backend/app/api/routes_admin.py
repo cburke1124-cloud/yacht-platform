@@ -1068,6 +1068,38 @@ def admin_set_user_tier_v2(
     return {"success": True, "old_tier": old_tier, "new_tier": new_tier}
 
 
+@router.post("/users/{user_id}/set-trial")
+def admin_set_user_trial(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Start/extend a free trial ({"days": 14}) or end one ({"days": 0}).
+
+    While a trial runs the account's listings are live without payment;
+    reminder emails go out automatically (see app/services/trials.py).
+    """
+    from app.services.trials import apply_trial
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+    if target.user_type not in ("dealer", "private"):
+        raise ValidationException("Trials only apply to broker and private-seller accounts")
+    try:
+        days = int(body.get("days"))
+        apply_trial(target, days)
+    except (TypeError, ValueError) as exc:
+        raise ValidationException(str(exc) if "exceed" in str(exc) else "days must be a whole number")
+    db.commit()
+    logger.info("Admin %s set %s-day trial on user %s", current_user.email, days, target.id)
+    return {
+        "success": True,
+        "trial_active": target.trial_active,
+        "trial_end_date": target.trial_end_date.isoformat() if target.trial_end_date else None,
+    }
+
+
 @router.post("/users/{user_id}/generate-payment-link")
 def admin_generate_payment_link(
     user_id: int,

@@ -273,6 +273,30 @@ def _get_managed_account_or_403(user_id: int, current_user: User, db: Session) -
     return target
 
 
+@router.post("/dealers/{user_id}/trial")
+def set_managed_account_trial(
+    user_id: int,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Start/extend a free trial ({"days": 14}) or end one ({"days": 0}) for an
+    account this rep referred. Listings are live without payment during the
+    trial; reminder emails are sent automatically."""
+    from app.services.trials import apply_trial
+    target = _get_managed_account_or_403(user_id, current_user, db)
+    try:
+        apply_trial(target, int(data.get("days")))
+    except (TypeError, ValueError) as exc:
+        raise ValidationException(str(exc) if "exceed" in str(exc) else "days must be a whole number")
+    db.commit()
+    return {
+        "success": True,
+        "trial_active": target.trial_active,
+        "trial_end_date": target.trial_end_date.isoformat() if target.trial_end_date else None,
+    }
+
+
 @router.get("/dealers/{user_id}")
 def get_managed_account(
     user_id: int,
@@ -294,6 +318,9 @@ def get_managed_account(
         "verified": target.verified,
         "active": target.active,
         "subscription_tier": target.subscription_tier,
+        "trial_active": target.trial_active,
+        "trial_end_date": target.trial_end_date.isoformat() if target.trial_end_date else None,
+        "paid": bool(target.subscription_start_date) or bool(target.always_free),
         "created_at": target.created_at.isoformat() if target.created_at else None,
     }
 
@@ -940,7 +967,7 @@ def register_broker_for_sales_rep(
     # free trial days + 20% off" in the UI, see a success response, and the
     # broker's account would be created with no trial and full price.
     free_days = None
-    if not always_free and not is_private:
+    if not always_free:
         try:
             free_days = int(data.get("free_days")) if data.get("free_days") not in (None, "") else None
         except (ValueError, TypeError):

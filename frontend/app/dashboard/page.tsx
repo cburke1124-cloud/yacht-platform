@@ -1765,6 +1765,12 @@ function EnhancedDealerDashboard() {
   // paid-looking value (e.g. "pro") without ever having paid, so tier alone
   // isn't a reliable "has paid" signal.
   const hasConfirmedPayment = !!currentUser?.subscription_start_date;
+  // A trial granted by an admin/sales rep keeps listings live without payment
+  // until trial_end_date; after that the account is treated as unpaid again.
+  const trialEnd = currentUser?.trial_end_date ? new Date(currentUser.trial_end_date) : null;
+  const inTrial = !!(currentUser?.trial_active && trialEnd && trialEnd.getTime() > Date.now());
+  const trialDaysLeft = trialEnd ? Math.max(1, Math.ceil((trialEnd.getTime() - Date.now()) / 86400000)) : 0;
+  const trialExpired = !!(trialEnd && !inTrial);
   const neverPaid = currentUser &&
     (currentUser.user_type === 'dealer' || currentUser.user_type === 'private') &&
     !currentUser.always_free &&
@@ -1772,6 +1778,7 @@ function EnhancedDealerDashboard() {
   const paymentLapsed = currentUser &&
     (currentUser.user_type === 'dealer' || currentUser.user_type === 'private') &&
     !currentUser.always_free &&
+    !(inTrial && !hasConfirmedPayment) &&
     (!paidTiers.has(currentUser.subscription_tier || '') || !hasConfirmedPayment);
 
   return (
@@ -1787,26 +1794,52 @@ function EnhancedDealerDashboard() {
       )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Payment lapsed / never-activated banner */}
-        {paymentLapsed && (
-          <div className="mb-6 flex items-start justify-between gap-4 p-4 bg-red-50 border border-red-300 rounded-xl">
+        {/* Trial banner — listings are live, but only until the trial ends */}
+        {currentUser && (currentUser.user_type === 'dealer' || currentUser.user_type === 'private') && !currentUser.always_free && !hasConfirmedPayment && inTrial && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 p-5 bg-amber-50 border-2 border-amber-400 rounded-xl">
             <div>
-              <p className="font-semibold text-red-700">
-                {neverPaid ? 'Activate your account — payment required' : 'Subscription inactive — action required'}
+              <p className="text-lg font-bold text-amber-900">
+                Free trial: {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} left
               </p>
-              <p className="text-sm text-red-600 mt-0.5">
-                {neverPaid
-                  ? (currentUser?.user_type === 'private'
-                      ? 'Welcome! Your account was set up for you. You can create and save listings now, but you will need to pay the one-time listing fee before you can publish.'
-                      : 'Your account was set up on your behalf but has not been activated yet. Complete your one-time setup payment to unlock listings and full platform access.')
-                  : 'Your listings are suspended and new listings cannot be created until payment is complete. Update your payment method to restore access.'}
+              <p className="text-sm text-amber-800 mt-0.5">
+                Your listings are live until {trialEnd!.toLocaleDateString()}. Add payment before then or they will be taken offline.
               </p>
             </div>
             <button
               onClick={() => router.push('/dashboard/billing')}
-              className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
+              className="shrink-0 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              {neverPaid ? (currentUser?.user_type === 'private' ? 'Pay to publish' : 'Pay now') : 'Update payment'}
+              Add payment
+            </button>
+          </div>
+        )}
+
+        {/* Payment needed banner — listings are NOT live until paid */}
+        {paymentLapsed && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 p-5 bg-red-50 border-2 border-red-500 rounded-xl">
+            <div>
+              <p className="text-lg font-bold text-red-700">
+                {trialExpired
+                  ? 'Your trial has ended — your listings are not live'
+                  : neverPaid
+                    ? 'Your listings are not live yet — payment required'
+                    : 'Subscription inactive — your listings are not live'}
+              </p>
+              <p className="text-sm text-red-600 mt-0.5">
+                {trialExpired
+                  ? 'Buyers can no longer see your listings. Nothing has been deleted — they go back online as soon as payment is complete.'
+                  : neverPaid
+                    ? (currentUser?.user_type === 'private'
+                        ? 'You can create and save listings now, but buyers cannot see them until you pay the one-time listing fee.'
+                        : 'Your account was set up on your behalf. Buyers cannot see your listings until you complete your one-time setup payment.')
+                    : 'Your listings are hidden from buyers and new listings cannot be published until payment is complete.'}
+              </p>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard/billing')}
+              className="shrink-0 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
+            >
+              {neverPaid || trialExpired ? 'Pay now to go live' : 'Update payment'}
             </button>
           </div>
         )}

@@ -164,6 +164,42 @@ class EmailService:
         )
         return self.send_email(to_email, "Your YachtVersal trial is ending soon", html)
 
+    def send_trial_reminder_email(
+        self, to_email: str, kind: str, days: int, trial_end_date: str, user_name: str | None = None
+    ):
+        """Trial lifecycle email. kind: "pre" (N days left) or "post" (expired N days ago)."""
+        expired = kind == "post"
+        if expired:
+            subject = "Your YachtVersal listings are no longer live"
+            headline = "Your trial has ended — your listings are offline"
+            body = (
+                f"Your YachtVersal trial ended on <strong>{trial_end_date}</strong>, so your listings are "
+                "no longer visible to buyers. Nothing has been deleted — activate your account and "
+                "they go straight back online."
+            )
+            cta = "Reactivate My Listings"
+            note = "Your listings, photos and leads are saved and will be restored as soon as payment is complete."
+        else:
+            plural = "" if days == 1 else "s"
+            subject = f"Your YachtVersal trial ends in {days} day{plural}"
+            headline = f"Your trial ends in {days} day{plural}"
+            body = (
+                f"Your YachtVersal trial ends on <strong>{trial_end_date}</strong>. Add payment before then "
+                "to keep your listings live — after that date they will be hidden from buyers."
+            )
+            cta = "Keep My Listings Live"
+            note = "After your trial ends, your listings will be taken offline until payment is made."
+        html = self._render(
+            "trial_notice.html",
+            greeting=f"Hi {user_name}," if user_name else "Hi there,",
+            headline=headline,
+            body=body,
+            cta=cta,
+            note=note,
+            billing_url=f"{self.base_url}/dashboard/billing",
+        )
+        return self.send_email(to_email, subject, html)
+
     def send_dealer_invitation(self, to_email: str, token: str, sales_rep_name: str, company_name: str = None):
         """Send dealer invitation from sales rep."""
         html = self._render(

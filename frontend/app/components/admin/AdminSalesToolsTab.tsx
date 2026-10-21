@@ -63,6 +63,7 @@ interface BrokerForm {
   subscription_tier: string;
   sales_rep_id: string; // string for select, convert to number or null
   custom_price: string; // string for input
+  free_days: string;
   always_free: boolean;
 }
 
@@ -100,6 +101,7 @@ export default function AdminSalesToolsTab() {
     subscription_tier: 'basic',
     sales_rep_id: '',
     custom_price: '',
+    free_days: '',
     always_free: false
   });
   const [regLoading, setRegLoading] = useState(false);
@@ -338,6 +340,11 @@ export default function AdminSalesToolsTab() {
 
       if (payload.always_free) {
         payload.custom_price = null;
+        payload.free_days = null;
+      } else if (payload.free_days !== '' && payload.free_days != null) {
+        payload.free_days = parseInt(payload.free_days);
+      } else {
+        delete payload.free_days;
       }
 
       const res = await fetch(apiUrl('/sales-rep/register-broker'), {
@@ -360,6 +367,7 @@ export default function AdminSalesToolsTab() {
         subscription_tier: 'basic',
         sales_rep_id: '',
         custom_price: '',
+        free_days: '',
         always_free: false
       });
     } catch (err: any) {
@@ -958,6 +966,15 @@ export default function AdminSalesToolsTab() {
                          disabled={regForm.always_free}
                         />
                      </div>
+                  </div>
+                )}
+                {!regForm.always_free && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-blue-900 mb-1">Free Trial Days (optional)</label>
+                    <p className="text-xs text-blue-800/80 mb-2">Listings go live without a card for this long. Reminder emails go out before it ends and after it expires.</p>
+                    <input type="number" min="0" max="365" placeholder="0" value={regForm.free_days}
+                      onChange={e => setRegForm({ ...regForm, free_days: e.target.value })}
+                      className="w-32 px-3 py-2 border border-blue-200 rounded-lg text-sm" />
                   </div>
                 )}
                   <div className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">

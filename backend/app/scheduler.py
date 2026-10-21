@@ -61,7 +61,25 @@ def setup_scheduler():
         hour=4,
     )
 
+    # Every 6 hours - trial reminder / expiry / win-back emails. Idempotent
+    # (sent reminders are recorded per user), so the cadence only sets how
+    # promptly each one goes out.
+    scheduler.add_job(
+        func=run_trial_reminders_task,
+        trigger="interval",
+        hours=6,
+    )
+
     scheduler.start()
+
+def run_trial_reminders_task():
+    from app.services.trials import run_trial_reminders
+    db = SessionLocal()
+    try:
+        run_trial_reminders(db)
+    finally:
+        db.close()
+
 
 def check_and_expire_featured():
     db = SessionLocal()

@@ -1072,6 +1072,16 @@ export default function SalesRepDashboard() {
               <PhoneInput value={brokerForm.phone} onChange={(value) => setBrokerForm({ ...brokerForm, phone: value })} />
             </div>
 
+            {isPrivateSeller && !brokerForm.always_free && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                <label className="block text-sm font-semibold text-blue-900 mb-1">Free Trial Days (optional)</label>
+                <p className="text-xs text-blue-800/80 mb-2">Their listings go live without a card for this long. We email them before it ends and after it expires.</p>
+                <input type="number" min="0" max="365" value={brokerForm.free_days} placeholder="0"
+                  onChange={(e) => setBrokerForm({ ...brokerForm, free_days: e.target.value })}
+                  className="w-32 px-3 py-2 border border-blue-200 rounded-md text-sm" />
+              </div>
+            )}
+
             {/* Deal / Discount options */}
             {!isPrivateSeller && (
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 space-y-3">

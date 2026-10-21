@@ -315,6 +315,30 @@ export default function AdminUsersTab() {
     }
   };
 
+  const [trialDays, setTrialDays] = useState<Record<number, string>>({});
+  const handleSetTrial = async (user: any, days: number) => {
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/set-trial`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ days }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(users.map(u => u.id === user.id ? { ...u, trial_active: data.trial_active, trial_end_date: data.trial_end_date } : u));
+        showMsg(user.id, 'success', days > 0 ? `Trial set — ends ${new Date(data.trial_end_date).toLocaleDateString()}` : 'Trial ended');
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to set trial');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleToggleAlwaysFree = async (user: any) => {
     setActionLoading(user.id);
     const newVal = !user.always_free;
@@ -726,6 +750,39 @@ export default function AdminUsersTab() {
                                 </button>
                               </div>
                             </div>
+
+                            {/* Trial: listings are live without payment until it ends; reminder emails are automatic */}
+                            {(user.user_type === 'dealer' || user.user_type === 'private') && (
+                              <div>
+                                <label className="block text-xs text-dark/60 mb-1 font-medium">
+                                  Free Trial {user.trial_active && user.trial_end_date ? `— ends ${new Date(user.trial_end_date).toLocaleDateString()}` : ''}
+                                </label>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  <input
+                                    type="number" min="1" max="365" placeholder="Days"
+                                    value={trialDays[user.id] ?? ''}
+                                    onChange={e => setTrialDays({ ...trialDays, [user.id]: e.target.value })}
+                                    className="w-24 px-2 py-1.5 border border-violet-200 rounded-lg text-sm bg-white"
+                                  />
+                                  <button
+                                    onClick={() => handleSetTrial(user, parseInt(trialDays[user.id] || '0'))}
+                                    disabled={actionLoading === user.id || !parseInt(trialDays[user.id] || '0')}
+                                    className="px-3 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 transition"
+                                  >
+                                    {user.trial_active ? 'Reset Trial' : 'Start Trial'}
+                                  </button>
+                                  {user.trial_active && (
+                                    <button
+                                      onClick={() => handleSetTrial(user, 0)}
+                                      disabled={actionLoading === user.id}
+                                      className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
+                                    >
+                                      End Trial Now
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Row 2: Payment link + send reminder */}
                             <div className="flex flex-wrap items-start gap-3">

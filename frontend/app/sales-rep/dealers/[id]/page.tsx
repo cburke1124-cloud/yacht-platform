@@ -19,6 +19,9 @@ interface Account {
   verified: boolean;
   active: boolean;
   subscription_tier: string;
+  trial_active?: boolean;
+  trial_end_date?: string | null;
+  paid?: boolean;
   created_at: string | null;
 }
 
@@ -54,6 +57,9 @@ export default function ManagedAccountPage() {
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountMsg, setAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [trialDays, setTrialDays] = useState('');
+  const [savingTrial, setSavingTrial] = useState(false);
+  const [trialMsg, setTrialMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [busyListingId, setBusyListingId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -102,6 +108,30 @@ export default function ManagedAccountPage() {
       setError('Failed to load account.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveTrial(days: number) {
+    setSavingTrial(true);
+    setTrialMsg(null);
+    try {
+      const res = await fetch(apiUrl(`/sales-rep/dealers/${accountId}/trial`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ days }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAccount(a => a ? { ...a, trial_active: data.trial_active, trial_end_date: data.trial_end_date } : a);
+        setTrialDays('');
+        setTrialMsg({ type: 'success', text: days > 0 ? 'Trial started' : 'Trial ended' });
+      } else {
+        setTrialMsg({ type: 'error', text: data.detail || 'Failed to update trial' });
+      }
+    } catch {
+      setTrialMsg({ type: 'error', text: 'Network error' });
+    } finally {
+      setSavingTrial(false);
     }
   }
 
@@ -281,6 +311,34 @@ export default function ManagedAccountPage() {
               <span className={`text-sm ${accountMsg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{accountMsg.text}</span>
             )}
           </div>
+        </div>
+
+        {/* Free trial */}
+        <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
+          <h2 className="text-lg font-bold text-secondary mb-1">Free Trial</h2>
+          <p className="text-sm text-dark/60 mb-4">
+            {account.paid
+              ? 'This account has paid — no trial needed.'
+              : account.trial_active && account.trial_end_date
+                ? `On trial until ${new Date(account.trial_end_date).toLocaleDateString()}. Listings are live without payment; reminder emails go out automatically.`
+                : 'Give this account a free trial so their listings go live without a card. We email them before it ends and after it expires.'}
+          </p>
+          {!account.paid && (
+            <div className="flex flex-wrap items-center gap-3">
+              <input type="number" min="1" max="365" placeholder="Days" value={trialDays}
+                onChange={e => setTrialDays(e.target.value)}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              <button onClick={() => saveTrial(parseInt(trialDays || '0'))} disabled={savingTrial || !parseInt(trialDays || '0')}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-medium disabled:opacity-60">
+                {account.trial_active ? 'Reset Trial' : 'Start Trial'}
+              </button>
+              {account.trial_active && (
+                <button onClick={() => saveTrial(0)} disabled={savingTrial}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium disabled:opacity-60">End Trial Now</button>
+              )}
+              {trialMsg && <span className={`text-sm ${trialMsg.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{trialMsg.text}</span>}
+            </div>
+          )}
         </div>
 
         {/* Listings table */}
