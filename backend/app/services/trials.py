@@ -6,6 +6,7 @@ scheduler: it emails before the trial ends, flips expired trials off, and
 sends a couple of win-back emails afterwards. Which emails have gone out is
 tracked per user in permissions["trial_reminders_sent"] so a run is idempotent.
 """
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -22,6 +23,17 @@ POST_EXPIRY_DAYS = (1, 7)     # win-back emails this many days after it
 MAX_TRIAL_DAYS = 365
 
 
+def _perms(user: User) -> dict:
+    """permissions is a JSON column but has been stored as a JSON string in places."""
+    perms = user.permissions
+    if isinstance(perms, str):
+        try:
+            perms = json.loads(perms)
+        except Exception:
+            perms = {}
+    return dict(perms or {})
+
+
 def apply_trial(user: User, days: int) -> None:
     """Start/extend a trial of `days` from now, or end it when days <= 0.
 
@@ -30,15 +42,17 @@ def apply_trial(user: User, days: int) -> None:
     days = int(days)
     if days > MAX_TRIAL_DAYS:
         raise ValueError(f"Trial cannot exceed {MAX_TRIAL_DAYS} days")
-    perms = dict(user.permissions or {})
-    perms.pop("trial_reminders_sent", None)
-    user.permissions = perms
+    perms = _perms(user)
     if days > 0:
+        perms.pop("trial_reminders_sent", None)  # new period, fresh reminders
         user.trial_active = True
         user.trial_end_date = datetime.utcnow() + timedelta(days=days)
     else:
+        # Ended on purpose by staff — don't send win-back emails for it.
+        perms["trial_reminders_sent"] = [f"pre{d}" for d in PRE_EXPIRY_DAYS] + [f"post{d}" for d in POST_EXPIRY_DAYS]
         user.trial_active = False
         user.trial_end_date = datetime.utcnow()
+    user.permissions = perms
 
 
 def _send(user: User, kind: str, days: int) -> bool:
@@ -63,6 +77,7 @@ def run_trial_reminders(db: Session) -> dict:
         User.trial_end_date.isnot(None),
         User.user_type.in_(["dealer", "private"]),
         User.active == True,
+        User.is_demo != True,
         # Stop chasing people a month after their trial lapsed.
         User.trial_end_date > now - timedelta(days=30),
     ).all()
@@ -70,7 +85,7 @@ def run_trial_reminders(db: Session) -> dict:
     for user in candidates:
         if user_has_actually_paid(user):
             continue
-        perms = dict(user.permissions or {})
+        perms = _perms(user)
         done = list(perms.get("trial_reminders_sent") or [])
         remaining = user.trial_end_date - now
         new_key = None

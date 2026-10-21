@@ -92,3 +92,20 @@ def test_paid_user_gets_no_reminders(db):
     u = _user(db, subscription_start_date=datetime.utcnow())
     trials.apply_trial(u, 1)
     assert _run(db).call_count == 0
+
+
+def test_manually_ended_trial_sends_no_winback(db):
+    u = _user(db)
+    trials.apply_trial(u, 5)
+    trials.apply_trial(u, 0)
+    db.commit()
+    u.trial_end_date = datetime.utcnow() - timedelta(days=8)
+    db.commit()
+    assert _run(db).call_count == 0
+    assert not user_has_paid(u)
+
+
+def test_start_trial_endpoint_requires_staff():
+    from fastapi.testclient import TestClient
+    r = TestClient(app).post("/api/auth/start-trial", json={"email": "x@example.com", "password": "TestPass123"})
+    assert r.status_code in (401, 403)

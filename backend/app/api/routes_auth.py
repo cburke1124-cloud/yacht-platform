@@ -792,7 +792,18 @@ def accept_terms(current_user: User = Depends(get_current_user), db: Session = D
 
 
 @router.post("/start-trial")
-async def start_trial(data: TrialStart, db: Session = Depends(get_db)):
+async def start_trial(
+    data: TrialStart,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Trials make listings go live without payment (see billing_status), so
+    # only staff may grant one — this endpoint used to be open to anyone with
+    # a caller-chosen trial_days.
+    if current_user.user_type not in ("admin", "salesman"):
+        raise AuthorizationException("Only admins and sales reps can start a trial account")
+    if not 1 <= data.trial_days <= 365:
+        raise ValidationException("trial_days must be between 1 and 365")
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise ValidationException("Email already registered")

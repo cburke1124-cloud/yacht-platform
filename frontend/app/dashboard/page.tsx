@@ -1767,7 +1767,8 @@ function EnhancedDealerDashboard() {
   const hasConfirmedPayment = !!currentUser?.subscription_start_date;
   // A trial granted by an admin/sales rep keeps listings live without payment
   // until trial_end_date; after that the account is treated as unpaid again.
-  const trialEnd = currentUser?.trial_end_date ? new Date(currentUser.trial_end_date) : null;
+  // The API returns naive UTC timestamps; without a 'Z' the browser would read them as local time.
+  const trialEnd = currentUser?.trial_end_date ? new Date(/Z|[+-]\d\d:?\d\d$/.test(currentUser.trial_end_date) ? currentUser.trial_end_date : `${currentUser.trial_end_date}Z`) : null;
   const inTrial = !!(currentUser?.trial_active && trialEnd && trialEnd.getTime() > Date.now());
   const trialDaysLeft = trialEnd ? Math.max(1, Math.ceil((trialEnd.getTime() - Date.now()) / 86400000)) : 0;
   const trialExpired = !!(trialEnd && !inTrial);
