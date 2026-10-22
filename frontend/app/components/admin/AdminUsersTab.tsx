@@ -17,7 +17,7 @@ function getSubscriptionBadge(user: any) {
 
   if (user.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700' };
   if (user.trial_active) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700' };
-  if (PAID_TIERS.has(user.subscription_tier)) return { label: user.subscription_tier, bg: 'bg-green-100', text: 'text-green-700' };
+  if (user.subscription_start_date || PAID_TIERS.has(user.subscription_tier)) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700' };
   if (user.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700' };
   if (user.stripe_customer_id) return { label: 'Never Activated', bg: 'bg-orange-100', text: 'text-orange-700' };
   return { label: 'No Payment', bg: 'bg-gray-100', text: 'text-gray-600' };
@@ -712,29 +712,8 @@ export default function AdminUsersTab() {
                               Billing Management — {user.first_name} {user.last_name} ({user.email})
                             </p>
 
-                            {/* Row 1: Tier override + always free */}
+                            {/* Row 1: always free */}
                             <div className="flex flex-wrap items-end gap-3">
-                              <div>
-                                <label className="block text-xs text-dark/60 mb-1 font-medium">Override Subscription Tier</label>
-                                <div className="flex gap-2">
-                                  <select
-                                    value={selectedTier}
-                                    onChange={e => setSelectedTier(e.target.value)}
-                                    className="px-2 py-1.5 border border-violet-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
-                                  >
-                                    {OVERRIDE_TIERS.map(t => (
-                                      <option key={t} value={t}>{t}</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => handleSetTier(user, selectedTier)}
-                                    disabled={actionLoading === user.id}
-                                    className="px-3 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50 transition"
-                                  >
-                                    {actionLoading === user.id ? '...' : 'Set Tier'}
-                                  </button>
-                                </div>
-                              </div>
                               <div>
                                 <label className="block text-xs text-dark/60 mb-1 font-medium">Always Free Override</label>
                                 <button

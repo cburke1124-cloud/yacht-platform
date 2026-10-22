@@ -990,55 +990,6 @@ export default function SalesRepDashboard() {
       </div>
     </div>
 
-    {/* Tier Cards — dynamic from backend */}
-    {orderedTiers.length > 0 && !isPrivateSeller && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        {orderedTiers.map((t) => {
-          const TierIcon = TIER_ICONS[t.key] || Shield;
-          const accent = TIER_ACCENT[t.key] || 'border-gray-300 bg-gray-50 text-gray-700';
-          const selected = brokerForm.subscription_tier === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setBrokerForm({ ...brokerForm, subscription_tier: t.key })}
-              className={`rounded-xl border-2 p-4 text-left transition-all ${
-                selected
-                  ? `${accent} ring-2 ring-primary shadow-md`
-                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <TierIcon size={18} className={selected ? '' : 'text-gray-400'} />
-                <span className="font-bold text-secondary">{t.name}</span>
-              </div>
-              <div className="mb-3">
-                {t.is_custom_pricing ? (
-                  <span className="text-lg font-bold text-secondary">Custom Pricing</span>
-                ) : (
-                  <span className="text-lg font-bold text-secondary">${t.price}<span className="text-sm font-normal text-dark/50">{t.one_time ? ' one-time' : '/mo'}</span></span>
-                )}
-              </div>
-              <div className="text-xs text-dark/60 space-y-1">
-                <p className="font-medium text-dark/80 mb-1">{t.listings >= 999999 ? 'Unlimited' : t.listings} listings &middot; {t.images_per_listing >= 999999 ? '∞' : t.images_per_listing} images &middot; {t.videos_per_listing >= 999999 ? '∞' : t.videos_per_listing} videos</p>
-                {t.trial_days > 0 && <p className="text-primary font-medium">{t.trial_days}-day free trial</p>}
-              </div>
-              <ul className="mt-3 space-y-1">
-                {t.features.map((f, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-xs text-dark/70">
-                    <Check size={12} className="text-green-500 shrink-0 mt-0.5" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              {selected && (
-                <div className="mt-3 text-xs font-semibold text-primary flex items-center gap-1"><Check size={12} /> Selected</div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    )}
-
     <div className="grid lg:grid-cols-5 gap-8">
       {/* Form */}
       <div className="lg:col-span-3">
@@ -1188,59 +1139,12 @@ export default function SalesRepDashboard() {
               </div>
             </div>
             
-            {!isPrivateSeller && brokerForm.subscription_tier === 'ultimate' && (
-              <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Crown size={16} className="text-amber-600" />
-                  <h4 className="font-bold text-amber-800 text-sm">Custom Ultimate Bundle</h4>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Negotiated Monthly Price ($)</label>
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                    value={brokerForm.custom_price || ''}
-                    onChange={(e) => setBrokerForm({
-                      ...brokerForm,
-                      custom_price: e.target.value,
-                      // clear conflicting deal/discount when custom price is set
-                      applied_deal_id: brokerForm.subscription_tier === 'ultimate' ? null : brokerForm.applied_deal_id,
-                      discount_value: brokerForm.subscription_tier === 'ultimate' ? '' : brokerForm.discount_value,
-                    })}
-                    className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/30 outline-none text-sm bg-white text-amber-900"
-                    disabled={brokerForm.always_free}
-                  />
-                  <p className="text-xs text-amber-700/70 mt-1">Set the recurring monthly price for this custom deal.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Tier shown as read-only from cards above */}
-            {!isPrivateSeller && (
             <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-dark/50 uppercase">Selected Tier</p>
-                <p className="font-semibold text-secondary capitalize">{tiers[brokerForm.subscription_tier]?.name || brokerForm.subscription_tier}</p>
-              </div>
+              <p className="text-xs font-medium text-dark/50 uppercase">Signup fee</p>
               <p className="font-bold text-primary">
-                {brokerForm.always_free
-                  ? 'Always free'
-                  : brokerForm.subscription_tier === 'ultimate' && brokerForm.custom_price
-                  ? `$${Number(brokerForm.custom_price).toFixed(2)}/mo`
-                  : tiers[brokerForm.subscription_tier]?.is_custom_pricing
-                    ? 'Custom'
-                    : `$${tiers[brokerForm.subscription_tier]?.price ?? 199} one-time`}
+                {brokerForm.always_free ? 'Always free' : `$${isPrivateSeller ? '149' : '199'} one-time, paid by them on first sign-in`}
               </p>
             </div>
-            )}
-            {isPrivateSeller && (
-              <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
-                <p className="text-xs font-medium text-dark/50 uppercase">Private seller fee</p>
-                <p className="font-bold text-primary">{brokerForm.always_free ? 'Always free' : '$149 one-time, paid by the seller on first sign-in'}</p>
-              </div>
-            )}
             <button onClick={registerBroker} disabled={brokerSubmitting}
               className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {brokerSubmitting ? (<><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" /> Registering...</>) : (<><UserPlus size={16} /> Register {isPrivateSeller ? 'Private Seller' : 'Broker'}</>)}
@@ -1258,11 +1162,10 @@ export default function SalesRepDashboard() {
             <div className="space-y-2 text-sm">
               <div><span className="text-green-700 font-medium">Email:</span> <span className="text-green-900">{brokerResult.email}</span></div>
               {brokerResult.company_name && <div><span className="text-green-700 font-medium">Company:</span> <span className="text-green-900">{brokerResult.company_name}</span></div>}
-              <div><span className="text-green-700 font-medium">Tier:</span> <span className="text-green-900 capitalize">{brokerResult.subscription_tier}</span></div>
               {brokerResult.always_free ? (
                 <div><span className="text-green-700 font-medium">Billing:</span> <span className="text-green-900">Always free</span></div>
               ) : (
-                <div><span className="text-green-700 font-medium">Effective price:</span> <span className="text-green-900">${Number(brokerResult.effective_monthly_price ?? 0).toFixed(2)}{brokerResult.subscription_tier === 'ultimate' ? '/mo' : ' one-time'}</span></div>
+                <div><span className="text-green-700 font-medium">Effective price:</span> <span className="text-green-900">${Number(brokerResult.effective_monthly_price ?? 0).toFixed(2)} one-time</span></div>
               )}
               {brokerResult.trial_active && brokerResult.trial_end_date && (
                 <div><span className="text-green-700 font-medium">Free trial:</span> <span className="text-green-900">until {new Date(brokerResult.trial_end_date).toLocaleDateString()}</span></div>

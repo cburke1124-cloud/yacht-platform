@@ -919,7 +919,9 @@ def register_broker_for_sales_rep(
     # Private sellers have no tiers: they pay the flat one-time fee themselves
     # on first login (the dashboard prompts them), and until then they can
     # draft listings but not publish (see create_listing's payment gate).
-    tier = "free" if is_private else (data.get("subscription_tier") or "basic").strip().lower()
+    # Tiers are paused: everyone pays the flat signup fee. The "pro" tier is the
+    # one real broker plan; private sellers become "private_active" on payment.
+    tier = "free" if is_private else (data.get("subscription_tier") or "pro").strip().lower()
     always_free = bool(data.get("always_free", False))
 
     if tier not in TIER_PRICES:

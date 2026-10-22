@@ -13,7 +13,7 @@ const PAID_TIERS = new Set([
 function getSubscriptionBadge(dealer: any) {
   if (dealer.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700' };
   if (dealer.trial_active) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700' };
-  if (PAID_TIERS.has(dealer.subscription_tier)) return { label: dealer.subscription_tier, bg: 'bg-green-100', text: 'text-green-700' };
+  if (dealer.subscription_start_date || PAID_TIERS.has(dealer.subscription_tier)) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700' };
   if (dealer.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700' };
   if (dealer.stripe_customer_id) return { label: 'Never Activated', bg: 'bg-orange-100', text: 'text-orange-700' };
   return { label: 'No Payment', bg: 'bg-gray-100', text: 'text-gray-600' };

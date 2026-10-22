@@ -98,7 +98,7 @@ export default function AdminSalesToolsTab() {
     last_name: '',
     company_name: '',
     phone: '',
-    subscription_tier: 'basic',
+    subscription_tier: 'pro',
     sales_rep_id: '',
     custom_price: '',
     free_days: '',
@@ -364,7 +364,7 @@ export default function AdminSalesToolsTab() {
         last_name: '',
         company_name: '',
         phone: '',
-        subscription_tier: 'basic',
+        subscription_tier: 'pro',
         sales_rep_id: '',
         custom_price: '',
         free_days: '',
@@ -903,32 +903,12 @@ export default function AdminSalesToolsTab() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  {regForm.user_type !== 'private' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subscription Tier</label>
-                    <select
-                      value={regForm.subscription_tier}
-                      onChange={e => setRegForm({...regForm, subscription_tier: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    >
-                      {Object.entries(tiers).map(([key, tier]: [string, any]) => (
-                        <option key={key} value={key}>
-                          {tier.name || key.charAt(0).toUpperCase() + key.slice(1)} 
-                          {tier.price ? ` ($${tier.price}/mo)` : (key === 'ultimate' ? ' (Custom)' : '')}
-                        </option>
-                      ))}
-                      {Object.keys(tiers).length === 0 && (
-                        <>
-                          <option value="basic">Basic ($199/mo)</option>
-                          <option value="plus">Plus ($299/mo)</option>
-                          <option value="pro">Pro ($499/mo)</option>
-                          <option value="ultimate">Ultimate (Custom)</option>
-                          <option value="free">Free</option>
-                        </>
-                      )}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Signup fee</label>
+                    <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-700">
+                      {regForm.always_free ? 'Always free — no fee' : `$${regForm.user_type === 'private' ? '149' : '199'} one-time, paid by them on first sign-in`}
+                    </div>
                   </div>
-                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Sales Rep</label>
                     <select
@@ -949,25 +929,6 @@ export default function AdminSalesToolsTab() {
                   </div>
                 </div>
                 
-                {regForm.user_type !== 'private' && regForm.subscription_tier === 'ultimate' && (
-                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
-                     <label className="block text-sm font-medium text-yellow-800 mb-1">Custom Monthly Price ($)</label>
-                     <p className="text-xs text-yellow-600 mb-2">Set the recurring monthly charge for this Ultimate account.</p>
-                     <div className="relative">
-                        <DollarSign className="w-4 h-4 absolute left-3 top-2.5 text-yellow-600" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="e.g. 500.00"
-                          value={regForm.custom_price}
-                          onChange={e => setRegForm({...regForm, custom_price: e.target.value})}
-                         className="w-full pl-9 pr-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 disabled:opacity-50"
-                         disabled={regForm.always_free}
-                        />
-                     </div>
-                  </div>
-                )}
                 {!regForm.always_free && (
                   <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                     <label className="block text-sm font-medium text-blue-900 mb-1">Free Trial Days (optional)</label>
