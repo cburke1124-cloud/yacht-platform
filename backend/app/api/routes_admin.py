@@ -775,6 +775,40 @@ def admin_confirm_email(
     return {"success": True, "already_verified": False}
 
 
+@router.post("/users/{user_id}/password-setup-link")
+def admin_password_setup_link(
+    user_id: int,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Generate a one-time link where the user sets their own password, WITHOUT
+    sending any email — for when SendGrid is down and the admin needs to hand
+    login details over by phone/text. Opening the link also marks the email
+    verified (same as the emailed setup link). Each call replaces any earlier
+    unused link for this user."""
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+    if target.user_type == "admin" and target.id != current_user.id:
+        raise AuthorizationException("Admin accounts must reset their own password")
+
+    token = secrets.token_urlsafe(32)
+    target.verification_token = token
+    db.add(ActivityLog(
+        user_id=target.id,
+        action="admin_password_setup_link",
+        details={"admin_id": current_user.id, "admin_email": current_user.email},
+    ))
+    db.commit()
+
+    return {
+        "success": True,
+        "email": target.email,
+        "setup_url": f"{email_service.base_url}/set-password?token={token}",
+        "login_url": f"{email_service.base_url}/login/seller",
+    }
+
+
 @router.post("/users/{user_id}/sync-stripe")
 def sync_user_stripe(
     user_id: int,
@@ -1259,12 +1293,12 @@ def admin_send_payment_reminder(
 
     email_sent = False
     try:
-        email_service.send_email(
+        # send_email returns False (it doesn't raise) when SendGrid rejects/fails
+        email_sent = bool(email_service.send_email(
             to_email=target.email,
             subject="Action Required: Complete Your YachtVersal Payment",
             html_content=html,
-        )
-        email_sent = True
+        ))
     except Exception as e:
         logger.error("Payment reminder email failed for user %s: %s", target.id, e)
 
@@ -1478,12 +1512,12 @@ def create_dealer(
     </body></html>
     """
     try:
-        email_service.send_email(
+        # send_email returns False (it doesn't raise) when SendGrid rejects/fails
+        email_sent = bool(email_service.send_email(
             to_email=email,
             subject="Set up your YachtVersal broker account",
             html_content=html,
-        )
-        email_sent = True
+        ))
     except Exception:
         email_sent = False
 
@@ -4164,8 +4198,8 @@ def register_broker_admin(
     display_name = first_name or company_name or email.split("@")[0]
     set_pw_url = f"{email_service.base_url}/set-password?token={set_pw_token}"
     try:
-        email_service.send_password_set_email(email, display_name, set_pw_url)
-        email_sent = True
+        # send_email returns False (it doesn't raise) when SendGrid rejects/fails
+        email_sent = bool(email_service.send_password_set_email(email, display_name, set_pw_url))
     except Exception as _exc:
         _logging.warning(f"Failed to send password setup email to {email}: {_exc}")
         email_sent = False
@@ -4223,8 +4257,8 @@ def resend_broker_setup_email(
     email_sent = False
     display_name = broker.first_name or broker.company_name or broker.email.split("@")[0]
     try:
-        email_service.send_password_set_email(broker.email, display_name, setup_url)
-        email_sent = True
+        # send_email returns False (it doesn't raise) when SendGrid rejects/fails
+        email_sent = bool(email_service.send_password_set_email(broker.email, display_name, setup_url))
     except Exception as exc:
         import logging as _log
         _log.warning("resend_broker_setup: email failed for %s: %s", broker.email, exc)

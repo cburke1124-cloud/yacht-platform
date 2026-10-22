@@ -1061,8 +1061,8 @@ def register_broker_for_sales_rep(
     display_name = first_name or company_name or email.split("@")[0]
     set_pw_url = f"{email_service.base_url}/set-password?token={set_pw_token}"
     try:
-        email_service.send_password_set_email(email, display_name, set_pw_url)
-        email_sent = True
+        # send_email returns False (it doesn't raise) when SendGrid rejects/fails
+        email_sent = bool(email_service.send_password_set_email(email, display_name, set_pw_url))
     except Exception as _exc:
         _logging.warning(f"Failed to send password setup email to {email}: {_exc}")
         email_sent = False

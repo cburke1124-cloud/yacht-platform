@@ -74,3 +74,21 @@ def test_admin_can_reassign_existing_listing(ctx):
     assert r.status_code == 200, r.text
     db.expire_all()
     assert db.query(Listing).filter(Listing.id == lid).first().user_id == seller.id
+
+
+def test_password_setup_link_works_without_email(ctx):
+    db, users, listings = ctx
+    admin, seller = _mk(db, "admin"), _mk(db, "private")
+    users.extend([admin, seller])
+    c = TestClient(app)
+    r = c.post(f"/api/admin/users/{seller.id}/password-setup-link", headers=_hdr(admin))
+    assert r.status_code == 200, r.text
+    url = r.json()["setup_url"]
+    token = url.split("token=")[1]
+    r = c.post("/api/auth/set-password", json={"token": token, "password": "BrandNewPass123"})
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    assert db.query(User).filter(User.id == seller.id).first().email_verified is True
+    # not available to non-admins
+    r = c.post(f"/api/admin/users/{admin.id}/password-setup-link", headers=_hdr(seller))
+    assert r.status_code in (401, 403)

@@ -213,7 +213,33 @@ export default function AdminUsersTab() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ email: user.email }),
       });
-      showMsg(user.id, res.ok ? 'success' : 'error', res.ok ? `Reset link sent to ${user.email}` : 'Failed to send reset link');
+      showMsg(user.id, res.ok ? 'success' : 'error', res.ok ? `Reset email requested for ${user.email} — if they don't get it (email outage), use Login Link` : 'Failed to send reset link');
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Email-free fallback: a one-time set-password link the admin can hand over directly.
+  const [loginLink, setLoginLink] = useState<{ name: string; email: string; setupUrl: string; loginUrl: string } | null>(null);
+  const handleLoginLink = async (user: any) => {
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/password-setup-link`), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.setup_url) {
+        setLoginLink({
+          name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
+          email: data.email, setupUrl: data.setup_url, loginUrl: data.login_url,
+        });
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Could not create login link');
+      }
     } catch {
       showMsg(user.id, 'error', 'Network error');
     } finally {
@@ -478,6 +504,34 @@ export default function AdminUsersTab() {
       </div>
 
       {/* Create User Form */}
+      {loginLink && (() => {
+        const message = `Hi ${loginLink.name},
+
+Your YachtVersal account is ready. Use this link to set your password (it works once):
+${loginLink.setupUrl}
+
+Then sign in at ${loginLink.loginUrl} with ${loginLink.email}.`;
+        return (
+          <div className="mb-5 rounded-xl border border-slate-300 bg-slate-50 p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="font-semibold text-secondary text-sm">Login link for {loginLink.name}</p>
+                <p className="text-xs text-dark/60">No email was sent. Give them this link directly — it lets them set their own password and verifies their email. Making a new link cancels this one.</p>
+              </div>
+              <button onClick={() => setLoginLink(null)} className="text-xs text-dark/50 hover:text-dark">Close</button>
+            </div>
+            <textarea readOnly rows={6} value={message} onFocus={e => e.currentTarget.select()}
+              className="w-full text-xs font-mono p-2 border border-slate-200 rounded-lg bg-white" />
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => navigator.clipboard.writeText(message)}
+                className="px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/90">Copy message</button>
+              <button onClick={() => navigator.clipboard.writeText(loginLink.setupUrl)}
+                className="px-3 py-1.5 bg-white border border-slate-300 text-xs font-medium rounded-lg hover:bg-slate-100">Copy link only</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {showCreateForm && (
         <div className="bg-white rounded-xl shadow border border-gray-100 p-6 mb-6">
           <h3 className="text-lg font-semibold text-secondary mb-4">Create New Admin User</h3>
@@ -606,6 +660,16 @@ export default function AdminUsersTab() {
                               className="px-2.5 py-1 text-xs bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 transition disabled:opacity-50"
                             >
                               {actionLoading === user.id ? '...' : 'Confirm Email'}
+                            </button>
+                          )}
+                          {user.user_type !== 'admin' && (
+                            <button
+                              onClick={() => handleLoginLink(user)}
+                              disabled={actionLoading === user.id}
+                              title="Create a set-password link to give them directly (no email needed)"
+                              className="px-2.5 py-1 text-xs bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition disabled:opacity-50"
+                            >
+                              {actionLoading === user.id ? '...' : 'Login Link'}
                             </button>
                           )}
                           <button
