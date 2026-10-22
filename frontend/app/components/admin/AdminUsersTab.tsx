@@ -11,16 +11,21 @@ const PAID_TIERS = new Set([
 
 const OVERRIDE_TIERS = ['free', 'basic', 'plus', 'pro', 'ultimate'] as const;
 
+// Billing status for brokers / private sellers. `live` = their listings are
+// visible to buyers (paid, comped, or mid-trial) — mirrors the backend rule.
 function getSubscriptionBadge(user: any) {
   const isBrokerOrPrivate = user.user_type === 'dealer' || user.user_type === 'private';
   if (!isBrokerOrPrivate) return null;
 
-  if (user.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700' };
-  if (user.trial_active) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700' };
-  if (user.subscription_start_date || PAID_TIERS.has(user.subscription_tier)) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700' };
-  if (user.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700' };
-  if (user.stripe_customer_id) return { label: 'Never Activated', bg: 'bg-orange-100', text: 'text-orange-700' };
-  return { label: 'No Payment', bg: 'bg-gray-100', text: 'text-gray-600' };
+  const trialEnd = user.trial_end_date ? new Date(/Z|[+-]\d\d:?\d\d$/.test(user.trial_end_date) ? user.trial_end_date : `${user.trial_end_date}Z`) : null;
+  const inTrial = !!(user.trial_active && trialEnd && trialEnd.getTime() > Date.now());
+
+  if (user.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700', live: true };
+  if (user.subscription_start_date || PAID_TIERS.has(user.subscription_tier)) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700', live: true };
+  if (inTrial) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700', live: true };
+  if (trialEnd) return { label: 'Trial expired', bg: 'bg-red-100', text: 'text-red-700', live: false };
+  if (user.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700', live: false };
+  return { label: 'Unpaid', bg: 'bg-orange-100', text: 'text-orange-700', live: false };
 }
 
 export default function AdminUsersTab() {
@@ -576,9 +581,10 @@ export default function AdminUsersTab() {
                         ) : (
                           <span className="text-xs text-dark/30">—</span>
                         )}
-                        {isBrokerRow && user.trial_end_date && user.trial_active && (
-                          <div className="text-[10px] text-dark/40 mt-0.5">
-                            ends {new Date(user.trial_end_date).toLocaleDateString()}
+                        {subBadge && (
+                          <div className={`text-[10px] mt-0.5 ${subBadge.live ? 'text-green-700' : 'text-red-600 font-medium'}`}>
+                            {subBadge.live ? 'Listings live' : 'Listings not live'}
+                            {subBadge.label === 'Trial' && user.trial_end_date ? ` · ends ${new Date(/Z|[+-]\d\d:?\d\d$/.test(user.trial_end_date) ? user.trial_end_date : `${user.trial_end_date}Z`).toLocaleDateString()}` : ''}
                           </div>
                         )}
                       </td>
@@ -860,11 +866,10 @@ export default function AdminUsersTab() {
       <div className="mt-6 bg-primary/5 border border-primary/15 rounded-xl p-4">
         <h4 className="font-semibold text-secondary mb-2 text-sm">ℹ️ Subscription Statuses</h4>
         <ul className="text-xs text-dark/60 space-y-1">
-          <li><span className="font-semibold text-green-700">Active</span> — paid subscription on a current plan</li>
-          <li><span className="font-semibold text-red-700">Lapsed</span> — previously subscribed; payment failed or subscription cancelled in Stripe</li>
-          <li><span className="font-semibold text-orange-700">Never Activated</span> — Stripe customer exists but no subscription was completed</li>
-          <li><span className="font-semibold text-blue-700">Trial</span> — on a free trial</li>
-          <li><span className="font-semibold text-gray-600">No Payment</span> — no Stripe record at all</li>
+          <li><span className="font-semibold text-green-700">Paid</span> — paid the flat signup fee; listings are live</li>
+          <li><span className="font-semibold text-blue-700">Trial</span> — on a free trial; listings are live until it ends</li>
+          <li><span className="font-semibold text-red-700">Trial expired / Lapsed</span> — listings are not live until payment is made</li>
+          <li><span className="font-semibold text-orange-700">Unpaid</span> — account created but not paid yet; they can draft listings but not publish</li>
           <li><span className="font-semibold text-purple-700">Always Free</span> — manually overridden to never require payment</li>
           <li className="pt-1">Use <span className="font-medium">Sync Stripe</span> to pull the latest subscription state from Stripe for any broker/seller account.</li>
         </ul>

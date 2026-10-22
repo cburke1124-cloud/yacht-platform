@@ -58,3 +58,19 @@ def test_admin_creates_listing_for_private_seller(ctx):
     # Owner must be a broker / private seller
     r = c.post("/api/listings/", json={"title": "x", "bin": "", "owner_user_id": admin.id + 10**7}, headers=_hdr(admin))
     assert r.status_code in (400, 422), r.text
+
+
+def test_admin_can_reassign_existing_listing(ctx):
+    db, users, listings = ctx
+    admin, seller = _mk(db, "admin"), _mk(db, "private")
+    users.extend([admin, seller])
+    c = TestClient(app)
+    # Draft already exists under the admin (e.g. autosaved before an owner was picked)
+    r = c.post("/api/listings/", json={"title": "Pytest Reassign", "bin": ""}, headers=_hdr(admin))
+    assert r.status_code == 200, r.text
+    lid = r.json()["id"]
+    listings.append(lid)
+    r = c.put(f"/api/listings/{lid}", json={"owner_user_id": seller.id}, headers=_hdr(admin))
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    assert db.query(Listing).filter(Listing.id == lid).first().user_id == seller.id

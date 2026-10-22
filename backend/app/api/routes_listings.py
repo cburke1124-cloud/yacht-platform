@@ -199,6 +199,8 @@ class ListingCreate(BaseModel):
 
 
 class ListingUpdate(BaseModel):
+    # Admin-only: move the listing to another broker / private-seller account.
+    owner_user_id: Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
     features: Optional[str] = None
@@ -1190,6 +1192,17 @@ def update_listing(
             update_payload.get("zip_code", listing.zip_code),
         )
 
+    new_owner_id = update_payload.pop("owner_user_id", None)
+    if new_owner_id is not None and new_owner_id != listing.user_id:
+        if (current_user.user_type or "").lower() != "admin":
+            raise AuthorizationException("Only admins can reassign a listing to another account")
+        new_owner = db.query(User).filter(
+            User.id == new_owner_id, User.user_type.in_(["dealer", "private"])
+        ).first()
+        if not new_owner:
+            raise ValidationException("Owner must be an existing broker or private-seller account")
+        listing.user_id = new_owner.id
+
     for field, value in update_payload.items():
         setattr(listing, field, value)
 
@@ -1202,6 +1215,7 @@ def update_listing(
         "title": listing.title,
         "bin": listing.bin,
         "status": listing.status,
+        "user_id": listing.user_id,
         "message": "Listing updated successfully",
     }
 
