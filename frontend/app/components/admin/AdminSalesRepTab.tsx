@@ -81,8 +81,19 @@ interface Dealer {
   subscription_monthly_price?: number | null;
   custom_subscription_price?: number | null;
   trial_active?: boolean;
+  trial_end_date?: string | null;
+  subscription_start_date?: string | null;
   always_free?: boolean;
 }
+
+// Flat signup fee (no tiers): what an account owes / has paid.
+function paymentStatus(d: Dealer): { label: string; cls: string } {
+  if (d.always_free) return { label: 'Always free', cls: 'bg-purple-100 text-purple-700' };
+  if (d.subscription_start_date) return { label: 'Paid', cls: 'bg-green-100 text-green-700' };
+  if (d.trial_active && d.trial_end_date && new Date(d.trial_end_date + 'Z') > new Date()) return { label: 'Trial', cls: 'bg-blue-100 text-blue-700' };
+  return { label: 'Unpaid', cls: 'bg-orange-100 text-orange-700' };
+}
+const signupFee = (d: Dealer) => (d.always_free ? 0 : d.user_type === 'private' ? 149 : 199);
 
 interface CommissionHistory {
   old_rate: number;
@@ -845,8 +856,8 @@ export default function AdminSalesRepTab() {
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Name / Company</th>
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Type</th>
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Email</th>
-                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Tier</th>
-                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Monthly Price</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Status</th>
+                                    <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Signup Fee</th>
                                     <th className="text-left pb-2 pr-4 font-medium text-gray-600 text-xs uppercase">Signed Up</th>
                                     <th className="text-left pb-2 font-medium text-gray-600 text-xs uppercase">Actions</th>
                                   </tr>
@@ -864,20 +875,9 @@ export default function AdminSalesRepTab() {
                                       </td>
                                       <td className="py-2 pr-4 text-gray-600">{dealer.email}</td>
                                       <td className="py-2 pr-4">
-                                        <span className="px-2 py-0.5 rounded text-xs font-semibold bg-secondary/10 text-secondary capitalize">
-                                          {dealer.subscription_tier || 'free'}
-                                        </span>
+                                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${paymentStatus(dealer).cls}`}>{paymentStatus(dealer).label}</span>
                                       </td>
-                                      <td className="py-2 pr-4 text-gray-700">
-                                        {(() => {
-                                          if (dealer.always_free) return <span className="text-gray-500">Free (admin)</span>;
-                                          if (dealer.trial_active) return <span className="text-amber-600 font-medium">$0/mo (Trial)</span>;
-                                          if (dealer.subscription_monthly_price != null) return `$${dealer.subscription_monthly_price.toFixed(2)}/mo`;
-                                          if (dealer.custom_subscription_price != null) return `$${dealer.custom_subscription_price.toFixed(2)}/mo`;
-                                          const fallback = TIER_PRICES[dealer.subscription_tier];
-                                          return fallback != null ? `$${fallback}/mo` : '—';
-                                        })()}
-                                      </td>
+                                      <td className="py-2 pr-4 text-gray-700">{signupFee(dealer) ? `$${signupFee(dealer)} one-time` : '—'}</td>
                                       <td className="py-2 pr-4 text-gray-500">
                                         {dealer.created_at
                                           ? new Date(dealer.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -1071,7 +1071,7 @@ export default function AdminSalesRepTab() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -1097,8 +1097,8 @@ export default function AdminSalesRepTab() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="px-3 py-1 rounded-full text-xs font-semibold capitalize bg-gray-100 text-gray-800">
-                        {dealer.subscription_tier}
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${paymentStatus(dealer).cls}`}>
+                        {paymentStatus(dealer).label}
                       </span>
                     </td>
                     <td className="px-6 py-4">

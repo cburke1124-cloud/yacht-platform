@@ -316,7 +316,7 @@ function AdminDashboardOverview() {
             <span className="text-xs font-medium text-gray-500 uppercase">Revenue (MRR)</span>
           </div>
           <div className="text-3xl font-bold text-gray-900 mb-1">{stats ? `$${fmtCompact(stats.revenue.monthly)}` : '—'}</div>
-          <p className="text-sm text-gray-600">Estimated from active subscription tiers</p>
+          <p className="text-sm text-gray-600">Estimated from active recurring subscriptions</p>
         </div>
       </div>
 

@@ -143,6 +143,8 @@ def _derive_feature_bullets(payload: dict[str, Any]) -> list[str]:
 # ─── Pydantic schemas ─────────────────────────────────────────────────────────
 
 class ListingCreate(BaseModel):
+    # Admin-only: create the listing under this broker / private-seller account.
+    owner_user_id: Optional[int] = None
     title: str
     description: Optional[str] = None
     features: Optional[str] = None
@@ -1057,6 +1059,18 @@ def create_listing(
     has_create_permission = bool(permissions.get("can_create_listings"))
     is_dealer_or_private = user_type in ("dealer", "private")
 
+    # Admins can create a listing on behalf of a broker or private seller. The
+    # listing is owned by that account (so it follows their payment/trial
+    # status and shows in their dashboard); created_by records the admin.
+    owner = current_user
+    owner_user_id = listing_data.owner_user_id
+    if owner_user_id is not None and owner_user_id != current_user.id:
+        if not is_admin:
+            raise AuthorizationException("Only admins can create a listing for another account")
+        owner = db.query(User).filter(User.id == owner_user_id, User.user_type.in_(["dealer", "private"])).first()
+        if not owner:
+            raise ValidationException("Owner must be an existing broker or private-seller account")
+
     # Role gate: only dealer/private accounts (or an explicitly permitted team
     # member, or an admin) can create listings at all.
     if not (is_admin or has_create_permission or is_dealer_or_private):
@@ -1071,11 +1085,12 @@ def create_listing(
         listing_data.status = "draft"
 
     listing_data.bin = _clean_bin(listing_data.bin) or str(_uuid.uuid4()).replace("-", "").upper()[:12]
-    conflict = _bin_conflict(db, listing_data.bin, current_user)
+    conflict = _bin_conflict(db, listing_data.bin, owner)
     if conflict:
         raise conflict
 
     listing_payload = listing_data.dict()
+    listing_payload.pop("owner_user_id", None)
     listing_payload["status"] = _normalize_listing_status(listing_payload.get("status") or "draft")
     if listing_payload["status"] == "active":
         listing_payload["published_at"] = datetime.utcnow()
@@ -1093,7 +1108,7 @@ def create_listing(
     )
 
     new_listing = Listing(
-        user_id=current_user.id,
+        user_id=owner.id,
         created_by_user_id=current_user.id,
         **listing_payload,
         latitude=lat,
@@ -1107,7 +1122,7 @@ def create_listing(
     except IntegrityError:
         # Lost a race with a concurrent create (e.g. a double-click) on the unique BIN.
         db.rollback()
-        raise _bin_conflict(db, listing_data.bin, current_user) or HTTPException(
+        raise _bin_conflict(db, listing_data.bin, owner) or HTTPException(
             status_code=409, detail="A listing with this BIN already exists"
         )
     db.refresh(new_listing)

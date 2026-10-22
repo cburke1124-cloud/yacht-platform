@@ -88,6 +88,11 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
   const [accessChecking, setAccessChecking] = useState(true);
   const [hasListingAccess, setHasListingAccess] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  // Admin-only: which broker / private seller the new listing belongs to.
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [ownerResults, setOwnerResults] = useState<any[]>([]);
+  const [selectedOwner, setSelectedOwner] = useState<any | null>(null);
+  const selectedOwnerIdRef = useRef<number | null>(null);
   const [isDealerUser, setIsDealerUser] = useState(false);
   const [loading, setLoading]           = useState(false);
   const [initializing, setInitializing] = useState(isEditMode);
@@ -252,7 +257,10 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
           return;
         }
 
-        if (isAdmin || isPaidDealer || isPaidPrivate || hasPermission || isAlwaysFree) {
+        // Unpaid brokers/private sellers can still create and save drafts; the
+        // backend keeps them from publishing until they pay (or are on a trial).
+        const isSeller = userType === 'dealer' || userType === 'private';
+        if (isAdmin || isSeller || isPaidDealer || isPaidPrivate || hasPermission || isAlwaysFree) {
           setHasListingAccess(true);
           // Fetch dealer profile to check if account-level co-brokering is enabled
           if (userType === 'dealer' || isAdmin) {
@@ -282,6 +290,24 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
 
     checkListingAccess();
   }, [router]);
+
+  // Admin owner picker: search brokers / private sellers by name, company or email.
+  useEffect(() => {
+    if (!isAdminUser || isEditMode || ownerSearch.trim().length < 2) { setOwnerResults([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_ROOT}/admin/users?search=${encodeURIComponent(ownerSearch.trim())}&limit=25`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setOwnerResults((data.users || []).filter((u: any) => u.user_type === 'dealer' || u.user_type === 'private'));
+        }
+      } catch { /* leave results empty */ }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [ownerSearch, isAdminUser, isEditMode]);
 
   useEffect(() => {
     if (!isEditMode || !listingId) {
@@ -968,7 +994,7 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
     const res = await fetch(existingId ? `${API_ROOT}/listings/${existingId}` : `${API_ROOT}/listings/`, {
       method: existingId ? 'PUT' : 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(!existingId && selectedOwnerIdRef.current ? { ...payload, owner_user_id: selectedOwnerIdRef.current } : payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1362,6 +1388,41 @@ export function ListingEditorPage({ mode = 'create', listingId }: ListingEditorP
             {/* ─── BASIC INFO ─────────────────────────────────────────────── */}
             {activeTab === 'basic' && (
               <div className="space-y-6">
+                {isAdminUser && !isEditMode && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <label className={lbl} style={{ color: '#10214F' }}>List under (broker or private seller)</label>
+                    {selectedOwner ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-gray-800">
+                          <span className="font-semibold">{selectedOwner.company_name || `${selectedOwner.first_name || ''} ${selectedOwner.last_name || ''}`.trim() || selectedOwner.email}</span>
+                          {' '}<span className="text-gray-500">({selectedOwner.user_type === 'private' ? 'Private seller' : 'Broker'} · {selectedOwner.email})</span>
+                        </p>
+                        {!draftId && (
+                          <button type="button" className="text-sm text-blue-700 hover:underline"
+                            onClick={() => { setSelectedOwner(null); selectedOwnerIdRef.current = null; }}>Change</button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input value={ownerSearch} onChange={e => setOwnerSearch(e.target.value)}
+                          className={inp} placeholder="Search by name, company or email — leave empty to list under your own account" />
+                        {ownerResults.length > 0 && (
+                          <ul className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                            {ownerResults.map(u => (
+                              <li key={u.id}>
+                                <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                                  onClick={() => { setSelectedOwner(u); selectedOwnerIdRef.current = u.id; setOwnerSearch(''); setOwnerResults([]); }}>
+                                  <span className="font-medium">{u.company_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email}</span>
+                                  <span className="text-gray-500"> · {u.user_type === 'private' ? 'Private seller' : 'Broker'} · {u.email}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className={lbl} style={{ color: '#10214F' }}>Title *</label>
                   <input name="title" value={form.title} onChange={set} required
