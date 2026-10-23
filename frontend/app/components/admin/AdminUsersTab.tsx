@@ -4,11 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import PhoneInput from '@/app/components/PhoneInput';
 
-const PAID_TIERS = new Set([
-  'basic', 'plus', 'pro', 'premium',
-  'private_basic', 'private_plus', 'private_pro',
-]);
-
 const OVERRIDE_TIERS = ['free', 'basic', 'plus', 'pro', 'ultimate'] as const;
 
 // Billing status for brokers / private sellers. `live` = their listings are
@@ -21,7 +16,7 @@ function getSubscriptionBadge(user: any) {
   const inTrial = !!(user.trial_active && trialEnd && trialEnd.getTime() > Date.now());
 
   if (user.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700', live: true };
-  if (user.subscription_start_date || PAID_TIERS.has(user.subscription_tier)) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700', live: true };
+  if (user.subscription_start_date) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700', live: true };
   if (inTrial) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700', live: true };
   if (trialEnd) return { label: 'Trial expired', bg: 'bg-red-100', text: 'text-red-700', live: false };
   if (user.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700', live: false };

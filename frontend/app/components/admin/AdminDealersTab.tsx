@@ -5,18 +5,18 @@ import { apiUrl } from '@/app/lib/apiRoot';
 import PhoneInput from '../PhoneInput';
 import DealerProfileEditForm from '../DealerProfileEditForm';
 
-const PAID_TIERS = new Set([
-  'basic', 'plus', 'pro', 'premium',
-  'private_basic', 'private_plus', 'private_pro',
-]);
-
 function getSubscriptionBadge(dealer: any) {
+  const end = dealer.trial_end_date
+    ? new Date(/Z|[+-]\d\d:?\d\d$/.test(dealer.trial_end_date) ? dealer.trial_end_date : `${dealer.trial_end_date}Z`)
+    : null;
+  const inTrial = !!(dealer.trial_active && end && end.getTime() > Date.now());
   if (dealer.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700' };
-  if (dealer.trial_active) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700' };
-  if (dealer.subscription_start_date || PAID_TIERS.has(dealer.subscription_tier)) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700' };
+  // Only a confirmed payment date counts — subscription_tier is set by hand for manual signups.
+  if (dealer.subscription_start_date) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700' };
+  if (inTrial) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700' };
+  if (end) return { label: 'Trial expired', bg: 'bg-red-100', text: 'text-red-700' };
   if (dealer.stripe_subscription_id) return { label: 'Lapsed', bg: 'bg-red-100', text: 'text-red-700' };
-  if (dealer.stripe_customer_id) return { label: 'Never Activated', bg: 'bg-orange-100', text: 'text-orange-700' };
-  return { label: 'No Payment', bg: 'bg-gray-100', text: 'text-gray-600' };
+  return { label: 'Unpaid', bg: 'bg-orange-100', text: 'text-orange-700' };
 }
 
 export default function AdminDealersTab() {

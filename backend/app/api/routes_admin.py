@@ -522,7 +522,8 @@ def get_all_users(
         )
 
     if subscription_status == "active":
-        query = query.filter(User.subscription_tier.in_(_PAID_TIERS), User.always_free != True)
+        # subscription_tier alone isn't proof of payment (reps/admins set it by hand) — require a confirmed payment date.
+        query = query.filter(User.subscription_start_date.isnot(None), User.subscription_tier.in_(_PAID_TIERS), User.always_free != True)
     elif subscription_status == "lapsed":
         # Had a Stripe subscription but tier is now free → payment lapsed / cancelled
         query = query.filter(
@@ -538,7 +539,7 @@ def get_all_users(
             User.user_type.in_(["dealer", "private"]),
             User.stripe_customer_id.is_(None),
             User.trial_active != True,
-            ~User.subscription_tier.in_(_PAID_TIERS),
+            User.subscription_start_date.is_(None),
         )
     elif subscription_status == "always_free":
         query = query.filter(User.always_free == True)
@@ -1345,7 +1346,8 @@ def get_all_dealers(
         )
 
     if subscription_status == "active":
-        query = query.filter(User.subscription_tier.in_(_PAID_TIERS), User.always_free != True)
+        # subscription_tier alone isn't proof of payment (reps/admins set it by hand) — require a confirmed payment date.
+        query = query.filter(User.subscription_start_date.isnot(None), User.subscription_tier.in_(_PAID_TIERS), User.always_free != True)
     elif subscription_status == "lapsed":
         query = query.filter(
             User.stripe_subscription_id.isnot(None),
@@ -1358,7 +1360,7 @@ def get_all_dealers(
         query = query.filter(
             User.stripe_customer_id.is_(None),
             User.trial_active != True,
-            ~User.subscription_tier.in_(_PAID_TIERS),
+            User.subscription_start_date.is_(None),
         )
     elif subscription_status == "always_free":
         query = query.filter(User.always_free == True)
