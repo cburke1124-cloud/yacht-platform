@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Edit2, Trash2, ExternalLink, Eye, MessageSquare } from 'lucide-react';
 import { apiUrl } from '@/app/lib/apiRoot';
 import PhoneInput from '@/app/components/PhoneInput';
+import LoginLinkButton from '@/app/components/LoginLinkButton';
 import DealerProfileEditForm from '@/app/components/DealerProfileEditForm';
 
 interface Account {
@@ -22,6 +23,7 @@ interface Account {
   trial_active?: boolean;
   trial_end_date?: string | null;
   paid?: boolean;
+  setup_pending?: boolean;
   created_at: string | null;
 }
 
@@ -312,6 +314,17 @@ export default function ManagedAccountPage() {
             )}
           </div>
         </div>
+
+        {/* Login handoff — only while they haven't set a password yet */}
+        {account.setup_pending && (
+          <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">
+            <h2 className="text-lg font-bold text-secondary mb-1">Login details</h2>
+            <p className="text-sm text-dark/60 mb-4">
+              {account.first_name || account.email} hasn&apos;t set a password yet. If their setup email didn&apos;t arrive, get the link and pass it on directly.
+            </p>
+            <LoginLinkButton accountId={account.id} name={`${account.first_name || ''} ${account.last_name || ''}`.trim() || account.email} />
+          </div>
+        )}
 
         {/* Free trial */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 mb-6">

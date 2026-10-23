@@ -10,7 +10,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.listing import Listing
 from app.models.charter import CharterListing
-from app.models.dealer import DealerProfile
+from app.models.dealer import DealerProfile, ActivityLog
 from app.models.partner_growth import AffiliateAccount, PartnerDeal, ReferralSignup, PartnerOffer
 from app.models.documentation import Documentation
 from app.exceptions import AuthorizationException, ResourceNotFoundException, ValidationException
@@ -273,6 +273,40 @@ def _get_managed_account_or_403(user_id: int, current_user: User, db: Session) -
     return target
 
 
+@router.post("/dealers/{user_id}/login-link")
+def get_managed_account_login_link(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Set-password link for an account this rep referred, for when the setup
+    email didn't arrive (e.g. email outage). Deliberately limited to accounts
+    that haven't set a password yet (a setup token is still pending): once
+    someone is using their account, a rep must not be able to reset it —
+    that goes through an admin or the normal forgot-password flow."""
+    import secrets
+    target = _get_managed_account_or_403(user_id, current_user, db)
+    if not target.verification_token:
+        raise AuthorizationException(
+            "This account has already been set up. Ask an admin for a new login link, "
+            "or have them use Forgot Password."
+        )
+    # Reuse the pending token so the emailed link and this one both keep working.
+    token = target.verification_token
+    db.add(ActivityLog(
+        user_id=target.id,
+        action="sales_rep_login_link",
+        details={"sales_rep_id": current_user.id, "sales_rep_email": current_user.email},
+    ))
+    db.commit()
+    return {
+        "success": True,
+        "email": target.email,
+        "setup_url": f"{email_service.base_url}/set-password?token={token}",
+        "login_url": f"{email_service.base_url}/login/seller",
+    }
+
+
 @router.post("/dealers/{user_id}/trial")
 def set_managed_account_trial(
     user_id: int,
@@ -321,6 +355,7 @@ def get_managed_account(
         "trial_active": target.trial_active,
         "trial_end_date": target.trial_end_date.isoformat() if target.trial_end_date else None,
         "paid": bool(target.subscription_start_date) or bool(target.always_free),
+        "setup_pending": bool(target.verification_token),
         "created_at": target.created_at.isoformat() if target.created_at else None,
     }
 

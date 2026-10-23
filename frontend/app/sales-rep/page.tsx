@@ -12,6 +12,7 @@ import {
 import { apiUrl, markLoggedIn, markLoggedOut } from '@/app/lib/apiRoot';
 import ReactMarkdown from 'react-markdown';
 import AdminPreviewListingsTab from '@/app/components/admin/AdminPreviewListingsTab';
+import LoginLinkButton from '@/app/components/LoginLinkButton';
 import PhoneInput from '@/app/components/PhoneInput';
 
 /* ================================================================== */
@@ -1173,7 +1174,10 @@ export default function SalesRepDashboard() {
               <div className="pt-2 border-t border-green-200 mt-2">
                 {brokerResult.password_setup_email_sent
                   ? <p className="text-green-700">✓ A password setup email has been sent to the broker at <strong>{brokerResult.email}</strong>.</p>
-                  : <p className="text-amber-700 font-medium">⚠ Could not send setup email — please notify the broker manually to contact support.</p>
+                  : <div className="text-amber-700 font-medium space-y-2">
+                      <p>⚠ Could not send the setup email. Get their login link and pass it on directly:</p>
+                      {brokerResult.dealer_id && <LoginLinkButton accountId={brokerResult.dealer_id} name={brokerResult.company_name || brokerResult.email} />}
+                    </div>
                 }
                 <p className="text-xs text-green-600 mt-2">The broker will use the link in their email to set their own password.</p>
               </div>
