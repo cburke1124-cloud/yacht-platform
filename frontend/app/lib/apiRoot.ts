@@ -61,7 +61,18 @@ export function markLoggedIn(): void {
   localStorage.setItem('token', '1');
 }
 
+/**
+ * Only used when the browser refuses the session cookie (the API lives on a
+ * different site than the pages, so Safari, Brave, strict-Firefox and
+ * incognito treat it as a blocked third-party cookie). In that case AuthGuard
+ * keeps the login token here — per-tab, cleared on logout — and sends it as a
+ * Bearer header so those users aren't bounced back to /login. It is never set
+ * for browsers where the cookie works.
+ */
+export const COOKIE_FALLBACK_KEY = 'yv_session_fallback';
+
 export function markLoggedOut(): void {
+  try { sessionStorage.removeItem(COOKIE_FALLBACK_KEY); } catch { /* storage unavailable */ }
   localStorage.removeItem('token');
   localStorage.removeItem('user');
 }

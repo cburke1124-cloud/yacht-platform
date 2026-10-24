@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { API_ROOT, apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
+import { API_ROOT, COOKIE_FALLBACK_KEY, apiUrl, markLoggedOut } from '@/app/lib/apiRoot';
 
 const TWO_FA_EXEMPT_PATHS = ['/2fa-required', '/login', '/register', '/logout'];
 
@@ -44,11 +44,36 @@ if (typeof window !== 'undefined' && !window.__yvFetchPatched) {
     // Only attach credentials for requests to our own API — third-party
     // scripts (analytics, chat widgets, Stripe) shouldn't get our cookie.
     if (url.startsWith(API_ROOT) && !(args[0] instanceof Request)) {
-      const init = { ...(args[1] || {}), credentials: 'include' as RequestCredentials };
+      const init: RequestInit = { ...(args[1] || {}), credentials: 'include' as RequestCredentials };
+      // Cookie-blocked browsers (see COOKIE_FALLBACK_KEY): authenticate with the
+      // stored token instead. Pages pass a placeholder Bearer value, so replace it.
+      let fallback: string | null = null;
+      try { fallback = sessionStorage.getItem(COOKIE_FALLBACK_KEY); } catch { /* ignore */ }
+      if (fallback) {
+        const headers = new Headers(init.headers || {});
+        headers.set('Authorization', `Bearer ${fallback}`);
+        init.headers = headers;
+      }
       args = [args[0], init];
     }
 
     const response = await originalFetch(...args);
+
+    // After any call that hands back a session token (login, 2FA, register,
+    // payment sign-up, View As), check whether the browser actually kept the
+    // session cookie. If it didn't, switch this tab to the Bearer fallback
+    // BEFORE the page's next request, instead of letting it fail as "session expired".
+    if (response.ok && (args[1] as RequestInit | undefined)?.method === 'POST'
+        && url.startsWith(API_ROOT) && /\/(auth|2fa|payments|admin)\//.test(url)) {
+      try {
+        const body = await response.clone().json();
+        if (body && typeof body.access_token === 'string' && body.access_token) {
+          const probe = await originalFetch(apiUrl('/auth/me'), { credentials: 'include', cache: 'no-store' });
+          if (probe.ok) sessionStorage.removeItem(COOKIE_FALLBACK_KEY);
+          else sessionStorage.setItem(COOKIE_FALLBACK_KEY, body.access_token);
+        }
+      } catch { /* not JSON / storage unavailable — leave as is */ }
+    }
 
     if (response.status === 401) {
       const token = localStorage.getItem('token');
