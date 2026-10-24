@@ -532,7 +532,7 @@ def set_password(
 
     user = db.query(User).filter(User.verification_token == token).first()
     if not user:
-        raise ValidationException("Invalid or expired setup link. Please contact support.")
+        raise ValidationException("This setup link has already been used or replaced. If you already set a password, just sign in; otherwise ask for a new link.")
 
     user.password_hash = get_password_hash(password)
     user.verification_token = None
