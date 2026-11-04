@@ -15,6 +15,7 @@ function BillingContent() {
   const [error, setError] = useState('');
   const [paidDate, setPaidDate] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [comp, setComp] = useState<'post_paid' | 'free' | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -49,6 +50,7 @@ function BillingContent() {
         return;
       }
       setIsPrivate(user.user_type === 'private');
+      setComp(user.billing_model === 'post_paid' ? 'post_paid' : (user.always_free && !user.subscription_start_date ? 'free' : null));
 
       // subscription_start_date is only set by a confirmed Stripe webhook or
       // session-confirm call — unlike subscription_tier, it can't be set by a
@@ -143,14 +145,18 @@ function BillingContent() {
             </div>
             <h1 className="text-3xl font-bold text-[#10214F] mb-2">You're all set</h1>
             <p className="text-gray-500">
-              Your one-time setup fee has been paid. Your account is active for life — no renewals, no monthly charges.
+              {comp === 'post_paid'
+                ? 'You have nothing to pay upfront. When a listing sells from a lead we sent you, a percentage of the sale is due. Your account is fully active.'
+                : comp === 'free'
+                ? 'Your account is fully active. There is nothing to pay.'
+                : 'Your one-time setup fee has been paid. Your account is active for life — no renewals, no monthly charges.'}
             </p>
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6">
             <div className="flex items-center gap-3 mb-4">
               <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <span className="font-semibold text-green-800">Account Active — Free for Life</span>
+              <span className="font-semibold text-green-800">{comp === 'post_paid' ? 'Account Active — Post-paid' : 'Account Active — Free for Life'}</span>
             </div>
             <ul className="space-y-2 ml-8">
               {[

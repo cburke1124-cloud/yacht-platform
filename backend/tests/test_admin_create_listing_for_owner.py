@@ -11,6 +11,7 @@ from app.models.dealer import DealerProfile
 from app.models.listing import Listing
 from app.models.partner_growth import AffiliateAccount, ReferralSignup
 from app.models.user import User
+from app.services.billing_status import user_has_paid
 
 
 def _mk(db, user_type):
@@ -129,3 +130,49 @@ def test_sales_rep_login_link_only_before_password_is_set(ctx):
     # Once they've set a password the rep can no longer hand out a link
     r = c.post(f"/api/sales-rep/dealers/{new_id}/login-link", headers=_hdr(rep))
     assert r.status_code in (401, 403), r.text
+
+
+def test_post_paid_account_creation_and_admin_toggle(ctx):
+    db, users, listings = ctx
+    rep, admin = _mk(db, "salesman"), _mk(db, "admin")
+    users.extend([rep, admin])
+    c = TestClient(app)
+    email = f"pytest-own-pp-{uuid.uuid4().hex[:8]}@example.com"
+    r = c.post("/api/sales-rep/register-broker",
+               json={"email": email, "first_name": "P", "user_type": "private", "billing_model": "post_paid", "post_paid_rate": 5},
+               headers=_hdr(rep))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["billing_model"] == "post_paid" and body["post_paid_rate"] == 5 and body["always_free"] is True
+    created = db.query(User).filter(User.id == body["dealer_id"]).first()
+    users.append(created)
+    assert user_has_paid(created)  # behaves like an always-free account
+
+    # bad percentage rejected
+    r = c.post("/api/sales-rep/register-broker",
+               json={"email": email + "x", "first_name": "P", "billing_model": "post_paid", "post_paid_rate": 150},
+               headers=_hdr(rep))
+    assert r.status_code in (400, 422), r.text
+
+    # admin can switch back; that also removes the always-free it implied
+    r = c.post(f"/api/admin/users/{created.id}/billing-model", json={"billing_model": "prepaid"}, headers=_hdr(admin))
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    again = db.query(User).filter(User.id == created.id).first()
+    assert again.billing_model == "prepaid" and again.always_free is False and again.post_paid_rate is None
+    assert not user_has_paid(again)
+
+
+def test_admin_trial_and_tier_endpoints_do_not_500(ctx):
+    # These endpoints log after committing; a missing module-level logger used
+    # to turn a successful change into a 500.
+    db, users, listings = ctx
+    admin, seller = _mk(db, "admin"), _mk(db, "private")
+    users.extend([admin, seller])
+    c = TestClient(app)
+    r = c.post(f"/api/admin/users/{seller.id}/set-trial", json={"days": 14}, headers=_hdr(admin))
+    assert r.status_code == 200 and r.json()["trial_active"] is True, r.text
+    r = c.post(f"/api/admin/users/{seller.id}/set-trial", json={"days": 0}, headers=_hdr(admin))
+    assert r.status_code == 200 and r.json()["trial_active"] is False, r.text
+    r = c.post(f"/api/admin/users/{seller.id}/set-tier", json={"always_free": True}, headers=_hdr(admin))
+    assert r.status_code == 200, r.text

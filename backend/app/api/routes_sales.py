@@ -355,6 +355,8 @@ def get_managed_account(
         "trial_active": target.trial_active,
         "trial_end_date": target.trial_end_date.isoformat() if target.trial_end_date else None,
         "paid": bool(target.subscription_start_date) or bool(target.always_free),
+        "billing_model": target.billing_model,
+        "post_paid_rate": target.post_paid_rate,
         "setup_pending": bool(target.verification_token),
         "created_at": target.created_at.isoformat() if target.created_at else None,
     }
@@ -959,6 +961,22 @@ def register_broker_for_sales_rep(
     tier = "free" if is_private else (data.get("subscription_tier") or "pro").strip().lower()
     always_free = bool(data.get("always_free", False))
 
+    # Post-paid: nothing upfront, pays a % of a sold listing when the lead came
+    # from the site. Behaves exactly like an always-free account; the
+    # billing_model label is what later sales/commission tracking keys off.
+    billing_model = "post_paid" if (data.get("billing_model") or "").strip().lower() == "post_paid" else "prepaid"
+    post_paid_rate = None
+    if billing_model == "post_paid":
+        always_free = True
+        raw_rate = data.get("post_paid_rate")
+        if raw_rate not in (None, ""):
+            try:
+                post_paid_rate = float(raw_rate)
+            except (TypeError, ValueError):
+                raise ValidationException("Post-paid percentage must be a number")
+            if not 0 <= post_paid_rate <= 100:
+                raise ValidationException("Post-paid percentage must be between 0 and 100")
+
     if tier not in TIER_PRICES:
         raise ValidationException(f"Invalid subscription tier: {tier}")
 
@@ -1038,6 +1056,8 @@ def register_broker_for_sales_rep(
         subscription_tier=tier,
         custom_subscription_price=None if always_free else custom_price,
         always_free=always_free,
+        billing_model=billing_model,
+        post_paid_rate=post_paid_rate,
         verification_token=set_pw_token,
         assigned_sales_rep_id=target_sales_rep.id if target_sales_rep else None,
         active=True,
@@ -1112,6 +1132,8 @@ def register_broker_for_sales_rep(
         "password_setup_email_sent": email_sent,
         "slug": slug,
         "always_free": new_user.always_free,
+        "billing_model": new_user.billing_model,
+        "post_paid_rate": new_user.post_paid_rate,
         "assigned_sales_rep_id": new_user.assigned_sales_rep_id,
         "trial_active": new_user.trial_active,
         "trial_end_date": new_user.trial_end_date.isoformat() if new_user.trial_end_date else None,

@@ -10,6 +10,7 @@ function getSubscriptionBadge(dealer: any) {
     ? new Date(/Z|[+-]\d\d:?\d\d$/.test(dealer.trial_end_date) ? dealer.trial_end_date : `${dealer.trial_end_date}Z`)
     : null;
   const inTrial = !!(dealer.trial_active && end && end.getTime() > Date.now());
+  if (dealer.billing_model === 'post_paid') return { label: 'Post-paid', bg: 'bg-amber-100', text: 'text-amber-800' };
   if (dealer.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700' };
   // Only a confirmed payment date counts — subscription_tier is set by hand for manual signups.
   if (dealer.subscription_start_date) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700' };

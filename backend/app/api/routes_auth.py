@@ -750,6 +750,7 @@ def get_me(request: Request, current_user: User = Depends(get_current_user), db:
         "subscription_tier": current_user.subscription_tier,
         "always_free": getattr(current_user, "always_free", False),
         "trial_active": current_user.trial_active,
+        "billing_model": current_user.billing_model,
         "trial_end_date": current_user.trial_end_date.isoformat() if current_user.trial_end_date else None,
         "parent_dealer_id": current_user.parent_dealer_id,
         "assigned_sales_rep_id": current_user.assigned_sales_rep_id,

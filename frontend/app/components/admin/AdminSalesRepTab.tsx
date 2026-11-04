@@ -84,16 +84,18 @@ interface Dealer {
   trial_end_date?: string | null;
   subscription_start_date?: string | null;
   always_free?: boolean;
+  billing_model?: string;
 }
 
 // Flat signup fee (no tiers): what an account owes / has paid.
 function paymentStatus(d: Dealer): { label: string; cls: string } {
+  if (d.billing_model === 'post_paid') return { label: 'Post-paid', cls: 'bg-amber-100 text-amber-800' };
   if (d.always_free) return { label: 'Always free', cls: 'bg-purple-100 text-purple-700' };
   if (d.subscription_start_date) return { label: 'Paid', cls: 'bg-green-100 text-green-700' };
   if (d.trial_active && d.trial_end_date && new Date(d.trial_end_date + 'Z') > new Date()) return { label: 'Trial', cls: 'bg-blue-100 text-blue-700' };
   return { label: 'Unpaid', cls: 'bg-orange-100 text-orange-700' };
 }
-const signupFee = (d: Dealer) => (d.always_free ? 0 : d.user_type === 'private' ? 149 : 199);
+const signupFee = (d: Dealer) => (d.always_free || d.billing_model === 'post_paid' ? 0 : d.user_type === 'private' ? 149 : 199);
 
 interface CommissionHistory {
   old_rate: number;

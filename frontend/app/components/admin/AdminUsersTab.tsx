@@ -15,6 +15,7 @@ function getSubscriptionBadge(user: any) {
   const trialEnd = user.trial_end_date ? new Date(/Z|[+-]\d\d:?\d\d$/.test(user.trial_end_date) ? user.trial_end_date : `${user.trial_end_date}Z`) : null;
   const inTrial = !!(user.trial_active && trialEnd && trialEnd.getTime() > Date.now());
 
+  if (user.billing_model === 'post_paid') return { label: 'Post-paid', bg: 'bg-amber-100', text: 'text-amber-800', live: true };
   if (user.always_free) return { label: 'Always Free', bg: 'bg-purple-100', text: 'text-purple-700', live: true };
   if (user.subscription_start_date) return { label: 'Paid', bg: 'bg-green-100', text: 'text-green-700', live: true };
   if (inTrial) return { label: 'Trial', bg: 'bg-blue-100', text: 'text-blue-700', live: true };
@@ -234,6 +235,31 @@ export default function AdminUsersTab() {
         });
       } else {
         showMsg(user.id, 'error', data.detail || 'Could not create login link');
+      }
+    } catch {
+      showMsg(user.id, 'error', 'Network error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const [postPaidRate, setPostPaidRate] = useState<Record<number, string>>({});
+  const handleSetBillingModel = async (user: any, billing_model: 'prepaid' | 'post_paid') => {
+    setActionLoading(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const rate = postPaidRate[user.id] ?? (user.post_paid_rate != null ? String(user.post_paid_rate) : '');
+      const res = await fetch(apiUrl(`/admin/users/${user.id}/billing-model`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ billing_model, post_paid_rate: rate === '' ? null : parseFloat(rate) }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUsers(users.map(u => u.id === user.id ? { ...u, billing_model: data.billing_model, post_paid_rate: data.post_paid_rate, always_free: data.always_free } : u));
+        showMsg(user.id, 'success', billing_model === 'post_paid' ? 'Marked post-paid' : 'Back to standard signup fee');
+      } else {
+        showMsg(user.id, 'error', data.detail || 'Failed to update');
       }
     } catch {
       showMsg(user.id, 'error', 'Network error');
@@ -779,6 +805,35 @@ Then sign in at ${loginLink.loginUrl} with ${loginLink.email}.`;
 
                             {/* Row 1: always free */}
                             <div className="flex flex-wrap items-end gap-3">
+                              {(user.user_type === 'dealer' || user.user_type === 'private') && (
+                                <div>
+                                  <label className="block text-xs text-dark/60 mb-1 font-medium">Post-paid (pays % of sold listings)</label>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <input
+                                      type="number" min="0" max="100" step="0.1" placeholder="%"
+                                      value={postPaidRate[user.id] ?? (user.post_paid_rate != null ? String(user.post_paid_rate) : '')}
+                                      onChange={e => setPostPaidRate({ ...postPaidRate, [user.id]: e.target.value })}
+                                      className="w-20 px-2 py-1.5 border border-violet-200 rounded-lg text-sm bg-white"
+                                    />
+                                    <button
+                                      onClick={() => handleSetBillingModel(user, 'post_paid')}
+                                      disabled={actionLoading === user.id}
+                                      className="px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 transition"
+                                    >
+                                      {user.billing_model === 'post_paid' ? 'Update %' : 'Make Post-paid'}
+                                    </button>
+                                    {user.billing_model === 'post_paid' && (
+                                      <button
+                                        onClick={() => handleSetBillingModel(user, 'prepaid')}
+                                        disabled={actionLoading === user.id}
+                                        className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 transition"
+                                      >
+                                        Back to signup fee
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                               <div>
                                 <label className="block text-xs text-dark/60 mb-1 font-medium">Always Free Override</label>
                                 <button
@@ -929,6 +984,7 @@ Then sign in at ${loginLink.loginUrl} with ${loginLink.email}.`;
           <li><span className="font-semibold text-blue-700">Trial</span> — on a free trial; listings are live until it ends</li>
           <li><span className="font-semibold text-red-700">Trial expired / Lapsed</span> — listings are not live until payment is made</li>
           <li><span className="font-semibold text-orange-700">Unpaid</span> — account created but not paid yet; they can draft listings but not publish</li>
+          <li><span className="font-semibold text-amber-700">Post-paid</span> — nothing upfront; pays a percentage of a sold listing when the lead came from the site</li>
           <li><span className="font-semibold text-purple-700">Always Free</span> — manually overridden to never require payment</li>
           <li className="pt-1">Use <span className="font-medium">Sync Stripe</span> to pull the latest subscription state from Stripe for any broker/seller account.</li>
         </ul>

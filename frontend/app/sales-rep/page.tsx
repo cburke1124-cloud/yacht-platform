@@ -212,6 +212,8 @@ export default function SalesRepDashboard() {
     discount_value: '',
     applied_deal_id: null as number | null,
     always_free: false,
+    billing_model: 'prepaid' as 'prepaid' | 'post_paid',
+    post_paid_rate: '',
   });
   const [brokerResult, setBrokerResult]       = useState<any>(null);
   const [brokerSubmitting, setBrokerSubmitting] = useState(false);
@@ -391,6 +393,7 @@ export default function SalesRepDashboard() {
         body: JSON.stringify({
           ...brokerForm,
           custom_price: brokerForm.custom_price === '' ? null : Number(brokerForm.custom_price),
+          post_paid_rate: brokerForm.post_paid_rate === '' ? null : Number(brokerForm.post_paid_rate),
           free_days: brokerForm.free_days === '' ? null : Number(brokerForm.free_days),
           discount_value: brokerForm.discount_value === '' ? null : Number(brokerForm.discount_value),
         }),
@@ -1121,6 +1124,7 @@ export default function SalesRepDashboard() {
                 id="always-free"
                 type="checkbox"
                 checked={brokerForm.always_free}
+                disabled={brokerForm.billing_model === 'post_paid'}
                 onChange={(e) => {
                   const checked = e.target.checked;
                   setBrokerForm({
@@ -1139,11 +1143,46 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-dark/60">Bypass billing for this broker. No charges will be applied and pricing/discount fields are disabled.</p>
               </div>
             </div>
-            
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <input
+                  id="post-paid"
+                  type="checkbox"
+                  checked={brokerForm.billing_model === 'post_paid'}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setBrokerForm({
+                      ...brokerForm,
+                      billing_model: on ? 'post_paid' : 'prepaid',
+                      post_paid_rate: on ? brokerForm.post_paid_rate : '',
+                      always_free: on,
+                      applied_deal_id: on ? null : brokerForm.applied_deal_id,
+                      free_days: on ? '' : brokerForm.free_days,
+                      discount_value: on ? '' : brokerForm.discount_value,
+                      custom_price: on ? '' : brokerForm.custom_price,
+                    });
+                  }}
+                  className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+                />
+                <div className="space-y-1 flex-1">
+                  <label htmlFor="post-paid" className="text-sm font-semibold text-secondary block">Post-paid account</label>
+                  <p className="text-xs text-dark/60">Nothing upfront. They pay a percentage of a sold listing when the lead came from our site. Works like an always-free account.</p>
+                  {brokerForm.billing_model === 'post_paid' && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <input type="number" min="0" max="100" step="0.1" placeholder="e.g. 5" value={brokerForm.post_paid_rate}
+                        onChange={(e) => setBrokerForm({ ...brokerForm, post_paid_rate: e.target.value })}
+                        className="w-24 px-3 py-1.5 border border-amber-300 rounded-md text-sm" />
+                      <span className="text-sm text-dark/70">% of sale price (optional, can be set later)</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
               <p className="text-xs font-medium text-dark/50 uppercase">Signup fee</p>
               <p className="font-bold text-primary">
-                {brokerForm.always_free ? 'Always free' : `$${isPrivateSeller ? '149' : '199'} one-time, paid by them on first sign-in`}
+                {brokerForm.billing_model === 'post_paid' ? 'Post-paid: nothing upfront' : brokerForm.always_free ? 'Always free' : `$${isPrivateSeller ? '149' : '199'} one-time, paid by them on first sign-in`}
               </p>
             </div>
             <button onClick={registerBroker} disabled={brokerSubmitting}
@@ -1164,7 +1203,7 @@ export default function SalesRepDashboard() {
               <div><span className="text-green-700 font-medium">Email:</span> <span className="text-green-900">{brokerResult.email}</span></div>
               {brokerResult.company_name && <div><span className="text-green-700 font-medium">Company:</span> <span className="text-green-900">{brokerResult.company_name}</span></div>}
               {brokerResult.always_free ? (
-                <div><span className="text-green-700 font-medium">Billing:</span> <span className="text-green-900">Always free</span></div>
+                <div><span className="text-green-700 font-medium">Billing:</span> <span className="text-green-900">{brokerResult.billing_model === 'post_paid' ? `Post-paid${brokerResult.post_paid_rate != null ? ` (${brokerResult.post_paid_rate}% of sold listings)` : ''}` : 'Always free'}</span></div>
               ) : (
                 <div><span className="text-green-700 font-medium">Effective price:</span> <span className="text-green-900">${Number(brokerResult.effective_monthly_price ?? 0).toFixed(2)} one-time</span></div>
               )}
@@ -1182,7 +1221,7 @@ export default function SalesRepDashboard() {
                 <p className="text-xs text-green-600 mt-2">The broker will use the link in their email to set their own password.</p>
               </div>
             </div>
-            <button onClick={() => { setBrokerResult(null); setBrokerForm({ user_type: 'dealer', email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'pro', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false }); }}
+            <button onClick={() => { setBrokerResult(null); setBrokerForm({ user_type: 'dealer', email: '', first_name: '', last_name: '', phone: '', company_name: '', subscription_tier: 'pro', custom_price: '', free_days: '', discount_type: 'percentage', discount_value: '', applied_deal_id: null, always_free: false, billing_model: 'prepaid', post_paid_rate: '' }); }}
               className="mt-4 text-sm text-green-700 font-medium hover:text-green-900">Register another &rarr;</button>
           </div>
         )}

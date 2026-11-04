@@ -54,6 +54,13 @@ class User(Base):
     # Flag to make an account permanently free (bypass billing)
     always_free = Column(Boolean, default=False, index=True)
 
+    # "prepaid" (flat signup fee, the default) or "post_paid": free upfront,
+    # pays post_paid_rate % of a sold listing when the lead came from the site.
+    # Post-paid accounts are also always_free; this just labels them for the
+    # sales/commission tracking to be built on top.
+    billing_model = Column(String(20), nullable=False, default="prepaid", server_default="prepaid")
+    post_paid_rate = Column(Float, nullable=True)
+
     permissions = Column(JSON, default={})
 
     public_profile = Column(Boolean, default=False)

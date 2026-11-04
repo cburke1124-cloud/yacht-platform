@@ -50,6 +50,7 @@ from app.models.documentation import Documentation
 from app.services.default_documentation import get_default_doc_by_slug
 
 router = APIRouter()
+logger = logging.getLogger("yachtversal")
 ps_start_time = time.time()
 
 
@@ -562,6 +563,8 @@ def get_all_users(
                 "stripe_subscription_id": u.stripe_subscription_id,
                 "subscription_start_date": u.subscription_start_date.isoformat() if u.subscription_start_date else None,
                 "always_free": u.always_free,
+                "billing_model": u.billing_model,
+                "post_paid_rate": u.post_paid_rate,
                 "active": u.active,
                 "email_verified": bool(u.email_verified),
                 "trial_active": u.trial_active,
@@ -1079,6 +1082,10 @@ def admin_set_user_tier_v2(
         target.always_free = bool(body["always_free"])
         if target.always_free:
             target.subscription_tier = "free"
+        elif target.billing_model == "post_paid":
+            # Post-paid implies always-free; removing the comp ends post-paid too.
+            target.billing_model = "prepaid"
+            target.post_paid_rate = None
         db.commit()
         logger.info(
             "Admin %s set always_free=%s on user %s (%s)",
@@ -1102,6 +1109,57 @@ def admin_set_user_tier_v2(
         current_user.email, target.id, target.email, old_tier, new_tier, body.get("note", ""),
     )
     return {"success": True, "old_tier": old_tier, "new_tier": new_tier}
+
+
+@router.post("/users/{user_id}/billing-model")
+def admin_set_billing_model(
+    user_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Mark an account post-paid ({"billing_model": "post_paid", "post_paid_rate": 5})
+    or back to the standard flat-fee model ({"billing_model": "prepaid"}).
+
+    Post-paid accounts are always_free (nothing upfront) and pay a percentage
+    of a sold listing when the lead came from the site. Switching back to
+    prepaid turns always_free off, so they will be asked to pay the signup fee.
+    """
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise ResourceNotFoundException("User", user_id)
+    if target.user_type not in ("dealer", "private"):
+        raise ValidationException("Only broker and private-seller accounts have a billing model")
+    model = (body.get("billing_model") or "").strip().lower()
+    if model not in ("prepaid", "post_paid"):
+        raise ValidationException("billing_model must be 'prepaid' or 'post_paid'")
+    if model == "post_paid":
+        rate = body.get("post_paid_rate")
+        if rate in (None, ""):
+            target.post_paid_rate = None
+        else:
+            try:
+                rate = float(rate)
+            except (TypeError, ValueError):
+                raise ValidationException("Post-paid percentage must be a number")
+            if not 0 <= rate <= 100:
+                raise ValidationException("Post-paid percentage must be between 0 and 100")
+            target.post_paid_rate = rate
+        target.always_free = True
+    else:
+        # Only undo the always-free that post-paid implied; leave a separate comp alone.
+        if target.billing_model == "post_paid":
+            target.always_free = False
+        target.post_paid_rate = None
+    target.billing_model = model
+    db.commit()
+    logger.info("Admin %s set billing_model=%s on user %s", current_user.email, model, target.id)
+    return {
+        "success": True,
+        "billing_model": target.billing_model,
+        "post_paid_rate": target.post_paid_rate,
+        "always_free": target.always_free,
+    }
 
 
 @router.post("/users/{user_id}/set-trial")
@@ -1402,6 +1460,8 @@ def get_all_dealers(
             "always_free": dealer.always_free,
             "trial_active": dealer.trial_active,
             "subscription_start_date": dealer.subscription_start_date.isoformat() if dealer.subscription_start_date else None,
+            "billing_model": dealer.billing_model,
+            "post_paid_rate": dealer.post_paid_rate,
             "trial_end_date": dealer.trial_end_date.isoformat() if dealer.trial_end_date else None,
             "verified": dealer.verified,
             "active": dealer.active,
