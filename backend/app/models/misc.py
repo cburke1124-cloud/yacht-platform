@@ -579,6 +579,7 @@ class YachtworldSyncJob(Base):
 
     feed_type='boats_group': Boats Group / YachtWorld REST API (JSON, requires api_key)
     feed_type='iyba':        IYBA XML feed (publicly accessible XML URL, no api_key needed)
+    feed_type='nautix':      NautiX XML feed (publicly accessible XML URL, no api_key needed)
 
     Runs completely independently of the HTML scraper system.
     """
@@ -592,7 +593,7 @@ class YachtworldSyncJob(Base):
     site_name = Column(String)                      # friendly label e.g. "Terraglio Fleet"
     api_endpoint = Column(String, nullable=False)   # feed URL (REST API or IYBA XML URL)
     api_key = Column(String, nullable=True)         # API key — required for boats_group, empty for iyba
-    feed_type = Column(String, default="boats_group")  # boats_group | iyba
+    feed_type = Column(String, default="boats_group")  # boats_group | iyba | nautix
 
     # State
     enabled = Column(Boolean, default=True)

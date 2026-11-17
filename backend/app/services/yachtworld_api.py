@@ -1179,6 +1179,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
 
       'boats_group' (default) — Boats Group / YachtWorld REST API (JSON, paginated)
       'iyba'                  — IYBA / YachtBroker.org JSON API (api.yachtbroker.org/vessel, requires API key)
+      'nautix'                — NautiX XML feed (public URL, no key; see services/nautix_feed.py)
 
     Listing upsert uses the same ScrapedListing / Listing mechanism as the
     HTML scraper for consistency and archive detection.
@@ -1228,12 +1229,17 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
     # -----------------------------------------------------------------------
     # IYBA / YachtBroker.org JSON feed path
     # -----------------------------------------------------------------------
-    if feed_type == "iyba":
-        _log("info", f"Feed type: IYBA JSON — endpoint: {job.api_endpoint}")
+    if feed_type in ("iyba", "nautix"):
+        _feed_label = "NautiX XML" if feed_type == "nautix" else "IYBA JSON"
+        _log("info", f"Feed type: {_feed_label} — endpoint: {job.api_endpoint}")
         job.last_run_log = list(run_log)
         db.commit()
         try:
-            _sync_iyba_feed(job, db, run_log, stats, seen_source_urls)
+            if feed_type == "nautix":
+                from app.services.nautix_feed import sync_nautix_feed
+                sync_nautix_feed(job, db, run_log, stats, seen_source_urls)
+            else:
+                _sync_iyba_feed(job, db, run_log, stats, seen_source_urls)
 
             # Archive listings from this feed that are no longer present
             # Strip query params — source_url is stored as base_url#id=...
@@ -1277,7 +1283,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
                     stats["archived"] += 1
                     run_log.append({"url": lst.source_url, "outcome": "archived", "listing_id": lst.id})
 
-            summary = (f"IYBA sync complete — found={stats['found']} "
+            summary = (f"{_feed_label} sync complete — found={stats['found']} "
                        f"created={stats['created']} updated={stats['updated']} "
                        f"archived={stats['archived']} errors={stats['errors']}")
             _log("info", summary)
@@ -1296,7 +1302,7 @@ def sync_yachtworld_job(job_id: int, db) -> Dict:
             return {"success": True, "job_id": job_id, **stats}
         except Exception as exc:
             err_msg = str(exc)
-            logger.error(f"[YWJob {job_id}] IYBA sync failed: {exc}")
+            logger.error(f"[YWJob {job_id}] {_feed_label} sync failed: {exc}")
             try:
                 _log("error", f"Unexpected error: {err_msg}")
             except Exception:

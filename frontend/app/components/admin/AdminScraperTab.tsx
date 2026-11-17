@@ -642,7 +642,7 @@ interface YWJob {
   site_name?: string;
   api_endpoint: string;
   api_key_set: boolean;
-  feed_type: 'boats_group' | 'iyba';
+  feed_type: 'boats_group' | 'iyba' | 'nautix';
   schedule_hours: number;
   enabled: boolean;
   status: string;
@@ -902,7 +902,7 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
   const [showForm, setShowForm] = useState(false);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', api_endpoint: '', api_key: '', feed_type: 'boats_group' as 'boats_group' | 'iyba', schedule_hours: '24', notes: '', enabled: true as boolean });
+  const [form, setForm] = useState({ dealer_id: '', salesman_id: '', site_name: '', api_endpoint: '', api_key: '', feed_type: 'boats_group' as 'boats_group' | 'iyba' | 'nautix', schedule_hours: '24', notes: '', enabled: true as boolean });
   const [logOpenId, setLogOpenId] = useState<number | null>(null);
   const [logData, setLogData] = useState<Record<number, { status: string; last_error?: string; started_at?: string; completed_at?: string; log: Array<{ t: string; level: string; msg: string }> }>>({});
   const [logLoading, setLogLoading] = useState<number | null>(null);
@@ -1134,26 +1134,32 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">Feed Type *</label>
-              <select value={form.feed_type} onChange={e => setForm(f => ({ ...f, feed_type: e.target.value as 'boats_group' | 'iyba' }))}
+              <select value={form.feed_type} onChange={e => setForm(f => ({ ...f, feed_type: e.target.value as 'boats_group' | 'iyba' | 'nautix' }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
                 <option value="boats_group">Boats Group / YachtWorld REST API</option>
                 <option value="iyba">IYBA / YachtBroker.org JSON Feed</option>
+                <option value="nautix">NautiX XML Feed</option>
               </select>
               <p className="text-xs text-gray-400 mt-1">
-                {form.feed_type === 'iyba'
+                {form.feed_type === 'nautix'
+                  ? 'Fetches listings from a public NautiX XML feed URL. No API key needed.'
+                  : form.feed_type === 'iyba'
                   ? 'Fetches listings from the IYBA / YachtBroker.org JSON API (api.yachtbroker.org). Requires an API key.'
                   : 'Fetches listings from the Boats Group / YachtWorld REST API. Requires an API key.'}
               </p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                {form.feed_type === 'iyba' ? 'IYBA API Endpoint URL *' : 'API Endpoint URL *'}
+                {form.feed_type === 'iyba' ? 'IYBA API Endpoint URL *' : form.feed_type === 'nautix' ? 'NautiX Feed URL *' : 'API Endpoint URL *'}
               </label>
               <input type="url" value={form.api_endpoint} onChange={e => setForm(f => ({ ...f, api_endpoint: e.target.value }))}
-                placeholder={form.feed_type === 'iyba' ? 'https://api.yachtbroker.org/vessel?id=MEMBER_ID' : 'https://www.yachtworld.com/api/inventory/search'}
+                placeholder={form.feed_type === 'iyba' ? 'https://api.yachtbroker.org/vessel?id=MEMBER_ID' : form.feed_type === 'nautix' ? 'https://api.example.com/feeds/nautix.xml' : 'https://www.yachtworld.com/api/inventory/search'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
               {form.feed_type === 'boats_group' && (
                 <p className="text-xs text-gray-400 mt-1">The Boats Group REST API search endpoint. Provided by Terraglio / your Boats Group rep.</p>
+              )}
+              {form.feed_type === 'nautix' && (
+                <p className="text-xs text-gray-400 mt-1">The XML file the broker's CRM publishes (NautiX v1.x). New listings arrive as &quot;awaiting review&quot;; boats that drop out of the feed are archived.</p>
               )}
               {form.feed_type === 'iyba' && (
                 <p className="text-xs text-gray-400 mt-1">IYBA / YachtBroker.org vessel API. Endpoint must include the broker's member ID: <span className="font-mono">https://api.yachtbroker.org/vessel?id=MEMBER_ID</span></p>
@@ -1233,7 +1239,9 @@ function FeedJobsSection({ dealers, apiUrl: _apiUrl, authHeaders: _authHeaders }
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900">{job.site_name || job.api_endpoint}</span>
-                      {isIyba
+                      {job.feed_type === 'nautix'
+                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">NautiX XML Feed</span>
+                        : isIyba
                         ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">IYBA JSON Feed</span>
                         : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">YW API Feed</span>
                       }

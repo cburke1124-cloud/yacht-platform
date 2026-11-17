@@ -55,7 +55,7 @@ class CreateYWJobRequest(BaseModel):
     site_name: Optional[str] = None
     api_endpoint: str
     api_key: Optional[str] = None           # required for boats_group, optional for iyba
-    feed_type: Optional[str] = "boats_group"  # boats_group | iyba
+    feed_type: Optional[str] = "boats_group"  # boats_group | iyba | nautix
     schedule_hours: Optional[int] = 24
     notes: Optional[str] = None
     enabled: Optional[bool] = True
@@ -67,7 +67,7 @@ class UpdateYWJobRequest(BaseModel):
     site_name: Optional[str] = None
     api_endpoint: Optional[str] = None
     api_key: Optional[str] = None          # blank string = no change
-    feed_type: Optional[str] = None        # boats_group | iyba
+    feed_type: Optional[str] = None        # boats_group | iyba | nautix
     schedule_hours: Optional[int] = None
     notes: Optional[str] = None
     enabled: Optional[bool] = None
@@ -127,8 +127,8 @@ def create_yw_job(
 ):
     _require_admin(current_user)
     feed_type = (body.feed_type or "boats_group").lower()
-    if feed_type not in ("boats_group", "iyba"):
-        raise HTTPException(status_code=422, detail="feed_type must be 'boats_group' or 'iyba'")
+    if feed_type not in ("boats_group", "iyba", "nautix"):
+        raise HTTPException(status_code=422, detail="feed_type must be 'boats_group', 'iyba' or 'nautix'")
     if feed_type == "boats_group" and not (body.api_key or "").strip():
         raise HTTPException(status_code=422, detail="api_key is required for Boats Group feeds")
     job = YachtworldSyncJob(
@@ -186,8 +186,8 @@ def update_yw_job(
         job.api_key = body.api_key.strip()
     if body.feed_type is not None:
         ft = body.feed_type.lower()
-        if ft not in ("boats_group", "iyba"):
-            raise HTTPException(status_code=422, detail="feed_type must be 'boats_group' or 'iyba'")
+        if ft not in ("boats_group", "iyba", "nautix"):
+            raise HTTPException(status_code=422, detail="feed_type must be 'boats_group', 'iyba' or 'nautix'")
         job.feed_type = ft
     if body.schedule_hours is not None:
         job.schedule_hours = body.schedule_hours
@@ -397,6 +397,27 @@ def get_yw_raw_sample(
     _raw_endpoint = (job.api_endpoint or "").rstrip("/")
     if not _raw_endpoint:
         raise HTTPException(status_code=422, detail="Job has no API endpoint configured")
+
+    if job.feed_type == "nautix":
+        from app.services.nautix_feed import fetch_nautix_feed, parse_nautix_root, iter_adverts, map_nautix_advert
+        try:
+            adverts = iter_adverts(parse_nautix_root(fetch_nautix_feed(job.api_endpoint)))
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"NautiX feed fetch failed: {exc}")
+        mapped = []
+        for advert in adverts:
+            rec = map_nautix_advert(advert)
+            if rec:
+                rec["images"] = rec["images"][:3]
+                mapped.append(rec)
+            if len(mapped) >= max(1, min(rows, 5)):
+                break
+        return {
+            "endpoint": job.api_endpoint,
+            "payload_top_level_keys": "NautiX XML",
+            "record_count_returned": len(adverts),
+            "records": mapped,
+        }
 
     _split = urlsplit(_raw_endpoint)
     _existing_params = {k: v[0] for k, v in parse_qs(_split.query).items()}

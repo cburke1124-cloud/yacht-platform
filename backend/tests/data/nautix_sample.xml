@@ -1,0 +1,254 @@
+<?xml version='1.0' encoding='utf-8'?>
+<nautix xmlns="https://nautix.nautic-network.org/v1.4/" version="1.4" origin="Topbroker" date="2026-11-16T17:00:05+00:00">
+  <account status="active">
+    <account_name>Scheepsmakelaardij Goliath</account_name>
+    <adverts count="351">
+      <advert id="16659" purpose="sale" type="boat" status="active" modified="2019-02-28T09:14:16+00:00">
+        <media validation="strict">
+          <images>
+            <image type="image/jpeg" md5="a511f24663e25a5bd0f064d21ab31fda">https://media.goliath.nu/media/nautix/16659/68986b11535e039e05a64d899c9e70e7.jpg</image>
+            <image type="image/jpeg" md5="2f18a7a5621436aa259d82d231a861cf">https://media.goliath.nu/media/nautix/16659/4fce8f270118283dcd917a32d50e1055.jpg</image>
+            <image type="image/jpeg" md5="5241bc78b3a7162dbd73ab8f002d10a1">https://media.goliath.nu/media/nautix/16659/1c4ea6be84ff7f950afead0a3d64ec78.jpg</image>
+            <image type="image/jpeg" md5="3668411fb0bdbcb3ddf68554a46fbf6b">https://media.goliath.nu/media/nautix/16659/02dbf610e8072d5835c459338f819bad.jpg</image>
+            <image type="image/jpeg" md5="1922f12e30fc20064cec2e732e3041c3">https://media.goliath.nu/media/nautix/16659/ef56e60f44f752503a25f90a84f4d8d3.jpg</image>
+            <image type="image/jpeg" md5="e157579b0367c523855fc86f7876f474">https://media.goliath.nu/media/nautix/16659/a8fbd73860c1e78883fe7175eeaf7f6f.jpg</image>
+            <image type="image/jpeg" md5="7a29ff500c27d5f462017eb108803eeb">https://media.goliath.nu/media/nautix/16659/50f85d97192dfe263973ecaa52a45a70.jpg</image>
+            <image type="image/jpeg" md5="591359a3141b6523bc82e4358f24a56d">https://media.goliath.nu/media/nautix/16659/d316af5c9aea173c18108091554ede4b.jpg</image>
+            <image type="image/jpeg" md5="9ee4f6f345dd9362d1025eb44f579eb1">https://media.goliath.nu/media/nautix/16659/ecdf5223d852ca0c35c3104675d88e48.jpg</image>
+            <image type="image/jpeg" md5="0128ed3b8a51e7af9f7211e877f3a42d">https://media.goliath.nu/media/nautix/16659/7cf4920b996c65668790784f4fa3843a.jpg</image>
+            <image type="image/jpeg" md5="f59e8ef3a58cf2a0e1123911c0e00888">https://media.goliath.nu/media/nautix/16659/eff59c0e43de2fe155b1c7d667f53e70.jpg</image>
+            <image type="image/jpeg" md5="9bbfe25e0beb356888ffbcea929ea9a5">https://media.goliath.nu/media/nautix/16659/77d910ce595de0893d402dbcbf90cc39.jpg</image>
+            <image type="image/jpeg" md5="e126ce96b544b308eb45dfbe7dcc59fb">https://media.goliath.nu/media/nautix/16659/256ce5dac578c75213f34f2890d10156.jpg</image>
+            <image type="image/jpeg" md5="0dd150b46af13a6c4951b5b7a611b3f5">https://media.goliath.nu/media/nautix/16659/ddfa9fef747695f31086a458f9b09ae8.jpg</image>
+            <image type="image/jpeg" md5="6204e1f70bfcb7234a984a8d8b8670b8">https://media.goliath.nu/media/nautix/16659/bdcf511d4bc0fbff0dfa95e4f7bf9d8c.jpg</image>
+            <image type="image/jpeg" md5="90f805c83f296eaf2409380c651128a5">https://media.goliath.nu/media/nautix/16659/b28bcfa4f328460bea6d9dbe865ae6e1.jpg</image>
+            <image type="image/jpeg" md5="7118f3eac50727ac69e587e47e9b47fc">https://media.goliath.nu/media/nautix/16659/e911bb2ac10f85b084d29f7b6d82f77a.jpg</image>
+            <image type="image/jpeg" md5="09e258d0e8e77ca4e60fef388ee892c3">https://media.goliath.nu/media/nautix/16659/404592a798c18487c7d4670b0447ed6b.jpg</image>
+          </images>
+        </media>
+        <advert_data>
+          <office_id>16045</office_id>
+          <marketing_description>
+            <text language="de">Sehr komplettes Schiff mit vielen Extras
+Äußerst geeignet für die Freizeitgestaltung
+voll ausgestattet &lt;br&gt;&lt;br&gt;&lt;strong&gt;Allgemein&lt;/strong&gt;&lt;br&gt;Rumpfform: Steilsteven Rotterdammer&lt;br&gt;Steueranlage: Lenkrad: Ja&lt;br&gt;&lt;strong&gt;Motor, Elektrik, Wasser&lt;/strong&gt;&lt;br&gt;Kühlung: teilnehmend&lt;br&gt;</text>
+            <text language="en">Very complete ship with many extras
+Extremely suitable for recreation
+fully equipped &lt;br&gt;&lt;br&gt;&lt;strong&gt;General&lt;/strong&gt;&lt;br&gt;Hull shape: Steilsteven Rotterdammer&lt;br&gt;Steering system: Steering wheel: Yes&lt;br&gt;&lt;strong&gt;Engine, electrics, water&lt;/strong&gt;&lt;br&gt;Cooling system: attending&lt;br&gt;</text>
+            <text language="fr">Un navire très complet avec de nombreux extras
+Extrêmement adapté aux loisirs
+entièrement équipé &lt;br&gt;&lt;br&gt;&lt;strong&gt;Général&lt;/strong&gt;&lt;br&gt;Forme: Steilsteven Rotterdammer&lt;br&gt;Système de barre: Volant : Oui&lt;br&gt;&lt;strong&gt;Moteur, électricité, eau&lt;/strong&gt;&lt;br&gt;Refroidissement: traitant&lt;br&gt;</text>
+            <text language="nl">sleepboot&lt;br&gt;&lt;br&gt;Zeer compleet schip met veel extra's
+Uitermate geschikt voor recreatie
+van alle gemakken voorzien &lt;br&gt;&lt;br&gt;&lt;strong&gt;Algemeen&lt;/strong&gt;&lt;br&gt;Rompvorm: Steilsteven Rotterdammer&lt;br&gt;Besturing: Stuurwiel: Ja&lt;br&gt;Waterverplaatsing: 25000&lt;br&gt;Doorvaarthoogte normaal: 360&lt;br&gt;&lt;strong&gt;Accommodatie&lt;/strong&gt;&lt;br&gt;Hutten: 2&lt;br&gt;&lt;strong&gt;Motor, electra, water&lt;/strong&gt;&lt;br&gt;Vermogen: 165&lt;br&gt;Aantal identieke motoren: 1&lt;br&gt;Draaiuren: 5000&lt;br&gt;Koeling: aanwezig&lt;br&gt;Verbruik: 5&lt;br&gt;</text>
+          </marketing_description>
+        </advert_data>
+        <sale_data>
+          <sale_class>used</sale_class>
+          <price type="fixed" currency="EUR">67750</price>
+          <location country="NL">Sneek</location>
+        </sale_data>
+        <boat_data>
+          <boat_types>
+            <type primary="true">power-yacht</type>
+          </boat_types>
+          <manufacturer>Sleepboot</manufacturer>
+          <model>17.36</model>
+          <boat_name>Anjo</boat_name>
+          <year_built>1927</year_built>
+          <ce_passenger_capacity>5</ce_passenger_capacity>
+          <dimensions>
+            <loa unit="m">17.36</loa>
+            <beam unit="m">3.60</beam>
+            <draught unit="m">1.50</draught>
+            <clearance unit="m">3.60</clearance>
+            <displacement unit="kg">25000</displacement>
+          </dimensions>
+          <hull>
+            <material>steel</material>
+          </hull>
+          <drive>
+            <number_of_engines>1</number_of_engines>
+            <max_speed unit="kn">18.00</max_speed>
+          </drive>
+          <designer>V.d. Windt Vlaardingen</designer>
+          <builder>V.d.Windt</builder>
+          <accommodation>
+            <cabins total="2" />
+            <berths total="5" />
+            <toilets total="1" />
+          </accommodation>
+          <tanks>
+            <fuel volume="250" unit="l">true</fuel>
+          </tanks>
+        </boat_data>
+        <engine_data>
+          <engine>
+            <manufacturer>DAF / Leyland</manufacturer>
+            <power unit="hp">221.27</power>
+            <hours>5000</hours>
+          </engine>
+        </engine_data>
+        <equipment_data>
+          <navigation>
+            <autopilot>true</autopilot>
+            <vhf>true</vhf>
+            <gps>true</gps>
+            <compass>true</compass>
+            <depth_instrument>true</depth_instrument>
+            <wind_instrument>true</wind_instrument>
+            <navigation_lights>true</navigation_lights>
+          </navigation>
+          <technics>
+            <battery>true</battery>
+            <battery_charger>true</battery_charger>
+            <generator>true</generator>
+            <inverter>true</inverter>
+            <anchor>true</anchor>
+          </technics>
+          <covers>
+            <spray_hood>true</spray_hood>
+          </covers>
+          <safety>
+            <fire_extinguisher>true</fire_extinguisher>
+          </safety>
+          <interior>
+            <fridges>
+              <fridge>true</fridge>
+            </fridges>
+            <freezer>true</freezer>
+          </interior>
+          <entertainment>
+            <tv>true</tv>
+            <dvd_player>true</dvd_player>
+            <radio>true</radio>
+            <cd_player>true</cd_player>
+          </entertainment>
+        </equipment_data>
+      </advert>
+      <advert id="41679" purpose="sale" type="boat" status="active" modified="2018-12-11T06:21:24+00:00">
+        <media validation="strict">
+          <images>
+            <image type="image/jpeg" md5="cb9d2ba087819b6a2238f53b9ed8c375">https://media.goliath.nu/media/nautix/41679/e388f1b58af815abc03b483ea757a91c.jpg</image>
+            <image type="image/jpeg" md5="1025a8653ab33788af1c60e0c2699be4">https://media.goliath.nu/media/nautix/41679/ce6cf1c58f58df396acaafd2ffd24f21.jpg</image>
+            <image type="image/jpeg" md5="9742462641718b95e13a006ddac88ec5">https://media.goliath.nu/media/nautix/41679/495d8edb70ca525c3ea9ef9cf8a0ebfd.jpg</image>
+            <image type="image/jpeg" md5="39a8df2cdadbe287f90067a722e5ad07">https://media.goliath.nu/media/nautix/41679/65d2a1bc869d40e4ce7fe67fedf2c285.jpg</image>
+            <image type="image/jpeg" md5="a0ecc5cfd25d6253b87686f63a965a45">https://media.goliath.nu/media/nautix/41679/8909e128b1b4dbf10867a1afe67f79b5.jpg</image>
+            <image type="image/jpeg" md5="709623b6bd18acccfa80e0ee2c0a1790">https://media.goliath.nu/media/nautix/41679/532652305f3235c14c688f3f60cfddb7.jpg</image>
+            <image type="image/jpeg" md5="3a5a427e220671bb580056d673585012">https://media.goliath.nu/media/nautix/41679/aa62dc158f2910a896e75e23c1b193e7.jpg</image>
+            <image type="image/jpeg" md5="a0075ba9b7ef114005448617b03269ec">https://media.goliath.nu/media/nautix/41679/700794fc03ad133a921f42cc980faf33.jpg</image>
+            <image type="image/jpeg" md5="0636e57093c48bd59977b9fb79cde55f">https://media.goliath.nu/media/nautix/41679/9ca99d6b5e0833ccd41bfdadf1b8de2a.jpg</image>
+            <image type="image/jpeg" md5="4f2a01d849f5ab26096e87d42e5c93fc">https://media.goliath.nu/media/nautix/41679/7fc59404cdb950971a843228e4a4d43a.jpg</image>
+            <image type="image/jpeg" md5="8bb041c4aafccd62096ca59014008090">https://media.goliath.nu/media/nautix/41679/a31ee8cd4be6c027d470d71e8b9d3e37.jpg</image>
+            <image type="image/jpeg" md5="30061d03f58418ea8218725ed974166f">https://media.goliath.nu/media/nautix/41679/ad076233aaf9bace8b09c5c106c716b9.jpg</image>
+            <image type="image/jpeg" md5="4672a79e6ede5d7943cf9d6958142cb2">https://media.goliath.nu/media/nautix/41679/fc66358da378f4a04d0440a5875b61e4.jpg</image>
+            <image type="image/jpeg" md5="7f8fa52323b8fee6e97f18f2d6c14357">https://media.goliath.nu/media/nautix/41679/84645b9d1d4bcb8d016b2815cc2a2c98.jpg</image>
+            <image type="image/jpeg" md5="cf3ad41b846e3b0ffe8b312cb20b4dbc">https://media.goliath.nu/media/nautix/41679/563998c9a2181ec36d37e604f8937b85.jpg</image>
+            <image type="image/jpeg" md5="c3ad7ec283cb8882c7f87668a3e6ddaf">https://media.goliath.nu/media/nautix/41679/b6c258e1a3aaa4e8ca2e72c68ae179a6.jpg</image>
+          </images>
+        </media>
+        <advert_data>
+          <office_id>16036</office_id>
+          <marketing_description>
+            <text language="de">Diese DEMO wird nun zu einem Sonderpreis angeboten.eine Aluminiumschleife, selbstlenzend, wartungsfrei, mit dem neu entwickelten Elektromotor von ESF. auch der Motor ist wartungsfrei.DIE DEMO wird INTUSSETS verkauft, INFORMATIONEN zu den MÖGLICHKEITEN FÜR EINEN NEUBAU SCHIFF.
+ &lt;br&gt;&lt;br&gt;&lt;strong&gt;Allgemein&lt;/strong&gt;&lt;br&gt;Steueranlage: Helmholz: Ja&lt;br&gt;&lt;strong&gt;Motor, Elektrik, Wasser&lt;/strong&gt;&lt;br&gt;Kühlung: teilnehmend&lt;br&gt;</text>
+            <text language="en">This DEMO is now offered for a special price.an aluminium sloop, self-draining, maintenance free, with the newly developed electric motor from ESF. also the motor is maintenance free.THE DEMO is sold INTUSSETS, INFORMATION TO THE POSSIBILITIES FOR A NEW BUILDING SHIPS.
+ &lt;br&gt;&lt;br&gt;&lt;strong&gt;General&lt;/strong&gt;&lt;br&gt;Steering system: Helmet wood: Yes&lt;br&gt;&lt;strong&gt;Engine, electrics, water&lt;/strong&gt;&lt;br&gt;Cooling system: attending&lt;br&gt;</text>
+            <text language="fr">Cette DEMO est maintenant proposée à un prix spécial. Un sloop en aluminium, autovidangeable, sans entretien, avec le nouveau moteur électrique de l'ESF. Le moteur est également sans entretien.
+ &lt;br&gt;&lt;br&gt;&lt;strong&gt;Général&lt;/strong&gt;&lt;br&gt;Système de barre: Casque bois : Oui&lt;br&gt;&lt;strong&gt;Moteur, électricité, eau&lt;/strong&gt;&lt;br&gt;Refroidissement: traitant&lt;br&gt;</text>
+            <text language="nl">G22&lt;br&gt;&lt;br&gt;Deze DEMO wordt nu voor een speciale prijs aangeboden.een aluminium sloep,zelflozend, onderhoudsvrij, met de nieuw ontwikkelde electromotor van ESF. ook de motor is onderhoudsvrij.DE DEMO IS INTUSSEN VERKOCHT, INFORMEER NAAR DE MOGELIJKHEDEN VOOR EEN NIEUW TE BOUWEN SCHIP.
+ &lt;br&gt;&lt;br&gt;&lt;strong&gt;Algemeen&lt;/strong&gt;&lt;br&gt;Besturing: Helmhout: Ja&lt;br&gt;Bouwnummer: 1&lt;br&gt;Overig: 1&lt;br&gt;&lt;strong&gt;Motor, electra, water&lt;/strong&gt;&lt;br&gt;Aantal identieke motoren: 1&lt;br&gt;Koeling: aanwezig&lt;br&gt;Overig: 250&lt;br&gt;</text>
+          </marketing_description>
+        </advert_data>
+        <sale_data>
+          <sale_class>used</sale_class>
+          <price type="fixed" currency="EUR">25000</price>
+          <location country="NL">Sneek</location>
+        </sale_data>
+        <boat_data>
+          <boat_types>
+            <type primary="true">power-sloep</type>
+          </boat_types>
+          <manufacturer>G</manufacturer>
+          <model>22</model>
+          <boat_name>Green Line 22</boat_name>
+          <year_built>2012</year_built>
+          <dimensions>
+            <loa unit="m">6.70</loa>
+            <beam unit="m">2.30</beam>
+            <draught unit="m">0.63</draught>
+          </dimensions>
+          <hull>
+            <material>aluminum</material>
+          </hull>
+          <drive>
+            <number_of_engines>1</number_of_engines>
+            <max_speed unit="kn">11.00</max_speed>
+          </drive>
+          <designer>Jan Visser Sneek</designer>
+          <builder>Ja</builder>
+        </boat_data>
+        <engine_data>
+          <engine>
+            <manufacturer>Electric ship Facilities 7 PK</manufacturer>
+          </engine>
+        </engine_data>
+        <equipment_data>
+          <technics>
+            <battery_charger>true</battery_charger>
+          </technics>
+        </equipment_data>
+      </advert>
+      <advert id="101360" purpose="sale" type="boat" status="active" modified="2019-02-05T09:09:00+00:00">
+        <media validation="strict">
+          <images>
+            <image type="image/jpeg" md5="dcf341dde502d5ed5954171b8487a12d">https://media.goliath.nu/media/nautix/101360/858e31c711fbbd13877d6b038d524319.jpg</image>
+          </images>
+        </media>
+        <advert_data>
+          <office_id>16012</office_id>
+          <marketing_description>
+            <text language="de">Weitere Informationen erhalten Sie bei unserem Makler Sjoerd Kampen, 0031(0)6 5472 3943. &lt;br&gt;&lt;br&gt;&lt;strong&gt;Allgemein&lt;/strong&gt;&lt;br&gt;Steueranlage: Lenkrad: Ja&lt;br&gt;</text>
+            <text language="en">For more information, ask our broker Sjoerd Kampen, 0031(0)6 5472 3943. &lt;br&gt;&lt;br&gt;&lt;strong&gt;General&lt;/strong&gt;&lt;br&gt;Steering system: Steering wheel: Yes&lt;br&gt;</text>
+            <text language="fr">Pour plus d'informations, demandez à notre courtier Sjoerd Kampen, 0031(0)6 5472 3943. &lt;br&gt;&lt;br&gt;&lt;strong&gt;Général&lt;/strong&gt;&lt;br&gt;Système de barre: Volant : Oui&lt;br&gt;</text>
+            <text language="nl">Skutsje&lt;br&gt;&lt;br&gt;Vraag voor meer informatie naar onze makelaar Sjoerd Kampen, 0031(0)6 5472 3943. &lt;br&gt;&lt;br&gt;&lt;strong&gt;Algemeen&lt;/strong&gt;&lt;br&gt;Besturing: Stuurwiel: Ja&lt;br&gt;&lt;strong&gt;Motor, electra, water&lt;/strong&gt;&lt;br&gt;Aantal identieke motoren: 1&lt;br&gt;</text>
+          </marketing_description>
+        </advert_data>
+        <sale_data>
+          <sale_class>used</sale_class>
+          <price type="fixed" currency="EUR">65000</price>
+          <location country="NL">Sneek</location>
+        </sale_data>
+        <boat_data>
+          <boat_types>
+            <type primary="true">sail-flat</type>
+          </boat_types>
+          <manufacturer>Skutsje</manufacturer>
+          <model>19.00</model>
+          <boat_name>Oant Moarn</boat_name>
+          <year_built>1916</year_built>
+          <dimensions>
+            <loa unit="m">19.00</loa>
+            <beam unit="m">3.65</beam>
+            <draught unit="m">0.50</draught>
+          </dimensions>
+          <hull>
+            <material>steel</material>
+          </hull>
+          <drive>
+            <number_of_engines>1</number_of_engines>
+          </drive>
+          <builder>Roos van der Meijden</builder>
+          <rig_sails>
+            <main_sail>true</main_sail>
+          </rig_sails>
+        </boat_data>
+        <engine_data>
+          <engine>
+            <manufacturer>Peugot 45pk</manufacturer>
+          </engine>
+        </engine_data>
+      </advert>
+      </adverts>
+  </account>
+</nautix>
